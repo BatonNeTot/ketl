@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
 	Ketl::Environment env;
 	Ketl::Linker linker;
 
+	/*
 	// TODO thats nonsense
 	auto doubleTypeVar = env._context.getVariable("Float64");
 	std::unique_ptr<const Ketl::Type> doubleType = std::make_unique<Ketl::BasicType>(doubleTypeVar.as<Ketl::BasicTypeBody>(), true, false, true);
@@ -127,6 +128,7 @@ int main(int argc, char** argv) {
 
 	assert(testTestF == 37.);
 	assert(testTest2F == 28.);
+	*/
 	//getc(stdin);
 	return 0;
 }

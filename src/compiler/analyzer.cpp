@@ -24,7 +24,7 @@ namespace Ketl {
 		static const std::string empty;
 		_error = empty;
 
-		auto commandsNode = _parser.proceed(source);
+		auto commandsNode = std::unique_ptr<Node>();//_parser.proceed(source);
 		if (!commandsNode) {
 			_error = _parser.errorMsg();
 			return {};

@@ -23,7 +23,7 @@ namespace Ketl {
 		class Variable {
 		public:
 			virtual ~Variable() {}
-			virtual bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const { return false; }
+			virtual bool addInstructions(Environment& env, std::vector<Instruction>& instructions) { return false; }
 			virtual void propagateArgument(Argument& argument, Argument::Type& type) const {}
 			virtual uint64_t stackUsage() const { return 0; }
 			virtual bool temporary() const { return true; }

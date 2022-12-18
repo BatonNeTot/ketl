@@ -1,6 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "linker.h"
 
+#include "common.h"
 #include "type.h"
 
 namespace Ketl {
@@ -163,9 +164,124 @@ namespace Ketl {
 		double value;
 	};
 
+	class VariableDefainer : public Linker::Variable {
+	public:
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
+			env._context.declareGlobal<void>(id, type);
+
+			ptr = env._context.declareGlobal<void>(id, type);
+
+			Argument output;
+			auto outputType = Argument::Type::Global;
+			output.globalPtr = ptr;
+
+			propagateFunctionCall(instructions, output, outputType, *this, operationArgs);
+
+			return true;
+		}
+		void propagateArgument(Argument& argument, Argument::Type& type) const override {
+			type = Argument::Type::Global;
+			argument.globalPtr = ptr;
+		}
+		uint64_t stackUsage() const override { return type->sizeOf(); }
+
+		std::string id;
+		void* ptr;
+	};
+
+	class VariableBinaryOperator : public Linker::Variable {
+	public:
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
+			if (opCode == OperatorCode::Assign) {
+				auto* global = dynamic_cast<VariableGlobal*>(operationArgs[0]);
+				if (global->ptr == nullptr) {
+					if (!global->type) {
+						global->type = Type::clone(operationArgs[1]->type);
+					}
+
+					std::vector<std::unique_ptr<const Type>> argTypes(1);
+					argTypes[0] = Type::clone(operationArgs[1]->type);
+
+					auto funcInfo = global->type->deduceFunction(argTypes);
+					if (!funcInfo.returnType) {
+						return {};
+					}
+
+					// TODO pass id another way, deal with dynamic cast somehow butiful
+					global->ptr = env._context.declareGlobal<void>(global->id, global->type);
+
+					type = Type::clone(operationArgs[1]->type);
+
+					argType = Argument::Type::Global;
+					arg.globalPtr = global->ptr;
+
+					propagateFunctionCall(instructions, arg, argType, *this, operationArgs);
+
+					return true;
+				}
+			}
+
+			if (!operationArgs[0]->type || !operationArgs[1]->type) {
+				return false;
+			}
+
+			if (std::unique_ptr<const Type> floatType = std::make_unique<BasicType>(env._context.getVariable("Float64").as<BasicTypeBody>());
+				floatType->id() == operationArgs[0]->type->id() && floatType->id() == operationArgs[1]->type->id()) {
+				// TODO check type casting etc
+
+				type = std::move(floatType);
+				Instruction::Code code;
+				// TODO insert here function type analog
+				switch (opCode) {
+				case OperatorCode::Plus: {
+					code = Instruction::Code::AddFloat64;
+					break;
+				}
+				case OperatorCode::Assign: {
+					code = Instruction::Code::Assign;
+					break;
+				}
+				}
+
+				Argument output;
+				output.stack = this->stackOffset;
+				auto outputType = Argument::Type::Stack;
+
+				Argument first;
+				Argument::Type firstType;
+				this->operationArgs[0]->propagateArgument(first, firstType);
+
+				Argument second;
+				Argument::Type secondType;
+				this->operationArgs[1]->propagateArgument(second, secondType);
+
+				auto& instruction = instructions.emplace_back(
+					code,
+					outputType,
+					firstType,
+					secondType,
+					output,
+					first,
+					second
+				);
+			}
+			// TODO decide function get it or throw
+			return true;
+		}
+		void propagateArgument(Argument& argument, Argument::Type& type) const override {
+			type = argType;
+			argument = arg;
+		}
+		uint64_t stackUsage() const override { return type->sizeOf(); }
+
+		OperatorCode opCode;
+		Argument::Type argType;
+		Argument arg;
+	};
+
 	class VariableInstruction : public Linker::Variable {
 	public:
-		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			output.stack = this->stackOffset;
 			auto outputType = Argument::Type::Stack;
@@ -204,7 +320,7 @@ namespace Ketl {
 
 	class VariableConstructor : public Linker::Variable {
 	public:
-		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			auto outputType = Argument::Type::Global;
 			output.globalPtr = ptr;
@@ -225,7 +341,7 @@ namespace Ketl {
 
 	class VariableReturn : public Linker::Variable {
 	public:
-		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			auto outputType = Argument::Type::Return;
 
@@ -244,7 +360,7 @@ namespace Ketl {
 
 	class VariableFuncCall : public Linker::Variable {
 	public:
-		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			output.stack = stackOffset;
 			auto outputType = Argument::Type::Stack;
@@ -389,18 +505,13 @@ namespace Ketl {
 					args[y] = variables[variableIndex].get();
 					argTypes[y] = Type::clone(variables[variableIndex]->type);
 				}
-				auto funcInfo = type->deduceFunction(argTypes);
-				if (!funcInfo.returnType) {
-					return {};
-				}
-				
-				auto instruction = std::make_unique<VariableConstructor>();
-				instruction->ptr = env._context.declareGlobal<void>(id, type);
-				instruction->function = funcInfo.function;
-				instruction->operationArgs = std::move(args);
+
+				auto definer = std::make_unique<VariableDefainer>();
+				definer->id = id;
+				definer->operationArgs = std::move(args);
 				type->hasAddress = true;
-				instruction->type = std::move(type);
-				variables[i] = std::move(instruction);
+				definer->type = std::move(type);
+				variables[i] = std::move(definer);
 
 				break;
 			}
@@ -436,65 +547,12 @@ namespace Ketl {
 					iter += sizeof(uint64_t);
 					args[y] = variables[variableIndex].get();
 				}
+				
+				auto varOp = std::make_unique<VariableBinaryOperator>();
+				varOp->opCode = operatorCode;
+				varOp->operationArgs = std::move(args);
+				variables[i] = std::move(varOp);
 
-				if (operatorCode == OperatorCode::Assign) {
-					auto* global = dynamic_cast<VariableGlobal*>(args[0]);
-					if (global->ptr == nullptr) {
-						if (!global->type) {
-							global->type = Type::clone(args[1]->type);
-						}
-
-						std::vector<std::unique_ptr<const Type>> argTypes(1);
-						argTypes[0] = Type::clone(args[1]->type);
-
-						auto funcInfo = global->type->deduceFunction(argTypes);
-						if (!funcInfo.returnType) {
-							return {};
-						}
-
-						// TODO pass id another way, deal with dynamic cast somehow butiful
-						global->ptr = env._context.declareGlobal<void>(global->id, global->type);
-
-						auto instruction = std::make_unique<VariableConstructor>();
-						instruction->ptr = global->ptr;
-						instruction->function = funcInfo.function;
-						instruction->operationArgs.reserve(1);
-						instruction->operationArgs.emplace_back(args[1]);
-						auto type = Type::clone(global->type);
-						type->hasAddress = true;
-						instruction->type = std::move(type);
-						variables[i] = std::move(instruction);
-
-						continue;
-					}
-				}
-
-				if (!args[0]->type || !args[1]->type) {
-					return {};
-				}
-
-				if (std::unique_ptr<const Type> floatType = std::make_unique<BasicType>(env._context.getVariable("Float64").as<BasicTypeBody>());
-					floatType->id() == args[0]->type->id() && floatType->id() == args[1]->type->id()) {
-					// TODO check type casting etc
-
-					auto instruction = std::make_unique<VariableInstruction>();
-					auto outputType = Type::clone(floatType);
-					instruction->type = std::move(outputType);
-					instruction->operationArgs = std::move(args);
-					// TODO insert here function type analog
-					switch (operatorCode) {
-					case OperatorCode::Plus: {
-						instruction->code = Instruction::Code::AddFloat64;
-						break;
-					}
-					case OperatorCode::Assign: {
-						instruction->code = Instruction::Code::Assign;
-						break;
-					}
-					}
-					variables[i] = std::move(instruction);
-				}
-				// TODO decide function get it or throw
 				break;
 			}
 			case ByteInstruction::Function: {
@@ -591,7 +649,7 @@ namespace Ketl {
 
 		for (auto& variable : variables) {
 			if (variable && !variable->addInstructions(env, instructions)) {
-				continue;
+				return {};
 			}
 		}
 

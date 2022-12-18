@@ -3,6 +3,7 @@
 #define parser_h
 
 #include "lexer.h"
+#include "common.h"
 
 #include <string>
 #include <memory>
@@ -198,7 +199,7 @@ namespace Ketl {
 
 		Parser();
 
-		std::unique_ptr<Node> proceed(const std::string& str);
+		std::unique_ptr<IRNode> parseTree(const std::string& str);
 
 		const std::string& errorMsg() const {
 			return _error;
@@ -206,8 +207,24 @@ namespace Ketl {
 
 	private:
 
+		std::unique_ptr<Node> proceed(const std::string& str);
+
 		void insertPredence(std::unique_ptr<BnfNode>&& operators, const std::string& expression,
 			const std::string& extra, const std::string& lowExpression);
+
+		std::unique_ptr<IRNode> parseBlock(const Node& block);
+
+		std::unique_ptr<IRNode> parseCommand(const Node& commandId);
+
+		std::unique_ptr<IRNode> parseExpression(const Node& expressionId);
+
+		std::unique_ptr<IRNode> parseLtrBinary(
+			std::vector<std::unique_ptr<Node>>::const_reverse_iterator begin, std::vector<std::unique_ptr<Node>>::const_reverse_iterator end);
+
+		std::unique_ptr<IRNode> parseRtlBinary(
+			std::vector<std::unique_ptr<Node>>::const_iterator begin, std::vector<std::unique_ptr<Node>>::const_iterator end);
+
+		std::shared_ptr<TypeTemplate> parseType(const Node& typeNode);
 
 		BnfManager _manager;
 

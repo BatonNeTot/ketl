@@ -438,16 +438,6 @@ namespace Ketl {
 		FunctionImpl _function;
 	};
 
-	enum class OperatorCode : uint8_t {
-		Constructor,
-		Destructor,
-		Plus,
-		Minus,
-		Multiply,
-		Divide,
-		Assign,
-	};
-
 	class Type {
 	public:
 		Type() = default;
