@@ -314,35 +314,35 @@ namespace Ketl {
 	using CFunction = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
 
 
-	class PureFunction {
+	class FunctionImpl {
 	public:
 
-		PureFunction() {}
-		PureFunction(Allocator& alloc, uint64_t stackSize, uint64_t instructionsCount)
+		FunctionImpl() {}
+		FunctionImpl(Allocator& alloc, uint64_t stackSize, uint64_t instructionsCount)
 			: _alloc(&alloc)
 			, _stackSize(stackSize)
 			, _instructionsCount(instructionsCount)
 			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
-		PureFunction(Allocator& alloc, uint64_t stackSize, CFunction cfun)
+		FunctionImpl(Allocator& alloc, uint64_t stackSize, CFunction cfun)
 			: _alloc(&alloc)
 			, _stackSize(stackSize)
 			, _instructionsCount(0)
 			, _cfunc(cfun) {}
-		PureFunction(const PureFunction& function) = delete;
-		PureFunction(PureFunction&& function) noexcept
+		FunctionImpl(const FunctionImpl& function) = delete;
+		FunctionImpl(FunctionImpl&& function) noexcept
 			: _alloc(function._alloc)
 			, _stackSize(function._stackSize)
 			, _instructionsCount(function._instructionsCount)
 			, _instructions(function._instructions) {
 			function._instructions = nullptr;
 		}
-		~PureFunction() {
+		~FunctionImpl() {
 			if (_instructions != nullptr && _instructionsCount > 0) {
 				_alloc->deallocate(_instructions);
 			}
 		}
 
-		PureFunction& operator =(PureFunction&& other) noexcept {
+		FunctionImpl& operator =(FunctionImpl&& other) noexcept {
 			_alloc = other._alloc;
 			_stackSize = other._stackSize;
 			_instructionsCount = other._instructionsCount;
@@ -396,12 +396,12 @@ namespace Ketl {
 
 	private:
 
-		virtual PureFunction& function() = 0;
+		virtual FunctionImpl& function() = 0;
 	};
 
 	class StandaloneFunction : public FunctionHolder {
 	public:
-		StandaloneFunction(PureFunction&& function)
+		StandaloneFunction(FunctionImpl&& function)
 			: _function(std::move(function)), _stack(function.alloc(), function.stackSize()) {}
 
 		StackAllocator& stack() {
@@ -410,11 +410,11 @@ namespace Ketl {
 
 	private:
 
-		PureFunction& function() override {
+		FunctionImpl& function() override {
 			return _function;
 		}
 
-		PureFunction _function;
+		FunctionImpl _function;
 
 		StackAllocator _stack;
 	};
@@ -432,7 +432,7 @@ namespace Ketl {
 		struct FunctionInfo {
 			bool isDynamic = false;
 			uint8_t functionIndex = 0;
-			const PureFunction* function = nullptr;
+			const FunctionImpl* function = nullptr;
 			std::unique_ptr<const Type> returnType;
 			std::vector<std::unique_ptr<const Type>> argTypes;
 		};
@@ -501,7 +501,7 @@ namespace Ketl {
 
 		Type::FunctionInfo deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const;
 
-		const PureFunction* construct(uint64_t funcIndex) const {
+		const FunctionImpl* construct(uint64_t funcIndex) const {
 			return &_cstrs[funcIndex].func;
 		}
 
@@ -509,7 +509,7 @@ namespace Ketl {
 			return _cstrs.size();
 		}
 
-		const PureFunction* destruct(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
+		const FunctionImpl* destruct(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
 			return &_dstr;
 		}
 
@@ -522,11 +522,11 @@ namespace Ketl {
 		std::string _id;
 		struct Constructor {
 			Constructor() {}
-			PureFunction func;
+			FunctionImpl func;
 			std::vector<std::unique_ptr<const Type>> argTypes;
 		};
 		std::vector<Constructor> _cstrs;
-		PureFunction _dstr;
+		FunctionImpl _dstr;
 		uint64_t _size = 0;
 
 	};
@@ -579,22 +579,22 @@ namespace Ketl {
 		const BasicTypeBody* _body;
 	};
 
-	class Function {
+	class FunctionContainer {
 	public:
-		Function() {}
-		Function(Allocator& alloc_)
+		FunctionContainer() {}
+		FunctionContainer(Allocator& alloc_)
 			: alloc(&alloc_) {}
-		~Function() {
+		~FunctionContainer() {
 			if (functions) {
 				alloc->deallocate(functions);
 			}
 		}
 
-		void emplaceFunction(PureFunction&& function) {
-			auto newFunctions = alloc->allocate<PureFunction>((functionsCount + 1) * sizeof(PureFunction));
-			new(newFunctions + functionsCount) PureFunction(std::move(function));
+		void emplaceFunction(FunctionImpl&& function) {
+			auto newFunctions = alloc->allocate<FunctionImpl>((functionsCount + 1) * sizeof(FunctionImpl));
+			new(newFunctions + functionsCount) FunctionImpl(std::move(function));
 			if (functions != nullptr) {
-				memcpy(newFunctions, functions, functionsCount * sizeof(PureFunction));
+				memcpy(newFunctions, functions, functionsCount * sizeof(FunctionImpl));
 				alloc->deallocate(functions);
 			}
 			++functionsCount;
@@ -602,7 +602,7 @@ namespace Ketl {
 		}
 
 		Allocator* alloc = nullptr;
-		PureFunction* functions = nullptr;
+		FunctionImpl* functions = nullptr;
 		uint64_t functionsCount = 0;
 	};
 
@@ -679,7 +679,7 @@ namespace Ketl {
 
 	private:
 		uint64_t sizeOfImpl() const override {
-			return sizeof(Function);
+			return sizeof(FunctionContainer);
 		}
 		std::unique_ptr<Type> clone() const override {
 			return std::make_unique<FunctionType>(*this);

@@ -6,7 +6,7 @@ namespace Ketl {
 		return { proceed(env, source) };
 	}
 
-	PureFunction Linker::proceed(Environment& env, const std::string& source) {
+	FunctionImpl Linker::proceed(Environment& env, const std::string& source) {
 		auto byteData = _analyzer.proceed(source);
 		return proceed(env, byteData.data(), byteData.size());
 	}
@@ -114,7 +114,7 @@ namespace Ketl {
 		uint64_t stackUsage() const override { return std::max(type->sizeOf(), sizeof(uint8_t*)); }
 
 		void* ptr;
-		const PureFunction* function;
+		const FunctionImpl* function;
 		std::vector<Variable*> args;
 		std::vector<std::unique_ptr<const Type>> argTypes;
 	};
@@ -207,7 +207,7 @@ namespace Ketl {
 		uint64_t stackUsage() const override { return type->sizeOf(); }
 	};
 
-	PureFunction Linker::proceed(Environment& env, const uint8_t* bytecode, uint64_t size) {
+	FunctionImpl Linker::proceed(Environment& env, const uint8_t* bytecode, uint64_t size) {
 		std::vector<std::unique_ptr<Variable>> variables;
 		std::vector<Variable*> stack;
 
@@ -250,7 +250,7 @@ namespace Ketl {
 		}
 	}
 
-	PureFunction Linker::proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const uint8_t* bytecode, uint64_t size) {
+	FunctionImpl Linker::proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const uint8_t* bytecode, uint64_t size) {
 		auto variableCount = *reinterpret_cast<const uint64_t*>(bytecode);
 		uint64_t iter = sizeof(uint64_t);
 
@@ -455,7 +455,7 @@ namespace Ketl {
 				auto pureFunction = proceed(env, funcVariables, funcStack, bytecode + iter, byteDataSize);
 				iter += byteDataSize;
 
-				auto functionPtr = env._context.getGlobal<Function>(functionId);
+				auto functionPtr = env._context.getGlobal<FunctionContainer>(functionId);
 				if (functionPtr) {
 					// TODO expand function;
 				}
@@ -465,8 +465,8 @@ namespace Ketl {
 					info.returnType = std::move(returnType);
 					info.argTypes = std::move(argTypes);
 
-					functionPtr = env._context.declareGlobal<Function>(functionId, *functionType);
-					new(functionPtr) Function(env._alloc);
+					functionPtr = env._context.declareGlobal<FunctionContainer>(functionId, *functionType);
+					new(functionPtr) FunctionContainer(env._alloc);
 					functionPtr->emplaceFunction(std::move(pureFunction));
 				}
 
@@ -521,7 +521,7 @@ namespace Ketl {
 			}
 		}
 
-		PureFunction func(env._alloc, maxStackUsage, instructions.size());
+		FunctionImpl func(env._alloc, maxStackUsage, instructions.size());
 		std::memcpy(func._instructions, instructions.data(), instructions.size() * sizeof(Instruction));
 
 		return func;

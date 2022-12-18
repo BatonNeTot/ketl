@@ -14,11 +14,11 @@ namespace Ketl {
 
 		StandaloneFunction proceedStandalone(Environment& env, const std::string& source);
 
-		PureFunction proceed(Environment& env, const std::string& source);
+		FunctionImpl proceed(Environment& env, const std::string& source);
 
-		PureFunction proceed(Environment& env, const Node* commandsNode);
+		FunctionImpl proceed(Environment& env, const Node* commandsNode);
 
-		PureFunction proceed(Environment& env, const uint8_t* bytecode, uint64_t size);
+		FunctionImpl proceed(Environment& env, const uint8_t* bytecode, uint64_t size);
 
 		class Variable {
 		public:
@@ -30,7 +30,7 @@ namespace Ketl {
 			uint64_t stackOffset = 0;
 		};
 
-		PureFunction proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const uint8_t* bytecode, uint64_t size);
+		FunctionImpl proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const uint8_t* bytecode, uint64_t size);
 
 	private:
 

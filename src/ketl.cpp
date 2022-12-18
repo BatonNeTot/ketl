@@ -83,17 +83,17 @@ namespace Ketl {
 			break;
 		}
 		case Code::AllocateFunctionStack: {
-			auto& function = *first<const PureFunction*>(stackPtr, returnPtr);
+			auto& function = *first<const FunctionImpl*>(stackPtr, returnPtr);
 			output<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.stackSize());
 			break;
 		}
 		case Code::AllocateDynamicFunctionStack: {
-			auto& function = first<Function>(stackPtr, returnPtr);
+			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
 			outputStack<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.functions[_funcIndex].stackSize());
 			break;
 		}
 		case Code::CallFunction: {
-			auto& pureFunction = *first<const PureFunction*>(stackPtr, returnPtr);
+			auto& pureFunction = *first<const FunctionImpl*>(stackPtr, returnPtr);
 			auto& stackStart = output<uint8_t*>(stackPtr, returnPtr);
 			auto funcReturnPtr = &output<uint8_t>(stackPtr, returnPtr);
 			pureFunction.call(stack, stackStart, funcReturnPtr);
@@ -101,7 +101,7 @@ namespace Ketl {
 			break;
 		}
 		case Code::CallDynamicFunction: {
-			auto& function = first<Function>(stackPtr, returnPtr);
+			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
 			auto& stackStart = second<uint8_t*>(stackPtr, returnPtr);
 			auto& pureFunction = function.functions[_funcIndex];
 			auto funcReturnPtr = &outputStack<uint8_t>(stackPtr, returnPtr);
@@ -142,7 +142,7 @@ namespace Ketl {
 			baseType->isConst = true;
 			baseType->isRef = true;
 			constructor.argTypes.emplace_back(std::move(baseType));
-			constructor.func = PureFunction(allocator, sizeof(void*), &constructFloat64);
+			constructor.func = FunctionImpl(allocator, sizeof(void*), &constructFloat64);
 		}
 	}
 
