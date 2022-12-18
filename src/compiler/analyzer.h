@@ -102,6 +102,25 @@ namespace Ketl {
 			std::string id;
 		};
 
+		class ByteVariableDefineVariable : public ByteVariable {
+		public:
+			ByteVariableDefineVariable(uint64_t index)
+				: ByteVariable(index) {}
+			void binarize(std::vector<uint8_t>& byteData) const override {
+				insert(byteData, ByteInstruction::VariableDefinition);
+				insert(byteData, id.c_str());
+				type->binarize(byteData);
+				insert(byteData, uint64_t(args.size()));
+				for (auto& arg : args) {
+					insert(byteData, arg);
+				}
+			}
+
+			std::string id;
+			std::unique_ptr<ByteType> type;
+			std::vector<uint64_t> args;
+		};
+
 		class ByteVariableLiteralFloat64 : public ByteVariable {
 		public:
 			ByteVariableLiteralFloat64(uint64_t index)

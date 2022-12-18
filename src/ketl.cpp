@@ -66,27 +66,37 @@ namespace Ketl {
 		++index;
 	}
 
+	static void constructFloat64(StackAllocator&, uint8_t* stackPtr, uint8_t* returnPtr) {
+		*reinterpret_cast<double*>(returnPtr) = **reinterpret_cast<double**>(stackPtr);
+	}
+
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)
 		: _globalStack(allocator, globalStackSize) {
 		// creation of The Type
 		BasicTypeBody theType("Type", sizeof(BasicTypeBody));
 		auto theTypePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(&theType)));
 		new(theTypePtr) BasicTypeBody(std::move(theType));
-		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr));
+		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr, Type::Handling::LValue));
 
 		declareType<void>("Void");
 		declareType<int64_t>("Int64");
 		declareType<uint64_t>("UInt64");
-		declareType<double>("Float64");
+		//declareType<double>("Float64");
 
-		/*
 		{
 			auto typeOfType = std::make_unique<TypeOfType>(nullptr);
 			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(*typeOfType));
 			new(typePtr) BasicTypeBody("Float64", sizeof(double));
 			_globals.try_emplace("Float64", typePtr, std::move(typeOfType));
+
+
+			auto& constructor = typePtr->_cstrs.emplace_back();
+			auto baseType = std::make_unique<BasicType>(typePtr);
+			baseType->isConst = true;
+			baseType->handling = Type::Handling::LValue;
+			constructor.argTypes.emplace_back(std::move(baseType));
+			constructor.func = &constructFloat64;
 		}
-		*/
 	}
 
 	Environment::Environment()

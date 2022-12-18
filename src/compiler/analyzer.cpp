@@ -69,17 +69,23 @@ namespace Ketl {
 		if (nodeId.id() == "define-variable") {
 			auto& definitionNode = nodeId.children().front();
 
-			auto typeId = definitionNode->children()[0]->value();
+			auto type = proceedType(*definitionNode->children()[0]);
 			auto variableId = definitionNode->children()[1]->value();
+
+			auto variable = std::make_unique<ByteVariableDefineVariable>(0);
+			variable->id = variableId;
+			variable->type = std::move(type);
 
 			if (definitionNode->children().size() == 3) {
 				auto& argumentsNode = definitionNode->children()[2]->children().front()->children().front();
 				for (auto& argumentNode : argumentsNode->children()) {
 					auto argumentVariable = proceedCommands(*argumentNode, scope, args, stack);
-					auto test = 0;
+					variable->args.emplace_back(argumentVariable->index);
 				}
-				auto test = 0;
 			}
+
+			variable->index = args.size();
+			args.emplace_back(std::move(variable));
 
 			return nullptr;
 		}

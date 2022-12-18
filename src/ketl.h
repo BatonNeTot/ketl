@@ -288,6 +288,11 @@ namespace Ketl {
 			, _stackSize(stackSize)
 			, _instructionsCount(instructionsCount)
 			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
+		PureFunction(Allocator& alloc, uint64_t stackSize, CFunction cfun)
+			: _alloc(&alloc)
+			, _stackSize(stackSize)
+			, _instructionsCount(0)
+			, _cfunc(cfun) {}
 		PureFunction(const PureFunction& function) = delete;
 		PureFunction(PureFunction&& function) noexcept
 			: _alloc(function._alloc)
@@ -370,6 +375,18 @@ namespace Ketl {
 
 	class Type {
 	public:
+		enum class Handling : uint8_t {
+			RValue,
+			LValue,
+			RRef,
+			LRef,
+		};
+
+		Type() = default;
+		~Type() = default;
+
+		Type(Type::Handling handling_)
+			: handling(handling_) {}
 		virtual uint64_t sizeOf() const = 0;
 		virtual std::string id() const = 0;
 		virtual std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const { 
@@ -377,7 +394,9 @@ namespace Ketl {
 		}
 
 		friend bool operator==(const Type& lhs, const Type& rhs) {
-			return lhs.id() == rhs.id();
+			return lhs.isConst == rhs.isConst
+				&& lhs.handling == rhs.handling
+				&& lhs.id() == rhs.id();
 		}
 
 		static std::unique_ptr<Type> clone(const Type& type) {
@@ -395,7 +414,27 @@ namespace Ketl {
 		static std::unique_ptr<Type> clone(const std::unique_ptr<const Type>& type) {
 			return !type ? nullptr : type->clone();
 		}
-	private:
+
+		bool convertableTo(const Type& other) const {
+			if (id() != other.id()) {
+				return false;
+			}
+			if (other.handling == Handling::RValue || other.handling == Handling::LValue) {
+				return true;
+			}
+			if (isConst && !other.isConst) {
+				return false;
+			}
+			if ((handling == Handling::RValue || handling == Handling::RRef) &&
+				other.handling == Handling::RRef) {
+				return false;
+			}
+			return true;
+		}
+
+		bool isConst = false;
+		Handling handling  = Handling::LValue;
+ 	private:
 		virtual std::unique_ptr<Type> clone() const = 0;
 	};
 
@@ -451,7 +490,7 @@ namespace Ketl {
 			return _size;
 		}
 
-	private:
+	public:
 
 		std::string _id;
 		struct Constructor {
@@ -484,51 +523,13 @@ namespace Ketl {
 		const BasicTypeBody* _body;
 	};
 
-	class LRefType : public Type {
-	public:
-		LRefType(std::unique_ptr<Type>&& baseType)
-			: _baseType(std::move(baseType)) {}
-		LRefType(const LRefType& other)
-			: _baseType(Type::clone(other._baseType)) {}
-
-		uint64_t sizeOf() const override { return _baseType->sizeOf(); };
-		std::string id() const override { return "(" + _baseType->id() + ")&"; };
-		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			return _baseType->deduceFunction(argumentTypes);
-		}
-	private:
-		std::unique_ptr<Type> clone() const override {
-			return std::make_unique<LRefType>(*this);
-		}
-
-		std::unique_ptr<Type> _baseType;
-	};
-
-	class ConstType : public Type {
-	public:
-		ConstType(std::unique_ptr<Type>&& baseType)
-			: _baseType(std::move(baseType)) {}
-		ConstType(const ConstType& other)
-			: _baseType(Type::clone(other._baseType)) {}
-
-		uint64_t sizeOf() const override { return _baseType->sizeOf(); };
-		std::string id() const override { return "Const " + _baseType->id(); };
-		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			return _baseType->deduceFunction(argumentTypes);
-		}
-	private:
-		std::unique_ptr<Type> clone() const override {
-			return std::make_unique<ConstType>(*this);
-		}
-
-		std::unique_ptr<Type> _baseType;
-	};
-
 	class BasicType : public Type {
 	public:
 
 		BasicType(const BasicTypeBody* body)
 			: _body(body) {}
+		BasicType(const BasicTypeBody* body, Type::Handling handling)
+			: Type(handling), _body(body) {}
 
 		uint64_t sizeOf() const override {
 			return _body->sizeOf();
@@ -536,6 +537,16 @@ namespace Ketl {
 
 		std::string id() const override {
 			return _body->id();
+		}
+
+		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
+			auto index = _body->deduceConstructor(argumentTypes);
+			if (index == _body->contructorCount()) {
+				return std::make_pair<uint64_t, std::unique_ptr<const Type>>(0, {});
+			}
+			else {
+				return std::make_pair<uint64_t, std::unique_ptr<const Type>>(std::move(index), clone());
+			}
 		}
 
 	private:
@@ -666,7 +677,7 @@ namespace Ketl {
 			auto theTypePtr = getGlobal<BasicTypeBody>("Type");
 			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(theTypePtr)));
 			new(typePtr) BasicTypeBody(id, sizeOf);
-			_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr));
+			_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, Type::Handling::LValue));
 			return typePtr;
 		}
 

@@ -123,8 +123,8 @@ int main(int argc, char** argv) {
 	Ketl::Linker linker;
 
 	auto command = linker.proceedStandalone(env, R"(
-	//Float64 testValue2{1 + 2};
-	testValue2 = 5 + 6;
+	Float64 testValue2{1 + 2};
+	//testValue2 = 5 + 6;
 
 	Void adder() {
 		testValue2 = 5 + 1;

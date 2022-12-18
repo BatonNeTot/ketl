@@ -133,14 +133,18 @@ namespace Ketl {
 			return std::make_unique<BasicType>(env._context.getGlobal<BasicTypeBody>(typeId));
 		}
 		case TypeCodes::Const: {
-			return std::make_unique<ConstType>(readType(env, iter, bytecode, size));
+			auto type = readType(env, iter, bytecode, size);
+			type->isConst = true;
+			return type;
 		}
 		case TypeCodes::Pointer: {
 
 			return {};
 		}
 		case TypeCodes::LRef: {
-			return std::make_unique<ConstType>(readType(env, iter, bytecode, size));
+			auto type = readType(env, iter, bytecode, size);
+			type->handling = Type::Handling::LRef;
+			return type;
 		}
 		case TypeCodes::RRef: {
 
@@ -179,9 +183,9 @@ namespace Ketl {
 				break;
 			}
 			case ByteInstruction::VariableDefinition: {
-				auto type = readType(env, iter, bytecode, size);
 				std::string id(reinterpret_cast<const char*>(bytecode + iter));
 				iter += id.length() + 1;
+				auto type = readType(env, iter, bytecode, size);
 				auto argc = *reinterpret_cast<const uint64_t*>(bytecode + iter);
 				iter += sizeof(uint64_t);
 				std::vector<Variable*> args(argc);
@@ -192,6 +196,7 @@ namespace Ketl {
 					args[y] = variables[variableIndex].get();
 					argTypes[y] = Type::clone(variables[variableIndex]->type);
 				}
+				type->deduceFunction(argTypes);
 				/*
 				auto function = variables[functionIndex].get();
 				auto [funcIndex, returnType] = function->type->deduceFunction(argTypes);
@@ -211,6 +216,8 @@ namespace Ketl {
 					iter += sizeof(double);
 
 					auto liter = std::make_unique<VariableFloat64>();
+					type->isConst = true;
+					type->handling = Type::Handling::RValue;
 					liter->type = std::move(type);
 					liter->value = value;
 					variables[i] = std::move(liter);
@@ -261,10 +268,13 @@ namespace Ketl {
 				}
 
 				if (auto floatType = std::make_unique<BasicType>(env._context.getGlobal<BasicTypeBody>("Float64"));
-					*floatType == *args[0]->type && *floatType == *args[1]->type) {
+					floatType->id() == args[0]->type->id() && floatType->id() == args[1]->type->id()) {
+					// TODO check type casting etc
 
 					auto instruction = std::make_unique<VariableInstruction>();
-					instruction->type = Type::clone(floatType.get());
+					auto outputType = Type::clone(floatType.get());
+					outputType->handling = Type::Handling::RValue;
+					instruction->type = std::move(outputType);
 					instruction->first = args[0];
 					instruction->second = args[1];
 					// TODO insert here function type analog
