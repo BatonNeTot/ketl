@@ -19,11 +19,11 @@ int main(int argc, char** argv) {
 
 	auto command = linker.proceed(env, R"({
 	int test(int x) {
-		testMe = x + 1;
+		ttestMe = x + 1;
 	}
 
-	testValue= (4 + 5 + 6)* 3;
-	testValue2 = testValue / 9;
+	testValue = (4 + 5 + 6) * 3;
+	testValue2 = testValue/ 9;
 })");
 
 	auto& testValue = *env.getGlobalVariable<uint64_t>("testValue");

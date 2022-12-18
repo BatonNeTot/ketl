@@ -1,7 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "parser_new.h"
 
-#include "ebnf.h"
+#include "ebnf/ebnf.h"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -28,8 +28,8 @@ namespace Ketl {
 
 			"space~={' '|'\f'|'\n'|'\r'|'\t'|'\v'}."
 
-			"type$=id|id space'('space {type space}')'."
-			"define-id=type space id|id."
+			"type$=id|id space'('space [type {space ',' space type} space]')'."
+			"define-id=id|type space id."
 
 			"function-declaration=type space id space'('space [(type|type space id) {space ',' space (type|type space id)} space]')'."
 			"function-definition=function-declaration space '{'space {command space} '}'."
@@ -38,42 +38,47 @@ namespace Ketl {
 			"primary=brackets|number|define-id."
 
 			"precedence-1-operator='*'|'/'."
-			"precedence-1-expression=primary{space precedence-1-operator space primary}."
+			"precedence-1-repetition={space precedence-1-operator space primary}."
+			"precedence-1-expression=primary precedence-1-repetition."
 
 			"precedence-2-operator='+'|'-'."
-			"precedence-2-expression=precedence-1-expression{space precedence-2-operator space precedence-1-expression}."
+			"precedence-2-repetition={space precedence-2-operator space precedence-1-expression}."
+			"precedence-2-expression=precedence-1-expression precedence-2-repetition."
 
 			"precedence-3-operator='=='|'!='."
-			"precedence-3-expression={precedence-2-expression space precedence-3-operator space} precedence-2-expression."
+			"precedence-3-repetition={precedence-2-expression space precedence-3-operator space}."
+			"precedence-3-expression=precedence-3-repetition precedence-2-expression."
 
 			"precedence-4-operator='='."
-			"precedence-4-expression={precedence-3-expression space precedence-4-operator space} precedence-3-expression."
+			"precedence-4-repetition={precedence-3-expression space precedence-4-operator space}."
+			"precedence-4-expression=precedence-4-repetition precedence-3-expression."
 
 			"expression=precedence-4-expression."
 			"command=[expression]space';' | function-definition."
 			"block='{'space {command space} '}' | command."
 		);
 
-		auto [success, tokenTree] = form.parseAs(str, "block");
+		auto [success, tokenTree] = form.parseAs(str, "block", ebnf::ParsingType::Greedy);
 		if (!success) {
 			auto test = 0;
 		}
+		tokenTree.compress(form);
 		return proceed(&tokenTree);
 	}
 
-	std::unique_ptr<Parser::Node> Parser::proceed(const ebnf::Ebnf::Token* token) {
+	std::unique_ptr<Parser::Node> Parser::proceed(const ebnf::Token* token) {
 		auto expPos = token->id.find("expression");
 		if (std::string::npos != expPos && 0 != expPos) {
-			if (!token->parts.front()->id.empty()) {
+			if (token->parts.front()->id.find("repetition") == std::string::npos) {
 				auto lhs = proceed(token->parts.front().get());
 
 				if (token->parts.size() > 1) {
 					auto& parts = token->parts.back()->parts;
 					for (auto it = parts.cbegin(), end = parts.cend(); it != end; ++it) {
-						const auto& part = *it;
+						const auto& opStr = (*it)->value;
 
-						auto rhs = proceed(part->parts[1].get());
-						const auto& opStr = part->parts[0]->value;
+						++it;
+						auto rhs = proceed(it->get());
 
 						auto op = std::make_unique<Node>(Node::Type::Operator);
 						op->value = opStr;
@@ -91,10 +96,10 @@ namespace Ketl {
 				if (token->parts.size() > 1) {
 					auto& parts = token->parts.front()->parts;
 					for (auto it = parts.crbegin(), end = parts.crend(); it != end; ++it) {
-						const auto& part = *it;
+						const auto& opStr = (*it)->value;
 
-						auto lhs = proceed(part->parts[0].get());
-						const auto& opStr = part->parts[1]->value;
+						++it;
+						auto lhs = proceed(it->get());
 
 						auto op = std::make_unique<Node>(Node::Type::Operator);
 						op->value = opStr;
@@ -131,7 +136,7 @@ namespace Ketl {
 		}
 
 		if (token->id == "command") {
-			if (token->parts.size() == 1 && token->parts[0]->value == ";") {
+			if (token->value == ";") {
 				return {};
 			}
 			return proceed(token->parts[0]->parts[0].get());
@@ -140,13 +145,13 @@ namespace Ketl {
 		if (token->id == "block") {
 			auto block = std::make_unique<Node>(Node::Type::Block);
 
-			if (token->parts.size() == 3) {
-				for (const auto& part : token->parts[1]->parts) {
-					block->insert(proceed(part->parts[0].get()));
+			if (token->parts.size() > 1) {
+				for (decltype(token->parts.size()) i = 1u, end = token->parts.size() - 1; i < end; ++i) {
+					block->insert(proceed(token->parts[i].get()));
 				}
 			}
 			else {
-				block->insert(proceed(nullptr));
+				block->insert(proceed(token->parts[0].get()));
 			}
 			return block;
 		}

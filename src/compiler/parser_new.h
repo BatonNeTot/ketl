@@ -2,7 +2,7 @@
 #ifndef parser_new_h
 #define parser_new_h
 
-#include "ebnf.h"
+#include "ebnf/ebnf.h"
 
 #include <string>
 #include <list>
@@ -126,7 +126,7 @@ namespace Ketl {
 
 	private:
 
-		std::unique_ptr<Node> proceed(const ebnf::Ebnf::Token* token);
+		std::unique_ptr<Node> proceed(const ebnf::Token* token);
 
 		std::list<Node*> _comands;
 	};
