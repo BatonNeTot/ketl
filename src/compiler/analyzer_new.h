@@ -1,11 +1,11 @@
-﻿/*🐟Ketl🐟*/
+﻿/*🍲Ketl🍲*/
 #ifndef analyzer_new_h
 #define analyzer_new_h
 
-#include "parser.h"
+#include "parser_new.h"
 
-#include "eel.h"
-#include "eel_new.h"
+#include "ketl.h"
+#include "ketl_new.h"
 
 #include <string>
 #include <list>
@@ -26,13 +26,13 @@ public:
 		Ketl::UniValue literal;
 		uint64_t stack;
 		std::string id;
-		std::string valueType;
+		const ::Type* valueType;
 	};
 
 	struct RawInstruction {
-		Variable result;
-		std::string name;
+		const Environment::FunctionInfo* info;
 		Variable args[2];
+		Variable output;
 	};
 
 	struct Result {
@@ -40,15 +40,15 @@ public:
 		std::list<RawInstruction> instructions;
 	};
 
-	Analyzer(const std::string& source) : _parser(source) {}
+	Analyzer() : _parser() {}
 
-	const Result& proceed(Environment& env);
+	const Result& proceed(Environment& env, const std::string& source);
 
 private:
 
 	Ketl::Parser _parser;
 
-	Result* _result = nullptr;
+	std::unique_ptr<Result> _result;
 
 	enum class State : unsigned char {
 		Default,
@@ -56,10 +56,12 @@ private:
 	};
 
 	struct AnalyzerInfo {
-		uint32_t nextFreeStack = 0;
+		uint64_t nextFreeStack = 0;
 
-		uint32_t getFreeStack() {
-			return nextFreeStack++;
+		uint64_t getFreeStack(size_t size) {
+			auto output = nextFreeStack;
+			nextFreeStack += size;
+			return output;
 		}
 	};
 

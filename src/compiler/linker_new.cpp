@@ -1,33 +1,30 @@
-﻿/*🐟Ketl🐟*/
+﻿/*🍲Ketl🍲*/
 #include "linker_new.h"
 
-StandaloneFunction Linker::proceed(Environment& env) {
-	auto& result = _analyzer.proceed(env);
+StandaloneFunction Linker::proceed(Environment& env, const std::string& source) {
+	auto& result = _analyzer.proceed(env, source);
 
 	Function function(env._alloc, result.stackSize, result.instructions.size());
 
 	auto rawIt = result.instructions.begin();
 	for (uint64_t i = 0u; i < function._instructionsCount; ++i, ++rawIt) {
-		proceedCommand(function._instructions[i], *rawIt);
+		proceedCommand(env, function._instructions[i], *rawIt);
 	}
 
-	env.defineGlobalVariable<int64_t>("c");
-	function._stackSize = 0u;
-
-	function._instructions[0]._code = InstructionCode::AddInt;
-
-	function._instructions[0]._output.globalPtr = env.getGlobalVariable<int64_t>("c");
-	function._instructions[0]._outputType = ArgumentType::Global;
-	function._instructions[0]._first.integer = 5;
-	function._instructions[0]._firstType = ArgumentType::Literal;
-	function._instructions[0]._second.integer = 5;
-	function._instructions[0]._secondType = ArgumentType::Literal;
-
-	return { function, 8 };
+	return { function };
 }
 
-void Linker::proceedCommand(Instruction& instruction, const Analyzer::RawInstruction& rawInstruction) {
+void Linker::proceedCommand(Environment& env, Instruction& instruction, const Analyzer::RawInstruction& rawInstruction) {
+	if (rawInstruction.info->isInstruction) {
+		instruction._code = rawInstruction.info->instructionCode;
+	}
+	else {
+		instruction._code; //TODO
+	}
 
+	convertArgument(env, instruction._outputType, instruction._output, rawInstruction.output);
+	convertArgument(env, instruction._firstType, instruction._first, rawInstruction.args[0]);
+	convertArgument(env, instruction._secondType, instruction._second, rawInstruction.args[1]);
 }
 
 void Linker::convertArgument(Environment& env, ArgumentType& type, Argument& value, const Analyzer::Variable& variable) {

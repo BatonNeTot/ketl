@@ -1,25 +1,28 @@
-﻿/*🐟Ketl🐟*/
+﻿/*🍲Ketl🍲*/
 #include "analyzer_new.h"
 
-#include "eel.h"
+#include "ketl.h"
 
 #include <unordered_set>
 #include <unordered_map>
 #include <sstream>
 
-const Analyzer::Result& Analyzer::proceed(Environment& env) {
-	if (_result != nullptr) {
+const Analyzer::Result& Analyzer::proceed(Environment& env, const std::string& source) {
+	if (_result) {
 		return *_result;
 	}
 
-	_result = new Result();
+	_result = std::make_unique<Result>();
 
 	AnalyzerInfo info;
 
-	while (_parser.hasNext()) {
-		auto& node = _parser.getNext();
-		proceedCommands(env, _result->instructions, info, node);
+	auto blockNode = _parser.proceed(source);
+
+	for (auto& command : blockNode->args) {
+		proceedCommands(env, _result->instructions, info, *command);
 	}
+
+	_result->stackSize = info.nextFreeStack;
 
 	return *_result;
 }
@@ -27,10 +30,6 @@ const Analyzer::Result& Analyzer::proceed(Environment& env) {
 Analyzer::Variable Analyzer::proceedCommands(Environment& env, std::list<Analyzer::RawInstruction>& list, Analyzer::AnalyzerInfo& info, const Ketl::Parser::Node& node) {
 	switch (node.type) {
 	case Ketl::Parser::Node::Type::Operator: {
-		if (node.value.str == "()") {
-			return proceedCommands(env, list, info, *node.args[0]);
-		}
-
 		std::vector<Variable> args;
 		args.reserve(node.args.size());
 		for (auto& arg : node.args) {
@@ -38,64 +37,60 @@ Analyzer::Variable Analyzer::proceedCommands(Environment& env, std::list<Analyze
 			args.emplace_back(var);
 		}
 
-		if (node.value.str == "=" && args[0].valueType.empty()) {
+		if (node.value.str == "=" && args[0].valueType == nullptr) {
 			args[0].valueType = args[1].valueType;
 			env.declareGlobal(args[0].id, args[0].valueType);
 		}
 
 		if (node.value.str == "=") {
-			auto resultType = env.getGlobalType(args[0].id)->id();
+			auto* outputType = env.getGlobalType(args[0].id);
 
-			if (resultType != args[1].valueType) {
+			if (outputType != args[1].valueType) {
 
 			}
-
-			auto& lastCommand = list.back();
-			lastCommand.result = args[0];
-
-			return lastCommand.result;
 		}
 
-		std::vector<Type*> argTypes;
+		std::vector<const Type*> argTypes;
 		argTypes.reserve(args.size());
 		for (auto& arg : args) {
-			argTypes.emplace_back(env.getType(arg.valueType));
+			argTypes.emplace_back(arg.valueType);
 		}
 
 		auto& funcInfo = *env.estimateFunction("operator " + node.value.str, argTypes);
 
 		for (auto i = 0u; i < argTypes.size(); ++i) {
-			if (args[i].valueType != funcInfo.argTypes[i]->id()) {
-				auto stack = info.getFreeStack();
+			if (args[i].valueType != funcInfo.argTypes[i]) {
+				// TODO
 				auto& command = list.emplace_back();
-				command.name = funcInfo.argTypes[i]->castTargetStr();
+				command.info = nullptr; // funcInfo.argTypes[i]->castTargetStr();
 
-				command.result.type = Variable::Type::Stack;
-				command.result.stack = stack;
-				command.result.valueType = funcInfo.argTypes[i]->id();
+				command.output.type = Variable::Type::Stack;
+				command.output.valueType = funcInfo.argTypes[i];
+				command.output.stack = info.getFreeStack(command.output.valueType->sizeOf());
 
 				command.args[i] = args[i];
-				args[i] = command.result;
+				args[i] = command.output;
 			}
 		}
 
 		auto& command = list.emplace_back();
-		command.name = "operator " + node.value.str;
+		command.info = &funcInfo;
 
-		command.result.type = Variable::Type::Stack;
-		command.result.stack = info.getFreeStack();
-		command.result.valueType = funcInfo.returnType->id();
+		command.output.type = Variable::Type::Stack;
+		command.output.valueType = funcInfo.returnType;
+		command.output.stack = info.getFreeStack(command.output.valueType->sizeOf()); //TODO
 
 		command.args[0] = args[0];
 		command.args[1] = args[1];
 
-		return command.result;
+		return command.output;
 	}
 	case Ketl::Parser::Node::Type::Number: {
 		Variable variable;
 		variable.type = Variable::Type::Literal;
 		variable.literal = node.value;
-		variable.valueType = node.value.asStrType();
+		auto* type = env.getType(node.value.asStrType());
+		variable.valueType = type;
 		return variable;
 	}
 	case Ketl::Parser::Node::Type::Id: {
@@ -103,7 +98,7 @@ Analyzer::Variable Analyzer::proceedCommands(Environment& env, std::list<Analyze
 		variable.type = Variable::Type::Global;
 		variable.id = node.value.str;
 		auto* type = env.getGlobalType(variable.id);
-		variable.valueType = type != nullptr ? type->id() : "";
+		variable.valueType = type;
 		return variable;
 	}
 	}

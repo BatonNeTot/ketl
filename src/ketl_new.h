@@ -1,4 +1,4 @@
-﻿/*🐟Ketl🐟*/
+﻿/*🍲Ketl🍲*/
 #ifndef eel_new_h
 #define eel_new_h
 
@@ -9,6 +9,7 @@
 #include <optional>
 #include <typeindex>
 #include <iostream>
+#include <functional>
 
 class Allocator {
 public:
@@ -109,6 +110,10 @@ public:
 		}
 	}
 
+	uint64_t blockSize() const {
+		return _blockSize;
+	}
+
 	uint64_t currentOffset() const {
 		return _currentOffset;
 	}
@@ -138,6 +143,9 @@ private:
 
 enum class InstructionCode : uint8_t {
 	AddInt,
+	MinusInt,
+	MultyInt,
+	DivideInt,
 	DefineInt,
 };
 
@@ -166,6 +174,22 @@ public:
 		switch (_code) {
 		case InstructionCode::AddInt: {
 			output<int64_t>(stackPtr) = first<int64_t>(stackPtr) + second<int64_t>(stackPtr);
+			break;
+		}
+		case InstructionCode::MinusInt: {
+			output<int64_t>(stackPtr) = first<int64_t>(stackPtr) - second<int64_t>(stackPtr);
+			break;
+		}
+		case InstructionCode::MultyInt: {
+			output<int64_t>(stackPtr) = first<int64_t>(stackPtr) * second<int64_t>(stackPtr);
+			break;
+		}
+		case InstructionCode::DivideInt: {
+			output<int64_t>(stackPtr) = first<int64_t>(stackPtr) / second<int64_t>(stackPtr);
+			break;
+		}
+		case InstructionCode::DefineInt: {
+			output<int64_t>(stackPtr) = first<int64_t>(stackPtr) = second<int64_t>(stackPtr);
 			break;
 		}
 		}
@@ -278,9 +302,9 @@ public:
 	}
 
 	void invoke() {
-		auto stackPtr = _stack.allocate(function().stackSize());
+		auto stackPtr = _stack.allocate(_stack.blockSize());
 		function().call(_stack, stackPtr);
-		_stack.deallocate(function().stackSize());
+		_stack.deallocate(_stack.blockSize());
 	}
 
 private:
@@ -292,8 +316,8 @@ private:
 
 class StandaloneFunction : public FunctionHolder {
 public:
-	StandaloneFunction(Function& function, uint64_t stackSize) 
-	 : FunctionHolder(function.alloc(), stackSize), _function(std::move(function)) {}
+	StandaloneFunction(Function& function) 
+	 : FunctionHolder(function.alloc(), function.stackSize()), _function(std::move(function)) {}
 
 private:
 
@@ -306,8 +330,8 @@ private:
 
 class RefferedFunction : public FunctionHolder {
 public:
-	RefferedFunction(Function& function, uint64_t stackSize)
-		: FunctionHolder(function.alloc(), stackSize), _function(function) {}
+	RefferedFunction(Function& function)
+		: FunctionHolder(function.alloc(), function.stackSize()), _function(function) {}
 
 private:
 
@@ -340,15 +364,23 @@ public:
 class Type {
 public:
 
-	Type(const std::string& id, uint64_t size)
-		: _id(id), _sizeof(size) {}
+	Type(const std::string& id, uint64_t size, std::function<void(std::unique_ptr<BaseValue>&)> constructor)
+		: _id(id), _sizeOf(size), _constructor(constructor) {}
 
 	const std::string& id() const {
 		return _id;
 	}
 
+	uint64_t sizeOf() const {
+		return _sizeOf;
+	}
+
 	std::string castTargetStr() const {
 		return "operator " + id();
+	}
+
+	void construct(std::unique_ptr<BaseValue>& ptr) const {
+		_constructor(ptr);
 	}
 
 	friend bool operator ==(const Type& lhs, const Type& rhs) {
@@ -357,7 +389,8 @@ public:
 
 public: //TODO
 	std::string _id;
-	uint64_t _sizeof;
+	uint64_t _sizeOf;
+	std::function<void(std::unique_ptr<BaseValue>&)> _constructor;
 };
 
 class Environment {
@@ -365,8 +398,10 @@ public:
 
 	Environment();
 
-	bool declareGlobal(const std::string& id, const std::string& typeId) {
-		return _globals.try_emplace(id, _types.find(typeId)->second).second;
+	bool declareGlobal(const std::string& id, const Type* type) {
+		auto pair = _globals.try_emplace(id, *type);
+		type->construct(pair.first->second.value);
+		return pair.second;
 	}
 
 	const Type* getGlobalType(const std::string& id) {
@@ -383,13 +418,16 @@ public:
 
 	template <class T = void>
 	T* getGlobalVariable(const std::string& id) {
-		return reinterpret_cast<T*>(_globals.find(id)->second.value.get());
+		auto it = _globals.find(id);
+		return reinterpret_cast<T*>(it != _globals.end() ? it->second.value.get() : nullptr);
 	}
 
 	template <class T>
 	void registerType(const std::string& id) {
 		std::type_index index = typeid(T);
-		_types.try_emplace(id, id, sizeof(Value<T>));
+		_types.try_emplace(id, id, sizeof(Value<T>), [](std::unique_ptr<BaseValue>& ptr) {
+				ptr = std::make_unique<Value<T>>();
+			});
 		_typeIdByIndex.try_emplace(index, id);
 	}
 
@@ -408,7 +446,7 @@ public:
 		std::vector<Type*> argTypes;
 	};
 
-	const FunctionInfo* estimateFunction(const std::string& id, const std::vector<Type*>& args) {
+	const FunctionInfo* estimateFunction(const std::string& id, const std::vector<const Type*>& args) {
 		auto& infoVector = _globalFunctions.find(id)->second;
 		for (auto& info : infoVector) {
 			if (info.argTypes.size() != args.size()) {
@@ -439,11 +477,11 @@ public: //TODO private
 	Allocator _alloc;
 
 	struct Variable {
-		Variable(Type& type_)
+		Variable(const Type& type_)
 			: type(type_) {}
 
 		std::unique_ptr<BaseValue> value;
-		Type& type;
+		const Type& type;
 	};
 
 	std::unordered_map<std::string, std::vector<FunctionInfo>> _globalFunctions;
