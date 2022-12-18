@@ -1,0 +1,27 @@
+﻿/*🐟Eel🐟*/
+#ifndef linker_h
+#define linker_h
+
+#include "eel.h"
+#include "analyzer.h"
+
+namespace Eel {
+
+	class Linker {
+	public:
+		Linker(const std::string& source) : _analyzer(source) {}
+
+		void proceed(Block& block);
+
+	private:
+
+		void convertVariable(ValueProvider** provider, Block& block, const Analyzer::Variable& variable);
+
+		void proceedCommand(Block& block, const Analyzer::Command& comand);
+
+		Analyzer _analyzer;
+	};
+
+}
+
+#endif /*linker_h*/

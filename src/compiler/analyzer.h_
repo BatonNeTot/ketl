@@ -1,0 +1,72 @@
+﻿/*🐟Eel🐟*/
+#ifndef analyzer_h
+#define analyzer_h
+
+#include "parser.h"
+
+#include "eel.h"
+
+#include <string>
+#include <list>
+#include <vector>
+#include <unordered_map>
+
+namespace Eel {
+
+	class Analyzer {
+	public:
+
+		struct Variable {
+			enum class Type : uint8_t {
+				Literal,
+				Stack,
+				Global
+			};
+
+			Type type;
+			UniValue literal;
+			uint32_t stack;
+			std::string id;
+			Eel::Type valueType;
+		};
+
+		struct Command {
+			Variable result;
+			std::string name;
+			std::vector<Variable> args;
+		};
+
+		struct Result {
+			std::list<Command> commands;
+		};
+
+		Analyzer(const std::string& source) : _parser(source) {}
+
+		const Result& proceed(Environment& env);
+
+	private:
+
+		Parser _parser;
+
+		Result* _result = nullptr;
+
+		enum class State : unsigned char {
+			Default,
+			DeclarationVar,
+		};
+
+		struct AnalyzerInfo {
+			uint32_t nextFreeStack = 0;
+
+			uint32_t getFreeStack() {
+				return nextFreeStack++;
+			}
+		};
+
+		Variable proceedCommands(Environment& env, std::list<Command>& list, AnalyzerInfo& info, const Parser::Node& node);
+
+	};
+
+}
+
+#endif /*analyzer_h*/
