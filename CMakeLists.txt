@@ -24,6 +24,12 @@ target_compile_definitions(ketl PRIVATE _AMD64_)
 #    add_compile_options(-Wall -Wextra -pedantic -Werror)
 #endif()
 
+add_subdirectory ("dependencies")
+
+add_dependencies(ketl ebnf)
+
+target_link_libraries(ketl ebnf)
+
 target_include_directories(ketl PUBLIC "include")
 target_include_directories(ketl PRIVATE "src")
 

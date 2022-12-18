@@ -1,0 +1,3 @@
+[submodule "dependencies/ebnf"]
+	path = dependencies/ebnf
+	url = git@github.com:BatonNeTot/ebnf.git
