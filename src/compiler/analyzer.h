@@ -36,7 +36,6 @@ namespace Ketl {
 		Variable,
 		VariableDefinition,
 		Literal,
-		FunctionStack,
 		UnaryOperator,
 		BinaryOperator,
 		Function,

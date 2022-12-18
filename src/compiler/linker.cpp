@@ -13,7 +13,7 @@ namespace Ketl {
 
 	class VariableGlobal : public Linker::Variable {
 	public:
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Global;
 			argument.globalPtr = ptr;
 		}
@@ -23,26 +23,115 @@ namespace Ketl {
 
 	class VariableFloat64 : public Linker::Variable {
 	public:
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Literal;
 			argument.floating = value;
 		}
 		double value;
 	};
 
+	class VariableConstructor : public Linker::Variable {
+	public:
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
+			{
+				// allocate stack for function
+				Argument output;
+				auto outputType = Argument::Type::Global;
+				output.globalPtr = ptr;
+
+				Argument first;
+				auto firstType = Argument::Type::Literal;
+				first.cPointer = function;
+
+				instructions.emplace_back(
+					Instruction::Code::AllocateFunctionStack,
+					outputType,
+					firstType,
+					Argument::Type::None,
+					output,
+					first,
+					Argument()
+				);
+			}
+
+			// add arguments instructions
+			uint16_t currentOffset = 0;
+			for (uint64_t i = 0u; i < args.size(); ++i) {
+				auto& arg = args[i];
+				auto& targetType = argTypes[i];
+
+				if (!arg->type->isRef && targetType->isRef) {
+					Argument output;
+					auto outputType = Argument::Type::DerefGlobal;
+					output.globalPtr = ptr;
+					auto outputOffset = currentOffset;
+
+					Argument first;
+					Argument::Type firstType = Argument::Type::None;
+					arg->propagateArgument(first, firstType);
+
+					instructions.emplace_back(
+						Instruction::Code::Reference,
+						outputOffset,
+						outputType,
+						firstType,
+						Argument::Type::None,
+						output,
+						first,
+						Argument()
+					);
+					continue;
+				}
+			}
+
+			{
+				// call function
+				Argument output;
+				auto outputType = Argument::Type::Global;
+				output.globalPtr = ptr;
+
+				Argument first;
+				auto firstType = Argument::Type::Literal;
+				first.cPointer = function;
+
+				instructions.emplace_back(
+					Instruction::Code::CallFunction,
+					outputType,
+					firstType,
+					Argument::Type::None,
+					output,
+					first,
+					Argument()
+				);
+			}
+
+			return true;
+		}
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
+			type = Argument::Type::Global;
+			argument.globalPtr = ptr;
+		}
+		uint64_t stackUsage() const override { return std::max(type->sizeOf(), sizeof(uint8_t*)); }
+
+		void* ptr;
+		const PureFunction* function;
+		std::vector<Variable*> args;
+		std::vector<std::unique_ptr<const Type>> argTypes;
+	};
+
 	class VariableInstruction : public Linker::Variable {
 	public:
-		bool addInstructions(std::vector<Instruction>& instructions) override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			output.stack = this->stackOffset;
 
 			Argument first;
 			Argument::Type firstType;
-			this->first->propogateArgument(first, firstType);
+			this->first->propagateArgument(first, firstType);
 
 			Argument second;
 			Argument::Type secondType;
-			this->second->propogateArgument(second, secondType);
+			this->second->propagateArgument(second, secondType);
 
 			auto& instruction = instructions.emplace_back(
 				code,
@@ -55,7 +144,7 @@ namespace Ketl {
 			);
 			return true; 
 		}
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Stack;
 			argument.stack = stackOffset;
 		}
@@ -67,7 +156,7 @@ namespace Ketl {
 	};
 
 	class VariableFuncStack : public Linker::Variable {
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Stack;
 			argument.stack = stackOffset;
 		}
@@ -76,17 +165,17 @@ namespace Ketl {
 
 	class VariableFuncCall : public Linker::Variable {
 	public:
-		bool addInstructions(std::vector<Instruction>& instructions) override {
+		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) override {
 			Argument output;
 			output.stack = this->stackOffset;
 
 			Argument first;
 			Argument::Type firstType;
-			this->first->propogateArgument(first, firstType);
+			this->first->propagateArgument(first, firstType);
 
 			Argument second;
 			Argument::Type secondType;
-			this->second->propogateArgument(second, secondType);
+			this->second->propagateArgument(second, secondType);
 
 			auto& instruction = instructions.emplace_back(
 				code,
@@ -99,7 +188,7 @@ namespace Ketl {
 			);
 			return true;
 		}
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Stack;
 			argument.stack = stackOffset;
 		}
@@ -111,7 +200,7 @@ namespace Ketl {
 	};
 
 	class VariableFuncArgument : public Linker::Variable {
-		void propogateArgument(Argument& argument, Argument::Type& type) override {
+		void propagateArgument(Argument& argument, Argument::Type& type) override {
 			type = Argument::Type::Stack;
 			argument.stack = stackOffset;
 		}
@@ -143,7 +232,8 @@ namespace Ketl {
 		}
 		case TypeCodes::LRef: {
 			auto type = readType(env, iter, bytecode, size);
-			type->handling = Type::Handling::LRef;
+			type->isRef = true;
+			type->hasAddress = true;
 			return type;
 		}
 		case TypeCodes::RRef: {
@@ -196,17 +286,23 @@ namespace Ketl {
 					args[y] = variables[variableIndex].get();
 					argTypes[y] = Type::clone(variables[variableIndex]->type);
 				}
-				type->deduceFunction(argTypes);
-				/*
-				auto function = variables[functionIndex].get();
-				auto [funcIndex, returnType] = function->type->deduceFunction(argTypes);
-				for (const auto& arg : args) {
-					auto instruction = std::make_unique<VariableInstruction>();
-					//instruction->type = Type::clone(floatType.get());
-					instruction->first = args[0];
-					instruction->second = args[1];
+				auto funcInfo = type->deduceFunction(argTypes);
+				if (!funcInfo.returnType) {
+					return {};
 				}
-				*/
+				
+				auto instruction = std::make_unique<VariableConstructor>();
+				instruction->ptr = env._context.declareGlobal<void>(id, *type);
+				instruction->function = funcInfo.function;
+				instruction->args = std::move(args);
+				instruction->argTypes.reserve(funcInfo.argTypes.size());
+				for (auto& argType : funcInfo.argTypes) {
+					instruction->argTypes.emplace_back(Type::clone(argType));
+				}
+				type->hasAddress = true;
+				instruction->type = std::move(type);
+				variables[i] = std::move(instruction);
+
 				break;
 			}
 			case ByteInstruction::Literal: {
@@ -217,17 +313,11 @@ namespace Ketl {
 
 					auto liter = std::make_unique<VariableFloat64>();
 					type->isConst = true;
-					type->handling = Type::Handling::RValue;
 					liter->type = std::move(type);
 					liter->value = value;
 					variables[i] = std::move(liter);
 				}
 				// TODO somehow move this to Type
-				break;
-			}
-			case ByteInstruction::FunctionStack: {
-				auto stackVariable = std::make_unique<VariableFuncStack>();
-				variables[i] = std::move(stackVariable);
 				break;
 			}
 			case ByteInstruction::UnaryOperator: {
@@ -248,17 +338,38 @@ namespace Ketl {
 					args[y] = variables[variableIndex].get();
 				}
 
-				if (operatorCode == OperatorCodes::Assign && !args[0]->type) {
-					// TODO check if type is present but the variable is new and it is initialization
+				if (operatorCode == OperatorCodes::Assign) {
 					auto* global = dynamic_cast<VariableGlobal*>(args[0]);
-					if (!global) {
-						// something's wrong;
-						return {};
-					}
-					args[0]->type = Type::clone(args[1]->type);
-					global->type = Type::clone(args[1]->type);
-					if (global->type) {
+					if (global->ptr == nullptr) {
+						if (!global->type) {
+							global->type = Type::clone(args[1]->type);
+						}
+
+						std::vector<std::unique_ptr<const Type>> argTypes(1);
+						argTypes[0] = Type::clone(args[1]->type);
+
+						auto funcInfo = global->type->deduceFunction(argTypes);
+						if (!funcInfo.returnType) {
+							return {};
+						}
+
 						global->ptr = env._context.declareGlobal<void>(global->id, *global->type);
+
+						auto instruction = std::make_unique<VariableConstructor>();
+						instruction->ptr = global->ptr;
+						instruction->function = funcInfo.function;
+						instruction->args.reserve(1);
+						instruction->args.emplace_back(std::move(args[1]));
+						instruction->argTypes.reserve(funcInfo.argTypes.size());
+						for (auto& argType : funcInfo.argTypes) {
+							instruction->argTypes.emplace_back(Type::clone(argType));
+						}
+						auto type = Type::clone(global->type);
+						type->hasAddress = true;
+						instruction->type = std::move(type);
+						variables[i] = std::move(instruction);
+
+						continue;
 					}
 					// TODO pass id another way, deal with dynamic cast somehow butiful
 				}
@@ -273,7 +384,6 @@ namespace Ketl {
 
 					auto instruction = std::make_unique<VariableInstruction>();
 					auto outputType = Type::clone(floatType.get());
-					outputType->handling = Type::Handling::RValue;
 					instruction->type = std::move(outputType);
 					instruction->first = args[0];
 					instruction->second = args[1];
@@ -307,7 +417,7 @@ namespace Ketl {
 					argTypes[y] = Type::clone(variables[variableIndex]->type);
 				}
 				auto function = variables[functionIndex].get();
-				auto [funcIndex, returnType] = function->type->deduceFunction(argTypes);
+				auto funcInfo = function->type->deduceFunction(argTypes);
 				for (const auto& arg : args) {
 					auto instruction = std::make_unique<VariableInstruction>();
 					//instruction->type = Type::clone(floatType.get());
@@ -406,7 +516,7 @@ namespace Ketl {
 		std::vector<Instruction> instructions;
 
 		for (auto& variable : variables) {
-			if (variable && !variable->addInstructions(instructions)) {
+			if (variable && !variable->addInstructions(env, instructions)) {
 				continue;
 			}
 		}

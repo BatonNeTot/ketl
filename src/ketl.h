@@ -148,18 +148,22 @@ namespace Ketl {
 		enum class Type : uint8_t {
 			None,
 			Global,
+			DerefGlobal,
 			Stack,
+			DerefStack,
 			Literal,
 			Return
 		};
 
 		union {
-			void* globalPtr;
+			void* globalPtr = nullptr;
 			uint64_t stack;
 
 			int64_t integer;
 			uint64_t uinteger;
 			double floating;
+			void* pointer;
+			const void* cPointer;
 		};
 	};
 
@@ -177,9 +181,11 @@ namespace Ketl {
 			DivideFloat64,
 			Define,
 			Assign,
-			AllocateStack,
-			DefineArgument,
-			Call,
+			Reference,
+			AllocateFunctionStack,
+			AllocateDynamicFunctionStack,
+			CallFunction,
+			CallDynamicFunction,
 		};
 
 		Instruction() {}
@@ -197,6 +203,27 @@ namespace Ketl {
 			_outputType(outputType),
 			_firstType(firstType),
 			_secondType(secondType),
+
+			_output(output),
+			_first(first),
+			_second(second) {}
+		Instruction(
+			Code code,
+			uint16_t outputOffset,
+			Argument::Type outputType,
+			Argument::Type firstType,
+			Argument::Type secondType,
+
+			Argument output,
+			Argument first,
+			Argument second)
+			:
+			_code(code),
+			_outputType(outputType),
+			_firstType(firstType),
+			_secondType(secondType),
+
+			_outputOffset(outputOffset),
 
 			_output(output),
 			_first(first),
@@ -222,15 +249,15 @@ namespace Ketl {
 
 		void call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
 
-	private:
+	public: // TODO
 
 		template <class T>
 		inline T& outputStack(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, Argument::Type::Stack, _output));
+			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, Argument::Type::Stack, _output) + _outputOffset);
 		}
 		template <class T>
 		inline T& output(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _outputType, _output));
+			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _outputType, _output) + _outputOffset);
 		}
 
 		template <class T>
@@ -243,16 +270,22 @@ namespace Ketl {
 			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _secondType, _second));
 		}
 
-		static void* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
+		static inline uint8_t* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
 			switch (type) {
 			case Argument::Type::Global: {
-				return value.globalPtr;
+				return reinterpret_cast<uint8_t*>(value.globalPtr);
+			}
+			case Argument::Type::DerefGlobal: {
+				return *reinterpret_cast<uint8_t**>(value.globalPtr);
 			}
 			case Argument::Type::Stack: {
 				return stackPtr + value.stack;
 			}
+			case Argument::Type::DerefStack: {
+				return *reinterpret_cast<uint8_t**>(stackPtr + value.stack);
+			}
 			case Argument::Type::Literal: {
-				return &value;
+				return reinterpret_cast<uint8_t*>(&value);
 			}
 			case Argument::Type::Return: {
 				return returnPtr;
@@ -270,6 +303,8 @@ namespace Ketl {
 		};
 		Argument::Type _firstType = Argument::Type::None;
 		Argument::Type _secondType = Argument::Type::None;
+
+		uint16_t _outputOffset = 0;
 
 		Argument _output;
 		Argument _first;
@@ -307,7 +342,18 @@ namespace Ketl {
 			}
 		}
 
-		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) {
+		PureFunction& operator =(PureFunction&& other) noexcept {
+			_alloc = other._alloc;
+			_stackSize = other._stackSize;
+			_instructionsCount = other._instructionsCount;
+			_instructions = other._instructions;
+
+			other._instructions = nullptr;
+
+			return *this;
+		}
+
+		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
 			if (_instructionsCount > 0) {
 				for (uint64_t index = 0u; index < _instructionsCount;) {
 					_instructions[index].call(index, stack, stackPtr, returnPtr);
@@ -375,27 +421,30 @@ namespace Ketl {
 
 	class Type {
 	public:
-		enum class Handling : uint8_t {
-			RValue,
-			LValue,
-			RRef,
-			LRef,
-		};
-
 		Type() = default;
 		~Type() = default;
 
-		Type(Type::Handling handling_)
-			: handling(handling_) {}
-		virtual uint64_t sizeOf() const = 0;
+		Type(bool isConst_, bool isRef_, bool hasAddress_)
+			: isConst(isConst_), isRef(isRef_), hasAddress(hasAddress_) {}
+		uint64_t sizeOf() const { return isRef ? sizeof(void*) : sizeOfImpl(); }
 		virtual std::string id() const = 0;
-		virtual std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const { 
-			return std::make_pair<uint64_t, std::unique_ptr<const Type>>(0, {});
+
+		struct FunctionInfo {
+			bool isDynamic = false;
+			uint8_t functionIndex = 0;
+			const PureFunction* function = nullptr;
+			std::unique_ptr<const Type> returnType;
+			std::vector<std::unique_ptr<const Type>> argTypes;
+		};
+
+		virtual FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
+			return FunctionInfo{};
 		}
 
 		friend bool operator==(const Type& lhs, const Type& rhs) {
 			return lhs.isConst == rhs.isConst
-				&& lhs.handling == rhs.handling
+				&& lhs.isRef == rhs.isRef
+				&& lhs.hasAddress == rhs.hasAddress
 				&& lhs.id() == rhs.id();
 		}
 
@@ -416,33 +465,32 @@ namespace Ketl {
 		}
 
 		bool convertableTo(const Type& other) const {
+			// TODO casting, inheritance
 			if (id() != other.id()) {
 				return false;
 			}
-			if (other.handling == Handling::RValue || other.handling == Handling::LValue) {
+			if (!other.isRef) {
 				return true;
 			}
 			if (isConst && !other.isConst) {
 				return false;
 			}
-			if ((handling == Handling::RValue || handling == Handling::RRef) &&
-				other.handling == Handling::RRef) {
+			if (!hasAddress && other.hasAddress) {
 				return false;
 			}
 			return true;
 		}
 
 		bool isConst = false;
-		Handling handling  = Handling::LValue;
+		bool isRef = false;
+		bool hasAddress = false;
  	private:
+		virtual uint64_t sizeOfImpl() const = 0;
 		virtual std::unique_ptr<Type> clone() const = 0;
 	};
 
 	class BasicTypeBody {
 	public:
-
-		using ConstructorFunc = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
-		using DestructorFunc = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
 
 		BasicTypeBody(const std::string& id, uint64_t size)
 			: _id(id), _size(size) {}
@@ -451,39 +499,18 @@ namespace Ketl {
 			return _id;
 		}
 
-		uint64_t deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
-			for (uint64_t cstrIt = 0u; cstrIt < _cstrs.size(); ++cstrIt) {
-				auto& cstr = _cstrs[cstrIt];
-				if (argumentTypes.size() != cstr.argTypes.size()) {
-					continue;
-				}
-				bool next = false;
-				for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
-					// TODO light casting (non-const to const, inheritance)
-					// TODO lvalue and rvalue (as lreferece and rreference)
-					if (*cstr.argTypes[typeIt] != *argumentTypes[typeIt]) {
-						next = true;
-						break;
-					}
-				}
-				if (next) {
-					continue;
-				}
-				return cstrIt;
-			}
-			return contructorCount();
-		}
+		Type::FunctionInfo deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const;
 
-		ConstructorFunc construct(uint64_t funcIndex) const {
-			return _cstrs[funcIndex].func;
+		const PureFunction* construct(uint64_t funcIndex) const {
+			return &_cstrs[funcIndex].func;
 		}
 
 		uint64_t contructorCount() const {
 			return _cstrs.size();
 		}
 
-		DestructorFunc destruct(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
-			return _dstr;
+		const PureFunction* destruct(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
+			return &_dstr;
 		}
 
 		uint64_t sizeOf() const {
@@ -495,11 +522,11 @@ namespace Ketl {
 		std::string _id;
 		struct Constructor {
 			Constructor() {}
-			ConstructorFunc func = nullptr;
+			PureFunction func;
 			std::vector<std::unique_ptr<const Type>> argTypes;
 		};
 		std::vector<Constructor> _cstrs;
-		DestructorFunc _dstr = nullptr;
+		PureFunction _dstr;
 		uint64_t _size = 0;
 
 	};
@@ -508,14 +535,14 @@ namespace Ketl {
 	public:
 		TypeOfType(const BasicTypeBody* body)
 			: _body(body) {}
-
-		uint64_t sizeOf() const override { return sizeof(BasicTypeBody); };
 		std::string id() const override { return "Type"; };
-		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
+		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
 			// TODO constructor
-			return std::make_pair<uint64_t, std::unique_ptr<const Type>>(0, {});
+			return FunctionInfo{};
 		}
 	private:
+
+		uint64_t sizeOfImpl() const override { return sizeof(BasicTypeBody); };
 		std::unique_ptr<Type> clone() const override {
 			return std::make_unique<TypeOfType>(*this);
 		}
@@ -528,28 +555,22 @@ namespace Ketl {
 
 		BasicType(const BasicTypeBody* body)
 			: _body(body) {}
-		BasicType(const BasicTypeBody* body, Type::Handling handling)
-			: Type(handling), _body(body) {}
-
-		uint64_t sizeOf() const override {
-			return _body->sizeOf();
-		}
+		BasicType(const BasicTypeBody* body, bool isConst, bool isRef, bool hasAddress)
+			: Type(isConst, isRef, hasAddress), _body(body) {}
 
 		std::string id() const override {
 			return _body->id();
 		}
 
-		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			auto index = _body->deduceConstructor(argumentTypes);
-			if (index == _body->contructorCount()) {
-				return std::make_pair<uint64_t, std::unique_ptr<const Type>>(0, {});
-			}
-			else {
-				return std::make_pair<uint64_t, std::unique_ptr<const Type>>(std::move(index), clone());
-			}
+		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
+			return _body->deduceConstructor(argumentTypes);
 		}
 
 	private:
+
+		uint64_t sizeOfImpl() const override {
+			return _body->sizeOf();
+		}
 
 		std::unique_ptr<Type> clone() const override {
 			return std::make_unique<BasicType>(*this);
@@ -591,9 +612,6 @@ namespace Ketl {
 		FunctionType(const FunctionType& function)
 			: infos(function.infos) {}
 
-		uint64_t sizeOf() const override {
-			return sizeof(Function);
-		}
 		std::string id() const override {
 			if (infos.size() > 1) {
 				return "MultiCastFunction";
@@ -610,7 +628,9 @@ namespace Ketl {
 				return id;
 			}
 		}
-		std::pair<uint64_t, std::unique_ptr<const Type>> deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
+		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
+			FunctionInfo outputInfo;
+
 			for (uint64_t infoIt = 0u; infoIt < infos.size(); ++infoIt) {
 				auto& info = infos[infoIt];
 				if (argumentTypes.size() != info.argTypes.size()) {
@@ -628,7 +648,17 @@ namespace Ketl {
 				if (next) {
 					continue;
 				}
-				return std::make_pair<uint64_t, std::unique_ptr<const Type>>(std::move(infoIt), Type::clone(info.returnType));
+
+				outputInfo.isDynamic = true;
+				outputInfo.functionIndex = static_cast<uint8_t>(infoIt);
+				outputInfo.returnType = Type::clone(info.returnType);
+
+				outputInfo.argTypes.reserve(info.argTypes.size());
+				for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
+					outputInfo.argTypes.emplace_back(Type::clone(info.argTypes[typeIt]));
+				}
+
+				return outputInfo;
 			}
 			return Type::deduceFunction(argumentTypes);
 		}
@@ -648,6 +678,9 @@ namespace Ketl {
 		std::vector<Info> infos;
 
 	private:
+		uint64_t sizeOfImpl() const override {
+			return sizeof(Function);
+		}
 		std::unique_ptr<Type> clone() const override {
 			return std::make_unique<FunctionType>(*this);
 		}
@@ -677,8 +710,13 @@ namespace Ketl {
 			auto theTypePtr = getGlobal<BasicTypeBody>("Type");
 			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(theTypePtr)));
 			new(typePtr) BasicTypeBody(id, sizeOf);
-			_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, Type::Handling::LValue));
+			_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
 			return typePtr;
+		}
+
+		bool declareGlobal(const std::string& id, void* stackPtr, const Type& type) {
+			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
+			return success;
 		}
 
 		template <class T>

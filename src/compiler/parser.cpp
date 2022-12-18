@@ -78,7 +78,7 @@ namespace Ketl {
 			std::make_unique<BnfNodeConcat>(
 				true,
 				std::make_unique<BnfNodeLiteral>("(", true),
-				std::make_unique<BnfNodeId>("expression", true, false),
+				std::make_unique<BnfNodeId>("expression", false, true),
 				std::make_unique<BnfNodeLiteral>(")", true)
 				),
 			std::make_unique<BnfNodeId>("function-definition", false, false)

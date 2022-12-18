@@ -159,7 +159,7 @@ namespace Ketl {
 				return args.emplace_back(std::move(variable)).get();
 			}
 			case Ketl::ValueType::Operator: {
-				auto test = 0;
+				return proceedCommands(*nodePtr, scope, args, stack);
 			}
 			}
 

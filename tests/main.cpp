@@ -123,8 +123,8 @@ int main(int argc, char** argv) {
 	Ketl::Linker linker;
 
 	auto command = linker.proceedStandalone(env, R"(
-	Float64 testValue2{1 + 2};
-	//testValue2 = 5 + 6;
+	//Float64 testValue2{1 + 2};
+	testValue = (testValue2 = 5 + 6) + 7;
 
 	Void adder() {
 		testValue2 = 5 + 1;
@@ -135,14 +135,14 @@ int main(int argc, char** argv) {
 	auto& testTestF = *env.getGlobal<double>("testValue");
 	auto& testTest2F = *env.getGlobal<double>("testValue2");
 
-	command.invoke(command.stack());
+	command.invoke(env._context._globalStack);
 
-	auto* function = env.getGlobal<Ketl::Function>("adder");
+	auto* function = env.getGlobal<Ketl::FunctionContainer>("adder");
 	auto* pureFunction = function->functions;
 
-	auto stackPtr = command.stack().allocate(pureFunction->stackSize());
-	pureFunction->call(command.stack(), stackPtr, nullptr);
-	command.stack().deallocate(pureFunction->stackSize());
+	auto stackPtr = env._context._globalStack.allocate(pureFunction->stackSize());
+	pureFunction->call(env._context._globalStack, stackPtr, nullptr);
+	env._context._globalStack.deallocate(pureFunction->stackSize());
 
 	test(0);
 	//getc(stdin);

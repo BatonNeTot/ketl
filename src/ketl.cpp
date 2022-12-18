@@ -2,6 +2,40 @@
 #include "ketl.h"
 
 namespace Ketl {
+
+	Type::FunctionInfo BasicTypeBody::deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
+		Type::FunctionInfo outputInfo;
+
+		for (uint64_t cstrIt = 0u; cstrIt < _cstrs.size(); ++cstrIt) {
+			auto& cstr = _cstrs[cstrIt];
+			if (argumentTypes.size() != cstr.argTypes.size()) {
+				continue;
+			}
+			bool next = false;
+			for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
+				if (!argumentTypes[typeIt]->convertableTo(*cstr.argTypes[typeIt])) {
+					next = true;
+					break;
+				}
+			}
+			if (next) {
+				continue;
+			}
+
+			outputInfo.isDynamic = false;
+			outputInfo.function = &cstr.func;
+			outputInfo.returnType = std::make_unique<BasicType>(this);
+
+			outputInfo.argTypes.reserve(cstr.argTypes.size());
+			for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
+				outputInfo.argTypes.emplace_back(Type::clone(cstr.argTypes[typeIt]));
+			}
+
+			return outputInfo;
+		}
+		return outputInfo;
+	}
+
 	void Instruction::call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) {
 		switch (_code) {
 		case Code::AddInt64: {
@@ -44,21 +78,34 @@ namespace Ketl {
 			output<Argument>(stackPtr, returnPtr) = first<Argument>(stackPtr, returnPtr) = second<Argument>(stackPtr, returnPtr);
 			break;
 		}
-		case Code::AllocateStack: {
+		case Code::Reference: {
+			output<uint8_t*>(stackPtr, returnPtr) = &first<uint8_t>(stackPtr, returnPtr);
+			break;
+		}
+		case Code::AllocateFunctionStack: {
+			auto& function = *first<const PureFunction*>(stackPtr, returnPtr);
+			output<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.stackSize());
+			break;
+		}
+		case Code::AllocateDynamicFunctionStack: {
 			auto& function = first<Function>(stackPtr, returnPtr);
 			outputStack<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.functions[_funcIndex].stackSize());
 			break;
 		}
-		case Code::DefineArgument: {
-			*reinterpret_cast<Argument*>(outputStack<uint8_t*>(stackPtr, returnPtr) + first<uint64_t>(stackPtr, returnPtr)) 
-				= second<Argument>(stackPtr, returnPtr);
+		case Code::CallFunction: {
+			auto& pureFunction = *first<const PureFunction*>(stackPtr, returnPtr);
+			auto& stackStart = output<uint8_t*>(stackPtr, returnPtr);
+			auto funcReturnPtr = &output<uint8_t>(stackPtr, returnPtr);
+			pureFunction.call(stack, stackStart, funcReturnPtr);
+			stack.deallocate(pureFunction.stackSize());
 			break;
 		}
-		case Code::Call: {
+		case Code::CallDynamicFunction: {
 			auto& function = first<Function>(stackPtr, returnPtr);
 			auto& stackStart = second<uint8_t*>(stackPtr, returnPtr);
 			auto& pureFunction = function.functions[_funcIndex];
-			pureFunction.call(stack, &outputStack<uint8_t>(stackPtr, returnPtr), stackStart);
+			auto funcReturnPtr = &outputStack<uint8_t>(stackPtr, returnPtr);
+			pureFunction.call(stack, stackStart, funcReturnPtr);
 			stack.deallocate(pureFunction.stackSize());
 			break;
 		}
@@ -76,7 +123,7 @@ namespace Ketl {
 		BasicTypeBody theType("Type", sizeof(BasicTypeBody));
 		auto theTypePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(&theType)));
 		new(theTypePtr) BasicTypeBody(std::move(theType));
-		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr, Type::Handling::LValue));
+		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
 
 		declareType<void>("Void");
 		declareType<int64_t>("Int64");
@@ -93,9 +140,9 @@ namespace Ketl {
 			auto& constructor = typePtr->_cstrs.emplace_back();
 			auto baseType = std::make_unique<BasicType>(typePtr);
 			baseType->isConst = true;
-			baseType->handling = Type::Handling::LValue;
+			baseType->isRef = true;
 			constructor.argTypes.emplace_back(std::move(baseType));
-			constructor.func = &constructFloat64;
+			constructor.func = PureFunction(allocator, sizeof(void*), &constructFloat64);
 		}
 	}
 
