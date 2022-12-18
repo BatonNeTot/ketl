@@ -37,16 +37,16 @@ target_include_directories(ketl PRIVATE "src")
 
 add_subdirectory ("tests")
 
-add_executable (test ${KETL_TEST_SOURCES})
-set_property(TARGET test PROPERTY CXX_STANDARD 20)
+add_executable (ketl_test ${KETL_TEST_SOURCES})
+set_property(TARGET ketl_test PROPERTY CXX_STANDARD 20)
 
-add_dependencies(test ketl)
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT test)
+add_dependencies(ketl_test ketl)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ketl_test)
 
-target_compile_definitions(test PRIVATE _AMD64_)
+target_compile_definitions(ketl_test PRIVATE _AMD64_)
 
-target_link_directories(test PRIVATE "lib")
-target_link_libraries(test ketl)
-target_include_directories(test PUBLIC "include")
-target_include_directories(test PRIVATE "src")
-target_include_directories(test PRIVATE "tests")
+target_link_directories(ketl_test PRIVATE "lib")
+target_link_libraries(ketl_test ketl)
+target_include_directories(ketl_test PUBLIC "include")
+target_include_directories(ketl_test PRIVATE "src")
+target_include_directories(ketl_test PRIVATE "tests")
