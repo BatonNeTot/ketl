@@ -11,6 +11,7 @@
 #include "compiler/parser.h"
 #include "compiler/linker.h"
 #include "ketl.h"
+#include "type.h"
 
 #include "lua.hpp"
 
@@ -36,9 +37,6 @@ void testLanguages() {
 
 	testValue = adder(testValue2, 9);
 )");
-
-	auto& testTestF = *env.getGlobal<double>("testValue");
-	auto& testTest2F = *env.getGlobal<double>("testValue2");
 
 	test(0);
 
@@ -90,33 +88,40 @@ int main(int argc, char** argv) {
 	Ketl::Environment env;
 	Ketl::Linker linker;
 
+	auto doubleTypeVar = env._context.getVariable("Float64");
+	auto& outofnowhere = *env._context.declareGlobal<double>("outofnowhere", Ketl::BasicType(doubleTypeVar.as<Ketl::BasicTypeBody>(), true, false, true));
+	outofnowhere = 14.;
+
 	auto command = linker.proceedStandalone(env, R"(
-	Float64 testValue {1 + 2};
+	Float64 testValue {outofnowhere + 2};
 	testValue = (testValue2 = testValue + 6) + (7 + 8);
 
 	Float64 adder(Float64 x) {
 		return testValue2 + x;
 	}
 
+	Void inc() {
+		testValue2 = testValue2 + 1;
+	}
+
 	testValue2 = adder(5);
 )");
-	
 
-	auto& testTestF = *env.getGlobal<double>("testValue");
-	auto& testTest2F = *env.getGlobal<double>("testValue2");
+	assert(command);
+
+	auto& testTestF = *env._context.getVariable("testValue").as<double>();
+	auto& testTest2F = *env._context.getVariable("testValue2").as<double>();
+
+	auto inc = env._context.getVariable("inc");
 
 	command.invoke(env._context._globalStack);
 
-	/*
-	auto* function = env.getGlobal<Ketl::FunctionContainer>("adder");
-	auto* pureFunction = function->functions;
-
-	auto stackPtr = env._context._globalStack.allocate(pureFunction->stackSize());
-	pureFunction->call(env._context._globalStack, stackPtr, nullptr);
-	env._context._globalStack.deallocate(pureFunction->stackSize());
-	*/
+	inc();
 
 	test(0);
+
+	assert(testTestF == 37.);
+	assert(testTest2F == 28.);
 	//getc(stdin);
 	return 0;
 }

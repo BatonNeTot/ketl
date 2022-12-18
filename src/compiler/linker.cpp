@@ -385,7 +385,8 @@ namespace Ketl {
 		case TypeCodes::Body: {
 			std::string typeId(reinterpret_cast<const char*>(bytecode + iter));
 			iter += typeId.length() + 1;
-			return std::make_unique<BasicType>(env._context.getGlobal<BasicTypeBody>(typeId));
+			auto var = env._context.getVariable(typeId);
+			return std::make_unique<BasicType>(var.as<BasicTypeBody>());
 		}
 		case TypeCodes::Const: {
 			auto type = readType(env, iter, bytecode, size);
@@ -458,14 +459,14 @@ namespace Ketl {
 			case ByteInstruction::Variable: {
 				std::string id(reinterpret_cast<const char*>(bytecode + iter));
 				iter += id.length() + 1;
-				auto* type = env._context.getGlobalType(id);
+				auto var = env._context.getVariable(id);
+				auto* type = var.type();
 
 				auto global = std::make_unique<VariableGlobal>();
 				global->type = Type::clone(type);
-				global->ptr = env._context.getGlobal<void>(id);
+				global->ptr = var.as<void>();
 				global->id = id;
 				variables[i] = std::move(global);
-				// TODO get Type and Ptr with one call
 				break;
 			}
 			case ByteInstruction::VariableDefinition: {
@@ -574,7 +575,7 @@ namespace Ketl {
 					return {};
 				}
 
-				if (auto floatType = std::make_unique<BasicType>(env._context.getGlobal<BasicTypeBody>("Float64"));
+				if (auto floatType = std::make_unique<BasicType>(env._context.getVariable("Float64").as<BasicTypeBody>());
 					floatType->id() == args[0]->type->id() && floatType->id() == args[1]->type->id()) {
 					// TODO check type casting etc
 
@@ -660,7 +661,7 @@ namespace Ketl {
 				auto pureFunction = proceed(env, funcVariables, funcStack, returnType.get(), bytecode + iter, byteDataSize);
 				iter += byteDataSize;
 
-				auto functionPtr = env._context.getGlobal<FunctionContainer>(functionId);
+				auto functionPtr = env._context.getVariable(functionId).as<FunctionContainer>();
 				if (functionPtr) {
 					// TODO expand function;
 				}

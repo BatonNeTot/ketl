@@ -386,6 +386,10 @@ namespace Ketl {
 			return *_alloc;
 		}
 
+		explicit operator bool() const {
+			return _alloc != nullptr;
+		}
+
 	private:
 		friend class Linker;
 
@@ -416,10 +420,10 @@ namespace Ketl {
 	class StandaloneFunction : public FunctionHolder {
 	public:
 		StandaloneFunction(FunctionImpl&& function)
-			: _function(std::move(function)), _stack(function.alloc(), function.stackSize()) {}
+			: _function(std::move(function)) {}
 
-		StackAllocator& stack() {
-			return _stack;
+		explicit operator bool() const {
+			return static_cast<bool>(_function);
 		}
 
 	private:
@@ -429,8 +433,6 @@ namespace Ketl {
 		}
 
 		FunctionImpl _function;
-
-		StackAllocator _stack;
 	};
 
 	enum class OperatorCode : uint8_t {
@@ -538,91 +540,6 @@ namespace Ketl {
 		Allocator* alloc = nullptr;
 		FunctionImpl* functions = nullptr;
 		uint64_t functionsCount = 0;
-	};
-
-	class BasicTypeBody;
-
-	class Context {
-	public:
-
-		Context(Allocator& allocator, uint64_t globalStackSize);
-
-		struct Variable {
-			void* value;
-			std::unique_ptr<const Type> type;
-		};
-
-		template <class T>
-		BasicTypeBody* declareType(const std::string& id) {
-			return declareType(id, sizeof(T));
-		}
-
-		template <>
-		BasicTypeBody* declareType<void>(const std::string& id) {
-			return declareType(id, 0);
-		}
-
-		BasicTypeBody* declareType(const std::string& id, uint64_t sizeOf);
-
-		bool declareGlobal(const std::string& id, void* stackPtr, const Type& type) {
-			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
-			return success;
-		}
-
-		template <class T>
-		T* declareGlobal(const std::string& id, const Type& type) {
-			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
-			if (success) {
-				auto valuePtr = reinterpret_cast<Type*>(allocateOnGlobalStack(*it->second.type));
-				it->second.value = valuePtr;
-			}
-			return reinterpret_cast<T*>(it->second.value);
-		}
-
-		template <class T>
-		T* getGlobal(const std::string& id) {
-			auto it = _globals.find(id);
-			return it != _globals.end() ? reinterpret_cast<T*>(it->second.value) : nullptr;
-		}
-
-		const Type* getGlobalType(const std::string& id) {
-			auto it = _globals.find(id);
-			return it != _globals.end() ? it->second.type.get() : nullptr;
-		}
-
-		uint8_t* allocateOnGlobalStack(const Type& type) {
-			auto ptr = _globalStack.allocate(type.sizeOf());
-			//type.construct(ptr);
-			return ptr;
-		}
-
-	public: // TODO
-
-		StackAllocator _globalStack;
-		std::unordered_map<std::string, Variable> _globals;
-	};
-
-	class Environment {
-	public:
-
-		Environment();
-
-		template <class T>
-		T* getGlobal(const std::string& id) {
-			return _context.getGlobal<T>(id);
-		}
-
-		template <class T>
-		T* declareGlobal(const std::string& id, const Type& type) {
-			return _context.declareGlobal<T>(id, type);
-		}
-
-	public: //TODO private
-
-		Allocator _alloc;
-		Context _context;
-
-		std::unordered_map<std::type_index, std::string> _typeIdByIndex;
 	};
 }
 

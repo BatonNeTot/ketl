@@ -2,7 +2,7 @@
 #ifndef linker_h
 #define linker_h
 
-#include "ketl.h"
+#include "env.h"
 #include "analyzer.h"
 
 namespace Ketl {
