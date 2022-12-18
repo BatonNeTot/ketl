@@ -13,13 +13,16 @@ namespace Ketl {
 		BnfNodeLiteral(const std::string_view& value, bool utility = false)
 			: _value(value), _utility(utility) {}
 
-		std::pair<bool, std::unique_ptr<Node>> parse(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end, uint64_t& offset) const;
+		std::pair<bool, std::unique_ptr<Node>> parse(BnfIterator& it) const;
 
-		bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const override;
+		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
 
 		const std::string_view& value() const {
 			return _value;
+		}
+
+		std::string_view errorMsg() const override {
+			return value();
 		}
 
 	private:
@@ -35,8 +38,7 @@ namespace Ketl {
 
 		void preprocess(const BnfManager& manager) override;
 
-		bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const override;
+		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
 
 	private:
 
@@ -58,14 +60,31 @@ namespace Ketl {
 		BnfNodeLeaf(Type type)
 			: _type(type) {}
 
-		std::pair<bool, std::unique_ptr<Node>> parse(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end) const;
+		std::pair<bool, std::unique_ptr<Node>> parse(BnfIterator& it) const;
 
 		const Type& type() const {
 			return _type;
 		}
 
-		bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const override;
+		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
+
+		std::string_view errorMsg() const override {
+			switch (type()) {
+			case Type::Id: {
+				static const std::string id = "id";
+				return id;
+			}
+			case Type::Number: {
+				static const std::string number = "number";
+				return number;
+			}
+			case Type::String: {
+				static const std::string str = "string literal";
+				return str;
+			}
+			}
+			return {};
+		}
 
 	private:
 		Type _type;
@@ -95,8 +114,7 @@ namespace Ketl {
 			BnfNode::preprocess(manager);
 		}
 
-		bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const override;
+		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
 
 	private:
 
@@ -123,8 +141,7 @@ namespace Ketl {
 			BnfNode::preprocess(manager);
 		}
 
-		bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const override;
+		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
 
 	private:
 		std::vector<std::unique_ptr<BnfNode>> _children;

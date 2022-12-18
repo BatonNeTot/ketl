@@ -28,6 +28,86 @@ namespace Ketl {
 		std::list<std::unique_ptr<Node>> outputChildrenNodes;
 	};
 
+	class BnfIterator {
+	public:
+
+		BnfIterator(std::list<Lexer::Token>::iterator&& it, const std::list<Lexer::Token>::iterator& end)
+			: _it(std::move(it)), _end(end) {}
+
+		BnfIterator& operator=(const BnfIterator& other) {
+			_it = other._it;
+			_itOffset = other._itOffset;
+			return *this;
+		}
+
+		const std::string_view& value() const {
+			static const std::string_view empty;
+			return _it != _end ? _it->value : empty;
+		}
+
+		Lexer::Token::Type type() const {
+			static auto def = Lexer::Token::Type::Other;
+			return _it != _end ? _it->type : def;
+		}
+
+		explicit operator bool() const {
+			return _it != _end;
+		}
+
+		explicit operator char() const {
+			return _it != _end ? _it->value[_itOffset] : '\0';
+		}
+
+		BnfIterator& operator++() {
+			++_it;
+			return *this;
+		}
+
+		bool operator+=(const std::string_view& value) {
+			if (value.length() > this->value().length() - _itOffset) {
+				return false;
+			}
+
+			for (auto i = 0u; i < value.length(); ++i) {
+				if (value[i] != this->value()[i + _itOffset]) {
+					return false;
+				}
+			}
+
+			if (value.length() == this->value().length() - _itOffset) {
+				++_it;
+				_itOffset = 0;
+			}
+			else {
+				_itOffset += value.length();
+			}
+
+			return true;
+		}
+
+		explicit operator uint64_t() const {
+			if (_it != _end) {
+				return _it->offset + _itOffset;
+			}
+			auto back = _end;
+			--back;
+			return back->offset + back->value.length();
+		}
+
+		friend bool operator<(const BnfIterator& lhs, const BnfIterator& rhs) {
+			return static_cast<uint64_t>(lhs) < static_cast<uint64_t>(rhs);
+		}
+
+		friend bool operator==(const BnfIterator& lhs, const BnfIterator& rhs) {
+			return lhs._it == rhs._it && lhs._itOffset == rhs._itOffset;
+		}
+
+	private:
+		std::list<Lexer::Token>::iterator _it;
+		const std::list<Lexer::Token>::iterator& _end;
+		uint64_t _itOffset = 0;
+	};
+
 	class BnfNode {
 	public:
 		virtual ~BnfNode() = default;
@@ -37,8 +117,7 @@ namespace Ketl {
 			}
 		}
 
-		virtual bool process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-			uint64_t& offset, ProcessNode& parentProcess) const = 0;
+		virtual bool process(BnfIterator& it, ProcessNode& parentProcess) const = 0;
 
 		const BnfNode* next(ProcessNode*& parentProcess) const {
 			while (parentProcess != nullptr && parentProcess->node != nullptr) {
@@ -51,6 +130,8 @@ namespace Ketl {
 
 			return nullptr;
 		}
+
+		virtual std::string_view errorMsg() const { return {}; }
 		
 		std::unique_ptr<BnfNode> nextSibling;
 	};
@@ -123,13 +204,18 @@ namespace Ketl {
 
 		std::unique_ptr<Node> proceed(const std::string& str);
 
+		const std::string& errorMsg() const {
+			return _error;
+		}
+
 	private:
 
 		void insertPredence(std::unique_ptr<BnfNode>&& operators, const std::string& expression,
 			const std::string& extra, const std::string& lowExpression);
 
 		BnfManager _manager;
-		std::list<std::unique_ptr<Node>> _comands;
+
+		std::string _error;
 	};
 
 }

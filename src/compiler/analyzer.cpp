@@ -21,7 +21,15 @@ namespace Ketl {
 	};
 
 	std::vector<uint8_t> Analyzer::proceed(const std::string& source) {
+		static const std::string empty;
+		_error = empty;
+
 		auto commandsNode = _parser.proceed(source);
+		if (!commandsNode) {
+			_error = _parser.errorMsg();
+			return {};
+		}
+
 		Scope scope;
 		return proceed(scope, commandsNode.get());
 	}

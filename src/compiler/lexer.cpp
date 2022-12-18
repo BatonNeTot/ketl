@@ -14,15 +14,15 @@ namespace Ketl {
 		
 		while (*itSymbolPtr != '\0') {
 			if (isNumberDot(*itSymbolPtr) && isNumber(peekSymbol())) {
-				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
 				auto start = _carret - 1;
 				while (isNumber(nextSymbol())) {};
 				--_carret;
-				return { _source.substr(start, _carret - start), 0u };
+				return { start, _source.substr(start, _carret - start), 0u };
 			}
 
 			if (isNumber(*itSymbolPtr)) {
-				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
 				auto start = _carret - 1;
 				while (true) {
 					auto next = nextSymbol();
@@ -32,35 +32,35 @@ namespace Ketl {
 					if (isNumberDot(next)) {
 						while (isNumber(nextSymbol())) {};
 						--_carret;
-						return { _source.substr(start, _carret - start), 0u };
+						return { start, _source.substr(start, _carret - start), 0u };
 					}
 					break;
 				};
 				--_carret;
-				return { _source.substr(start, _carret - start), 0u };
+				return { start, _source.substr(start, _carret - start), 0u };
 			}
 
 			if (isQuote(*itSymbolPtr)) {
-				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
 				auto start = _carret;
 				while (!isQuote(nextSymbol())) {};
-				return { _source.substr(start, _carret - start - 1), '\0' };
+				return { start, _source.substr(start, _carret - start - 1), '\0' };
 			}
 
 			if (isProperStartingIdSymbol(*itSymbolPtr)) {
-				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
 				auto start = _carret - 1;
 				while (isProperIdSymbol(nextSymbol())) {};
 				--_carret;
-				return { _source.substr(start, _carret - start), nullptr };
+				return { start, _source.substr(start, _carret - start), nullptr };
 			}
 
 			if (isSpace(*itSymbolPtr)) {
-				return _source.substr(initialCarret, _carret - initialCarret - 1);
+				return { initialCarret, _source.substr(initialCarret, _carret - initialCarret - 1) };
 			}
 
 			if (*itSymbolPtr == '/' && peekSymbol() == '/') {
-				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
 				for (; *itSymbolPtr != '\0' && *itSymbolPtr != '\n'; itSymbolPtr = &nextSymbol()) {};
 				while (isSpace(*itSymbolPtr)) { itSymbolPtr = &nextSymbol(); }
 				initialCarret = _carret - 1;
@@ -70,7 +70,7 @@ namespace Ketl {
 			itSymbolPtr = &nextSymbol();
 		}
 
-		return _source.substr(initialCarret, _carret - initialCarret);
+		return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) };
 	}
 
 	bool Lexer::hasNext() const {

@@ -188,7 +188,15 @@ namespace Ketl {
 	}
 
 	FunctionImpl Linker::proceed(Environment& env, const std::string& source) {
+		static const std::string empty;
+		_error = empty;
+
 		auto byteData = _analyzer.proceed(source);
+		if (byteData.empty()) {
+			_error = _analyzer.errorMsg();
+			return {};
+		}
+
 		return proceed(env, byteData.data(), byteData.size());
 	}
 

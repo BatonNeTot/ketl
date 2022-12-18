@@ -107,7 +107,10 @@ int main(int argc, char** argv) {
 	testValue2 = adder(5);
 )");
 
-	assert(command);
+	if (!command) {
+		std::cerr << linker.errorMsg() << std::endl;
+		assert(false);
+	}
 
 	auto& testTestF = *env._context.getVariable("testValue").as<double>();
 	auto& testTest2F = *env._context.getVariable("testValue2").as<double>();

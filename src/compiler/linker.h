@@ -34,9 +34,14 @@ namespace Ketl {
 
 		FunctionImpl proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const Type* returnType, const uint8_t* bytecode, uint64_t size);
 
+		const std::string& errorMsg() const {
+			return _error;
+		}
+
 	private:
 
 		Analyzer _analyzer;
+		std::string _error;
 	};
 }
 

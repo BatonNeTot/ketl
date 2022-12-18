@@ -4,6 +4,8 @@
 #include "bnf_nodes.h"
 #include "lexer.h"
 
+#include <format>
+
 namespace Ketl {
 
 	Parser::Parser() {
@@ -228,6 +230,8 @@ namespace Ketl {
 	}
 
 	std::unique_ptr<Node> Parser::proceed(const std::string& str) {
+		static const std::string empty;
+		_error = empty;
 		Lexer lexer(str);
 
 		std::list<Lexer::Token> list;
@@ -239,14 +243,41 @@ namespace Ketl {
 		}
 
 		ProcessNode processNode;
-		auto it = list.begin();
 		auto end = list.end();
-		uint64_t offset = 0;
+		BnfIterator iterator(list.begin(), end);
 		auto node = _manager.getById("several-commands");
-		auto success = node->process(it, end, offset, processNode);
+		auto success = node->process(iterator, processNode);
 
 		if (!success) {
-			auto test = 0;
+			uint64_t row = 0u;
+			uint64_t end = iterator ? static_cast<uint64_t>(iterator) : str.length();
+			uint64_t lastAfterLine = 0u;
+			uint64_t line = 0u;
+			for (; row < end; ++row) {
+				if (str[row] == '\n') {
+					++line;
+					lastAfterLine = row + 1;
+				}
+			}
+			row -= lastAfterLine;
+
+			if (end == str.length()) {
+				_error = std::format("({},{}): unexpected EOF, expected {}",
+					line, row,
+					processNode.node->errorMsg());
+			} else if (processNode.node == nullptr) {
+				_error = std::format("({},{}): unexpected end of form, parsing {}",
+					line, row,
+					static_cast<char>(iterator));
+			}
+			else {
+				_error = std::format("({},{}): expected {}, got {}",
+					line, row,
+					processNode.node->errorMsg(),
+					static_cast<char>(iterator));
+			}
+
+			return {};
 		}
 
 		return std::move(processNode.outputChildrenNodes.back());

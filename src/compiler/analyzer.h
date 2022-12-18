@@ -232,9 +232,14 @@ namespace Ketl {
 
 		std::vector<uint8_t> proceed(Scope& scope, std::list<std::unique_ptr<ByteVariable>>& variables, const Node* commandsNode);
 
+		const std::string& errorMsg() const {
+			return _error;
+		}
+
 	private:
 
 		Ketl::Parser _parser;
+		std::string _error;
 
 		enum class State : unsigned char {
 			Default,

@@ -7,48 +7,26 @@
 
 namespace Ketl {
 
-	std::pair<bool, std::unique_ptr<Node>> BnfNodeLiteral::parse(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end, uint64_t& offset) const {
+	std::pair<bool, std::unique_ptr<Node>> BnfNodeLiteral::parse(BnfIterator& it) const {
 		if (value().empty()) {
 			return std::make_pair<bool, std::unique_ptr<Node>>(true, {});
 		}
 
-		if (it == end) {
+		if (!it) {
 			return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 		}
 
-		switch (it->type) {
+		switch (it.type()) {
 		case Lexer::Token::Type::Other: {
-			if (value().length() > it->value.length() - offset) {
+			if (!(it += value())) {
 				return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
-			}
-
-			for (auto i = 0u; i < value().length(); ++i) {
-				if (value()[i] != it->value[i + offset]) {
-					return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
-				}
-			}
-
-			if (value().length() == it->value.length() - offset) {
-				++it;
-				offset = 0;
-			}
-			else {
-				offset += value().length();
 			}
 			break;
 		}
 		case Lexer::Token::Type::Id: {
-			if (value().length() != it->value.length() || offset != 0) {
+			if (value().length() != it.value().length() || !(it += value())) {
 				return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 			}
-
-			for (auto i = 0u; i < value().length(); ++i) {
-				if (value()[i] != it->value[i + offset]) {
-					return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
-				}
-			}
-
-			++it;
 			break;
 		}
 		default: {
@@ -64,10 +42,10 @@ namespace Ketl {
 		}
 	}
 
-	bool BnfNodeLiteral::process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-		uint64_t& offset, ProcessNode& parentProcess) const {
-		auto pair = parse(it, end, offset);
+	bool BnfNodeLiteral::process(BnfIterator& it, ProcessNode& parentProcess) const {
+		auto pair = parse(it);
 		if (!pair.first) {
+			parentProcess.node = this;
 			return false;
 		}
 
@@ -77,29 +55,34 @@ namespace Ketl {
 		auto nextNode = next(processParent);
 
 		if (nextNode) {
-			if (nextNode->process(it, end, offset, *processParent)) {
+			if (nextNode->process(it, *processParent)) {
 				if (pair.second) {
 					parentProcess.outputChildrenNodes.emplace_front(std::move(pair.second));
 				}
 				return true;
 			}
+			parentProcess.node = processParent->node;
 			return false;
 		}
 
-		return it == end;
+		auto end = static_cast<bool>(it);
+		if (end) {
+			parentProcess.node = nullptr;
+		}
+		return !end;
 	}
 
-	std::pair<bool, std::unique_ptr<Node>> BnfNodeLeaf::parse(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end) const {
-		if (it == end) {
+	std::pair<bool, std::unique_ptr<Node>> BnfNodeLeaf::parse(BnfIterator& it) const {
+		if (!it) {
 			return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 		}
 
-		switch (it->type) {
+		switch (it.type()) {
 		case Lexer::Token::Type::Id: {
 			if (_type != Type::Id) {
 				return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 			}
-			auto value = it->value;
+			auto value = it.value();
 			++it;
 			return std::make_pair<bool, std::unique_ptr<Node>>(true, std::make_unique<NodeLeaf>(std::move(value), nullptr));
 		}
@@ -107,7 +90,7 @@ namespace Ketl {
 			if (_type != Type::Number) {
 				return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 			}
-			auto value = it->value;
+			auto value = it.value();
 			++it;
 			return std::make_pair<bool, std::unique_ptr<Node>>(true, std::make_unique<NodeLeaf>(std::move(value), 0u));
 		}
@@ -115,7 +98,7 @@ namespace Ketl {
 			if (_type != Type::String) {
 				return std::make_pair<bool, std::unique_ptr<Node>>(false, {});
 			}
-			auto value = it->value;
+			auto value = it.value();
 			++it;
 			return std::make_pair<bool, std::unique_ptr<Node>>(true, std::make_unique<NodeLeaf>(std::move(value), '\0'));
 		}
@@ -128,10 +111,10 @@ namespace Ketl {
 		}
 	}
 
-	bool BnfNodeLeaf::process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-		uint64_t& offset, ProcessNode& parentProcess) const {
-		auto pair = parse(it, end);
+	bool BnfNodeLeaf::process(BnfIterator& it, ProcessNode& parentProcess) const {
+		auto pair = parse(it);
 		if (!pair.first) {
+			parentProcess.node = this;
 			return false;
 		}
 
@@ -141,16 +124,21 @@ namespace Ketl {
 		auto nextNode = next(processParent);
 
 		if (nextNode) {
-			if (nextNode->process(it, end, offset, *processParent)) {
+			if (nextNode->process(it, *processParent)) {
 				if (pair.second) {
 					parentProcess.outputChildrenNodes.emplace_front(std::move(pair.second));
 				}
 				return true;
 			}
+			parentProcess.node = processParent->node;
 			return false;
 		}
 
-		return it == end;
+		auto end = static_cast<bool>(it);
+		if (end) {
+			parentProcess.node = nullptr;
+		}
+		return !end;
 	}
 
 	void BnfNodeId::preprocess(const BnfManager& manager) {
@@ -158,11 +146,10 @@ namespace Ketl {
 		BnfNode::preprocess(manager);
 	}
 
-	bool BnfNodeId::process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-		uint64_t& offset, ProcessNode& parentProcess) const {
+	bool BnfNodeId::process(BnfIterator& it, ProcessNode& parentProcess) const {
 		ProcessNode processNode(&parentProcess, this);
 
-		if (_node->process(it, end, offset, processNode)) {
+		if (_node->process(it, processNode)) {
 			if (!processNode.outputChildrenNodes.empty() && processNode.outputChildrenNodes.back()) {
 				auto& outputNode = processNode.outputChildrenNodes.back();
 				if (_placeholder) {
@@ -183,18 +170,19 @@ namespace Ketl {
 			}
 			return true;
 		}
+
+		parentProcess.node = processNode.node;
 		return false;
 	}
 
-	bool BnfNodeConcat::process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-		uint64_t& offset, ProcessNode& parentProcess) const {
+	bool BnfNodeConcat::process(BnfIterator& it, ProcessNode& parentProcess) const {
 		ProcessNode processNode(&parentProcess, this);
 
 		ProcessNode* processParent = &processNode;
 		auto nextNode = _firstChild.get();
 
 		if (nextNode) {
-			if (nextNode->process(it, end, offset, processNode)) {
+			if (nextNode->process(it, processNode)) {
 				if (!processNode.outputChildrenNodes.empty()) {
 					if (processNode.outputChildrenNodes.size() == 1 && _weak) {
 						parentProcess.outputChildrenNodes.emplace_front(std::move(processNode.outputChildrenNodes.back()));
@@ -210,29 +198,41 @@ namespace Ketl {
 
 				return true;
 			}
+			parentProcess.node = processParent->node;
 			return false;
 		}
 
-		return it == end;
+		auto end = static_cast<bool>(it);
+		if (end) {
+			parentProcess.node = nullptr;
+		}
+		return !end;
 	}
 
-	bool BnfNodeOr::process(std::list<Lexer::Token>::iterator& it, const std::list<Lexer::Token>::iterator& end,
-		uint64_t& offset, ProcessNode& parentProcess) const {
+	bool BnfNodeOr::process(BnfIterator& it, ProcessNode& parentProcess) const {
 		ProcessNode processNode(&parentProcess, this);
 
+		auto maxIt = it;
+		const BnfNode* maxItNode = _children.front().get();
 		for (auto i = 0u; i < _children.size(); ++i) {
 			auto tempIt = it;
-			auto tempOffset = offset;
-			if (_children[i]->process(tempIt, end, tempOffset, processNode)) {
+			processNode.node = this;
+			if (_children[i]->process(tempIt, processNode)) {
 				it = tempIt;
-				offset = tempOffset;
 				if (!processNode.outputChildrenNodes.empty() && processNode.outputChildrenNodes.front()) {
 					parentProcess.outputChildrenNodes.emplace_front(std::move(processNode.outputChildrenNodes.front()));
 				}
 				return true;
 			}
+			if (maxIt == tempIt) {
+				maxItNode = processNode.node;
+			} else if (maxIt < tempIt) {
+				maxIt = tempIt;
+				maxItNode = processNode.node;
+			}
 		}
-
+		it = maxIt;
+		parentProcess.node = maxItNode;
 		return false;
 	}
 

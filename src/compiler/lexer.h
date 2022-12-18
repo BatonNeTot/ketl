@@ -21,20 +21,20 @@ namespace Ketl {
 				Other
 			};
 
-			Token() = default;
-			Token(const char& symbol)
-				: value(&symbol, 1), type(Type::Other) {};
-			Token(const std::string_view& value_)
-				: value(value_), type(Type::Other) {};
-			Token(const std::string_view& value_, nullptr_t)
-				: value(value_), type(Type::Id) {};
-			Token(const std::string_view& value_, unsigned int)
-				: value(value_), type(Type::Number) {};
-			Token(const std::string_view& value_, char)
-				: value(value_), type(Type::Literal) {};
+			Token(uint64_t offset_, const char& symbol)
+				: offset(offset_), value(&symbol, 1), type(Type::Other) {};
+			Token(uint64_t offset_, const std::string_view& value_)
+				: offset(offset_), value(value_), type(Type::Other) {};
+			Token(uint64_t offset_, const std::string_view& value_, nullptr_t)
+				: offset(offset_), value(value_), type(Type::Id) {};
+			Token(uint64_t offset_, const std::string_view& value_, unsigned int)
+				: offset(offset_), value(value_), type(Type::Number) {};
+			Token(uint64_t offset_, const std::string_view& value_, char)
+				: offset(offset_), value(value_), type(Type::Literal) {};
 
 			std::string_view value;
 			Type type = Type::Id;
+			uint64_t offset = 0;
 		};
 
 		Token proceedNext();
