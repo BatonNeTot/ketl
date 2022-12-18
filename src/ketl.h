@@ -276,6 +276,8 @@ namespace Ketl {
 		Argument _second;
 	};
 
+	using CFunction = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
+
 
 	class PureFunction {
 	public:
@@ -295,14 +297,19 @@ namespace Ketl {
 			function._instructions = nullptr;
 		}
 		~PureFunction() {
-			if (_instructions != nullptr) {
+			if (_instructions != nullptr && _instructionsCount > 0) {
 				_alloc->deallocate(_instructions);
 			}
 		}
 
 		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) {
-			for (uint64_t index = 0u; index < _instructionsCount;) {
-				_instructions[index].call(index, stack, stackPtr, returnPtr);
+			if (_instructionsCount > 0) {
+				for (uint64_t index = 0u; index < _instructionsCount;) {
+					_instructions[index].call(index, stack, stackPtr, returnPtr);
+				}
+			}
+			else {
+				_cfunc(stack, stackPtr, returnPtr);
 			}
 		}
 
@@ -321,7 +328,10 @@ namespace Ketl {
 		uint64_t _stackSize = 0;
 
 		uint64_t _instructionsCount = 0;
-		Instruction* _instructions = nullptr;
+		union {
+			Instruction* _instructions = nullptr;
+			CFunction _cfunc;
+		};
 	};
 
 	class FunctionHolder {
