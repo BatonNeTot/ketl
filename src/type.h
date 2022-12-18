@@ -100,55 +100,40 @@ namespace Ketl {
 	public:
 		FunctionType() {}
 		FunctionType(const FunctionType& function)
-			: infos(function.infos) {}
+			: info(function.info) {}
 
 		std::string id() const override {
-			if (infos.size() > 1) {
-				return "MultiCastFunction";
-			}
-			else {
-				auto& func = infos.front();
-				auto id = func.returnType->id() + "(*)(";
-				for (uint64_t i = 0u; i < func.argTypes.size(); ++i) {
-					if (i != 0) {
-						id += ", ";
-					}
-					id += func.argTypes[i]->id();
+			auto& func = info;
+			auto id = func.returnType->id() + "(*)(";
+			for (uint64_t i = 0u; i < func.argTypes.size(); ++i) {
+				if (i != 0) {
+					id += ", ";
 				}
-				return id;
+				id += func.argTypes[i]->id();
 			}
+			return id;
 		}
 		FunctionInfo deduceFunction(const std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
 			FunctionInfo outputInfo;
 
-			for (uint64_t infoIt = 0u; infoIt < infos.size(); ++infoIt) {
-				auto& info = infos[infoIt];
-				if (argumentTypes.size() != info.argTypes.size()) {
-					continue;
-				}
-				bool next = false;
-				for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
-					if (!argumentTypes[typeIt]->convertableTo(*info.argTypes[typeIt])) {
-						next = true;
-						break;
-					}
-				}
-				if (next) {
-					continue;
-				}
-
-				outputInfo.isDynamic = true;
-				outputInfo.functionIndex = static_cast<uint8_t>(infoIt);
-				outputInfo.returnType = Type::clone(info.returnType);
-
-				outputInfo.argTypes.reserve(info.argTypes.size());
-				for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
-					outputInfo.argTypes.emplace_back(Type::clone(info.argTypes[typeIt]));
-				}
-
-				return outputInfo;
+			if (argumentTypes.size() != info.argTypes.size()) {
+				return Type::deduceFunction(argumentTypes);
 			}
-			return Type::deduceFunction(argumentTypes);
+			bool next = false;
+			for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
+				if (!argumentTypes[typeIt]->convertableTo(*info.argTypes[typeIt])) {
+					next = true;
+					break;
+				}
+			}
+			if (next) {
+				return Type::deduceFunction(argumentTypes);
+			}
+
+			outputInfo.returnType = Type::clone(info.returnType);
+			outputInfo.argTypes = &info.argTypes;
+
+			return outputInfo;
 		}
 
 		struct Info {
@@ -163,11 +148,11 @@ namespace Ketl {
 			std::unique_ptr<const Type> returnType;
 			std::vector<std::unique_ptr<const Type>> argTypes;
 		};
-		std::vector<Info> infos;
+		Info info;
 
 	private:
 		uint64_t sizeOfImpl() const override {
-			return sizeof(FunctionContainer);
+			return sizeof(FunctionImpl);
 		}
 		std::unique_ptr<Type> clone() const override {
 			return std::make_unique<FunctionType>(*this);

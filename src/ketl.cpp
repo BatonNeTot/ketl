@@ -52,28 +52,12 @@ namespace Ketl {
 			break;
 		}
 		case Code::AllocateFunctionStack: {
-			auto& function = *first<const FunctionImpl*>(stackPtr, returnPtr);
+			auto& function = first<FunctionImpl>(stackPtr, returnPtr);
 			output<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.stackSize());
 			break;
 		}
-		case Code::AllocateDynamicFunctionStack: {
-			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
-			auto funcIndex = second<uint64_t>(stackPtr, returnPtr);
-			output<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.functions[funcIndex].stackSize());
-			break;
-		}
 		case Code::CallFunction: {
-			auto& pureFunction = *first<const FunctionImpl*>(stackPtr, returnPtr);
-			auto& stackStart = output<uint8_t*>(stackPtr, returnPtr);
-			auto funcReturnPtr = &output<uint8_t>(stackPtr, returnPtr);
-			pureFunction.call(stack, stackStart, funcReturnPtr);
-			stack.deallocate(pureFunction.stackSize());
-			break;
-		}
-		case Code::CallDynamicFunction: {
-			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
-			auto funcIndex = second<uint64_t>(stackPtr, returnPtr);
-			auto& pureFunction = function.functions[funcIndex];
+			auto& pureFunction = first<FunctionImpl>(stackPtr, returnPtr);
 			auto& stackStart = output<uint8_t*>(stackPtr, returnPtr);
 			auto funcReturnPtr = &output<uint8_t>(stackPtr, returnPtr);
 			pureFunction.call(stack, stackStart, funcReturnPtr);

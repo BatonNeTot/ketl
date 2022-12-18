@@ -27,8 +27,7 @@ namespace Ketl {
 
 		template <class T, class... Args>
 		T* call(StackAllocator& stack, Args&&... args) {
-			auto* function = as<FunctionContainer>();
-			auto* pureFunction = function->functions;
+			auto* pureFunction = as<FunctionImpl>();
 
 			auto stackPtr = stack.allocate(pureFunction->stackSize());
 			uint8_t returnData[16]; // TODO
@@ -118,7 +117,7 @@ namespace Ketl {
 		T* declareGlobal(const std::string& id, const std::unique_ptr<Type>& type) {
 			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
 			if (success) {
-				auto valuePtr = reinterpret_cast<Type*>(allocateOnGlobalStack(*it->second.type()));
+				auto valuePtr = reinterpret_cast<Type*>(allocateGlobal(*it->second.type()));
 				it->second.data(valuePtr);
 			}
 			return it->second.as<T>();
@@ -128,22 +127,22 @@ namespace Ketl {
 		T* declareGlobal(const std::string& id, const std::unique_ptr<const Type>& type) {
 			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
 			if (success) {
-				auto valuePtr = reinterpret_cast<Type*>(allocateOnGlobalStack(*it->second.type()));
+				auto valuePtr = reinterpret_cast<Type*>(allocateGlobal(*it->second.type()));
 				it->second.data(valuePtr);
 			}
 			return it->second.as<T>();
 		}
 		////////////////////////
 
-		uint8_t* allocateOnGlobalStack(const Type& type) {
-			auto ptr = _globalStack.allocate(type.sizeOf());
+		uint8_t* allocateGlobal(const Type& type) {
+			auto ptr = _alloc.allocate(type.sizeOf());
 			return ptr;
 		}
 
 	public: // TODO
 
 		static Variable _emptyVar;
-
+		Allocator& _alloc;
 		StackAllocator _globalStack;
 		std::unordered_map<std::string, Variable> _globals;
 	};

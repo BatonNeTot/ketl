@@ -15,13 +15,13 @@ namespace Ketl {
 			return false;
 		}
 
-		if (funcInfo.isDynamic) {
+		if (!funcInfo.function) {
 			return false;
 		}
 
 		Instruction allocationInstruction;
 		allocationInstruction._first.cPointer = funcInfo.function;
-		allocationInstruction._firstType = Argument::Type::Literal;
+		allocationInstruction._firstType = Argument::Type::DerefLiteral;
 
 		allocationInstruction._code = Instruction::Code::AllocateFunctionStack;
 		allocationInstruction._output = output;
@@ -29,7 +29,7 @@ namespace Ketl {
 
 		std::vector<Linker::Variable*> args { arg };
 
-		return propagateFunctionCall(instructions, allocationInstruction, args, funcInfo.argTypes);
+		return propagateFunctionCall(instructions, allocationInstruction, args, *funcInfo.argTypes);
 	}
 	static bool propagateFunctionCall(std::vector<Instruction>& instructions, Instruction& allocateInstruction,
 		const std::vector<Linker::Variable*>& args, const std::vector<std::unique_ptr<const Type>>& argTypes) {
@@ -90,8 +90,7 @@ namespace Ketl {
 		}
 
 		// call function
-		allocateInstruction._code = (allocateInstruction._code == Instruction::Code::AllocateFunctionStack ?
-			Instruction::Code::CallFunction : Instruction::Code::CallDynamicFunction);
+		allocateInstruction._code = Instruction::Code::CallFunction;
 		instructions.emplace_back(allocateInstruction);
 
 		return true;
@@ -110,20 +109,18 @@ namespace Ketl {
 		}
 
 		Instruction allocationInstruction;
-		allocationInstruction._code = funcInfo.isDynamic ? Instruction::Code::AllocateDynamicFunctionStack : Instruction::Code::AllocateFunctionStack;
+		allocationInstruction._code = Instruction::Code::AllocateFunctionStack;
 		allocationInstruction._output = output;
 		allocationInstruction._outputType = outputType;
-		if (funcInfo.isDynamic) {
+		if (!funcInfo.function) {
 			variable.propagateArgument(allocationInstruction._first, allocationInstruction._firstType);
-			allocationInstruction._second.uinteger = funcInfo.functionIndex;
-			allocationInstruction._secondType = Argument::Type::Literal;
 		}
 		else {
 			allocationInstruction._first.cPointer = funcInfo.function;
-			allocationInstruction._firstType = Argument::Type::Literal;
+			allocationInstruction._firstType = Argument::Type::DerefLiteral;
 		}
 
-		return propagateFunctionCall(instructions, allocationInstruction, args, funcInfo.argTypes);
+		return propagateFunctionCall(instructions, allocationInstruction, args, *funcInfo.argTypes);
 	}
 
 	StandaloneFunction Linker::proceedStandalone(Environment& env, const std::string& source) {
@@ -557,21 +554,14 @@ namespace Ketl {
 				auto pureFunction = proceed(env, funcVariables, funcStack, returnType.get(), bytecode + iter, byteDataSize);
 				iter += byteDataSize;
 
-				auto functionPtr = env._context.getVariable(functionId).as<FunctionContainer>();
-				if (functionPtr) {
-					// TODO expand function;
-				}
-				else {
-					auto functionType = std::make_unique<FunctionType>();
-					auto& info = functionType->infos.emplace_back();
-					info.returnType = std::move(returnType);
-					info.argTypes = std::move(argTypes);
+				auto functionType = std::make_unique<FunctionType>();
+				auto& info = functionType->info;
+				info.returnType = std::move(returnType);
+				info.argTypes = std::move(argTypes);
 
-					std::unique_ptr<const Type> type = std::move(functionType);
-					functionPtr = env._context.declareGlobal<FunctionContainer>(functionId, type);
-					new(functionPtr) FunctionContainer(env._alloc);
-					functionPtr->emplaceFunction(std::move(pureFunction));
-				}
+				std::unique_ptr<const Type> type = std::move(functionType);
+				auto functionPtr = env._context.declareGlobal<FunctionImpl>(functionId, type);
+				new(functionPtr) FunctionImpl(std::move(pureFunction));
 
 				break;
 			}

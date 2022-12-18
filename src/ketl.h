@@ -156,6 +156,7 @@ namespace Ketl {
 			//TODO same 
 			DerefDerefStack,
 			Literal,
+			DerefLiteral,
 			Return,
 			DerefReturn,
 		}; 
@@ -173,6 +174,9 @@ namespace Ketl {
 			}
 			case Type::DerefGlobal: {
 				return Type::DerefDerefGlobal;
+			}
+			case Type::Literal: {
+				return Type::DerefLiteral;
 			}
 			case Type::Return: {
 				return Type::DerefReturn;
@@ -210,9 +214,7 @@ namespace Ketl {
 			Assign,
 			Reference,
 			AllocateFunctionStack,
-			AllocateDynamicFunctionStack,
 			CallFunction,
-			CallDynamicFunction,
 		};
 
 		Instruction() {}
@@ -297,6 +299,9 @@ namespace Ketl {
 			}
 			case Argument::Type::Literal: {
 				return reinterpret_cast<uint8_t*>(&value);
+			}
+			case Argument::Type::DerefLiteral: {
+				return *reinterpret_cast<uint8_t**>(&value);
 			}
 			case Argument::Type::Return: {
 				return returnPtr;
@@ -454,11 +459,10 @@ namespace Ketl {
 		virtual std::string id() const = 0;
 
 		struct FunctionInfo {
-			bool isDynamic = false;
-			uint8_t functionIndex = 0;
 			const FunctionImpl* function = nullptr;
 			std::unique_ptr<const Type> returnType;
-			std::vector<std::unique_ptr<const Type>> argTypes;
+			// TODO terrible, TEMPORARY
+			const std::vector<std::unique_ptr<const Type>>* argTypes = nullptr;
 		};
 
 		virtual FunctionInfo deduceFunction(const std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
@@ -503,33 +507,6 @@ namespace Ketl {
  	private:
 		virtual uint64_t sizeOfImpl() const = 0;
 		virtual std::unique_ptr<Type> clone() const = 0;
-	};
-
-	class FunctionContainer {
-	public:
-		FunctionContainer() {}
-		FunctionContainer(Allocator& alloc_)
-			: alloc(&alloc_) {}
-		~FunctionContainer() {
-			if (functions) {
-				alloc->deallocate(functions);
-			}
-		}
-
-		void emplaceFunction(FunctionImpl&& function) {
-			auto newFunctions = alloc->allocate<FunctionImpl>((functionsCount + 1) * sizeof(FunctionImpl));
-			new(newFunctions + functionsCount) FunctionImpl(std::move(function));
-			if (functions != nullptr) {
-				memcpy(newFunctions, functions, functionsCount * sizeof(FunctionImpl));
-				alloc->deallocate(functions);
-			}
-			++functionsCount;
-			functions = newFunctions;
-		}
-
-		Allocator* alloc = nullptr;
-		FunctionImpl* functions = nullptr;
-		uint64_t functionsCount = 0;
 	};
 }
 

@@ -8,7 +8,7 @@ namespace Ketl {
 	BasicTypeBody* Context::declareType(const std::string& id, uint64_t sizeOf) {
 		auto theTypeVar = getVariable("Type");
 		auto theTypePtr = theTypeVar.as<BasicTypeBody>();
-		auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(theTypePtr)));
+		auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(BasicType(theTypePtr)));
 		new(typePtr) BasicTypeBody(id, sizeOf);
 		_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
 		return typePtr;
@@ -20,10 +20,10 @@ namespace Ketl {
 	}
 
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)
-		: _globalStack(allocator, globalStackSize) {
+		: _alloc(allocator), _globalStack(allocator, globalStackSize) {
 		// creation of The Type
 		BasicTypeBody theType("Type", sizeof(BasicTypeBody));
-		auto theTypePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(&theType)));
+		auto theTypePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(BasicType(&theType)));
 		new(theTypePtr) BasicTypeBody(std::move(theType));
 		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
 
@@ -34,7 +34,7 @@ namespace Ketl {
 
 		{
 			auto typeOfType = std::make_unique<TypeOfType>(nullptr);
-			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(*typeOfType));
+			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(*typeOfType));
 			new(typePtr) BasicTypeBody("Float64", sizeof(double));
 			_globals.try_emplace("Float64", typePtr, std::move(typeOfType));
 

@@ -22,14 +22,9 @@ namespace Ketl {
 				continue;
 			}
 
-			outputInfo.isDynamic = false;
 			outputInfo.function = &cstr.func;
 			outputInfo.returnType = std::make_unique<BasicType>(this);
-
-			outputInfo.argTypes.reserve(cstr.argTypes.size());
-			for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
-				outputInfo.argTypes.emplace_back(Type::clone(cstr.argTypes[typeIt]));
-			}
+			outputInfo.argTypes = &cstr.argTypes;
 
 			return outputInfo;
 		}
