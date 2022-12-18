@@ -4,122 +4,38 @@
 #include "type.h"
 
 namespace Ketl {
-	static void propagateConstructor(Environment& env, std::vector<Instruction>& instructions, Argument output, Argument::Type outputType,
-		const Type& type, const std::vector<Linker::Variable*>& args, const std::vector<std::unique_ptr<const Type>>& argTypes) {
+	static bool propagateFunctionCall(std::vector<Instruction>& instructions, Instruction& allocateInstruction,
+		const std::vector<Linker::Variable*>& args, const std::vector<std::unique_ptr<const Type>>& argTypes);
+	static bool propagateConstructor(std::vector<Instruction>& instructions, Argument output, Argument::Type outputType,
+		const Type& type, Linker::Variable* arg) {
+		std::vector<std::unique_ptr<const Type>> argTypes(1);
+		argTypes[0] = Type::clone(arg->type);
 		auto funcInfo = type.deduceFunction(argTypes);
 		if (!funcInfo.returnType) {
-			return;
+			return false;
 		}
 
-		Argument functionArgument;
-		Argument::Type functionType;
 		if (funcInfo.isDynamic) {
-			return;
-		}
-		else {
-			functionArgument.cPointer = funcInfo.function;
-			functionType = Argument::Type::Literal;
+			return false;
 		}
 
-		// allocate stack for function
-		instructions.emplace_back(
-			Instruction::Code::AllocateFunctionStack,
-			outputType,
-			functionType,
-			Argument::Type::None,
-			output,
-			functionArgument,
-			Argument()
-		);
+		Instruction allocationInstruction;
+		allocationInstruction._first.cPointer = funcInfo.function;
+		allocationInstruction._firstType = Argument::Type::Literal;
 
-		// add arguments instructions
-		uint16_t currentOffset = 0;
-		for (uint64_t i = 0u; i < args.size(); ++i) {
-			auto& arg = args[i];
-			auto& targetType = funcInfo.argTypes[i];
+		allocationInstruction._code = Instruction::Code::AllocateFunctionStack;
+		allocationInstruction._output = output;
+		allocationInstruction._outputType = outputType;
 
-			auto outputTypeArg = Argument::Type::None; 
-			switch (outputType) {
-			case Argument::Type::Stack: {
-				outputTypeArg = Argument::Type::DerefStack;
-				break;
-			}
-			case Argument::Type::DerefStack: {
-				outputTypeArg = Argument::Type::DerefDerefStack;
-				break;
-			}
-			case Argument::Type::Global: {
-				outputTypeArg = Argument::Type::DerefGlobal;
-				break;
-			}
-			case Argument::Type::DerefGlobal: {
-				outputTypeArg = Argument::Type::DerefDerefGlobal;
-				break;
-			}
-			case Argument::Type::Return: {
-				outputTypeArg = Argument::Type::DerefReturn;
-				break;
-			}
-			}
-			auto outputOffset = currentOffset;
+		std::vector<Linker::Variable*> args { arg };
 
-			Argument first;
-			Argument::Type firstType = Argument::Type::None;
-			arg->propagateArgument(first, firstType);
-
-			if (!arg->type->isRef && targetType->isRef) {
-				instructions.emplace_back(
-					Instruction::Code::Reference,
-					outputOffset,
-					outputTypeArg,
-					firstType,
-					Argument::Type::None,
-					output,
-					first,
-					Argument()
-				);
-				continue;
-			}
-		}
-
-		// call function
-		instructions.emplace_back(
-			Instruction::Code::CallFunction,
-			outputType,
-			functionType,
-			Argument::Type::None,
-			output,
-			functionArgument,
-			Argument()
-		);
+		return propagateFunctionCall(instructions, allocationInstruction, args, funcInfo.argTypes);
 	}
-	static void propagateFunctionCall(Environment& env, std::vector<Instruction>& instructions, Argument output, Argument::Type outputType, 
-		const Linker::Variable& variable, const std::vector<Linker::Variable*>& args, const std::vector<std::unique_ptr<const Type>>& argTypes) {
-		auto funcInfo = variable.type->deduceFunction(argTypes);
-		if (!funcInfo.returnType) {
-			return;
-		}
-
-		Argument functionArgument;
-		Argument::Type functionType;
-		if (funcInfo.isDynamic) {
-			variable.propagateArgument(functionArgument, functionType);
-		}
-		else {
-			functionArgument.cPointer = funcInfo.function;
-			functionType = Argument::Type::Literal;
-		}
+	static bool propagateFunctionCall(std::vector<Instruction>& instructions, Instruction& allocateInstruction,
+		const std::vector<Linker::Variable*>& args, const std::vector<std::unique_ptr<const Type>>& argTypes) {
 
 		// allocate stack for function
-		instructions.emplace_back(
-			Instruction::Code::AllocateFunctionStack,
-			outputType,
-			functionType,
-			Argument::Type::None,
-			output,
-			functionArgument,
-			Argument()
-		);
+		instructions.emplace_back(allocateInstruction);
 
 		// add arguments instructions
 		uint16_t currentOffset = 0;
@@ -127,29 +43,7 @@ namespace Ketl {
 			auto& arg = args[i];
 			auto& targetType = argTypes[i];
 
-			auto outputTypeArg = Argument::Type::None;
-			switch (outputType) {
-			case Argument::Type::Stack: {
-				outputTypeArg = Argument::Type::DerefStack;
-				break;
-			}
-			case Argument::Type::DerefStack: {
-				outputTypeArg = Argument::Type::DerefDerefStack;
-				break;
-			}
-			case Argument::Type::Global: {
-				outputTypeArg = Argument::Type::DerefGlobal;
-				break;
-			}
-			case Argument::Type::DerefGlobal: {
-				outputTypeArg = Argument::Type::DerefDerefGlobal;
-				break;
-			}
-			case Argument::Type::Return: {
-				outputTypeArg = Argument::Type::DerefReturn;
-				break;
-			}
-			}
+			auto outputTypeArg = Argument::deref(allocateInstruction._outputType);
 			auto outputOffset = currentOffset;
 
 			Argument first;
@@ -163,24 +57,73 @@ namespace Ketl {
 					outputTypeArg,
 					firstType,
 					Argument::Type::None,
-					output,
+					allocateInstruction._output,
 					first,
 					Argument()
 				);
+
+				currentOffset += sizeof(void*);
 				continue;
 			}
+
+			if (arg->type->isRef && targetType->isRef) {
+				instructions.emplace_back(
+					Instruction::Code::Assign,
+					outputOffset,
+					outputTypeArg,
+					firstType,
+					Argument::Type::None,
+					allocateInstruction._output,
+					first,
+					Argument()
+				);
+
+				currentOffset += sizeof(void*);
+				continue;
+			}
+
+			if (!propagateConstructor(instructions, allocateInstruction._output, outputTypeArg, *targetType, arg)) {
+				return false;
+			}
+
+			currentOffset += static_cast<uint16_t>(targetType->sizeOf());
 		}
 
 		// call function
-		instructions.emplace_back(
-			Instruction::Code::CallFunction,
-			outputType,
-			functionType,
-			Argument::Type::None,
-			output,
-			functionArgument,
-			Argument()
-		);
+		allocateInstruction._code = (allocateInstruction._code == Instruction::Code::AllocateFunctionStack ?
+			Instruction::Code::CallFunction : Instruction::Code::CallDynamicFunction);
+		instructions.emplace_back(allocateInstruction);
+
+		return true;
+	}
+	static bool propagateFunctionCall(std::vector<Instruction>& instructions, Argument output, Argument::Type outputType, 
+		const Linker::Variable& variable, const std::vector<Linker::Variable*>& args) {
+		std::vector<std::unique_ptr<const Type>> argTypes;
+		argTypes.reserve(args.size());
+		for (auto& arg : args) {
+			argTypes.emplace_back(Type::clone(arg->type));
+		}
+
+		auto funcInfo = variable.type->deduceFunction(argTypes);
+		if (!funcInfo.returnType) {
+			return false;
+		}
+
+		Instruction allocationInstruction;
+		allocationInstruction._code = funcInfo.isDynamic ? Instruction::Code::AllocateDynamicFunctionStack : Instruction::Code::AllocateFunctionStack;
+		allocationInstruction._output = output;
+		allocationInstruction._outputType = outputType;
+		if (funcInfo.isDynamic) {
+			variable.propagateArgument(allocationInstruction._first, allocationInstruction._firstType);
+			allocationInstruction._second.uinteger = funcInfo.functionIndex;
+			allocationInstruction._secondType = Argument::Type::Literal;
+		}
+		else {
+			allocationInstruction._first.cPointer = funcInfo.function;
+			allocationInstruction._firstType = Argument::Type::Literal;
+		}
+
+		return propagateFunctionCall(instructions, allocationInstruction, args, funcInfo.argTypes);
 	}
 
 	StandaloneFunction Linker::proceedStandalone(Environment& env, const std::string& source) {
@@ -204,30 +147,8 @@ namespace Ketl {
 	public:
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Global;
-
 			if (this->type->isRef) {
-				switch (type) {
-				case Argument::Type::Stack: {
-					type = Argument::Type::DerefStack;
-					break;
-				}
-				case Argument::Type::DerefStack: {
-					type = Argument::Type::DerefDerefStack;
-					break;
-				}
-				case Argument::Type::Global: {
-					type = Argument::Type::DerefGlobal;
-					break;
-				}
-				case Argument::Type::DerefGlobal: {
-					type = Argument::Type::DerefDerefGlobal;
-					break;
-				}
-				case Argument::Type::Return: {
-					type = Argument::Type::DerefReturn;
-					break;
-				}
-				}
+				type = Argument::deref(type);
 			}
 
 			argument.globalPtr = ptr;
@@ -250,6 +171,7 @@ namespace Ketl {
 		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
 			Argument output;
 			output.stack = this->stackOffset;
+			auto outputType = Argument::Type::Stack;
 
 			Argument first;
 			Argument::Type firstType;
@@ -261,7 +183,7 @@ namespace Ketl {
 
 			auto& instruction = instructions.emplace_back(
 				code,
-				Argument::Type::Stack,
+				outputType,
 				firstType,
 				secondType,
 				output,
@@ -272,30 +194,8 @@ namespace Ketl {
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
-
 			if (this->type->isRef) {
-				switch (type) {
-				case Argument::Type::Stack: {
-					type = Argument::Type::DerefStack;
-					break;
-				}
-				case Argument::Type::DerefStack: {
-					type = Argument::Type::DerefDerefStack;
-					break;
-				}
-				case Argument::Type::Global: {
-					type = Argument::Type::DerefGlobal;
-					break;
-				}
-				case Argument::Type::DerefGlobal: {
-					type = Argument::Type::DerefDerefGlobal;
-					break;
-				}
-				case Argument::Type::Return: {
-					type = Argument::Type::DerefReturn;
-					break;
-				}
-				}
+				type = Argument::deref(type);
 			}
 
 			argument.stack = stackOffset;
@@ -312,7 +212,7 @@ namespace Ketl {
 			auto outputType = Argument::Type::Global;
 			output.globalPtr = ptr;
 
-			propagateFunctionCall(env, instructions, output, outputType, *this, operationArgs, argTypes);
+			propagateFunctionCall(instructions, output, outputType, *this, operationArgs);
 
 			return true;
 		}
@@ -324,7 +224,6 @@ namespace Ketl {
 
 		void* ptr;
 		const FunctionImpl* function;
-		std::vector<std::unique_ptr<const Type>> argTypes;
 	};
 
 	class VariableReturn : public Linker::Variable {
@@ -333,43 +232,17 @@ namespace Ketl {
 			Argument output;
 			auto outputType = Argument::Type::Return;
 
-			propagateFunctionCall(env, instructions, output, outputType, *this, operationArgs, argTypes);
+			propagateFunctionCall(instructions, output, outputType, *this, operationArgs);
 
 			return true;
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Return;
-
 			if (this->type->isRef) {
-				switch (type) {
-				case Argument::Type::Stack: {
-					type = Argument::Type::DerefStack;
-					break;
-				}
-				case Argument::Type::DerefStack: {
-					type = Argument::Type::DerefDerefStack;
-					break;
-				}
-				case Argument::Type::Global: {
-					type = Argument::Type::DerefGlobal;
-					break;
-				}
-				case Argument::Type::DerefGlobal: {
-					type = Argument::Type::DerefDerefGlobal;
-					break;
-				}
-				case Argument::Type::Return: {
-					type = Argument::Type::DerefReturn;
-					break;
-				}
-				}
+				type = Argument::deref(type);
 			}
-
 		}
 		uint64_t stackUsage() const override { return 0; }
-
-		const FunctionImpl* function;
-		std::vector<std::unique_ptr<const Type>> argTypes;
 	};
 
 	class VariableFuncCall : public Linker::Variable {
@@ -377,132 +250,28 @@ namespace Ketl {
 		bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const override {
 			Argument output;
 			output.stack = stackOffset;
+			auto outputType = Argument::Type::Stack;
 
-			Argument first;
-			Argument::Type firstType;
-			function->propagateArgument(first, firstType);
-
-			// allocate stack for function
-			instructions.emplace_back(
-				Instruction::Code::AllocateDynamicFunctionStack,
-				functionIndex,
-				firstType,
-				Argument::Type::None,
-				output,
-				first,
-				Argument()
-			);
-
-			// add arguments instructions
-			uint16_t currentOffset = 0;
-			for (uint64_t i = 0u; i < operationArgs.size(); ++i) {
-				auto& arg = operationArgs[i];
-				auto& targetType = argTypes[i];
-
-				auto outputTypeArg = Argument::Type::DerefStack;
-				auto outputOffset = currentOffset;
-
-				Argument first;
-				Argument::Type firstType = Argument::Type::None;
-				arg->propagateArgument(first, firstType);
-
-				if (!arg->type->isRef && targetType->isRef) {
-					instructions.emplace_back(
-						Instruction::Code::Reference,
-						outputOffset,
-						outputTypeArg,
-						firstType,
-						Argument::Type::None,
-						output,
-						first,
-						Argument()
-					);
-					continue;
-				}
-
-				std::vector<Linker::Variable*> constructorArg{ arg };
-				std::vector<std::unique_ptr<const Type>> constructorArgType(1);
-				constructorArgType[0] = Type::clone(arg->type);
-				propagateConstructor(env, instructions, output, outputTypeArg, *targetType, constructorArg, constructorArgType);
-			}
-
-			// call function
-			instructions.emplace_back(
-				Instruction::Code::CallDynamicFunction,
-				functionIndex,
-				firstType,
-				Argument::Type::None,
-				output,
-				first,
-				Argument()
-			);
-
-			return true;
+			return propagateFunctionCall(instructions, output, outputType, *function, operationArgs);
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
-
 			if (this->type->isRef) {
-				switch (type) {
-				case Argument::Type::Stack: {
-					type = Argument::Type::DerefStack;
-					break;
-				}
-				case Argument::Type::DerefStack: {
-					type = Argument::Type::DerefDerefStack;
-					break;
-				}
-				case Argument::Type::Global: {
-					type = Argument::Type::DerefGlobal;
-					break;
-				}
-				case Argument::Type::DerefGlobal: {
-					type = Argument::Type::DerefDerefGlobal;
-					break;
-				}
-				case Argument::Type::Return: {
-					type = Argument::Type::DerefReturn;
-					break;
-				}
-				}
+				type = Argument::deref(type);
 			}
 
 			argument.stack = stackOffset;
 		}
 		uint64_t stackUsage() const override { return std::max(type->sizeOf(), sizeof(uint8_t*)); }
 
-		uint8_t functionIndex;
 		Variable* function;
-		std::vector<std::unique_ptr<const Type>> argTypes;
 	};
 
 	class VariableFuncArgument : public Linker::Variable {
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
-
 			if (this->type->isRef) {
-				switch (type) {
-				case Argument::Type::Stack: {
-					type = Argument::Type::DerefStack;
-					break;
-				}
-				case Argument::Type::DerefStack: {
-					type = Argument::Type::DerefDerefStack;
-					break;
-				}
-				case Argument::Type::Global: {
-					type = Argument::Type::DerefGlobal;
-					break;
-				}
-				case Argument::Type::DerefGlobal: {
-					type = Argument::Type::DerefDerefGlobal;
-					break;
-				}
-				case Argument::Type::Return: {
-					type = Argument::Type::DerefReturn;
-					break;
-				}
-				}
+				type = Argument::deref(type);
 			}
 
 			argument.stack = stackOffset;
@@ -600,7 +369,7 @@ namespace Ketl {
 				std::string id(reinterpret_cast<const char*>(bytecode + iter));
 				iter += id.length() + 1;
 				auto var = env._context.getVariable(id);
-				auto* type = var.type();
+				auto& type = var.type();
 
 				auto global = std::make_unique<VariableGlobal>();
 				global->type = Type::clone(type);
@@ -629,13 +398,9 @@ namespace Ketl {
 				}
 				
 				auto instruction = std::make_unique<VariableConstructor>();
-				instruction->ptr = env._context.declareGlobal<void>(id, *type);
+				instruction->ptr = env._context.declareGlobal<void>(id, type);
 				instruction->function = funcInfo.function;
 				instruction->operationArgs = std::move(args);
-				instruction->argTypes.reserve(funcInfo.argTypes.size());
-				for (auto& argType : funcInfo.argTypes) {
-					instruction->argTypes.emplace_back(Type::clone(argType));
-				}
 				type->hasAddress = true;
 				instruction->type = std::move(type);
 				variables[i] = std::move(instruction);
@@ -690,17 +455,14 @@ namespace Ketl {
 							return {};
 						}
 
-						global->ptr = env._context.declareGlobal<void>(global->id, *global->type);
+						// TODO pass id another way, deal with dynamic cast somehow butiful
+						global->ptr = env._context.declareGlobal<void>(global->id, global->type);
 
 						auto instruction = std::make_unique<VariableConstructor>();
 						instruction->ptr = global->ptr;
 						instruction->function = funcInfo.function;
 						instruction->operationArgs.reserve(1);
 						instruction->operationArgs.emplace_back(args[1]);
-						instruction->argTypes.reserve(funcInfo.argTypes.size());
-						for (auto& argType : funcInfo.argTypes) {
-							instruction->argTypes.emplace_back(Type::clone(argType));
-						}
 						auto type = Type::clone(global->type);
 						type->hasAddress = true;
 						instruction->type = std::move(type);
@@ -708,19 +470,18 @@ namespace Ketl {
 
 						continue;
 					}
-					// TODO pass id another way, deal with dynamic cast somehow butiful
 				}
 
 				if (!args[0]->type || !args[1]->type) {
 					return {};
 				}
 
-				if (auto floatType = std::make_unique<BasicType>(env._context.getVariable("Float64").as<BasicTypeBody>());
+				if (std::unique_ptr<const Type> floatType = std::make_unique<BasicType>(env._context.getVariable("Float64").as<BasicTypeBody>());
 					floatType->id() == args[0]->type->id() && floatType->id() == args[1]->type->id()) {
 					// TODO check type casting etc
 
 					auto instruction = std::make_unique<VariableInstruction>();
-					auto outputType = Type::clone(floatType.get());
+					auto outputType = Type::clone(floatType);
 					instruction->type = std::move(outputType);
 					instruction->operationArgs = std::move(args);
 					// TODO insert here function type analog
@@ -759,13 +520,8 @@ namespace Ketl {
 				}
 
 				auto instruction = std::make_unique<VariableFuncCall>();
-				instruction->functionIndex = funcInfo.functionIndex;
 				instruction->function = function;
 				instruction->operationArgs = std::move(args);
-				instruction->argTypes.reserve(funcInfo.argTypes.size());
-				for (auto& argType : funcInfo.argTypes) {
-					instruction->argTypes.emplace_back(Type::clone(argType));
-				}
 				instruction->type = std::move(funcInfo.returnType);
 				variables[i] = std::move(instruction);
 
@@ -811,7 +567,8 @@ namespace Ketl {
 					info.returnType = std::move(returnType);
 					info.argTypes = std::move(argTypes);
 
-					functionPtr = env._context.declareGlobal<FunctionContainer>(functionId, *functionType);
+					std::unique_ptr<const Type> type = std::move(functionType);
+					functionPtr = env._context.declareGlobal<FunctionContainer>(functionId, type);
 					new(functionPtr) FunctionContainer(env._alloc);
 					functionPtr->emplaceFunction(std::move(pureFunction));
 				}
@@ -825,19 +582,9 @@ namespace Ketl {
 				std::vector<std::unique_ptr<const Type>> argTypes(1);
 				argTypes[0] = Type::clone(arg->type);
 
-				auto funcInfo = globalReturnType->deduceFunction(argTypes);
-				if (!funcInfo.returnType) {
-					return {};
-				}
-
 				auto instruction = std::make_unique<VariableReturn>();
-				instruction->function = funcInfo.function;
 				instruction->operationArgs.reserve(1);
 				instruction->operationArgs.emplace_back(arg);
-				instruction->argTypes.reserve(funcInfo.argTypes.size());
-				for (auto& argType : funcInfo.argTypes) {
-					instruction->argTypes.emplace_back(Type::clone(argType));
-				}
 				auto type = Type::clone(arg->type);
 				type->hasAddress = true;
 				instruction->type = std::move(type);

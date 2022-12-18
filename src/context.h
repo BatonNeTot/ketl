@@ -42,8 +42,8 @@ namespace Ketl {
 			return reinterpret_cast<T*>(_data);
 		}
 
-		const Type* type() const {
-			return _type.get();
+		const std::unique_ptr<const Type>& type() const {
+			return _type;
 		}
 
 		void data(void* data) {
@@ -71,7 +71,7 @@ namespace Ketl {
 			return _var.as<T>();
 		}
 
-		const Type* type() const {
+		const std::unique_ptr<const Type>& type() const {
 			return _var.type();
 		}
 
@@ -103,13 +103,19 @@ namespace Ketl {
 
 		BasicTypeBody* declareType(const std::string& id, uint64_t sizeOf);
 
-		bool declareGlobal(const std::string& id, void* stackPtr, const Type& type) {
+		// TODO std::unique_ptr<Type> and std::unique_ptr<const Type> need to deal with it somehow
+		bool declareGlobal(const std::string& id, void* stackPtr, const std::unique_ptr<Type>& type) {
+			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
+			return success;
+		}
+
+		bool declareGlobal(const std::string& id, void* stackPtr, const std::unique_ptr<const Type>& type) {
 			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
 			return success;
 		}
 
 		template <class T>
-		T* declareGlobal(const std::string& id, const Type& type) {
+		T* declareGlobal(const std::string& id, const std::unique_ptr<Type>& type) {
 			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
 			if (success) {
 				auto valuePtr = reinterpret_cast<Type*>(allocateOnGlobalStack(*it->second.type()));
@@ -118,9 +124,19 @@ namespace Ketl {
 			return it->second.as<T>();
 		}
 
+		template <class T>
+		T* declareGlobal(const std::string& id, const std::unique_ptr<const Type>& type) {
+			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
+			if (success) {
+				auto valuePtr = reinterpret_cast<Type*>(allocateOnGlobalStack(*it->second.type()));
+				it->second.data(valuePtr);
+			}
+			return it->second.as<T>();
+		}
+		////////////////////////
+
 		uint8_t* allocateOnGlobalStack(const Type& type) {
 			auto ptr = _globalStack.allocate(type.sizeOf());
-			//type.construct(ptr);
 			return ptr;
 		}
 

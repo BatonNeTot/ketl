@@ -88,8 +88,10 @@ int main(int argc, char** argv) {
 	Ketl::Environment env;
 	Ketl::Linker linker;
 
+	// TODO thats nonsense
 	auto doubleTypeVar = env._context.getVariable("Float64");
-	auto& outofnowhere = *env._context.declareGlobal<double>("outofnowhere", Ketl::BasicType(doubleTypeVar.as<Ketl::BasicTypeBody>(), true, false, true));
+	std::unique_ptr<const Ketl::Type> doubleType = std::make_unique<Ketl::BasicType>(doubleTypeVar.as<Ketl::BasicTypeBody>(), true, false, true);
+	auto& outofnowhere = *env._context.declareGlobal<double>("outofnowhere", doubleType);
 	outofnowhere = 14.;
 
 	auto command = linker.proceedStandalone(env, R"(

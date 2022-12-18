@@ -22,7 +22,9 @@ namespace Ketl {
 			break;
 		}
 		case Code::AddFloat64: {
-			output<double>(stackPtr, returnPtr) = first<double>(stackPtr, returnPtr) + second<double>(stackPtr, returnPtr);
+			auto f = first<double>(stackPtr, returnPtr);
+			auto s = second<double>(stackPtr, returnPtr);
+			output<double>(stackPtr, returnPtr) = f + s;
 			break;
 		}
 		case Code::MinusFloat64: {
@@ -56,7 +58,8 @@ namespace Ketl {
 		}
 		case Code::AllocateDynamicFunctionStack: {
 			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
-			outputStack<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.functions[_funcIndex].stackSize());
+			auto funcIndex = second<uint64_t>(stackPtr, returnPtr);
+			output<uint8_t*>(stackPtr, returnPtr) = stack.allocate(function.functions[funcIndex].stackSize());
 			break;
 		}
 		case Code::CallFunction: {
@@ -69,9 +72,10 @@ namespace Ketl {
 		}
 		case Code::CallDynamicFunction: {
 			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
-			auto& pureFunction = function.functions[_funcIndex];
-			auto& stackStart = outputStack<uint8_t*>(stackPtr, returnPtr);
-			auto funcReturnPtr = &outputStack<uint8_t>(stackPtr, returnPtr);
+			auto funcIndex = second<uint64_t>(stackPtr, returnPtr);
+			auto& pureFunction = function.functions[funcIndex];
+			auto& stackStart = output<uint8_t*>(stackPtr, returnPtr);
+			auto funcReturnPtr = &output<uint8_t>(stackPtr, returnPtr);
 			pureFunction.call(stack, stackStart, funcReturnPtr);
 			stack.deallocate(pureFunction.stackSize());
 			break;

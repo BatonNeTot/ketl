@@ -158,7 +158,29 @@ namespace Ketl {
 			Literal,
 			Return,
 			DerefReturn,
-		};
+		}; 
+		
+		static Type deref(const Type type) {
+			switch (type) {
+			case Type::Stack: {
+				return Type::DerefStack;
+			}
+			case Type::DerefStack: {
+				return Type::DerefDerefStack;
+			}
+			case Type::Global: {
+				return Type::DerefGlobal;
+			}
+			case Type::DerefGlobal: {
+				return Type::DerefDerefGlobal;
+			}
+			case Type::Return: {
+				return Type::DerefReturn;
+			}
+			}
+
+			return Type::None;
+		}
 
 		union {
 			void* globalPtr = nullptr;
@@ -233,33 +255,11 @@ namespace Ketl {
 			_output(output),
 			_first(first),
 			_second(second) {}
-		Instruction(
-			Code code,
-			uint8_t funcIndex,
-			Argument::Type firstType,
-			Argument::Type secondType,
-
-			Argument output,
-			Argument first,
-			Argument second)
-			:
-			_code(code),
-			_funcIndex(funcIndex),
-			_firstType(firstType),
-			_secondType(secondType),
-
-			_output(output),
-			_first(first),
-			_second(second) {}
 
 		void call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
 
 	public: // TODO
 
-		template <class T>
-		inline T& outputStack(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, Argument::Type::Stack, _output) + _outputOffset);
-		}
 		template <class T>
 		inline T& output(uint8_t* stackPtr, uint8_t* returnPtr) {
 			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _outputType, _output) + _outputOffset);
@@ -311,10 +311,8 @@ namespace Ketl {
 		friend class Linker;
 
 		Instruction::Code _code = Instruction::Code::AddInt64;
-		union {
-			Argument::Type _outputType = Argument::Type::None;
-			uint8_t _funcIndex;
-		};
+		Argument::Type _outputType = Argument::Type::None;
+
 		Argument::Type _firstType = Argument::Type::None;
 		Argument::Type _secondType = Argument::Type::None;
 
@@ -472,14 +470,6 @@ namespace Ketl {
 				&& lhs.isRef == rhs.isRef
 				&& lhs.hasAddress == rhs.hasAddress
 				&& lhs.id() == rhs.id();
-		}
-
-		static std::unique_ptr<Type> clone(const Type& type) {
-			return type.clone();
-		}
-
-		static std::unique_ptr<Type> clone(const Type* type) {
-			return type == nullptr ? nullptr : type->clone();
 		}
 
 		static std::unique_ptr<Type> clone(const std::unique_ptr<Type>& type) {
