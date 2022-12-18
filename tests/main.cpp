@@ -22,15 +22,11 @@ void test(double x) {
 }
 
 void testLanguages() {
+	const uint64_t N = 1000000;
+
 	Ketl::Environment env;
 	Ketl::Linker linker;
 
-	/*
-	auto command = linker.proceedStandalone(env, R"(
-	test(test(5));
-)");
-//*/
-//*
 	auto command = linker.proceedStandalone(env, R"(
 	testValue2 = 1 + 2;
 
@@ -40,65 +36,38 @@ void testLanguages() {
 
 	testValue = adder(testValue2, 9);
 )");
-	//*/
-		/*
-		auto command = linker.proceedStandalone(env, R"(
-		testValue2 = testValue = 1 + 2;
-
-		Float test(Float x, Float y) {
-			testValue2 = x + y + 1;
-		}
-	)");
-	//*/
-	/*
-	auto command = linker.proceedStandalone(env, R"(
-	testValue2 = testValue = 1 + 2;
-	testValue2 = testValue = 1 + 2;
-)");
-//*/
-/*
-auto command = linker.proceedStandalone(env, R"(
-Float test(Float x) {
-	testValue2 = x + 1;
-}
-)");
-//*/
 
 	auto& testTestF = *env.getGlobal<double>("testValue");
 	auto& testTest2F = *env.getGlobal<double>("testValue2");
 
-	for (auto i = 0; i < 1000000; ++i) {
-		command.invoke(command.stack());
+	test(0);
+
+	for (auto i = 0; i < N; ++i) {
+		command.invoke(env._context._globalStack);
 	}
 
 	test(0);
 	lua_State* L;
 	L = luaL_newstate();
 
-	test(0);
-
-	for (auto i = 0; i < 1000000; ++i) {
-		//lua_pushvalue(L, -1);
-
-		luaL_loadstring(L, R"(
+	luaL_loadstring(L, R"(
 	testValue2 = 1 + 2
 
-	function test(x)
-		return testValue2 = x + 1
+	function test(x, y)
+		return x + y
 	end
 
-	testValue = test(5)
+	testValue = test(testValue2, 9)
 )");
+
+	test(0);
+
+	for (auto i = 0; i < N; ++i) {
+		lua_pushvalue(L, -1);
 		lua_call(L, 0, 0);
 	}
 
 	test(0);
-
-	for (auto i = 0; i < 1000000; ++i) {
-		testValue2 = testValue = 1. + 2.;
-
-		test(5.);
-	}
 }
 
 template <class T>
