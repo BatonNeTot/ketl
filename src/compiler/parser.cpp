@@ -1,340 +1,252 @@
 ﻿/*🍲Ketl🍲*/
 #include "parser.h"
 
-#include <functional>
-#include <unordered_set>
-#include <unordered_map>
-#include <stack>
-#include <sstream>
+#include "bnf_nodes.h"
+#include "lexer.h"
 
 namespace Ketl {
 
-	namespace {
-		enum class OperatorDirection : uint8_t {
-			FromRightToLeft,
-			FromLeftToRight
-		};
+	Parser::Parser() {
 
-		struct OperatorData {
-			int level;
-			int argc;
-			OperatorDirection direction;
+		_manager.insert("type-extra-arguments", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLiteral>(",", true),
+				std::make_unique<BnfNodeId>("type-arguments", false, false)
+				),
+			std::make_unique<BnfNodeLiteral>("", true)
+			));
+		_manager.insert("type-arguments", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("type", false, true),
+			std::make_unique<BnfNodeId>("type-extra-arguments", true, false)
+			));
 
-			OperatorData(int level, int argc, OperatorDirection direction) :
-				level(level), argc(argc), direction(direction) {}
+		_manager.insert("type", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
+				std::make_unique<BnfNodeLiteral>("(", true),
+				std::make_unique<BnfNodeOr>(
+					std::make_unique<BnfNodeId>("type-arguments", false, false),
+					std::make_unique<BnfNodeLiteral>("", true)
+					),
+				std::make_unique<BnfNodeLiteral>(")", true)
+				),
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id)
+			));
 
-			friend bool operator<(const OperatorData& lhs, const OperatorData& rhs);
-			friend bool operator>(const OperatorData& lhs, const OperatorData& rhs);
-		};
+		_manager.insert("function-declaration-argument", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeId>("type", false, true),
+				std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id)
+				),
+			std::make_unique<BnfNodeId>("type", false, true)
+			));
 
-		bool operator<(const OperatorData& lhs, const OperatorData& rhs) {
-			return lhs.level != rhs.level ? lhs.level < rhs.level : lhs.direction == OperatorDirection::FromLeftToRight;
-		}
-		bool operator>(const OperatorData& lhs, const OperatorData& rhs) {
-			return lhs.level != rhs.level ? lhs.level > rhs.level : lhs.direction == OperatorDirection::FromRightToLeft;
-		}
+		_manager.insert("function-declaration-extra-arguments", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLiteral>(",", true),
+				std::make_unique<BnfNodeId>("function-declaration-argument", false, false),
+				std::make_unique<BnfNodeId>("function-declaration-extra-arguments", true, false)
+				),
+			std::make_unique<BnfNodeLiteral>("", true)
+			));
 
-		struct Operator {
-			std::string value;
-			bool isToRight;
+		_manager.insert("function-declaration-arguments", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("function-declaration-argument", false, false),
+			std::make_unique<BnfNodeId>("function-declaration-extra-arguments", true, false)
+			));
 
-			Operator(const std::string& value, bool isToRight = false) :
-				value(value), isToRight(isToRight) {};
+		_manager.insert("function-declaration", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("type", false, true),
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
+			std::make_unique<BnfNodeLiteral>("(", true),
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeId>("function-declaration-arguments", false, false),
+				std::make_unique<BnfNodeLiteral>("", true)
+				),
+			std::make_unique<BnfNodeLiteral>(")", true)
+			));
 
-			friend bool operator==(const Operator& lhs, const Operator& rhs);
-		};
+		_manager.insert("function-definition", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("function-declaration", false, false),
+			std::make_unique<BnfNodeId>("brackets-commands", false, false)
+			));
 
-		bool operator==(const Operator& lhs, const Operator& rhs) {
-			return lhs.value == rhs.value && lhs.isToRight == rhs.isToRight;
-		}
+		_manager.insert("primary", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Number),
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::String),
+			std::make_unique<BnfNodeConcat>(
+				true,
+				std::make_unique<BnfNodeLiteral>("(", true),
+				std::make_unique<BnfNodeId>("expression", true, false),
+				std::make_unique<BnfNodeLiteral>(")", true)
+				),
+			std::make_unique<BnfNodeId>("function-definition", false, false)
+			));
 
-	}
-}
+		_manager.insert("function-extra-arguments", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLiteral>(",", true),
+				std::make_unique<BnfNodeId>("primary", false, false),
+				std::make_unique<BnfNodeId>("function-extra-arguments", true, false)
+				),
+			std::make_unique<BnfNodeLiteral>("", true)
+			));
+		_manager.insert("function-arguments", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("expression", false, true),
+			std::make_unique<BnfNodeId>("function-extra-arguments", true, false)
+			));
+		_manager.insert("precedence-1-operator", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLiteral>("("),
+				std::make_unique<BnfNodeOr>(
+					std::make_unique<BnfNodeId>("function-arguments", false, false),
+					std::make_unique<BnfNodeLiteral>("", true)
+					),
+				std::make_unique<BnfNodeLiteral>(")", true)
+				)
+			));
+		_manager.insert("precedence-1-expression", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("primary", false, false),
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeId>("precedence-1-operator", false, false),
+				std::make_unique<BnfNodeLiteral>("", true)
+				)
+			));
 
-template <>
-struct ::std::hash<Ketl::Operator> {
-	std::size_t operator()(const Ketl::Operator& k) const {
-		return std::hash<std::string>{}(k.value) * 2 + k.isToRight;
-	}
-};
+		insertPredence(std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeLiteral>("*"),
+			std::make_unique<BnfNodeLiteral>("/")
+			), "precedence-2-expression", "precedence-2-extra", "precedence-1-expression");
 
-namespace Ketl {
-	namespace {
-		static const std::unordered_map<Operator, OperatorData> operators = {
-			{{"::"}, {1, 2, OperatorDirection::FromLeftToRight}},
-			//{{"++"}, {2, 1, OperatorDirection::FromLeftToRight}},
-			//{{"--"}, {2, 1, OperatorDirection::FromLeftToRight}},
-			{{"()"}, {2, 1, OperatorDirection::FromLeftToRight}},
-			//{{"["}, {2, OperatorDirection::FromLeftToRight}},
-			//{{"]"}, {2, OperatorDirection::FromLeftToRight}},
-			{{"."}, {2, 2, OperatorDirection::FromLeftToRight}},
-			{{"->"}, {2, 2, OperatorDirection::FromLeftToRight}},
+		insertPredence(std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeLiteral>("+"),
+			std::make_unique<BnfNodeLiteral>("-")
+			), "precedence-3-expression", "precedence-3-extra", "precedence-2-expression");
 
-			{{"++", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			{{"--", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			{{"+", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			{{"-", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			{{"!", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			{{"~", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			//{{"*", true}, {3, 1, OperatorDirection::FromRightToLeft}},
-			//{{"&", true}, {3, 1, OperatorDirection::FromRightToLeft}},
+		insertPredence(std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeLiteral>("=="),
+			std::make_unique<BnfNodeLiteral>("!=")
+			), "precedence-4-expression", "precedence-4-extra", "precedence-3-expression");
 
-			{{"*"}, {5, 2, OperatorDirection::FromLeftToRight}},
-			{{"/"}, {5, 2, OperatorDirection::FromLeftToRight}},
-			{{"%"}, {5, 2, OperatorDirection::FromLeftToRight}},
-			{{"+"}, {6, 2, OperatorDirection::FromLeftToRight}},
-			{{"-"}, {6, 2, OperatorDirection::FromLeftToRight}},
-			{{"<<"}, {7, 2, OperatorDirection::FromLeftToRight}},
-			{{">>"}, {7, 2, OperatorDirection::FromLeftToRight}},
-			{{"<"}, {8, 2, OperatorDirection::FromLeftToRight}},
-			{{"<="}, {8, 2, OperatorDirection::FromLeftToRight}},
-			{{">"}, {8, 2, OperatorDirection::FromLeftToRight}},
-			{{">="}, {8, 2, OperatorDirection::FromLeftToRight}},
-			{{"=="}, {9, 2, OperatorDirection::FromLeftToRight}},
-			{{"!="}, {9, 2, OperatorDirection::FromLeftToRight}},
-			{{"&"}, {10, 2, OperatorDirection::FromLeftToRight}},
-			{{"^"}, {11, 2, OperatorDirection::FromLeftToRight}},
-			{{"|"}, {12, 2, OperatorDirection::FromLeftToRight}},
-			{{"&&"}, {13, 2, OperatorDirection::FromLeftToRight}},
-			{{"||"}, {14, 2, OperatorDirection::FromLeftToRight}},
+		insertPredence(std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeLiteral>("=")
+			), "precedence-5-expression", "precedence-5-extra", "precedence-4-expression");
 
-			//{{"?"}, {15, OperatorDirection::FromRightToLeft}},
-			//{{":"}, {15, OperatorDirection::FromRightToLeft}},
-			{{"="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"+="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"-="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"*="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"/="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"%="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"<<="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{">>="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"&="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"^="}, {15, 2, OperatorDirection::FromRightToLeft}},
-			{{"|="}, {15, 2, OperatorDirection::FromRightToLeft}},
+		_manager.insert("expression", std::make_unique<BnfNodeId>("precedence-5-expression", false, false));
 
-			{{","}, {15, 2, OperatorDirection::FromLeftToRight}},
-		};
+		_manager.insert("expression-with-end-symbol", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeId>("expression", false, true),
+				std::make_unique<BnfNodeLiteral>("")
+				),
+			std::make_unique<BnfNodeLiteral>(";", true)
+			));
+		_manager.insert("return", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeLiteral>("return", true),
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeId>("expression", false, true),
+				std::make_unique<BnfNodeLiteral>("")
+				),
+			std::make_unique<BnfNodeLiteral>(";", true)
+			));
 
-		enum class State : unsigned char {
-			Default,
-			DeclarationVar,
-		};
-	}
+		_manager.insert("define-variable-extra-arguments", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeLiteral>(",", true),
+				std::make_unique<BnfNodeId>("define-variable-arguments", false, false)
+				),
+			std::make_unique<BnfNodeLiteral>("", true)
+			));
+		_manager.insert("define-variable-arguments", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("expression", false, true),
+			std::make_unique<BnfNodeId>("define-variable-extra-arguments", true, false)
+			));
 
-	void clarifyPrev(Parser::Node*& prev, const std::string& token) {
-		if (prev == nullptr) { throw std::exception(""); }
-		while (prev->parent && prev->parent->isOperator()) {
-			auto rightOperator = operators.find({ token });
-			auto leftOperator = operators.find({ prev->parent->value.str });
-			if (!(rightOperator != operators.end() &&
-				leftOperator != operators.end())) {
-				throw std::exception("Can't found operator priority");
-			}
-			auto isLessPrority = leftOperator->second > rightOperator->second;
-			if (!isLessPrority) {
-				prev = prev->parent;
-			}
-			else {
-				break;
-			}
-		}
-	}
+		_manager.insert("define-variable", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeId>("type", false, true),
+			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeConcat>(
+					std::make_unique<BnfNodeLiteral>("{", true),
+					std::make_unique<BnfNodeOr>(
+						std::make_unique<BnfNodeId>("define-variable-arguments", false, false),
+						std::make_unique<BnfNodeLiteral>("", true)
+						),
+					std::make_unique<BnfNodeLiteral>("}", true)
+					),
+				std::make_unique<BnfNodeLiteral>("")
+				),
+			std::make_unique<BnfNodeLiteral>(";", true)
+			));
 
-	const Parser::Node& Parser::getNext() {
-		Parser::Node* root = nullptr;
-		Parser::Node* prev = nullptr;
-		Lexer::Token last;
-		State state = State::Default;
+		_manager.insert("command", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeId>("expression-with-end-symbol", true, false),
+			std::make_unique<BnfNodeId>("return", false, false),
+			std::make_unique<BnfNodeId>("define-variable", false, false),
+			std::make_unique<BnfNodeId>("function-definition", false, false),
+			std::make_unique<BnfNodeId>("brackets-commands", false, false)
+			));
 
-		std::list<std::string> typeTokens;
+		_manager.insert("brackets-commands", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeLiteral>("{", true),
+			std::make_unique<BnfNodeId>("several-commands", true, false),
+			std::make_unique<BnfNodeLiteral>("}", true)
+			));
 
-		while (true) {
-			bool newIsRoot = false;
+		_manager.insert("several-commands", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				std::make_unique<BnfNodeId>("command", false, false),
+				std::make_unique<BnfNodeId>("several-commands", true, false)
+				),
+			std::make_unique<BnfNodeLiteral>("")
+			));
 
-			if (!_lexer.hasNext()) {
-				throw std::exception("Lexer is out of tokens for Parser");
-			}
+		_manager.insert("block", std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeId>("brackets-commands", false, false),
+			std::make_unique<BnfNodeId>("command", true, false)
+			));
 
-			auto& token = _lexer.getNext();
-			if (token.value.empty() && !token.isString()) {
-				throw std::exception("Empty non-String token");
-			}
-
-			if (token.value == ";") {
-				break;
-			}
-			else {
-				Node* node = nullptr;
-				switch (state) {
-				case State::Default:
-				{
-					switch (token.type) {
-					case Lexer::Token::Type::Operator:
-						if (token.value == "(") {
-							std::string brackets = "()";
-
-							node = new Node(Node::Type::Operator, 1);
-							node->value = brackets;
-						}
-						else if (token.value == ")") {
-							std::string brackets = "()";
-
-							prev = prev->findToken(brackets);
-						}
-						else {
-							if (last.isOperator()) {
-								throw std::exception("TODO");
-							}
-							else {
-								clarifyPrev(prev, token.value);
-
-								node = new Node(Node::Type::Operator, 2);
-								node->value = token.value;
-								newIsRoot = true;
-							}
-						}
-						break;
-					case Lexer::Token::Type::Number:
-						if (!last.isOperator()) { throw std::exception("Operator was expected"); }
-
-						node = constructNumber(token);
-						break;
-					case Lexer::Token::Type::String:
-
-						break;
-					case Lexer::Token::Type::Id:
-						node = checkId(token, typeTokens);
-
-						if (node == nullptr) {
-							state = State::DeclarationVar;
-						}
-
-						break;
-					}
-					break;
-				}
-				case State::DeclarationVar:
-				{
-					node = checkId(token, typeTokens);
-
-					if (node != nullptr) {
-						state = State::Default;
-					}
-
-					break;
-				}
-				}
-
-				if (node != nullptr) {
-					if (root == nullptr) {
-						root = node;
-					}
-					else {
-						if (!newIsRoot) {
-							prev->insert(node);
-						}
-						else {
-							prev->replace(node);
-
-							if (prev == root) {
-								root = node;
-							}
-						}
-					}
-
-					prev = node;
-				}
-			}
-
-			last = token;
-		}
-
-		_comands.emplace_back(root);
-		return *_comands.back();
+		_manager.preprocessNodes();
 	}
 
-	Parser::Node* Parser::checkId(const Lexer::Token& token, std::list<std::string>& typeTokens) {
-		{
-			static const std::unordered_set<std::string> keywords = {
-			   "const",	"*", "&", "&&",
-			   "(", ")", ",",
-			};
-
-			auto it = keywords.find(token.value);
-			if (it != keywords.end()) {
-				typeTokens.emplace_back(token.value);
-				return nullptr;
-			}
-		}
-
-		auto node = new Node(Node::Type::Id, 0);
-		node->value = token.value;
-
-		typeTokens.clear();
-
-		return node;
+	void Parser::insertPredence(std::unique_ptr<BnfNode>&& operators, const std::string& expression,
+		const std::string& extra, const std::string& lowExpression) {
+		_manager.insert(extra, std::make_unique<BnfNodeOr>(
+			std::make_unique<BnfNodeConcat>(
+				operators,
+				std::make_unique<BnfNodeId>(lowExpression, false, false),
+				std::make_unique<BnfNodeId>(extra, true, false)
+				),
+			std::make_unique<BnfNodeLiteral>("")
+			));
+		_manager.insert(expression, std::make_unique<BnfNodeConcat>(
+			false,
+			std::make_unique<BnfNodeId>(lowExpression, false, false),
+			std::make_unique<BnfNodeId>(extra, true, false)
+			));
 	}
 
-	Parser::Node* Parser::constructNumber(const Lexer::Token& token) {
-		std::ostringstream builder;
-		Node* node = new Node(Node::Type::Number, 0);
+	std::unique_ptr<Node> Parser::proceed(const std::string& str) {
+		Lexer lexer(str);
 
-		if (token.value[0] == '.') {
-			builder << '0';
+		std::list<Lexer::Token> list;
+		while (lexer.hasNext()) {
+			list.emplace_back(lexer.proceedNext());
 		}
 
-		bool isFloat = false;
-		unsigned char longCount = 0;
+		ProcessNode processNode;
+		auto it = list.begin();
+		auto end = list.end();
+		uint64_t offset = 0;
+		auto node = _manager.getById("several-commands");
+		auto success = node->process(it, end, offset, processNode);
 
-		for (auto symbol : token.value) {
-			switch (symbol) {
-			case '.':
-				isFloat = true;
-				++longCount;
-				builder << symbol;
-				break;
-			case 'f': case 'F':
-				isFloat = true;
-				break;
-			case 'l': case 'L':
-				++longCount;
-			case '_':
-				break;
-			default:
-				builder << symbol;
-			}
+		if (!success) {
+			auto test = 0;
 		}
 
-		if (token.value.back() == '.') {
-			builder << '0';
-		}
-
-		if (isFloat) {
-			switch (longCount) {
-			case 0:
-				node->value = std::stof(builder.str(), nullptr);
-				break;
-			case 1:
-				node->value = std::stod(builder.str(), nullptr);
-				break;
-			default:
-				throw std::exception("It's too much, man");
-			}
-		}
-		else {
-			switch (longCount) {
-			case 0:
-				node->value = std::stoi(builder.str(), nullptr);
-				break;
-			case 1:
-				node->value = std::stol(builder.str(), nullptr);
-				break;
-			default:
-				throw std::exception("It's too much, man");
-			}
-		}
-
-		return node;
+		return std::move(processNode.outputChildrenNodes.back());
 	}
 
 }

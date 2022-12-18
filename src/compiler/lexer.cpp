@@ -1,198 +1,132 @@
 ﻿/*🍲Ketl🍲*/
 #include "lexer.h"
 
-#include <unordered_set>
-#include <sstream>
-
 namespace Ketl {
 
-	namespace {
+	Lexer::Token Lexer::proceedNext() {
+		auto* itSymbolPtr = &nextSymbol();
 
-		enum class SymbolType : unsigned char {
-			Letter,
-			Number,
-			Space,
-			Other
-		};
-
-		static SymbolType getSymbolType(char symbol) {
-			if ('a' <= symbol && symbol <= 'z' ||
-				'A' <= symbol && symbol <= 'Z') {
-				return SymbolType::Letter;
-			}
-			else if ('0' <= symbol && symbol <= '9') {
-				return SymbolType::Number;
-			}
-			else {
-				switch (symbol) {
-				case ' ':
-				case '\n':
-				case '\t':
-				case '\r':
-				case '\v':
-					return SymbolType::Space;
-				default:
-					return SymbolType::Other;
-				}
-			}
+		while (isSpace(*itSymbolPtr)) {
+			itSymbolPtr = &nextSymbol();
 		}
 
-		static const std::unordered_set<std::string> availableTokens = {
-			"::", "++", "--", "(", ")", "[", "]", ".", "->", "+", "-", "!", "~",
-			"*", "/", "%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&", "^", "|", "&&", "||",
-			"?", ":", "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=", "&&=", "||=",
-			",", ";", "{", "}",
-		};
+		auto initialCarret = _carret - 1;
+		
+		while (*itSymbolPtr != '\0') {
+			if (isNumberDot(*itSymbolPtr) && isNumber(peekSymbol())) {
+				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				auto start = _carret - 1;
+				while (isNumber(nextSymbol())) {};
+				--_carret;
+				return { _source.substr(start, _carret - start), 0u };
+			}
 
-		static bool isAvailableToken(const std::string& token) {
-			return availableTokens.find(token) == availableTokens.end();
+			if (isNumber(*itSymbolPtr)) {
+				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				auto start = _carret - 1;
+				while (true) {
+					auto next = nextSymbol();
+					if (isNumber(next)) {
+						continue;
+					}
+					if (isNumberDot(next)) {
+						while (isNumber(nextSymbol())) {};
+						--_carret;
+						return { _source.substr(start, _carret - start), 0u };
+					}
+					break;
+				};
+				--_carret;
+				return { _source.substr(start, _carret - start), 0u };
+			}
+
+			if (isQuote(*itSymbolPtr)) {
+				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				auto start = _carret;
+				while (!isQuote(nextSymbol())) {};
+				return { _source.substr(start, _carret - start - 1), '\0' };
+			}
+
+			if (isProperStartingIdSymbol(*itSymbolPtr)) {
+				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				auto start = _carret - 1;
+				while (isProperIdSymbol(nextSymbol())) {};
+				--_carret;
+				return { _source.substr(start, _carret - start), nullptr };
+			}
+
+			if (isSpace(*itSymbolPtr)) {
+				return _source.substr(initialCarret, _carret - initialCarret - 1);
+			}
+
+			if (*itSymbolPtr == '/' && peekSymbol() == '/') {
+				if (initialCarret < _carret - 1) { _carret--; return _source.substr(initialCarret, _carret - initialCarret); }
+				for (; *itSymbolPtr != '\0' && *itSymbolPtr != '\n'; itSymbolPtr = &nextSymbol()) {};
+				while (isSpace(*itSymbolPtr)) { itSymbolPtr = &nextSymbol(); }
+				initialCarret = _carret - 1;
+				continue;
+			}
+
+			itSymbolPtr = &nextSymbol();
 		}
 
+		return _source.substr(initialCarret, _carret - initialCarret);
 	}
 
-
-	bool Lexer::proceedToken() {
-		Token token;
-		for (; _iter < _source.length(); ++_iter) {
-			const auto symbol = _source[_iter];
-
-			if (token.isString()) {
-				switch (symbol) {
-				case '"':
-					++_iter;
-					_tokens.emplace_back(token);
-					return true;
-				default:
-					token.value += symbol;
-				}
-			}
-			else {
-				auto type = getSymbolType(symbol);
-				switch (type) {
-				case SymbolType::Letter:
-					if (checkOperator(token)) {
-						return true;
-					}
-					if (token.mayId()) {
-						token.value += symbol;
-						token.type = Token::Type::Id;
-					}
-					break;
-				case SymbolType::Number:
-					if (token.value != "." && checkOperator(token)) {
-						return true;
-					}
-					if (token.mayNumber()) {
-						token.value += symbol;
-						token.type = Token::Type::Number;
-					}
-					else if (token.mayId()) {
-						token.value += symbol;
-						token.type = Token::Type::Id;
-					}
-					break;
-				case SymbolType::Space:
-					if (checkValue(token)) {
-						++_iter;
-						return true;
-					}
-					if (checkOperator(token)) {
-						++_iter;
-						return true;
-					}
-					break;
-				case SymbolType::Other:
-					switch (symbol) {
-					case '_':
-						if (checkOperator(token)) {
-							return true;
-						}
-						if (token.mayId()) {
-							token.value += symbol;
-							token.type = Token::Type::Id;
-						}
-						else if (token.mayNumber()) {
-							token.value += symbol;
-							token.type = Token::Type::Number;
-						}
-						break;
-					case '.':
-						if (token.mayNumber()) {
-							if (!token.value.empty()) {
-								token.type = Token::Type::Number;
-							}
-							token.value += symbol;
-						}
-						else {
-							if (checkValue(token)) {
-								return true;
-							}
-							if (checkOperator(token, symbol)) {
-								return true;
-							}
-						}
-						break;
-					case '"':
-						if (checkOperator(token)) {
-							return true;
-						}
-						token.type = Token::Type::String;
-						break;
-					default:
-						if (checkValue(token)) {
-							return true;
-						}
-						if (checkOperator(token, symbol)) {
-							return true;
-						}
-						break;
-					}
-					break;
-				}
-			}
-		}
-		if (checkValue(token)) {
-			return true;
-		}
-		if (checkOperator(token)) {
-			return true;
-		}
-		return false;
+	bool Lexer::hasNext() const {
+		return _source.length() > _carret;
 	}
 
-	bool Lexer::checkValue(Token& token) {
-		if (!token.isValue() || token.value.empty()) {
-			return false;
-		}
+	static char nonSymbol = '\0';
 
-		_tokens.emplace_back(token);
+	const char& Lexer::nextSymbol() {
+		if (!hasNext()) {
+			throwError("Unexpected end of a string");
+			return nonSymbol;
+		}
+		return _source.at(_carret++);
+	}
+
+	const char& Lexer::peekSymbol() {
+		if (!hasNext()) {
+			throwError("Unexpected end of a string");
+			return nonSymbol;
+		}
+		return _source.at(_carret);
+	}
+
+	bool Lexer::isSpace(char symbol) {
+		return symbol == ' '
+			|| (symbol >= '\t' && symbol <= '\r');
+	}
+
+	bool Lexer::isQuote(char symbol) {
+		return symbol == '"';
+	}
+
+	bool Lexer::isNumberDot(char symbol) {
+		return symbol == '.';
+	}
+
+	bool Lexer::isNumber(char symbol) {
+		return symbol >= '0' && symbol <= '9';
+	}
+
+	bool Lexer::isProperIdSymbol(char symbol) {
+		return isProperStartingIdSymbol(symbol)
+			|| symbol == '-'
+			|| isNumber(symbol);
+	}
+	bool Lexer::isProperStartingIdSymbol(char symbol) {
+		return symbol == '_'
+			|| (symbol >= 'a' && symbol <= 'z')
+			|| (symbol >= 'A' && symbol <= 'Z');
+	}
+
+	bool Lexer::throwError(const std::string& message /*= ""*/) {
+		_errorFlag = true;
+		_errorMsg = message;
 		return true;
-	}
-
-	bool Lexer::checkOperator(Token& token, char nextSymbol /* '\0' */) {
-		if (token.isValue()) {
-			return false;
-		}
-		if (token.value.empty()) {
-			if (nextSymbol != '\0') {
-				token.value += nextSymbol;
-			}
-			return false;
-		}
-
-		auto extendedToken = token.value + nextSymbol;
-		if (nextSymbol == '\0' || isAvailableToken(extendedToken)) {
-			if (isAvailableToken(token.value)) { throw std::exception(""); }
-
-			_tokens.emplace_back(token);
-			return true;
-		}
-		else {
-			token.value = extendedToken;
-
-			_tokens.emplace_back(token);
-			return true;
-		}
 	}
 
 }

@@ -26,9 +26,9 @@ target_compile_definitions(ketl PRIVATE _AMD64_)
 
 add_subdirectory ("dependencies")
 
-add_dependencies(ketl ebnf)
+#add_dependencies(ketl ebnf)
 
-target_link_libraries(ketl ebnf)
+#target_link_libraries(ketl ebnf)
 
 target_include_directories(ketl PUBLIC "include")
 target_include_directories(ketl PRIVATE "src")
@@ -40,13 +40,15 @@ add_subdirectory ("tests")
 add_executable (ketl_test ${KETL_TEST_SOURCES})
 set_property(TARGET ketl_test PROPERTY CXX_STANDARD 20)
 
-add_dependencies(ketl_test ketl)
+add_dependencies(ketl_test ketl lua)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ketl_test)
+
+target_link_libraries(ketl_test lua)
 
 target_compile_definitions(ketl_test PRIVATE _AMD64_)
 
 target_link_directories(ketl_test PRIVATE "lib")
-target_link_libraries(ketl_test ketl)
+target_link_libraries(ketl_test ketl lua)
 target_include_directories(ketl_test PUBLIC "include")
 target_include_directories(ketl_test PRIVATE "src")
 target_include_directories(ketl_test PRIVATE "tests")

@@ -1,58 +1,75 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef lexer_h
-#define lexer_h
+#ifndef ebnf_exp_lexer_h
+#define ebnf_exp_lexer_h
 
 #include <string>
-#include <list>
 
 namespace Ketl {
 
 	class Lexer {
 	public:
 
+		Lexer(const std::string_view& source)
+			: _source(source) {}
+
 		struct Token {
+
 			enum class Type : uint8_t {
-				Operator,
 				Id,
+				Literal,
 				Number,
-				String,
+				Other
 			};
 
-			std::string value = "";
-			Type type = Type::Operator;
+			Token() = default;
+			Token(const char& symbol)
+				: value(&symbol, 1), type(Type::Other) {};
+			Token(const std::string_view& value_)
+				: value(value_), type(Type::Other) {};
+			Token(const std::string_view& value_, nullptr_t)
+				: value(value_), type(Type::Id) {};
+			Token(const std::string_view& value_, unsigned int)
+				: value(value_), type(Type::Number) {};
+			Token(const std::string_view& value_, char)
+				: value(value_), type(Type::Literal) {};
 
-			bool isOperator() const { return type == Token::Type::Operator && value != ")"; }
-			bool isValue() const { return type != Token::Type::Operator; }
-			bool isId() const { return type == Token::Type::Id; }
-			bool mayId() const { return isId() || (!isValue() && value.empty()); }
-			bool isNumber() const { return type == Token::Type::Number; }
-			bool mayNumber() const { return isNumber() || (!isValue() && (value.empty() || value == ".")); }
-			bool isString() const { return type == Token::Type::String; }
+			std::string_view value;
+			Type type = Type::Id;
 		};
 
-		Lexer(const std::string& source) : _source(source) {}
+		Token proceedNext();
 
-		const Token& getNext() {
-			if (!proceedToken()) { throw std::exception(""); }
-			return _tokens.back();
-		}
+		bool hasNext() const;
 
-		bool hasNext() {
-			return _iter < _source.length();
+		uint64_t carret() const {
+			return _carret;
 		}
 
 	private:
 
-		bool proceedToken();
-		bool checkValue(Token& token);
-		bool checkOperator(Token& token, char nextSymbol = '\0');
+		const char& nextSymbol();
+		const char& peekSymbol();
 
-		std::string _source;
-		std::list<Token> _tokens;
-		size_t _iter = 0;
+		static bool isNumberDot(char symbol);
+		static bool isNumber(char symbol);
 
+		static bool isProperIdSymbol(char symbol);
+		static bool isProperStartingIdSymbol(char symbol);
+
+		static bool isSpace(char symbol);
+
+		static bool isQuote(char symbol);
+
+		bool throwError(const std::string& message = "");
+
+		std::string_view _source;
+
+		uint64_t _carret = 0;
+
+		bool _errorFlag = false;
+		std::string _errorMsg;
 	};
 
 }
 
-#endif /*lexer_h*/
+#endif // !ebnf_exp_lexer_h
