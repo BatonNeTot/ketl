@@ -54,10 +54,6 @@ namespace Ketl {
 			return _it != _end;
 		}
 
-		explicit operator char() const {
-			return _it != _end ? _it->value[_itOffset] : '\0';
-		}
-
 		BnfIterator& operator++() {
 			++_it;
 			return *this;

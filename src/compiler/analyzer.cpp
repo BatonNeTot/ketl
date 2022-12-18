@@ -110,14 +110,8 @@ namespace Ketl {
 
 			auto variable = std::make_unique<ByteVariableDefineFunction>(args.size());
 			variable->id = functionId;
-			variable->returnType = proceedType(*declarationNode->children()[0]);
 			// return argument
-
-			/*
-			auto returnVar = std::make_unique<ByteVariable>();
-			returnVar->type = functionOutputType;
-			functionAnalyze->arguments.emplace_back(std::move(returnVar));
-			*/ // TODO return
+			variable->returnType = proceedType(*declarationNode->children()[0]);
 
 			// arguments
 			Scope functionScope;
@@ -288,7 +282,24 @@ namespace Ketl {
 	}
 
 	std::unique_ptr<Analyzer::ByteType> Analyzer::proceedType(const Node& typeNode) {
-		return std::make_unique<ByteTypeBody>(std::string(typeNode.value()));
+		std::unique_ptr<Analyzer::ByteType> byteType;
+
+		auto& typeBodyNode = *typeNode.children()[0];
+		if (typeBodyNode.children().size() == 0) {
+			byteType = std::make_unique<ByteTypeBody>(std::string(typeBodyNode.value()));
+		}
+		else if (typeBodyNode.children().size() == 2) {
+			byteType = std::make_unique<ByteTypeConst>(proceedType(*typeBodyNode.children()[1]));
+		}
+		if (typeNode.children().size() == 2) {
+			auto& opNode = *typeNode.children()[1];
+			if (opNode.value() == "&") {
+
+			} else if (opNode.value() == "&&") {
+				byteType = std::make_unique<ByteTypeRRef>(std::move(byteType));
+			}
+		}
+		return std::move(byteType);
 	}
 
 }

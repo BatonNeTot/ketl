@@ -63,7 +63,6 @@ namespace Ketl {
 
 		class ByteTypeBody : public ByteType {
 		public:
-			ByteTypeBody() = default;
 			ByteTypeBody(const std::string& id_)
 				: id(id_) {}
 			void binarize(std::vector<uint8_t>& byteData) const {
@@ -72,6 +71,30 @@ namespace Ketl {
 			}
 
 			std::string id;
+		};
+
+		class ByteTypeConst : public ByteType {
+		public:
+			ByteTypeConst(std::unique_ptr<ByteType>&& type_)
+				: type(std::move(type_)) {}
+			void binarize(std::vector<uint8_t>& byteData) const {
+				insert(byteData, TypeCodes::Const);
+				type->binarize(byteData);
+			}
+
+			std::unique_ptr<ByteType> type;
+		};
+
+		class ByteTypeRRef : public ByteType {
+		public:
+			ByteTypeRRef(std::unique_ptr<ByteType>&& type_)
+				: type(std::move(type_)) {}
+			void binarize(std::vector<uint8_t>& byteData) const {
+				insert(byteData, TypeCodes::RRef);
+				type->binarize(byteData);
+			}
+
+			std::unique_ptr<ByteType> type;
 		};
 
 		class ByteVariable {

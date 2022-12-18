@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 	Float64 testValue {outofnowhere + 2};
 	testValue = (testValue2 = testValue + 6) + (7 + 8);
 
-	Float64 adder(Float64 x) {
+	Float64 adder(const Float64&& x) {
 		return testValue2 + x;
 	}
 

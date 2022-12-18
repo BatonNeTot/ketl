@@ -22,17 +22,32 @@ namespace Ketl {
 			std::make_unique<BnfNodeId>("type-extra-arguments", true, false)
 			));
 
-		_manager.insert("type", std::make_unique<BnfNodeOr>(
-			std::make_unique<BnfNodeConcat>(
+		_manager.insert("type", std::make_unique<BnfNodeConcat>(
+			std::make_unique<BnfNodeOr>(
 				std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
-				std::make_unique<BnfNodeLiteral>("(", true),
-				std::make_unique<BnfNodeOr>(
-					std::make_unique<BnfNodeId>("type-arguments", false, false),
-					std::make_unique<BnfNodeLiteral>("", true)
+				std::make_unique<BnfNodeConcat>(
+					std::make_unique<BnfNodeLiteral>("const", false),
+					std::make_unique<BnfNodeId>("type", false, true)
 					),
-				std::make_unique<BnfNodeLiteral>(")", true)
+				std::make_unique<BnfNodeConcat>(
+					std::make_unique<BnfNodeLiteral>("(", true),
+					std::make_unique<BnfNodeId>("type", false, true),
+					std::make_unique<BnfNodeLiteral>(")", true)
+					)
 				),
-			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id)
+			std::make_unique<BnfNodeOr>(
+				std::make_unique<BnfNodeLiteral>("&&", false),
+				std::make_unique<BnfNodeLiteral>("&", false),
+				std::make_unique<BnfNodeConcat>(
+					std::make_unique<BnfNodeLiteral>("(", true),
+					std::make_unique<BnfNodeOr>(
+						std::make_unique<BnfNodeId>("type-arguments", false, false),
+						std::make_unique<BnfNodeLiteral>("", true)
+						),
+					std::make_unique<BnfNodeLiteral>(")", true)
+					),
+				std::make_unique<BnfNodeLiteral>("", true)
+				)
 			));
 
 		_manager.insert("function-declaration-argument", std::make_unique<BnfNodeOr>(
@@ -263,18 +278,21 @@ namespace Ketl {
 
 			if (end == str.length()) {
 				_error = std::format("({},{}): unexpected EOF, expected {}",
-					line, row,
-					processNode.node->errorMsg());
-			} else if (processNode.node == nullptr) {
-				_error = std::format("({},{}): unexpected end of form, parsing {}",
-					line, row,
-					static_cast<char>(iterator));
+					line, row, processNode.node->errorMsg());
 			}
 			else {
-				_error = std::format("({},{}): expected {}, got {}",
-					line, row,
-					processNode.node->errorMsg(),
-					static_cast<char>(iterator));
+				auto itStr = iterator.value();
+				if (iterator.type() == Lexer::Token::Type::Other) {
+					itStr = itStr.substr(0, 1);
+				}
+				if (processNode.node == nullptr) {
+					_error = std::format("({},{}): unexpected end of form, parsing {}",
+						line, row, itStr);
+				}
+				else {
+					_error = std::format("({},{}): expected {}, got {}",
+						line, row, processNode.node->errorMsg(), itStr);
+				}
 			}
 
 			return {};

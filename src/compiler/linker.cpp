@@ -204,6 +204,32 @@ namespace Ketl {
 	public:
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Global;
+
+			if (this->type->isRef) {
+				switch (type) {
+				case Argument::Type::Stack: {
+					type = Argument::Type::DerefStack;
+					break;
+				}
+				case Argument::Type::DerefStack: {
+					type = Argument::Type::DerefDerefStack;
+					break;
+				}
+				case Argument::Type::Global: {
+					type = Argument::Type::DerefGlobal;
+					break;
+				}
+				case Argument::Type::DerefGlobal: {
+					type = Argument::Type::DerefDerefGlobal;
+					break;
+				}
+				case Argument::Type::Return: {
+					type = Argument::Type::DerefReturn;
+					break;
+				}
+				}
+			}
+
 			argument.globalPtr = ptr;
 		}
 		void* ptr = nullptr;
@@ -246,6 +272,32 @@ namespace Ketl {
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
+
+			if (this->type->isRef) {
+				switch (type) {
+				case Argument::Type::Stack: {
+					type = Argument::Type::DerefStack;
+					break;
+				}
+				case Argument::Type::DerefStack: {
+					type = Argument::Type::DerefDerefStack;
+					break;
+				}
+				case Argument::Type::Global: {
+					type = Argument::Type::DerefGlobal;
+					break;
+				}
+				case Argument::Type::DerefGlobal: {
+					type = Argument::Type::DerefDerefGlobal;
+					break;
+				}
+				case Argument::Type::Return: {
+					type = Argument::Type::DerefReturn;
+					break;
+				}
+				}
+			}
+
 			argument.stack = stackOffset;
 		}
 		uint64_t stackUsage() const override { return type->sizeOf(); }
@@ -287,6 +339,32 @@ namespace Ketl {
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Return;
+
+			if (this->type->isRef) {
+				switch (type) {
+				case Argument::Type::Stack: {
+					type = Argument::Type::DerefStack;
+					break;
+				}
+				case Argument::Type::DerefStack: {
+					type = Argument::Type::DerefDerefStack;
+					break;
+				}
+				case Argument::Type::Global: {
+					type = Argument::Type::DerefGlobal;
+					break;
+				}
+				case Argument::Type::DerefGlobal: {
+					type = Argument::Type::DerefDerefGlobal;
+					break;
+				}
+				case Argument::Type::Return: {
+					type = Argument::Type::DerefReturn;
+					break;
+				}
+				}
+			}
+
 		}
 		uint64_t stackUsage() const override { return 0; }
 
@@ -363,6 +441,32 @@ namespace Ketl {
 		}
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
+
+			if (this->type->isRef) {
+				switch (type) {
+				case Argument::Type::Stack: {
+					type = Argument::Type::DerefStack;
+					break;
+				}
+				case Argument::Type::DerefStack: {
+					type = Argument::Type::DerefDerefStack;
+					break;
+				}
+				case Argument::Type::Global: {
+					type = Argument::Type::DerefGlobal;
+					break;
+				}
+				case Argument::Type::DerefGlobal: {
+					type = Argument::Type::DerefDerefGlobal;
+					break;
+				}
+				case Argument::Type::Return: {
+					type = Argument::Type::DerefReturn;
+					break;
+				}
+				}
+			}
+
 			argument.stack = stackOffset;
 		}
 		uint64_t stackUsage() const override { return std::max(type->sizeOf(), sizeof(uint8_t*)); }
@@ -375,6 +479,32 @@ namespace Ketl {
 	class VariableFuncArgument : public Linker::Variable {
 		void propagateArgument(Argument& argument, Argument::Type& type) const override {
 			type = Argument::Type::Stack;
+
+			if (this->type->isRef) {
+				switch (type) {
+				case Argument::Type::Stack: {
+					type = Argument::Type::DerefStack;
+					break;
+				}
+				case Argument::Type::DerefStack: {
+					type = Argument::Type::DerefDerefStack;
+					break;
+				}
+				case Argument::Type::Global: {
+					type = Argument::Type::DerefGlobal;
+					break;
+				}
+				case Argument::Type::DerefGlobal: {
+					type = Argument::Type::DerefDerefGlobal;
+					break;
+				}
+				case Argument::Type::Return: {
+					type = Argument::Type::DerefReturn;
+					break;
+				}
+				}
+			}
+
 			argument.stack = stackOffset;
 		}
 		bool temporary() const override { return false; }
@@ -412,8 +542,10 @@ namespace Ketl {
 			return type;
 		}
 		case TypeCodes::RRef: {
-
-			return {};
+			auto type = readType(env, iter, bytecode, size);
+			type->isRef = true;
+			type->hasAddress = false;
+			return type;
 		}
 		case TypeCodes::Function: {
 
