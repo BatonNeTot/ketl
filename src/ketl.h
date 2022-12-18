@@ -149,10 +149,15 @@ namespace Ketl {
 			None,
 			Global,
 			DerefGlobal,
+			//TODO this is something really stupid, i hope better solution'll come later  
+			DerefDerefGlobal,
 			Stack,
 			DerefStack,
+			//TODO same 
+			DerefDerefStack,
 			Literal,
-			Return
+			Return,
+			DerefReturn,
 		};
 
 		union {
@@ -278,17 +283,26 @@ namespace Ketl {
 			case Argument::Type::DerefGlobal: {
 				return *reinterpret_cast<uint8_t**>(value.globalPtr);
 			}
+			case Argument::Type::DerefDerefGlobal: {
+				return **reinterpret_cast<uint8_t***>(value.globalPtr);
+			}
 			case Argument::Type::Stack: {
 				return stackPtr + value.stack;
 			}
 			case Argument::Type::DerefStack: {
 				return *reinterpret_cast<uint8_t**>(stackPtr + value.stack);
 			}
+			case Argument::Type::DerefDerefStack: {
+				return **reinterpret_cast<uint8_t***>(stackPtr + value.stack);
+			}
 			case Argument::Type::Literal: {
 				return reinterpret_cast<uint8_t*>(&value);
 			}
 			case Argument::Type::Return: {
 				return returnPtr;
+			}
+			case Argument::Type::DerefReturn: {
+				return *reinterpret_cast<uint8_t**>(returnPtr);
 			}
 			}
 			return nullptr;
@@ -419,6 +433,16 @@ namespace Ketl {
 		StackAllocator _stack;
 	};
 
+	enum class OperatorCode : uint8_t {
+		Constructor,
+		Destructor,
+		Plus,
+		Minus,
+		Multiply,
+		Divide,
+		Assign,
+	};
+
 	class Type {
 	public:
 		Type() = default;
@@ -437,7 +461,7 @@ namespace Ketl {
 			std::vector<std::unique_ptr<const Type>> argTypes;
 		};
 
-		virtual FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
+		virtual FunctionInfo deduceFunction(const std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
 			return FunctionInfo{};
 		}
 
@@ -489,96 +513,6 @@ namespace Ketl {
 		virtual std::unique_ptr<Type> clone() const = 0;
 	};
 
-	class BasicTypeBody {
-	public:
-
-		BasicTypeBody(const std::string& id, uint64_t size)
-			: _id(id), _size(size) {}
-
-		const std::string& id() const {
-			return _id;
-		}
-
-		Type::FunctionInfo deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const;
-
-		const FunctionImpl* construct(uint64_t funcIndex) const {
-			return &_cstrs[funcIndex].func;
-		}
-
-		uint64_t contructorCount() const {
-			return _cstrs.size();
-		}
-
-		const FunctionImpl* destruct(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
-			return &_dstr;
-		}
-
-		uint64_t sizeOf() const {
-			return _size;
-		}
-
-	public:
-
-		std::string _id;
-		struct Constructor {
-			Constructor() {}
-			FunctionImpl func;
-			std::vector<std::unique_ptr<const Type>> argTypes;
-		};
-		std::vector<Constructor> _cstrs;
-		FunctionImpl _dstr;
-		uint64_t _size = 0;
-
-	};
-
-	class TypeOfType : public Type {
-	public:
-		TypeOfType(const BasicTypeBody* body)
-			: _body(body) {}
-		std::string id() const override { return "Type"; };
-		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			// TODO constructor
-			return FunctionInfo{};
-		}
-	private:
-
-		uint64_t sizeOfImpl() const override { return sizeof(BasicTypeBody); };
-		std::unique_ptr<Type> clone() const override {
-			return std::make_unique<TypeOfType>(*this);
-		}
-
-		const BasicTypeBody* _body;
-	};
-
-	class BasicType : public Type {
-	public:
-
-		BasicType(const BasicTypeBody* body)
-			: _body(body) {}
-		BasicType(const BasicTypeBody* body, bool isConst, bool isRef, bool hasAddress)
-			: Type(isConst, isRef, hasAddress), _body(body) {}
-
-		std::string id() const override {
-			return _body->id();
-		}
-
-		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			return _body->deduceConstructor(argumentTypes);
-		}
-
-	private:
-
-		uint64_t sizeOfImpl() const override {
-			return _body->sizeOf();
-		}
-
-		std::unique_ptr<Type> clone() const override {
-			return std::make_unique<BasicType>(*this);
-		}
-
-		const BasicTypeBody* _body;
-	};
-
 	class FunctionContainer {
 	public:
 		FunctionContainer() {}
@@ -606,85 +540,7 @@ namespace Ketl {
 		uint64_t functionsCount = 0;
 	};
 
-	class FunctionType : public Type {
-	public:
-		FunctionType() {}
-		FunctionType(const FunctionType& function)
-			: infos(function.infos) {}
-
-		std::string id() const override {
-			if (infos.size() > 1) {
-				return "MultiCastFunction";
-			}
-			else {
-				auto& func = infos.front();
-				auto id = func.returnType->id() + "(*)(";
-				for (uint64_t i = 0u; i < func.argTypes.size(); ++i) {
-					if (i != 0) {
-						id += ", ";
-					}
-					id += func.argTypes[i]->id();
-				}
-				return id;
-			}
-		}
-		FunctionInfo deduceFunction(std::vector<std::unique_ptr<const Type>>& argumentTypes) const override {
-			FunctionInfo outputInfo;
-
-			for (uint64_t infoIt = 0u; infoIt < infos.size(); ++infoIt) {
-				auto& info = infos[infoIt];
-				if (argumentTypes.size() != info.argTypes.size()) {
-					continue;
-				}
-				bool next = false;
-				for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
-					// TODO light casting (non-const to const, inheritance)
-					// TODO lvalue and rvalue (as lreferece and rreference)
-					if (*info.argTypes[typeIt] != *argumentTypes[typeIt]) {
-						next = true;
-						break;
-					}
-				}
-				if (next) {
-					continue;
-				}
-
-				outputInfo.isDynamic = true;
-				outputInfo.functionIndex = static_cast<uint8_t>(infoIt);
-				outputInfo.returnType = Type::clone(info.returnType);
-
-				outputInfo.argTypes.reserve(info.argTypes.size());
-				for (uint64_t typeIt = 0u; typeIt < info.argTypes.size(); ++typeIt) {
-					outputInfo.argTypes.emplace_back(Type::clone(info.argTypes[typeIt]));
-				}
-
-				return outputInfo;
-			}
-			return Type::deduceFunction(argumentTypes);
-		}
-
-		struct Info {
-			Info() {}
-			Info(const Info& info)
-				: returnType(Type::clone(info.returnType)), argTypes(info.argTypes.size()) {
-				for (uint64_t i = 0u; i < info.argTypes.size(); ++i) {
-					argTypes[i] = Type::clone(info.argTypes[i]);
-				}
-			}
-
-			std::unique_ptr<const Type> returnType;
-			std::vector<std::unique_ptr<const Type>> argTypes;
-		};
-		std::vector<Info> infos;
-
-	private:
-		uint64_t sizeOfImpl() const override {
-			return sizeof(FunctionContainer);
-		}
-		std::unique_ptr<Type> clone() const override {
-			return std::make_unique<FunctionType>(*this);
-		}
-	};
+	class BasicTypeBody;
 
 	class Context {
 	public:
@@ -706,13 +562,7 @@ namespace Ketl {
 			return declareType(id, 0);
 		}
 
-		BasicTypeBody* declareType(const std::string& id, uint64_t sizeOf) {
-			auto theTypePtr = getGlobal<BasicTypeBody>("Type");
-			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(theTypePtr)));
-			new(typePtr) BasicTypeBody(id, sizeOf);
-			_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
-			return typePtr;
-		}
+		BasicTypeBody* declareType(const std::string& id, uint64_t sizeOf);
 
 		bool declareGlobal(const std::string& id, void* stackPtr, const Type& type) {
 			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));

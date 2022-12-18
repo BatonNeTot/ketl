@@ -232,7 +232,10 @@ namespace Ketl {
 
 		std::list<Lexer::Token> list;
 		while (lexer.hasNext()) {
-			list.emplace_back(lexer.proceedNext());
+			auto&& token = lexer.proceedNext();
+			if (!token.value.empty()) {
+				list.emplace_back(std::move(token));
+			}
 		}
 
 		ProcessNode processNode;

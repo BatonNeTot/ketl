@@ -39,6 +39,7 @@ namespace Ketl {
 		// collect arguments information
 		for (auto it = commandsNode->children().begin(), end = commandsNode->children().end(); it != end; ++it) {
 			proceedCommands(*it->get()->children().front(), scope, variables, stack);
+			variables.emplace_back(std::make_unique<ByteVariableFlush>());
 
 			stackData.emplace_back(stack.size() - lastStackSize);
 			for (auto i = lastStackSize; i < stack.size(); ++i) {
@@ -57,9 +58,9 @@ namespace Ketl {
 			variable->binarize(byteData);
 		}
 
-		for (const auto& data : stackData) {
-			insert(byteData, data);
-		}
+		//for (const auto& data : stackData) {
+		//	insert(byteData, data);
+		//}
 
 		return byteData;
 	}
@@ -138,6 +139,16 @@ namespace Ketl {
 			return args.emplace_back(std::move(variable)).get();
 		}
 
+		if (nodeId.id() == "return") {
+			auto* nodePtr = nodeId.children().front().get();
+
+			auto* returnVariable = proceedCommands(*nodePtr->children().front().get(), scope, args, stack);
+
+			auto variable = std::make_unique<ByteVariableReturn>(args.size());
+			variable->arg = returnVariable->index;
+			return args.emplace_back(std::move(variable)).get();
+		}
+
 		if (nodeId.id() == "primary") {
 			auto* nodePtr = nodeId.children().front().get();
 			switch (nodePtr->type()) {
@@ -171,25 +182,26 @@ namespace Ketl {
 			if (node.children().size() == 1) {
 				return proceedCommands(*node.children().front(), scope, args, stack);
 			}
-			auto& nodeOperator = node.children().front()->children().front();
+			auto& nodeOperator = node.children()[1]->children().front();
 
 			// function call
-			if (nodeOperator->children().front()->value() == "(") {
+			if (nodeOperator->children()[0]->value() == "(") {
 				auto function = std::make_unique<ByteVariableFunction>(0);
 
 				stack.emplace_back(function.get());
-				auto* argumentTarget = proceedCommands(*node.children().back(), scope, args, stack);
+				auto* argumentTarget = proceedCommands(*node.children()[0], scope, args, stack);
 				function->function = argumentTarget->index;
 
-				auto& nodeArguments = nodeOperator->children().back();
-				for (auto& functionArgumentNode : nodeArguments->children().front()->children()) {
-					auto* functionArgument = proceedCommands(*functionArgumentNode, scope, args, stack);
-					function->args.emplace_back(functionArgument->index);
+				if (nodeOperator->children().size() > 1) {
+					auto& nodeArguments = nodeOperator->children().back();
+					for (auto& functionArgumentNode : nodeArguments->children().front()->children()) {
+						auto* functionArgument = proceedCommands(*functionArgumentNode, scope, args, stack);
+						function->args.emplace_back(functionArgument->index);
+					}
 				}
 				
 				function->index = args.size();
 				auto functionVariablePtr = args.emplace_back(std::move(function)).get();
-
 
 				return functionVariablePtr;
 			}
@@ -224,7 +236,7 @@ namespace Ketl {
 		++it;
 
 		auto opArg = std::make_unique<ByteVariableBinaryOperator>(0);
-		opArg->code = OperatorCodes::Plus; // TODO actual code choosing
+		opArg->code = OperatorCode::Plus; // TODO actual code choosing
 
 		stack.emplace_back(opArg.get());
 			
@@ -253,7 +265,7 @@ namespace Ketl {
 		++it;
 		
 		auto opArg = std::make_unique<ByteVariableBinaryOperator>(0);
-		opArg->code = OperatorCodes::Assign; // TODO actual code choosing
+		opArg->code = OperatorCode::Assign; // TODO actual code choosing
 
 		stack.emplace_back(opArg.get());
 

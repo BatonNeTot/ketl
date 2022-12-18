@@ -118,17 +118,18 @@ void insert(std::vector <uint8_t>& bytes, const char* str) {
 }
 
 int main(int argc, char** argv) {
-
 	Ketl::Environment env;
 	Ketl::Linker linker;
 
 	auto command = linker.proceedStandalone(env, R"(
-	//Float64 testValue2{1 + 2};
-	testValue = (testValue2 = 5 + 6) + 7;
+	Float64 testValue {1 + 2};
+	testValue = (testValue2 = testValue + 6) + (7 + 8);
 
-	Void adder() {
-		testValue2 = 5 + 1;
+	Float64 adder(Float64 x) {
+		return testValue2 + x;
 	}
+
+	testValue2 = adder(5);
 )");
 	
 
@@ -137,12 +138,14 @@ int main(int argc, char** argv) {
 
 	command.invoke(env._context._globalStack);
 
+	/*
 	auto* function = env.getGlobal<Ketl::FunctionContainer>("adder");
 	auto* pureFunction = function->functions;
 
 	auto stackPtr = env._context._globalStack.allocate(pureFunction->stackSize());
 	pureFunction->call(env._context._globalStack, stackPtr, nullptr);
 	env._context._globalStack.deallocate(pureFunction->stackSize());
+	*/
 
 	test(0);
 	//getc(stdin);

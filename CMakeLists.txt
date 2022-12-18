@@ -5,10 +5,11 @@ project ("Ketl")
 # Include sub-projects.
 add_subdirectory ("src")
 
-file(GLOB_RECURSE EEl_HEADERS CONFIGURE_DEPENDS include/*.h include/*.hpp)
+file(GLOB_RECURSE KETL_HEADERS CONFIGURE_DEPENDS include/*.h include/*.hpp)
 
-add_library (ketl STATIC ${KETL_SOURCES} ${EEl_HEADERS})
+add_library (ketl STATIC ${KETL_SOURCES} ${KETL_HEADERS} "NatvisFile.natvis")
 set_property(TARGET ketl PROPERTY CXX_STANDARD 20)
+set_source_files_properties("NatvisFile.natvis" PROPERTIES HEADER_FILE_ONLY true)
 
 set_target_properties(ketl
     PROPERTIES

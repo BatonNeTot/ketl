@@ -23,14 +23,16 @@ namespace Ketl {
 		class Variable {
 		public:
 			virtual ~Variable() {}
-			virtual bool addInstructions(Environment& env, std::vector<Instruction>& instructions) { return false; }
-			virtual void propagateArgument(Argument& argument, Argument::Type& type) {}
+			virtual bool addInstructions(Environment& env, std::vector<Instruction>& instructions) const { return false; }
+			virtual void propagateArgument(Argument& argument, Argument::Type& type) const {}
 			virtual uint64_t stackUsage() const { return 0; }
+			virtual bool temporary() const { return true; }
+			std::vector<Variable*> operationArgs;
 			std::unique_ptr<const Type> type;
 			uint64_t stackOffset = 0;
 		};
 
-		FunctionImpl proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const uint8_t* bytecode, uint64_t size);
+		FunctionImpl proceed(Environment& env, std::vector<std::unique_ptr<Variable>>& variables, std::vector<Variable*>& stack, const Type* returnType, const uint8_t* bytecode, uint64_t size);
 
 	private:
 

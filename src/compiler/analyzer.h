@@ -15,14 +15,6 @@
 namespace Ketl {
 	class Linker;
 
-	enum class OperatorCodes : uint8_t {
-		Plus,
-		Minus,
-		Multiply,
-		Divide,
-		Assign,
-	};
-
 	enum class TypeCodes : uint8_t {
 		Body,
 		Const,
@@ -33,9 +25,11 @@ namespace Ketl {
 	};
 
 	enum class ByteInstruction : uint8_t {
+		Flush,
 		Variable,
 		VariableDefinition,
 		Literal,
+		Return,
 		UnaryOperator,
 		BinaryOperator,
 		Function,
@@ -90,6 +84,15 @@ namespace Ketl {
 			uint64_t index;
 		};
 
+		class ByteVariableFlush : public ByteVariable {
+		public:
+			ByteVariableFlush()
+				: ByteVariable(0) {}
+			void binarize(std::vector<uint8_t>& byteData) const override {
+				insert(byteData, ByteInstruction::Flush);
+			}
+		};
+
 		class ByteVarialbeId : public ByteVariable {
 		public:
 			ByteVarialbeId(uint64_t index)
@@ -132,6 +135,18 @@ namespace Ketl {
 			double value = 0.;
 		};
 
+		class ByteVariableReturn : public ByteVariable {
+		public:
+			ByteVariableReturn(uint64_t index)
+				: ByteVariable(index) {}
+			void binarize(std::vector<uint8_t>& byteData) const override {
+				insert(byteData, ByteInstruction::Return);
+				insert(byteData, arg);
+			}
+
+			uint64_t arg;
+		};
+
 		class ByteVariableBinaryOperator : public ByteVariable {
 		public:
 			ByteVariableBinaryOperator(uint64_t index)
@@ -143,7 +158,7 @@ namespace Ketl {
 				insert(byteData, secondArg);
 			}
 
-			OperatorCodes code = OperatorCodes::Assign;
+			OperatorCode code = OperatorCode::Assign;
 			uint64_t firstArg = 0;
 			uint64_t secondArg = 0;
 		};

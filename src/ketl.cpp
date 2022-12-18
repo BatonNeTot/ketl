@@ -1,39 +1,16 @@
 ﻿/*🍲Ketl🍲*/
 #include "ketl.h"
 
+#include "type.h"
+
 namespace Ketl {
 
-	Type::FunctionInfo BasicTypeBody::deduceConstructor(std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
-		Type::FunctionInfo outputInfo;
-
-		for (uint64_t cstrIt = 0u; cstrIt < _cstrs.size(); ++cstrIt) {
-			auto& cstr = _cstrs[cstrIt];
-			if (argumentTypes.size() != cstr.argTypes.size()) {
-				continue;
-			}
-			bool next = false;
-			for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
-				if (!argumentTypes[typeIt]->convertableTo(*cstr.argTypes[typeIt])) {
-					next = true;
-					break;
-				}
-			}
-			if (next) {
-				continue;
-			}
-
-			outputInfo.isDynamic = false;
-			outputInfo.function = &cstr.func;
-			outputInfo.returnType = std::make_unique<BasicType>(this);
-
-			outputInfo.argTypes.reserve(cstr.argTypes.size());
-			for (uint64_t typeIt = 0u; typeIt < cstr.argTypes.size(); ++typeIt) {
-				outputInfo.argTypes.emplace_back(Type::clone(cstr.argTypes[typeIt]));
-			}
-
-			return outputInfo;
-		}
-		return outputInfo;
+	BasicTypeBody* Context::declareType(const std::string& id, uint64_t sizeOf) {
+		auto theTypePtr = getGlobal<BasicTypeBody>("Type");
+		auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateOnGlobalStack(BasicType(theTypePtr)));
+		new(typePtr) BasicTypeBody(id, sizeOf);
+		_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
+		return typePtr;
 	}
 
 	void Instruction::call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) {
@@ -102,8 +79,8 @@ namespace Ketl {
 		}
 		case Code::CallDynamicFunction: {
 			auto& function = first<FunctionContainer>(stackPtr, returnPtr);
-			auto& stackStart = second<uint8_t*>(stackPtr, returnPtr);
 			auto& pureFunction = function.functions[_funcIndex];
+			auto& stackStart = outputStack<uint8_t*>(stackPtr, returnPtr);
 			auto funcReturnPtr = &outputStack<uint8_t>(stackPtr, returnPtr);
 			pureFunction.call(stack, stackStart, funcReturnPtr);
 			stack.deallocate(pureFunction.stackSize());
@@ -114,7 +91,8 @@ namespace Ketl {
 	}
 
 	static void constructFloat64(StackAllocator&, uint8_t* stackPtr, uint8_t* returnPtr) {
-		*reinterpret_cast<double*>(returnPtr) = **reinterpret_cast<double**>(stackPtr);
+		auto value = **reinterpret_cast<double**>(stackPtr);
+		*reinterpret_cast<double*>(returnPtr) = value;
 	}
 
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)

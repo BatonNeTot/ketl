@@ -81,6 +81,7 @@ namespace Ketl {
 
 	const char& Lexer::nextSymbol() {
 		if (!hasNext()) {
+			_carret = _source.length() + 1;
 			throwError("Unexpected end of a string");
 			return nonSymbol;
 		}
