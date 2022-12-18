@@ -8,9 +8,9 @@
 #include <cassert>
 #include <typeindex>
 
-#include "compiler/parser.h"
-#include "compiler/linker.h"
+#include "compiler/compiler.h"
 #include "ketl.h"
+#include "context.h"
 #include "type.h"
 
 #include "lua.hpp"
@@ -25,10 +25,11 @@ void test(double x) {
 void testLanguages() {
 	const uint64_t N = 1000000;
 
-	Ketl::Environment env;
-	Ketl::Linker linker;
+	Ketl::Allocator allocator;
+	Ketl::Context context(allocator, 4096);
+	Ketl::Compiler compiler;
 
-	auto command = linker.proceedStandalone(env, R"(
+	auto command = compiler.compile(R"(
 	testValue2 = 1 + 2;
 
 	Float64 adder(Float64 x, Float64 y) {
@@ -36,12 +37,14 @@ void testLanguages() {
 	}
 
 	testValue = adder(testValue2, 9);
-)");
+)", context);
 
 	test(0);
 
 	for (auto i = 0; i < N; ++i) {
-		command.invoke(env._context._globalStack);
+		auto stackPtr = context._globalStack.allocate(command.stackSize());
+		command.call(context._globalStack, stackPtr, nullptr);
+		context._globalStack.deallocate(command.stackSize());
 	}
 
 	test(0);
@@ -85,8 +88,29 @@ void insert(std::vector <uint8_t>& bytes, const char* str) {
 }
 
 int main(int argc, char** argv) {
-	Ketl::Environment env;
-	Ketl::Linker linker;
+	Ketl::Allocator allocator;
+	Ketl::Context context(allocator, 4096);
+	Ketl::Compiler compiler;
+
+	auto command = compiler.compile(R"(
+	testValue2 = 1 + 2 * 3 + 4;
+)", context);
+	
+	/*
+	auto command = compiler.compile(R"(
+	testValue2 = 1 + 2;
+
+	Float64 adder(Float64 x, Float64 y) {
+		return x + y;
+	}
+
+	testValue = adder(testValue2, 9);
+)", context);
+	*/
+
+	auto stackPtr = context._globalStack.allocate(command.stackSize());
+	command.call(context._globalStack, stackPtr, nullptr);
+	context._globalStack.deallocate(command.stackSize());
 
 	/*
 	// TODO thats nonsense

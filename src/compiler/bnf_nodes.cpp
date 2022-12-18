@@ -150,19 +150,15 @@ namespace Ketl {
 		ProcessNode processNode(&parentProcess, this);
 
 		if (_node->process(it, processNode)) {
+			if (_id == "primary") {
+				auto test = 0;
+			}
 			if (!processNode.outputChildrenNodes.empty() && processNode.outputChildrenNodes.back()) {
 				auto& outputNode = processNode.outputChildrenNodes.back();
-				if (_placeholder) {
-					parentProcess.outputChildrenNodes.emplace_front(
-						std::move(outputNode));
-				}
-				else if (_unfold) {
-					auto& children = outputNode->children();
-					for (auto it = children.rbegin(), end = children.rend(); it != end; ++it) {
-						parentProcess.outputChildrenNodes.emplace_front(std::move(*it));
-					}
-				}
-				else {
+
+				if (_weakContent) {
+
+				} else {
 					parentProcess.outputChildrenNodes.emplace_front(std::make_unique<NodeIdHolder>(
 						std::move(outputNode), _id
 						));
@@ -184,7 +180,7 @@ namespace Ketl {
 		if (nextNode) {
 			if (nextNode->process(it, processNode)) {
 				if (!processNode.outputChildrenNodes.empty()) {
-					if (processNode.outputChildrenNodes.size() == 1 && _weak) {
+					if (processNode.outputChildrenNodes.size() == 1) {
 						parentProcess.outputChildrenNodes.emplace_front(std::move(processNode.outputChildrenNodes.back()));
 					}
 					else {

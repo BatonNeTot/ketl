@@ -33,8 +33,8 @@ namespace Ketl {
 	class BnfNodeId : public BnfNode {
 	public:
 
-		BnfNodeId(const std::string_view& id, bool unfold, bool placeholder)
-			: _id(id), _unfold(unfold), _placeholder(placeholder) {}
+		BnfNodeId(const std::string_view& id, bool weakContent = false)
+			: _id(id), _weakContent(weakContent) {}
 
 		void preprocess(const BnfManager& manager) override;
 
@@ -44,8 +44,7 @@ namespace Ketl {
 
 		const BnfNode* _node = nullptr;
 		std::string _id;
-		bool _unfold = false;
-		bool _placeholder = false;
+		bool _weakContent;
 	};
 
 	class BnfNodeLeaf : public BnfNode {
@@ -94,12 +93,7 @@ namespace Ketl {
 	public:
 
 		template<class... Args>
-		BnfNodeConcat(Args&&... args) 
-			: BnfNodeConcat(false, std::forward<Args>(args)...) {}
-
-		template<class... Args>
-		BnfNodeConcat(bool weak, Args&&... args)
-			: _weak(weak) {
+		BnfNodeConcat(Args&&... args) {
 			std::unique_ptr<BnfNode> nodes[] = { std::move(args)... };
 			_firstChild = std::move(nodes[0]);
 			auto* it = &_firstChild;
@@ -119,7 +113,6 @@ namespace Ketl {
 	private:
 
 		std::unique_ptr<BnfNode> _firstChild;
-		bool _weak = false;
 	};
 
 	class BnfNodeOr : public BnfNode {

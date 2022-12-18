@@ -13,35 +13,35 @@ namespace Ketl {
 		_manager.insert("type-extra-arguments", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				std::make_unique<BnfNodeLiteral>(",", true),
-				std::make_unique<BnfNodeId>("type-arguments", false, false)
+				std::make_unique<BnfNodeId>("type-arguments")
 				),
 			std::make_unique<BnfNodeLiteral>("", true)
 			));
 		_manager.insert("type-arguments", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("type", false, true),
-			std::make_unique<BnfNodeId>("type-extra-arguments", true, false)
+			std::make_unique<BnfNodeId>("type"),
+			std::make_unique<BnfNodeId>("type-extra-arguments")
 			));
 
 		_manager.insert("type", std::make_unique<BnfNodeConcat>(
 			std::make_unique<BnfNodeOr>(
 				std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
 				std::make_unique<BnfNodeConcat>(
-					std::make_unique<BnfNodeLiteral>("const", false),
-					std::make_unique<BnfNodeId>("type", false, true)
+					std::make_unique<BnfNodeLiteral>("const"),
+					std::make_unique<BnfNodeId>("type")
 					),
 				std::make_unique<BnfNodeConcat>(
 					std::make_unique<BnfNodeLiteral>("(", true),
-					std::make_unique<BnfNodeId>("type", false, true),
+					std::make_unique<BnfNodeId>("type"),
 					std::make_unique<BnfNodeLiteral>(")", true)
 					)
 				),
 			std::make_unique<BnfNodeOr>(
-				std::make_unique<BnfNodeLiteral>("&&", false),
-				std::make_unique<BnfNodeLiteral>("&", false),
+				std::make_unique<BnfNodeLiteral>("&&"),
+				std::make_unique<BnfNodeLiteral>("&"),
 				std::make_unique<BnfNodeConcat>(
 					std::make_unique<BnfNodeLiteral>("(", true),
 					std::make_unique<BnfNodeOr>(
-						std::make_unique<BnfNodeId>("type-arguments", false, false),
+						std::make_unique<BnfNodeId>("type-arguments"),
 						std::make_unique<BnfNodeLiteral>("", true)
 						),
 					std::make_unique<BnfNodeLiteral>(")", true)
@@ -52,40 +52,40 @@ namespace Ketl {
 
 		_manager.insert("function-declaration-argument", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
-				std::make_unique<BnfNodeId>("type", false, true),
+				std::make_unique<BnfNodeId>("type"),
 				std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id)
 				),
-			std::make_unique<BnfNodeId>("type", false, true)
+			std::make_unique<BnfNodeId>("type")
 			));
 
 		_manager.insert("function-declaration-extra-arguments", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				std::make_unique<BnfNodeLiteral>(",", true),
-				std::make_unique<BnfNodeId>("function-declaration-argument", false, false),
-				std::make_unique<BnfNodeId>("function-declaration-extra-arguments", true, false)
+				std::make_unique<BnfNodeId>("function-declaration-argument"),
+				std::make_unique<BnfNodeId>("function-declaration-extra-arguments")
 				),
 			std::make_unique<BnfNodeLiteral>("", true)
 			));
 
 		_manager.insert("function-declaration-arguments", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("function-declaration-argument", false, false),
-			std::make_unique<BnfNodeId>("function-declaration-extra-arguments", true, false)
+			std::make_unique<BnfNodeId>("function-declaration-argument"),
+			std::make_unique<BnfNodeId>("function-declaration-extra-arguments")
 			));
 
 		_manager.insert("function-declaration", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("type", false, true),
+			std::make_unique<BnfNodeId>("type"),
 			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
 			std::make_unique<BnfNodeLiteral>("(", true),
 			std::make_unique<BnfNodeOr>(
-				std::make_unique<BnfNodeId>("function-declaration-arguments", false, false),
+				std::make_unique<BnfNodeId>("function-declaration-arguments"),
 				std::make_unique<BnfNodeLiteral>("", true)
 				),
 			std::make_unique<BnfNodeLiteral>(")", true)
 			));
 
 		_manager.insert("function-definition", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("function-declaration", false, false),
-			std::make_unique<BnfNodeId>("brackets-commands", false, false)
+			std::make_unique<BnfNodeId>("function-declaration"),
+			std::make_unique<BnfNodeId>("brackets-commands")
 			));
 
 		_manager.insert("primary", std::make_unique<BnfNodeOr>(
@@ -93,40 +93,39 @@ namespace Ketl {
 			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Number),
 			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::String),
 			std::make_unique<BnfNodeConcat>(
-				true,
 				std::make_unique<BnfNodeLiteral>("(", true),
-				std::make_unique<BnfNodeId>("expression", false, true),
+				std::make_unique<BnfNodeId>("expression"),
 				std::make_unique<BnfNodeLiteral>(")", true)
 				),
-			std::make_unique<BnfNodeId>("function-definition", false, false)
+			std::make_unique<BnfNodeId>("function-definition")
 			));
 
 		_manager.insert("function-extra-arguments", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				std::make_unique<BnfNodeLiteral>(",", true),
-				std::make_unique<BnfNodeId>("primary", false, false),
-				std::make_unique<BnfNodeId>("function-extra-arguments", true, false)
+				std::make_unique<BnfNodeId>("primary"),
+				std::make_unique<BnfNodeId>("function-extra-arguments")
 				),
 			std::make_unique<BnfNodeLiteral>("", true)
 			));
 		_manager.insert("function-arguments", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("expression", false, true),
-			std::make_unique<BnfNodeId>("function-extra-arguments", true, false)
+			std::make_unique<BnfNodeId>("expression"),
+			std::make_unique<BnfNodeId>("function-extra-arguments")
 			));
 		_manager.insert("precedence-1-operator", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				std::make_unique<BnfNodeLiteral>("("),
 				std::make_unique<BnfNodeOr>(
-					std::make_unique<BnfNodeId>("function-arguments", false, false),
+					std::make_unique<BnfNodeId>("function-arguments"),
 					std::make_unique<BnfNodeLiteral>("", true)
 					),
 				std::make_unique<BnfNodeLiteral>(")", true)
 				)
 			));
 		_manager.insert("precedence-1-expression", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("primary", false, false),
+			std::make_unique<BnfNodeId>("primary"),
 			std::make_unique<BnfNodeOr>(
-				std::make_unique<BnfNodeId>("precedence-1-operator", false, false),
+				std::make_unique<BnfNodeId>("precedence-1-operator"),
 				std::make_unique<BnfNodeLiteral>("", true)
 				)
 			));
@@ -150,11 +149,11 @@ namespace Ketl {
 			std::make_unique<BnfNodeLiteral>("=")
 			), "precedence-5-expression", "precedence-5-extra", "precedence-4-expression");
 
-		_manager.insert("expression", std::make_unique<BnfNodeId>("precedence-5-expression", false, false));
+		_manager.insert("expression", std::make_unique<BnfNodeId>("precedence-5-expression"));
 
 		_manager.insert("expression-with-end-symbol", std::make_unique<BnfNodeConcat>(
 			std::make_unique<BnfNodeOr>(
-				std::make_unique<BnfNodeId>("expression", false, true),
+				std::make_unique<BnfNodeId>("expression"),
 				std::make_unique<BnfNodeLiteral>("")
 				),
 			std::make_unique<BnfNodeLiteral>(";", true)
@@ -162,7 +161,7 @@ namespace Ketl {
 		_manager.insert("return", std::make_unique<BnfNodeConcat>(
 			std::make_unique<BnfNodeLiteral>("return", true),
 			std::make_unique<BnfNodeOr>(
-				std::make_unique<BnfNodeId>("expression", false, true),
+				std::make_unique<BnfNodeId>("expression"),
 				std::make_unique<BnfNodeLiteral>("")
 				),
 			std::make_unique<BnfNodeLiteral>(";", true)
@@ -171,23 +170,23 @@ namespace Ketl {
 		_manager.insert("define-variable-extra-arguments", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				std::make_unique<BnfNodeLiteral>(",", true),
-				std::make_unique<BnfNodeId>("define-variable-arguments", false, false)
+				std::make_unique<BnfNodeId>("define-variable-arguments")
 				),
 			std::make_unique<BnfNodeLiteral>("", true)
 			));
 		_manager.insert("define-variable-arguments", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("expression", false, true),
-			std::make_unique<BnfNodeId>("define-variable-extra-arguments", true, false)
+			std::make_unique<BnfNodeId>("expression"),
+			std::make_unique<BnfNodeId>("define-variable-extra-arguments")
 			));
 
 		_manager.insert("define-variable", std::make_unique<BnfNodeConcat>(
-			std::make_unique<BnfNodeId>("type", false, true),
+			std::make_unique<BnfNodeId>("type"),
 			std::make_unique<BnfNodeLeaf>(BnfNodeLeaf::Type::Id),
 			std::make_unique<BnfNodeOr>(
 				std::make_unique<BnfNodeConcat>(
 					std::make_unique<BnfNodeLiteral>("{", true),
 					std::make_unique<BnfNodeOr>(
-						std::make_unique<BnfNodeId>("define-variable-arguments", false, false),
+						std::make_unique<BnfNodeId>("define-variable-arguments"),
 						std::make_unique<BnfNodeLiteral>("", true)
 						),
 					std::make_unique<BnfNodeLiteral>("}", true)
@@ -198,30 +197,30 @@ namespace Ketl {
 			));
 
 		_manager.insert("command", std::make_unique<BnfNodeOr>(
-			std::make_unique<BnfNodeId>("expression-with-end-symbol", true, false),
-			std::make_unique<BnfNodeId>("return", false, false),
-			std::make_unique<BnfNodeId>("define-variable", false, false),
-			std::make_unique<BnfNodeId>("function-definition", false, false),
-			std::make_unique<BnfNodeId>("brackets-commands", false, false)
+			std::make_unique<BnfNodeId>("expression-with-end-symbol"),
+			std::make_unique<BnfNodeId>("return"),
+			std::make_unique<BnfNodeId>("define-variable"),
+			std::make_unique<BnfNodeId>("function-definition"),
+			std::make_unique<BnfNodeId>("brackets-commands")
 			));
 
 		_manager.insert("brackets-commands", std::make_unique<BnfNodeConcat>(
 			std::make_unique<BnfNodeLiteral>("{", true),
-			std::make_unique<BnfNodeId>("several-commands", true, false),
+			std::make_unique<BnfNodeId>("several-commands"),
 			std::make_unique<BnfNodeLiteral>("}", true)
 			));
 
 		_manager.insert("several-commands", std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
-				std::make_unique<BnfNodeId>("command", false, false),
-				std::make_unique<BnfNodeId>("several-commands", true, false)
+				std::make_unique<BnfNodeId>("command"),
+				std::make_unique<BnfNodeId>("several-commands")
 				),
 			std::make_unique<BnfNodeLiteral>("")
 			));
 
 		_manager.insert("block", std::make_unique<BnfNodeOr>(
-			std::make_unique<BnfNodeId>("brackets-commands", false, false),
-			std::make_unique<BnfNodeId>("command", true, false)
+			std::make_unique<BnfNodeId>("brackets-commands"),
+			std::make_unique<BnfNodeId>("command")
 			));
 
 		_manager.preprocessNodes();
@@ -232,15 +231,14 @@ namespace Ketl {
 		_manager.insert(extra, std::make_unique<BnfNodeOr>(
 			std::make_unique<BnfNodeConcat>(
 				operators,
-				std::make_unique<BnfNodeId>(lowExpression, false, false),
-				std::make_unique<BnfNodeId>(extra, true, false)
+				std::make_unique<BnfNodeId>(lowExpression),
+				std::make_unique<BnfNodeId>(extra)
 				),
 			std::make_unique<BnfNodeLiteral>("")
 			));
 		_manager.insert(expression, std::make_unique<BnfNodeConcat>(
-			false,
-			std::make_unique<BnfNodeId>(lowExpression, false, false),
-			std::make_unique<BnfNodeId>(extra, true, false)
+			std::make_unique<BnfNodeId>(lowExpression),
+			std::make_unique<BnfNodeId>(extra)
 			));
 	}
 
@@ -307,6 +305,14 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands) 
 			: _commands(std::move(commands)) {}
 
+		uint64_t childCount() const override {
+			return _commands.size();
+		}
+
+		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
+			return _commands[index];
+		}
+
 	private:
 		std::vector<std::unique_ptr<IRNode>> _commands;
 	};
@@ -324,7 +330,11 @@ namespace Ketl {
 		// collect arguments information
 		std::vector<std::unique_ptr<IRNode>> commands;
 		for (auto it = block.children().begin(), end = block.children().end(); it != end; ++it) {
-			parseCommand(*it->get()->children().front());
+			auto command = parseCommand(*it->get()->children().front());
+			if (!command) {
+				return {};
+			}
+			commands.emplace_back(std::move(command));
 		}
 		return std::make_unique<IRBlock>(std::move(commands));
 	}
@@ -348,6 +358,10 @@ namespace Ketl {
 			return _type;
 		}
 
+		uint64_t childCount() const override {
+			return 0;
+		}
+
 	private:
 		std::string _id;
 		std::shared_ptr<TypeTemplate> _type;
@@ -360,6 +374,10 @@ namespace Ketl {
 		IRLiteral(T&& value)
 			: _value(std::move(value)) {}
 
+		uint64_t childCount() const override {
+			return 0;
+		}
+
 	private:
 		T _value;
 	};
@@ -369,6 +387,14 @@ namespace Ketl {
 
 		IRCall(std::unique_ptr<IRNode>&& callable, std::vector<std::unique_ptr<IRNode>>&& args)
 			: _callable(std::move(callable)), _args(std::move(args)) {}
+
+		uint64_t childCount() const override {
+			return _args.size() + 1;
+		}
+
+		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
+			return index == _args.size() ? _callable : _args[index];
+		}
 
 	private:
 		std::unique_ptr<IRNode> _callable;
@@ -381,6 +407,14 @@ namespace Ketl {
 		IRReturn(std::unique_ptr<IRNode>&& value)
 			: _value(std::move(value)) {}
 
+		uint64_t childCount() const override {
+			return 1;
+		}
+
+		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
+			return _value;
+		}
+
 	private:
 		std::unique_ptr<IRNode> _value;
 	};
@@ -390,6 +424,14 @@ namespace Ketl {
 
 		IRDefinition(const std::string_view& id, std::shared_ptr<TypeTemplate> type, std::vector<std::unique_ptr<IRNode>>&& args)
 			: _id(id), _type(std::move(type)), _args(std::move(args)) {}
+
+		uint64_t childCount() const override {
+			return _args.size();
+		}
+
+		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
+			return _args[index];
+		}
 
 	private:
 		std::string_view _id;
@@ -410,6 +452,10 @@ namespace Ketl {
 
 		IRFunction(std::shared_ptr<TypeTemplate> returnType, std::vector<Argument>&& args)
 			: _returnType(std::move(returnType)), _args(std::move(args)) {}
+
+		uint64_t childCount() const override {
+			return 0;
+		}
 
 	private:
 		std::shared_ptr<TypeTemplate> _returnType;
@@ -501,7 +547,7 @@ namespace Ketl {
 			return std::make_unique<IRReturn>(std::move(returnVariable));
 		}
 
-		return {};
+		return parseExpression(commandId);
 	}
 
 	std::unique_ptr<IRNode> Parser::parseExpression(const Node& expressionId) {
@@ -573,20 +619,47 @@ namespace Ketl {
 	public:
 
 		IRBinaryOperator(OperatorCode op, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
-			: _op(op) {
-			children.reserve(2);
-			children.emplace_back(std::move(lhs));
-			children.emplace_back(std::move(rhs));
-		}
+			: _op(op), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
+
+		bool resolveType(Context& context) override {
+			auto lhsSuccess = _lhs->resolveType(context);
+			auto rhsSuccess = _rhs->resolveType(context);
+
+			if (!lhsSuccess && rhsSuccess && _op == OperatorCode::Assign) {
+				auto var = dynamic_cast<IRVariable*>(_lhs.get());
+				if (var) {
+					auto test = 0;
+					return true;
+				}
+			} 
+			
+			if (!lhsSuccess || !rhsSuccess) {
+				return false;
+			}
+			auto test = 0;
+
+
+			return true;
+		};
 
 		const std::shared_ptr<TypeTemplate>& type() const override {
 			return _type;
+		}
+
+		uint64_t childCount() const override {
+			return 2;
+		}
+
+		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
+			return index == 0 ? _lhs : _rhs;
 		}
 
 	private:
 
 		OperatorCode _op;
 		std::shared_ptr<TypeTemplate> _type;
+		std::unique_ptr<IRNode> _lhs;
+		std::unique_ptr<IRNode> _rhs;
 	};
 
 	std::unique_ptr<IRNode> Parser::parseLtrBinary(
