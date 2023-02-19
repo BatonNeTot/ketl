@@ -1,53 +1,28 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef bnf_nodes_h
-#define bnf_nodes_h
+#ifndef compiler_bnf_nodes_h
+#define compiler_bnf_nodes_h
 
 #include "parser.h"
 
+#include <format>
+
 namespace Ketl {
 
-	class BnfNodeLiteral : public BnfNode {
+	struct ProcessNode {
 	public:
-		virtual ~BnfNodeLiteral() = default;
+		// active phase
+		ProcessNode* parent = nullptr;
+		Parser::Node* node = nullptr;
+		Parser::Node::State state = 0;
+		BnfIterator iterator;
 
-		BnfNodeLiteral(const std::string_view& value, bool utility = false)
-			: _value(value), _utility(utility) {}
-
-		std::pair<bool, std::unique_ptr<Node>> parse(BnfIterator& it) const;
-
-		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
-
-		const std::string_view& value() const {
-			return _value;
-		}
-
-		std::string_view errorMsg() const override {
-			return value();
-		}
-
-	private:
-		std::string_view _value;
-		bool _utility;
+		// tree construction phase
+		ProcessNode* firstChild = nullptr;
+		ProcessNode* prevSibling = nullptr;
+		ProcessNode* nextSibling = nullptr;
 	};
 
-	class BnfNodeId : public BnfNode {
-	public:
-
-		BnfNodeId(const std::string_view& id, bool weakContent = false)
-			: _id(id), _weakContent(weakContent) {}
-
-		void preprocess(const BnfManager& manager) override;
-
-		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
-
-	private:
-
-		const BnfNode* _node = nullptr;
-		std::string _id;
-		bool _weakContent;
-	};
-
-	class BnfNodeLeaf : public BnfNode {
+	class NodeLeaf : public Parser::Node {
 	public:
 
 		enum class Type : uint8_t {
@@ -56,90 +31,319 @@ namespace Ketl {
 			String,
 		};
 
-		BnfNodeLeaf(Type type)
+		NodeLeaf(Type type)
 			: _type(type) {}
+		NodeLeaf(CreatorIRTree creator, Type type)
+			: Node(creator), _type(type) {}
 
-		std::pair<bool, std::unique_ptr<Node>> parse(BnfIterator& it) const;
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {}
 
-		const Type& type() const {
-			return _type;
+		std::string_view toString() const override {
+			switch (_type) {
+			case Type::Id: {
+				return "id";
+			}
+			default: {
+				return "expression";
+			}
+			}
 		}
 
-		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
+		std::string_view value(const BnfIterator& iterator) const override {
+			return iterator.value();
+		};
 
-		std::string_view errorMsg() const override {
-			switch (type()) {
-			case Type::Id: {
-				static const std::string id = "id";
-				return id;
+		bool iterate(BnfIterator& it, State& state) const override {
+			if (!it) {
+				return false;
 			}
-			case Type::Number: {
-				static const std::string number = "number";
-				return number;
+
+			switch (it.type()) {
+			case Lexer::Token::Type::Id: {
+				if (_type != Type::Id) {
+					return false;
+				}
+				break;
 			}
-			case Type::String: {
-				static const std::string str = "string literal";
-				return str;
+			case Lexer::Token::Type::Number: {
+				if (_type != Type::Number) {
+					return false;
+				}
+				break;
+			}
+			case Lexer::Token::Type::Literal: {
+				if (_type != Type::String) {
+					return false;
+				}
+				break;
+			}
+			case Lexer::Token::Type::Other: {
+				return false;
+			}
+			default: {
+				return false;
 			}
 			}
-			return {};
+			++it;
+			return true;
+		}
+
+		Node* nextChild(State& state) const override {
+			return nullptr;
+		}
+
+		bool childRejected(State& state) const override {
+			return false;
 		}
 
 	private:
 		Type _type;
 	};
 
-	class BnfNodeConcat : public BnfNode {
+	class NodeLiteral : public Parser::Node {
 	public:
+		NodeLiteral(bool technical, const std::string_view& value)
+			: _value(value), _technical(technical) {}
 
-		template<class... Args>
-		BnfNodeConcat(Args&&... args) {
-			std::unique_ptr<BnfNode> nodes[] = { std::move(args)... };
-			_firstChild = std::move(nodes[0]);
-			auto* it = &_firstChild;
-			for (auto i = 1u; i < sizeof...(Args); ++i) {
-				it->get()->nextSibling = std::move(nodes[i]);
-				it = &it->get()->nextSibling;
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {}
+
+		std::string_view toString() const override {
+			return _value;
+		}
+
+		std::string_view value(const BnfIterator&) const override {
+			return _value;
+		};
+
+		bool iterate(BnfIterator& it, State& state) const override {
+			if (_value.empty()) {
+				return false;
 			}
+
+			if (!it) {
+				return false;
+			}
+
+			switch (it.type()) {
+			case Lexer::Token::Type::Other: {
+				if (!(it += _value)) {
+					return false;
+				}
+				break;
+			}
+			case Lexer::Token::Type::Id: {
+				if (_value.length() != it.value().length() || !(it += _value)) {
+					return false;
+				}
+				break;
+			}
+			default: {
+				return false;
+			}
+			}
+
+			return true;
 		}
 
-		void preprocess(const BnfManager& manager) override {
-			_firstChild->preprocess(manager);
-			BnfNode::preprocess(manager);
+		Node* nextChild(State& state) const override {
+			return nullptr;
 		}
 
-		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
+		bool childRejected(State& state) const override {
+			return false;
+		}
+
+		bool excludeFromTree(const ProcessNode* info) const override {
+			return _technical;
+		}
 
 	private:
-
-		std::unique_ptr<BnfNode> _firstChild;
+		std::string_view _value;
+		bool _technical;
 	};
 
-	class BnfNodeOr : public BnfNode {
+	class NodeId : public Parser::Node {
+	public:
+
+		NodeId(bool optional, const std::string_view& id)
+			: _id(id), _optional(optional) {}
+		NodeId(CreatorIRTree creator, bool optional, const std::string_view& id)
+			: Node(creator), _id(id), _optional(optional) {}
+
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {
+			_node = nodeMap.find(_id)->second.get();
+		}
+
+		Node* nextChild(State& state) const override {
+			if (state > 0) {
+				return nullptr;
+			}
+			++state;
+			return _node;
+		}
+
+		bool childRejected(State& state) const override {
+			return false;
+		}
+
+		bool excludeFromTree(const ProcessNode* info) const override {
+			return !info->firstChild || (_optional && !info->firstChild->nextSibling);
+		}
+
+	private:
+		std::string_view _id;
+		Parser::Node* _node = nullptr;
+		bool _optional = false;
+	};
+
+	class NodeConcat : public Parser::Node {
 	public:
 
 		template<class... Args>
-		BnfNodeOr(Args&&... args) {
+		NodeConcat(bool weak, Args&&... args) : _weak(weak) {
 			_children.reserve(sizeof...(Args));
-			std::unique_ptr<BnfNode> nodes[] = { std::move(args)... };
+			std::unique_ptr<Parser::Node> nodes[] = { std::move(args)... };
 			for (auto& node : nodes) {
 				_children.emplace_back(std::move(node));
 			}
 		}
 
-		void preprocess(const BnfManager& manager) override {
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {
 			for (auto& child : _children) {
-				child->preprocess(manager);
+				child->postConstruct(nodeMap);
 			}
-			BnfNode::preprocess(manager);
 		}
 
-		bool process(BnfIterator& it, ProcessNode& parentProcess) const override;
+		Node* nextChild(State& state) const override {
+			return state < _children.size() ? _children[state++].get() : nullptr;
+		}
+
+		bool childRejected(State& state) const override {
+			--state;
+			return false;
+		}
+
+		bool excludeFromTree(const ProcessNode* info) const override {
+			return _weak || !info->firstChild || !info->firstChild->nextSibling;
+		}
 
 	private:
-		std::vector<std::unique_ptr<BnfNode>> _children;
+		std::vector<std::unique_ptr<Parser::Node>> _children;
+		bool _weak;
 	};
 
+	class NodeOr : public Parser::Node {
+	public:
+
+		template<class... Args>
+		NodeOr(Args&&... args) {
+			_children.reserve(sizeof...(Args));
+			std::unique_ptr<Parser::Node> nodes[] = { std::move(args)... };
+			for (auto& node : nodes) {
+				_children.emplace_back(std::move(node));
+			}
+		}
+
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {
+			for (auto& child : _children) {
+				child->postConstruct(nodeMap);
+			}
+		}
+
+		Node* nextChild(State& state) const override {
+			if (state >= _children.size()) {
+				return nullptr;
+			}
+			state += _children.size();
+			return _children[state - _children.size()].get();
+		}
+
+		bool childRejected(State& state) const override {
+			state -= _children.size();
+			++state;
+			return state < _children.size();
+		}
+
+		bool excludeFromTree(const ProcessNode*) const override {
+			return true;
+		}
+
+	private:
+		std::vector<std::unique_ptr<Parser::Node>> _children;
+	};
+
+	class NodeRepeat : public Parser::Node {
+	public:
+
+		NodeRepeat(std::unique_ptr<Parser::Node>&& node)
+			: _node(std::move(node)) {}
+		NodeRepeat(CreatorIRTree creator, std::unique_ptr<Parser::Node>&& node)
+			: Node(creator), _node(std::move(node)) {}
+
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {
+			_node->postConstruct(nodeMap);
+		}
+
+		Node* nextChild(State& state) const override {
+			if (state == 1) {
+				state = 0;
+				return nullptr;
+			}
+			return _node.get();
+		}
+
+		bool childRejected(State& state) const override {
+			state = 1;
+			return true;
+		}
+
+		bool excludeFromTree(const ProcessNode* info) const override {
+			return true;
+		}
+
+	private:
+		std::unique_ptr<Parser::Node> _node;
+	};
+
+	class NodeConditional : public Parser::Node {
+	public:
+
+		template<class... Args>
+		NodeConditional(Args&&... args) {
+			_children.reserve(sizeof...(Args));
+			std::unique_ptr<Parser::Node> nodes[] = { std::move(args)... };
+			for (auto& node : nodes) {
+				_children.emplace_back(std::move(node));
+			}
+		}
+
+		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {
+			for (auto& child : _children) {
+				child->postConstruct(nodeMap);
+			}
+		}
+
+		Node* nextChild(State& state) const override {
+			if (state >= _children.size()) {
+				return nullptr;
+			}
+			state += _children.size();
+			return _children[state - _children.size()].get();
+		}
+
+		bool childRejected(State& state) const override {
+			state -= _children.size();
+			++state;
+			return state <= _children.size();
+		}
+
+		bool excludeFromTree(const ProcessNode*) const override {
+			return true;
+		}
+
+	private:
+		std::vector<std::unique_ptr<Parser::Node>> _children;
+	};
 }
 
-#endif /*bnf_nodes_h*/
+#endif /*compiler_bnf_nodes_h*/

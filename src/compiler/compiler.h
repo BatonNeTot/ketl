@@ -5,7 +5,6 @@
 #include "common.h"
 
 #include "parser.h"
-#include "parser_new.h"
 #include "semantic_analyzer.h"
 
 namespace Ketl {
@@ -20,7 +19,6 @@ namespace Ketl {
 
 	private:
 		Parser _parser;
-		ParserNew _parserNew;
 		SemanticAnalyzer _analyzer;
 	};
 

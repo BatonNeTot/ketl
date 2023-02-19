@@ -159,6 +159,8 @@ namespace Ketl {
 			DerefLiteral,
 			Return,
 			DerefReturn,
+
+			FunctionArgument,
 		}; 
 		
 		static Type deref(const Type type) {
@@ -202,6 +204,7 @@ namespace Ketl {
 	public:
 
 		enum class Code : uint8_t {
+			None,
 			AddInt64,
 			MinusInt64,
 			MultyInt64,
@@ -256,7 +259,9 @@ namespace Ketl {
 
 			_output(output),
 			_first(first),
-			_second(second) {}
+			_second(second) {
+			__debugbreak();
+		}
 
 		void call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
 
@@ -343,7 +348,7 @@ namespace Ketl {
 		FunctionImpl(Allocator& alloc, uint64_t stackSize, CFunction cfun)
 			: _alloc(&alloc)
 			, _stackSize(stackSize)
-			, _instructionsCount(0)
+			, _instructionsCount(CFUNC_INSTRUCTION_COUNT)
 			, _cfunc(cfun) {}
 		FunctionImpl(const FunctionImpl& function) = delete;
 		FunctionImpl(FunctionImpl&& function) noexcept
@@ -354,7 +359,7 @@ namespace Ketl {
 			function._instructions = nullptr;
 		}
 		~FunctionImpl() {
-			if (_instructions != nullptr && _instructionsCount > 0) {
+			if (_instructions != nullptr && _instructionsCount != CFUNC_INSTRUCTION_COUNT) {
 				_alloc->deallocate(_instructions);
 			}
 		}
@@ -371,7 +376,7 @@ namespace Ketl {
 		}
 
 		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
-			if (_instructionsCount > 0) {
+			if (_instructionsCount != CFUNC_INSTRUCTION_COUNT) {
 				for (uint64_t index = 0u; index < _instructionsCount;) {
 					_instructions[index].call(index, stack, stackPtr, returnPtr);
 				}
@@ -393,13 +398,15 @@ namespace Ketl {
 			return _alloc != nullptr;
 		}
 
-	private:
+	public:
 		friend class Linker;
 
 		Allocator* _alloc = nullptr;
 		uint64_t _stackSize = 0;
 
 		uint64_t _instructionsCount = 0;
+		constexpr static auto CFUNC_INSTRUCTION_COUNT = std::numeric_limits<decltype(_instructionsCount)>::max();
+
 		union {
 			Instruction* _instructions = nullptr;
 			CFunction _cfunc;
@@ -438,65 +445,20 @@ namespace Ketl {
 		FunctionImpl _function;
 	};
 
-	class Type {
+	class TypeObject {
 	public:
-		Type() = default;
-		~Type() = default;
+		TypeObject() = default;
+		virtual ~TypeObject() = default;
 
-		Type(bool isConst_, bool isRef_, bool hasAddress_)
-			: isConst(isConst_), isRef(isRef_), hasAddress(hasAddress_) {}
-		uint64_t sizeOf() const { return isRef ? sizeof(void*) : sizeOfImpl(); }
 		virtual std::string id() const = 0;
 
-		struct FunctionInfo {
-			const FunctionImpl* function = nullptr;
-			std::unique_ptr<const Type> returnType;
-			// TODO terrible, TEMPORARY
-			const std::vector<std::unique_ptr<const Type>>* argTypes = nullptr;
-		};
+		virtual uint64_t sizeOf() const = 0;
 
-		virtual FunctionInfo deduceFunction(const std::vector<std::unique_ptr<const Type>>& argumentTypes) const {
-			return FunctionInfo{};
+		virtual bool isLight() const = 0;
+
+		friend bool operator==(const TypeObject& lhs, const TypeObject& rhs) {
+			return lhs.id() == rhs.id();
 		}
-
-		friend bool operator==(const Type& lhs, const Type& rhs) {
-			return lhs.isConst == rhs.isConst
-				&& lhs.isRef == rhs.isRef
-				&& lhs.hasAddress == rhs.hasAddress
-				&& lhs.id() == rhs.id();
-		}
-
-		static std::unique_ptr<Type> clone(const std::unique_ptr<Type>& type) {
-			return !type ? nullptr : type->clone();
-		}
-
-		static std::unique_ptr<Type> clone(const std::unique_ptr<const Type>& type) {
-			return !type ? nullptr : type->clone();
-		}
-
-		bool convertableTo(const Type& other) const {
-			// TODO casting, inheritance
-			if (id() != other.id()) {
-				return false;
-			}
-			if (!other.isRef) {
-				return true;
-			}
-			if (isConst && !other.isConst) {
-				return false;
-			}
-			if (!hasAddress && other.hasAddress) {
-				return false;
-			}
-			return true;
-		}
-
-		bool isConst = false;
-		bool isRef = false;
-		bool hasAddress = false;
- 	private:
-		virtual uint64_t sizeOfImpl() const = 0;
-		virtual std::unique_ptr<Type> clone() const = 0;
 	};
 }
 

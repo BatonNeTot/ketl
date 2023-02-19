@@ -5,13 +5,16 @@ namespace Ketl {
 
 	Variable Context::_emptyVar;
 
-	BasicTypeBody* Context::declareType(const std::string& id, uint64_t sizeOf) {
+	TypeObject* Context::declareType(const std::string& id, uint64_t sizeOf) {
+		/*
 		auto theTypeVar = getVariable("Type");
 		auto theTypePtr = theTypeVar.as<BasicTypeBody>();
 		auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(BasicType(theTypePtr)));
 		new(typePtr) BasicTypeBody(id, sizeOf);
 		_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
 		return typePtr;
+		*/
+		return nullptr;
 	}
 
 	static void constructFloat64(StackAllocator&, uint8_t* stackPtr, uint8_t* returnPtr) {
@@ -21,17 +24,41 @@ namespace Ketl {
 
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)
 		: _alloc(allocator), _globalStack(allocator, globalStackSize) {
-		// creation of The Type
-		BasicTypeBody theType("Type", sizeof(BasicTypeBody));
-		auto theTypePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(BasicType(&theType)));
-		new(theTypePtr) BasicTypeBody(std::move(theType));
-		_globals.try_emplace("Type", theTypePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
+		// class Type
+		ClassTypeObject* classTypePtr;
+		{
+			ClassTypeObject classType("ClassType", sizeof(ClassTypeObject));
+			classTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(classType));
+			new(classTypePtr) ClassTypeObject(std::move(classType));
+			_globals.try_emplace(classTypePtr->id(), classTypePtr, *classTypePtr);
+		}
 
-		declareType<void>("Void");
-		declareType<int64_t>("Int64");
-		declareType<uint64_t>("UInt64");
+		// interface Type
+		auto interfaceTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
+		new(interfaceTypePtr) ClassTypeObject("InterfaceType", sizeof(InterfaceTypeObject));
+		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypePtr, *classTypePtr);
+
+		// The Type
+		auto theTypePtr = reinterpret_cast<InterfaceTypeObject*>(allocateGlobal(*interfaceTypePtr));
+		new(theTypePtr) InterfaceTypeObject("Type"/*, 0*/);
+		_globals.try_emplace(theTypePtr->id(), theTypePtr, *interfaceTypePtr);
+
+		// privitive type
+		auto primitiveTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
+		new(primitiveTypePtr) ClassTypeObject("PrivitiveType", sizeof(PrimitiveTypeObject));
+		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypePtr, *classTypePtr);
+
+		// Int64 type
+		auto longTypePtr = reinterpret_cast<PrimitiveTypeObject*>(allocateGlobal(*classTypePtr));
+		new(longTypePtr) PrimitiveTypeObject("Int64", sizeof(int64_t));
+		_globals.try_emplace(longTypePtr->id(), longTypePtr, *classTypePtr);
+
+		//declareType<void>("Void");
+		//declareType<int64_t>("Int64");
+		//declareType<uint64_t>("UInt64");
 		//declareType<double>("Float64");
 
+		/*
 		{
 			auto typeOfType = std::make_unique<TypeOfType>(nullptr);
 			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(*typeOfType));
@@ -46,5 +73,6 @@ namespace Ketl {
 			constructor.argTypes.emplace_back(std::move(baseType));
 			constructor.func = FunctionImpl(allocator, sizeof(void*), &constructFloat64);
 		}
+		*/
 	}
 }

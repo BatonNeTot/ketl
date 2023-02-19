@@ -87,14 +87,42 @@ void insert(std::vector <uint8_t>& bytes, const char* str) {
 	bytes.emplace_back('\0');
 }
 
+Ketl::Argument literal(uint64_t value) {
+	Ketl::Argument argument;
+	argument.integer = value;
+	return argument;
+}
+
+Ketl::Argument stack(uint64_t offset) {
+	Ketl::Argument argument;
+	argument.stack = offset;
+	return argument;
+}
+
+Ketl::Argument pointer(void* ptr) {
+	Ketl::Argument argument;
+	argument.pointer = ptr;
+	return argument;
+}
+
 int main(int argc, char** argv) {
 	Ketl::Allocator allocator;
 	Ketl::Context context(allocator, 4096);
 	Ketl::Compiler compiler;
 
+	int64_t result = 0;
+
+	auto& longType = *context.getVariable("Int64").as<Ketl::PrimitiveTypeObject>();
+
+	context.getVariable("testValue2").as<int64_t>();
+	context.declareGlobal("testValue2", &result, longType);
+
+	//*
 	auto command = compiler.compile(R"(
 	testValue2 = 1 + 2 * 3 + 4;
 )", context);
+
+	//*/
 	
 	/*
 	auto command = compiler.compile(R"(
@@ -111,6 +139,8 @@ int main(int argc, char** argv) {
 	auto stackPtr = context._globalStack.allocate(command.stackSize());
 	command.call(context._globalStack, stackPtr, nullptr);
 	context._globalStack.deallocate(command.stackSize());
+
+	assert(result == 11u);
 
 	/*
 	// TODO thats nonsense

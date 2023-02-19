@@ -12,7 +12,7 @@
 			</LinkedListItems>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::ProcessNodeNew">
+	<Type Name="Ketl::ProcessNode">
 		<DisplayString>{*node}</DisplayString>
 		<Expand>
 			<Item Name="[node]" ExcludeView="simple">*node</Item>
@@ -26,7 +26,7 @@
 			</LinkedListItems>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::BnfIteratorNew">
+	<Type Name="Ketl::BnfIterator">
 		<DisplayString>{_it._node->token->value._Mydata + _itOffset, [_it._node->token->value._Mysize]na}</DisplayString>
 		<Expand>
 			<Item Name="[it]" ExcludeView="simple">_it</Item>
@@ -34,28 +34,28 @@
 		</Expand>
 	</Type>
 	<!--ParserBnfNodes-->
-	<Type Name="Ketl::NodeLeafNew">
-		<DisplayString Condition="_type == Ketl::NodeLeafNew::Type::Id">Id</DisplayString>
-		<DisplayString Condition="_type == Ketl::NodeLeafNew::Type::Number">Number</DisplayString>
-		<DisplayString Condition="_type == Ketl::NodeLeafNew::Type::String">String</DisplayString>
+	<Type Name="Ketl::NodeLeaf">
+		<DisplayString Condition="_type == Ketl::NodeLeaf::Type::Id">Id</DisplayString>
+		<DisplayString Condition="_type == Ketl::NodeLeaf::Type::Number">Number</DisplayString>
+		<DisplayString Condition="_type == Ketl::NodeLeaf::Type::String">String</DisplayString>
 		<Expand>
 			<Item Name="[type]" ExcludeView="simple">_type</Item>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeLiteralNew">
+	<Type Name="Ketl::NodeLiteral">
 		<DisplayString>{_value._Mydata, na}</DisplayString>
 		<Expand>
 			<Item Name="[id]" ExcludeView="simple">_value</Item>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeIdNew">
+	<Type Name="Ketl::NodeId">
 		<DisplayString>{_id._Mydata, na} ({*_node})</DisplayString>
 		<Expand>
 			<Item Name="[node]" ExcludeView="simple">*_node</Item>
 			<Item Name="[id]" ExcludeView="simple">_id</Item>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeConcatNew">
+	<Type Name="Ketl::NodeConcat">
 		<DisplayString>Concat</DisplayString>
 		<Expand>
 			<Item Name="[size]" ExcludeView="simple">_children._Mypair._Myval2._Mylast - _children._Mypair._Myval2._Myfirst</Item>
@@ -65,7 +65,7 @@
 			</IndexListItems>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeOrNew">
+	<Type Name="Ketl::NodeOr">
 		<DisplayString>Or</DisplayString>
 		<Expand>
 			<Item Name="[size]" ExcludeView="simple">_children._Mypair._Myval2._Mylast - _children._Mypair._Myval2._Myfirst</Item>
@@ -75,7 +75,7 @@
 			</IndexListItems>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeConditionalNew">
+	<Type Name="Ketl::NodeConditional">
 		<DisplayString Condition="_children._Mypair._Myval2._Mylast - _children._Mypair._Myval2._Myfirst != 1">Conditional</DisplayString>
 		<DisplayString Condition="_children._Mypair._Myval2._Mylast - _children._Mypair._Myval2._Myfirst == 1">Conditional ({**(_children._Mypair._Myval2._Myfirst)})</DisplayString>
 		<Expand>
@@ -89,7 +89,7 @@
 				  Name="[node]" ExcludeView="simple">**(_children._Mypair._Myval2._Myfirst)</Item>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::NodeRepeatNew">
+	<Type Name="Ketl::NodeRepeat">
 		<DisplayString>Repeat ({*_node})</DisplayString>
 		<Expand>
 			<Item Name="[node]" ExcludeView="simple">*_node</Item>

@@ -24,6 +24,24 @@ namespace Ketl {
 		virtual ~TypeTemplate() = default;
 	};
 
+	class AnalyzerContext;
+
+	class AnalyzerVar {
+	public:
+		virtual ~AnalyzerVar() = default;
+		virtual std::pair<Argument::Type, Argument> getArgument(AnalyzerContext& context) const = 0;
+	};
+
+	class RawInstruction {
+	public:
+		Instruction::Code code = Instruction::Code::None;
+		AnalyzerVar* outputVar;
+		AnalyzerVar* firstVar;
+		AnalyzerVar* secondVar;
+
+		void propagadeInstruction(Instruction& instruction, AnalyzerContext& context);
+	};
+
 	// Intermediate representation node
 	class IRNode {
 	public:
@@ -31,7 +49,7 @@ namespace Ketl {
 		virtual ~IRNode() = default;
 		virtual bool resolveType(Context& context) { return false; };
 		virtual bool processInstructions(std::vector<Instruction>& instructions) const { return false; };
-		virtual std::shared_ptr<Type> produceInstructions(std::vector<Instruction>& instructions, Context& context) const { return {}; };
+		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const { return {}; };
 		virtual const std::string& id() const {
 			static const std::string empty;
 			return empty;

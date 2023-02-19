@@ -1,39 +1,118 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef parser_h
-#define parser_h
+#ifndef compiler_parser_h
+#define compiler_parser_h
 
 #include "lexer.h"
 #include "common.h"
 
-#include <string>
-#include <memory>
-#include <unordered_map>
-#include <list>
-#include <vector>
-#include <algorithm>
-
 namespace Ketl {
 
-	class BnfManager;
+	class TokenList {
+	private:
+		struct Node {
+			Node() : token(nullptr) {}
+			Node(const Lexer::Token& token)
+				: token(new Lexer::Token(token)) {}
 
-	class Node;
-	class BnfNode;
+			Lexer::Token* token;
+			Node* prev = nullptr;
+			Node* next = nullptr;
+		};
+	public:
 
-	struct ProcessNode {
-		ProcessNode() {}
-		ProcessNode(ProcessNode* parent_, const BnfNode* node_)
-			: parent(parent_), node(node_) {}
+		class Iterator {
+		public:
 
-		ProcessNode* parent = nullptr;
-		const BnfNode* node = nullptr;
-		std::list<std::unique_ptr<Node>> outputChildrenNodes;
+			Iterator() : _node(nullptr) {}
+
+			Iterator& operator++() {
+				_node = _node->next;
+				return *this;
+			}
+
+			Iterator operator++(int) {
+				Iterator it(_node);
+				_node = _node->next;
+				return it;
+			}
+
+			Iterator& operator--() {
+				_node = _node->prev;
+				return *this;
+			}
+
+			Iterator operator--(int) {
+				Iterator it(_node);
+				_node = _node->prev;
+				return it;
+			}
+
+			Lexer::Token* operator->() {
+				return _node->token;
+			}
+
+			const Lexer::Token* operator->() const {
+				return _node->token;
+			}
+
+			explicit operator bool() const {
+				return _node->token != nullptr;
+			}
+
+			friend bool operator==(const Iterator& lhs, const Iterator& rhs) {
+				return lhs._node == rhs._node;
+			}
+
+		private:
+			friend TokenList;
+
+			Iterator(Node* node)
+				: _node(node) {}
+
+			Node* _node;
+		};
+
+		TokenList() {
+			_first = new Node();
+			_end = _first;
+
+			_first->next = _first;
+			_first->prev = _first;
+		}
+
+		void emplace_back(const Lexer::Token& token) {
+			auto node = new Node(token);
+
+			if (_first == _end) {
+				_first = node;
+				
+				_end->next = node;
+				node->prev = _end;
+			}
+			else {
+				_end->prev->next = node;
+				node->prev = _end->prev;
+			}
+
+			_end->prev = node;
+			node->next = _end;
+		}
+
+		Iterator begin() {
+			return Iterator(_first);
+		}
+
+	private:
+		Node* _first;
+		Node* _end;
 	};
 
 	class BnfIterator {
 	public:
 
-		BnfIterator(std::list<Lexer::Token>::iterator&& it, const std::list<Lexer::Token>::iterator& end)
-			: _it(std::move(it)), _end(end) {}
+		BnfIterator() {}
+		BnfIterator(TokenList::Iterator it)
+			: _it(std::move(it)) {}
 
 		BnfIterator& operator=(const BnfIterator& other) {
 			_it = other._it;
@@ -43,16 +122,16 @@ namespace Ketl {
 
 		const std::string_view& value() const {
 			static const std::string_view empty;
-			return _it != _end ? _it->value : empty;
+			return static_cast<bool>(_it) ? _it->value : empty;
 		}
 
 		Lexer::Token::Type type() const {
 			static auto def = Lexer::Token::Type::Other;
-			return _it != _end ? _it->type : def;
+			return static_cast<bool>(_it) ? _it->type : def;
 		}
 
 		explicit operator bool() const {
-			return _it != _end;
+			return static_cast<bool>(_it);
 		}
 
 		BnfIterator& operator++() {
@@ -83,10 +162,10 @@ namespace Ketl {
 		}
 
 		explicit operator uint64_t() const {
-			if (_it != _end) {
+			if (static_cast<bool>(_it)) {
 				return _it->offset + _itOffset;
 			}
-			auto back = _end;
+			auto back = _it;
 			--back;
 			return back->offset + back->value.length();
 		}
@@ -100,102 +179,56 @@ namespace Ketl {
 		}
 
 	private:
-		std::list<Lexer::Token>::iterator _it;
-		const std::list<Lexer::Token>::iterator& _end;
+		TokenList::Iterator _it;
 		uint64_t _itOffset = 0;
 	};
 
-	class BnfNode {
-	public:
-		virtual ~BnfNode() = default;
-		virtual void preprocess(const BnfManager& manager) {
-			if (nextSibling) {
-				nextSibling->preprocess(manager);
-			}
-		}
-
-		virtual bool process(BnfIterator& it, ProcessNode& parentProcess) const = 0;
-
-		const BnfNode* next(ProcessNode*& parentProcess) const {
-			while (parentProcess != nullptr && parentProcess->node != nullptr) {
-				auto& nextSib = parentProcess->node->nextSibling;
-				parentProcess = parentProcess->parent;
-				if (nextSib) {
-					return nextSib.get();
-				}
-			}
-
-			return nullptr;
-		}
-
-		virtual std::string_view errorMsg() const { return {}; }
-		
-		std::unique_ptr<BnfNode> nextSibling;
-	};
-
-	class BnfManager {
-	public:
-
-		const BnfNode* getById(const std::string& id) const {
-			auto it = _ids.find(id);
-			return it != _ids.end() ? it->second.get() : nullptr;
-		}
-
-		void insert(const std::string&id, std::unique_ptr<BnfNode>&& node) {
-			_ids.try_emplace(id, std::forward<std::unique_ptr<BnfNode>>(node));
-		}
-
-		void preprocessNodes() {
-			for (auto& pair : _ids) {
-				pair.second->preprocess(*this);
-			}
-		}
-
-	private:
-		std::unordered_map<std::string, std::unique_ptr<BnfNode>> _ids;
-	};
-
-	enum class ValueType : uint8_t {
-		Operator,
-		Id,
-		Number,
-		String,
-	};
-
-	class Node {
-	public:
-
-		virtual ~Node() = default;
-		virtual bool isUtility() const { return false; }
-		virtual uint64_t countForMerge() const { return 0; }
-		virtual std::unique_ptr<Node> getForMerge(uint64_t index) { return {}; }
-		virtual const std::string_view& id() const {
-			static const std::string_view empty;
-			return empty;
-		}
-		virtual const std::string_view& value() const {
-			static const std::string_view empty;
-			return empty;
-		}
-
-		virtual std::vector<std::unique_ptr<Node>>& children() {
-			static std::vector<std::unique_ptr<Node>> empty;
-			return empty;
-		}
-
-		virtual const std::vector<std::unique_ptr<Node>>& children() const {
-			static const std::vector<std::unique_ptr<Node>> empty;
-			return empty;
-		}
-
-		virtual ValueType type() const {
-			return ValueType::Operator;
-		}
-
-	};
+	struct ProcessNode;
 
 	class Parser {
 	public:
+
+		class Node {
+		public:
+			using CreatorIRTree = std::unique_ptr<IRNode>(*)(const ProcessNode* info);
+
+			using State = uint64_t;
+
+			Node() = default;
+			Node(CreatorIRTree creator) : _creator(creator) {}
+			virtual ~Node() = default;
+			virtual void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) = 0;
+			virtual std::string_view toString() const {
+				return {};
+			}; 
+			virtual std::string_view value(const BnfIterator& iterator) const {
+				return {};
+			};
+
+			virtual bool iterate(BnfIterator& iterator, State& state) const {
+				state = 0;
+				return true;
+			}
+
+			virtual Node* nextChild(State& state) const = 0;
+			virtual bool childRejected(State& state) const = 0;
+
+			virtual bool excludeFromTree(const ProcessNode* info) const {
+				return false;
+			}
+
+			std::unique_ptr<IRNode> createIRTree(const ProcessNode* info) const {
+				if (_creator == nullptr) {
+					return {};
+				}
+
+				return _creator(info);
+			}
+
+		private: 
+
+			CreatorIRTree _creator = nullptr;
+		};
 
 		Parser();
 
@@ -207,30 +240,11 @@ namespace Ketl {
 
 	private:
 
-		std::unique_ptr<Node> proceed(const std::string& str);
-
-		void insertPredence(std::unique_ptr<BnfNode>&& operators, const std::string& expression,
-			const std::string& extra, const std::string& lowExpression);
-
-		std::unique_ptr<IRNode> parseBlock(const Node& block);
-
-		std::unique_ptr<IRNode> parseCommand(const Node& commandId);
-
-		std::unique_ptr<IRNode> parseExpression(const Node& expressionId);
-
-		std::unique_ptr<IRNode> parseLtrBinary(
-			std::vector<std::unique_ptr<Node>>::const_reverse_iterator begin, std::vector<std::unique_ptr<Node>>::const_reverse_iterator end);
-
-		std::unique_ptr<IRNode> parseRtlBinary(
-			std::vector<std::unique_ptr<Node>>::const_iterator begin, std::vector<std::unique_ptr<Node>>::const_iterator end);
-
-		std::shared_ptr<TypeTemplate> parseType(const Node& typeNode);
-
-		BnfManager _manager;
-
+		Node* _root = nullptr;
+		std::unordered_map<std::string_view, std::unique_ptr<Node>> _nodes;
 		std::string _error;
 	};
 
 }
 
-#endif /*parser_h*/
+#endif /*compiler_parser_h*/

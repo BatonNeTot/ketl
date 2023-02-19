@@ -15,15 +15,15 @@
 
 namespace Ketl {
 
-	class BasicTypeBody;
+	class TypeObject;
 	class Context;
 
 	class Variable {
 	public:
 
 		Variable() {}
-		Variable(void* data, std::unique_ptr<const Type>&& type)
-			: _data(data), _type(std::move(type)) {}
+		Variable(void* data, const TypeObject& type)
+			: _data(data), _type(&type) {}
 
 		template <class T, class... Args>
 		T* call(StackAllocator& stack, Args&&... args) {
@@ -37,12 +37,16 @@ namespace Ketl {
 		}
 
 		template <class T>
-		T* as() {
+		T* as() const {
 			return reinterpret_cast<T*>(_data);
 		}
 
-		const std::unique_ptr<const Type>& type() const {
-			return _type;
+		Variable operator[](const std::string_view& key) const {
+
+		}
+
+		const TypeObject& type() const {
+			return *_type;
 		}
 
 		void data(void* data) {
@@ -52,7 +56,7 @@ namespace Ketl {
 	private:
 
 		void* _data = nullptr;
-		std::unique_ptr<const Type> _type;
+		const TypeObject* _type;
 
 	};
 
@@ -70,7 +74,7 @@ namespace Ketl {
 			return _var.as<T>();
 		}
 
-		const std::unique_ptr<const Type>& type() const {
+		const TypeObject& type() const {
 			return _var.type();
 		}
 
@@ -91,55 +95,55 @@ namespace Ketl {
 		}
 
 		template <class T>
-		BasicTypeBody* declareType(const std::string& id) {
+		TypeObject* declareType(const std::string& id) {
 			return declareType(id, sizeof(T));
 		}
 
 		template <>
-		BasicTypeBody* declareType<void>(const std::string& id) {
+		TypeObject* declareType<void>(const std::string& id) {
 			return declareType(id, 0);
 		}
 
-		BasicTypeBody* declareType(const std::string& id, uint64_t sizeOf);
+		TypeObject* declareType(const std::string& id, uint64_t sizeOf);
 
 		// TODO std::unique_ptr<Type> and std::unique_ptr<const Type> need to deal with it somehow
-		bool declareGlobal(const std::string& id, void* stackPtr, const std::unique_ptr<Type>& type) {
-			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
-			return success;
-		}
-
-		bool declareGlobal(const std::string& id, void* stackPtr, const std::unique_ptr<const Type>& type) {
-			auto [it, success] = _globals.try_emplace(id, stackPtr, Type::clone(type));
+		bool declareGlobal(const std::string& id, void* stackPtr, const TypeObject& type) {
+			auto [it, success] = _globals.try_emplace(id, stackPtr, type);
 			return success;
 		}
 
 		template <class T>
-		T* declareGlobal(const std::string& id, const std::unique_ptr<Type>& type) {
-			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
+		T* declareGlobal(const std::string& id, const TypeObject& type) {
+			auto [it, success] = _globals.try_emplace(id, nullptr, type);
 			if (success) {
-				auto valuePtr = reinterpret_cast<Type*>(allocateGlobal(*it->second.type()));
-				it->second.data(valuePtr);
-			}
-			return it->second.as<T>();
-		}
-
-		template <class T>
-		T* declareGlobal(const std::string& id, const std::unique_ptr<const Type>& type) {
-			auto [it, success] = _globals.try_emplace(id, nullptr, Type::clone(type));
-			if (success) {
-				auto valuePtr = reinterpret_cast<Type*>(allocateGlobal(*it->second.type()));
+				auto valuePtr = allocateGlobal(type);
 				it->second.data(valuePtr);
 			}
 			return it->second.as<T>();
 		}
 		////////////////////////
 
-		uint8_t* allocateGlobal(const Type& type) {
-			auto ptr = _alloc.allocate(type.sizeOf());
-			return ptr;
+		uint8_t* allocateGlobal(const TypeObject& type) {
+			return allocateOnHeap(type.sizeOf());
 		}
 
 	public: // TODO
+
+		uint8_t* allocateOnStack(uint64_t size) {
+			return _globalStack.allocate(size);
+		}
+
+		void deallocateOnStack(uint64_t size) {
+			_globalStack.deallocate(size);
+		}
+
+		uint8_t* allocateOnHeap(uint64_t size) {
+			return _alloc.allocate(size);
+		}
+
+		void deallocateOnHeap(uint8_t* ptr) {
+			_alloc.deallocate(ptr);
+		}
 
 		static Variable _emptyVar;
 		Allocator& _alloc;
