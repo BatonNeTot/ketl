@@ -34,12 +34,16 @@ namespace Ketl {
 		std::pair<Argument::Type, Argument> getArgument(AnalyzerContext& context) const override {
 			auto type = Argument::Type::Global;
 			Argument argument;
-			argument.globalPtr = context.context().getVariable(std::string(_id)).as<void*>();
+			argument.globalPtr = context.context().getVariable(std::string(_id)).as<void>();
 			return std::make_pair(type, argument);
 		}
 
 		std::string_view _id;
 	};
+
+	AnalyzerVar* AnalyzerContext::getGlobalVar(const std::string_view& value) {
+		return nullptr;
+	}
 
 	AnalyzerVar* AnalyzerContext::createGlobalVar(const std::string_view& value) {
 		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
@@ -82,7 +86,7 @@ namespace Ketl {
 				continue;
 			}
 
-			auto& longType = *_context.getVariable("Int64").as<PrimitiveTypeObject>();
+			auto& longType = *_context.getVariable("Int64").as<TypeObject>();
 			auto ptr = _context.allocateGlobal(longType);
 			_context.declareGlobal(id, ptr, longType);
 		}

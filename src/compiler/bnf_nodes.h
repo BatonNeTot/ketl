@@ -104,6 +104,8 @@ namespace Ketl {
 	public:
 		NodeLiteral(bool technical, const std::string_view& value)
 			: _value(value), _technical(technical) {}
+		NodeLiteral(CreatorIRTree creator, bool technical, const std::string_view& value)
+			: Node(creator), _value(value), _technical(technical) {}
 
 		void postConstruct(const std::unordered_map<std::string_view, std::unique_ptr<Node>>& nodeMap) override {}
 

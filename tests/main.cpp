@@ -112,14 +112,14 @@ int main(int argc, char** argv) {
 
 	int64_t result = 0;
 
-	auto& longType = *context.getVariable("Int64").as<Ketl::PrimitiveTypeObject>();
+	auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
 
 	context.getVariable("testValue2").as<int64_t>();
 	context.declareGlobal("testValue2", &result, longType);
 
 	//*
 	auto command = compiler.compile(R"(
-	testValue2 = 1 + 2 * 3 + 4;
+	var testValue2 = 1 + 2 * 3 + 4;
 )", context);
 
 	//*/

@@ -3,27 +3,35 @@
 
 namespace Ketl {
 
-	Variable Context::_emptyVar;
+	void* Variable::as(std::type_index typeIndex, Context& context) const {
+		auto typeVarIt = context._userTypes.find(typeIndex);
+		if (typeVarIt == context._userTypes.end()) {
+			return nullptr;
+		}
 
-	TypeObject* Context::declareType(const std::string& id, uint64_t sizeOf) {
-		/*
-		auto theTypeVar = getVariable("Type");
-		auto theTypePtr = theTypeVar.as<BasicTypeBody>();
-		auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(BasicType(theTypePtr)));
-		new(typePtr) BasicTypeBody(id, sizeOf);
-		_globals.try_emplace(id, typePtr, std::make_unique<BasicType>(theTypePtr, false, false, true));
-		return typePtr;
-		*/
-		return nullptr;
+		return _data;
 	}
+
+	Variable Context::_emptyVar;
 
 	static void constructFloat64(StackAllocator&, uint8_t* stackPtr, uint8_t* returnPtr) {
 		auto value = **reinterpret_cast<double**>(stackPtr);
 		*reinterpret_cast<double*>(returnPtr) = value;
 	}
 
+	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
+		auto classTypePtr = getVariable("ClassType").as<ClassTypeObject>();
+
+		auto primitiveTypePtr = reinterpret_cast<PrimitiveTypeObject*>(allocateGlobal(*classTypePtr));
+		new(primitiveTypePtr) PrimitiveTypeObject(id, size);
+		_globals.try_emplace(id, primitiveTypePtr, *classTypePtr);
+		_userTypes.try_emplace(typeIndex, primitiveTypePtr, *classTypePtr);
+	}
+
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)
 		: _alloc(allocator), _globalStack(allocator, globalStackSize) {
+		// TYPE BASE
+
 		// class Type
 		ClassTypeObject* classTypePtr;
 		{
@@ -31,30 +39,35 @@ namespace Ketl {
 			classTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(classType));
 			new(classTypePtr) ClassTypeObject(std::move(classType));
 			_globals.try_emplace(classTypePtr->id(), classTypePtr, *classTypePtr);
+			_userTypes.try_emplace(std::type_index(typeid(ClassTypeObject)), classTypePtr, *classTypePtr);
 		}
 
 		// interface Type
 		auto interfaceTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
 		new(interfaceTypePtr) ClassTypeObject("InterfaceType", sizeof(InterfaceTypeObject));
 		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypePtr, *classTypePtr);
+		_userTypes.try_emplace(std::type_index(typeid(InterfaceTypeObject)), interfaceTypePtr, *classTypePtr);
 
 		// The Type
 		auto theTypePtr = reinterpret_cast<InterfaceTypeObject*>(allocateGlobal(*interfaceTypePtr));
 		new(theTypePtr) InterfaceTypeObject("Type"/*, 0*/);
 		_globals.try_emplace(theTypePtr->id(), theTypePtr, *interfaceTypePtr);
+		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr, *interfaceTypePtr);
 
-		// privitive type
+		classTypePtr->_interfaces.emplace_back(theTypePtr);
+		interfaceTypePtr->_interfaces.emplace_back(theTypePtr);
+
+		// PRIMITIVES
+
+		// primitive type
 		auto primitiveTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
-		new(primitiveTypePtr) ClassTypeObject("PrivitiveType", sizeof(PrimitiveTypeObject));
+		new(primitiveTypePtr) ClassTypeObject("PrimitiveType", sizeof(PrimitiveTypeObject), std::vector<InterfaceTypeObject*>{theTypePtr});
 		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypePtr, *classTypePtr);
+		_userTypes.try_emplace(std::type_index(typeid(PrimitiveTypeObject)), primitiveTypePtr, *classTypePtr);
 
-		// Int64 type
-		auto longTypePtr = reinterpret_cast<PrimitiveTypeObject*>(allocateGlobal(*classTypePtr));
-		new(longTypePtr) PrimitiveTypeObject("Int64", sizeof(int64_t));
-		_globals.try_emplace(longTypePtr->id(), longTypePtr, *classTypePtr);
+		declarePrimitiveType("Void", 0, typeid(void));
+		declarePrimitiveType<int64_t>("Int64");
 
-		//declareType<void>("Void");
-		//declareType<int64_t>("Int64");
 		//declareType<uint64_t>("UInt64");
 		//declareType<double>("Float64");
 

@@ -31,8 +31,9 @@ namespace Ketl {
 		AnalyzerVar* createTemporaryVar(uint64_t size);
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
+		AnalyzerVar* getGlobalVar(const std::string_view& value);
 		AnalyzerVar* createGlobalVar(const std::string_view& value);
-		AnalyzerVar* createGlobalTypedVar();
+		AnalyzerVar* createGlobalTypedVar(const std::string_view& value);
 
 		Context& context() {
 			return _context;

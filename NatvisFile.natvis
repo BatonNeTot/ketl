@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?> 
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 	<!--Compiler-->
+	<!--Lexer-->
+	<Type Name="Ketl::TokenList">
+		<DisplayString>Ketl::TokenList</DisplayString>
+		<Expand>
+			<LinkedListItems>
+				<HeadPointer>_first</HeadPointer>
+				<NextPointer>next</NextPointer>
+				<ValueNode>*token</ValueNode>
+			</LinkedListItems>
+		</Expand>
+	</Type>
 	<!--Parser-->
 	<Type Name="Ketl::ProcessStack">
 		<DisplayString>Ketl::ProcessStack</DisplayString>
