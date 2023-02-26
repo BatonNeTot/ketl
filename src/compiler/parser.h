@@ -5,6 +5,8 @@
 #include "lexer.h"
 #include "common.h"
 
+#include <variant>
+
 namespace Ketl {
 
 	class TokenList {
@@ -232,17 +234,12 @@ namespace Ketl {
 
 		Parser();
 
-		std::unique_ptr<IRNode> parseTree(const std::string& str);
-
-		const std::string& errorMsg() const {
-			return _error;
-		}
+		std::variant<std::unique_ptr<IRNode>, std::string> parseTree(const std::string& str);
 
 	private:
 
 		Node* _root = nullptr;
 		std::unordered_map<std::string_view, std::unique_ptr<Node>> _nodes;
-		std::string _error;
 	};
 
 }

@@ -14,7 +14,7 @@ namespace Ketl {
 	public:
 		
 
-		FunctionImpl compile(std::unique_ptr<IRNode>&& block, Context& context);
+		std::variant<FunctionImpl, std::string> compile(std::unique_ptr<IRNode>&& block, Context& context);
 
 	};
 
@@ -35,6 +35,13 @@ namespace Ketl {
 		AnalyzerVar* createGlobalVar(const std::string_view& value);
 		AnalyzerVar* createGlobalTypedVar(const std::string_view& value);
 
+		void pushErrorMsg(const std::string& msg) {
+			_compilationErrors.emplace_back(msg);
+		}
+
+		bool hasCompilationErrors() const { return !_compilationErrors.empty(); }
+		std::string compilationErrors() const;
+
 		Context& context() {
 			return _context;
 		}
@@ -51,9 +58,12 @@ namespace Ketl {
 		};
 
 		std::stack<ScopeVar> scopeVars;
+		std::unordered_map<std::string_view, AnalyzerVar*> newGlobalVars;
 		std::unordered_map<std::string_view, AnalyzerVar*> globalVars;
 
 		Context& _context;
+
+		std::vector<std::string> _compilationErrors;
 	};
 
 }

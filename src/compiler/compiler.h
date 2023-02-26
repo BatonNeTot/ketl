@@ -7,15 +7,16 @@
 #include "parser.h"
 #include "semantic_analyzer.h"
 
+#include <variant>
+
 namespace Ketl {
 
 	class Context;
 
 	class Compiler {
 	public:
-		
 
-		FunctionImpl compile(const std::string& str, Context& context);
+		std::variant<FunctionImpl, std::string> compile(const std::string& str, Context& context);
 
 	private:
 		Parser _parser;

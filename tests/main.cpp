@@ -15,21 +15,14 @@
 
 #include "lua.hpp"
 
-double testValue = 0;
-double testValue2 = 0;
-
-void test(double x) {
-	testValue2 = x + 1;
-}
-
-void testLanguages() {
+void testSpeed() {
 	const uint64_t N = 1000000;
 
 	Ketl::Allocator allocator;
 	Ketl::Context context(allocator, 4096);
 	Ketl::Compiler compiler;
 
-	auto command = compiler.compile(R"(
+	auto command = std::get<0>(compiler.compile(R"(
 	testValue2 = 1 + 2;
 
 	Float64 adder(Float64 x, Float64 y) {
@@ -37,9 +30,7 @@ void testLanguages() {
 	}
 
 	testValue = adder(testValue2, 9);
-)", context);
-
-	test(0);
+)", context));
 
 	for (auto i = 0; i < N; ++i) {
 		auto stackPtr = context._globalStack.allocate(command.stackSize());
@@ -47,7 +38,6 @@ void testLanguages() {
 		context._globalStack.deallocate(command.stackSize());
 	}
 
-	test(0);
 	lua_State* L;
 	L = luaL_newstate();
 
@@ -61,51 +51,85 @@ void testLanguages() {
 	testValue = test(testValue2, 9)
 )");
 
-	test(0);
 
 	for (auto i = 0; i < N; ++i) {
 		lua_pushvalue(L, -1);
 		lua_call(L, 0, 0);
 	}
-
-	test(0);
 }
 
-template <class T>
-void insert(std::vector<uint8_t>& bytes, const T& value) {
-	for (auto i = 0u; i < sizeof(T); ++i) {
-		bytes.emplace_back();
+
+void launchTests() {
+	std::vector<std::pair<std::string, std::function<bool()>>> tests = {
+		{"Creating var", []() {
+			Ketl::Allocator allocator;
+			Ketl::Context context(allocator, 4096);
+			Ketl::Compiler compiler;
+
+			auto compilationResult = compiler.compile(R"(
+				var testValue2 = 1 + 2 * 3 + 4;
+			)", context);
+
+			return !std::holds_alternative<std::string>(compilationResult);
+	}},
+		{"Using existing var", []() {
+			Ketl::Allocator allocator;
+			Ketl::Context context(allocator, 4096);
+			Ketl::Compiler compiler;
+
+			int64_t result = 0;
+			auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
+			context.declareGlobal("testValue2", &result, longType);
+
+			auto compilationResult = compiler.compile(R"(
+				testValue2 = 1 + 2 * 3 + 4;
+			)", context);
+
+			return !std::holds_alternative<std::string>(compilationResult);
+	}},
+		{"Creating var with error", []() {
+			Ketl::Allocator allocator;
+			Ketl::Context context(allocator, 4096);
+			Ketl::Compiler compiler;
+
+			int64_t result = 0;
+			auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
+			context.declareGlobal("testValue2", &result, longType);
+
+			auto compilationResult = compiler.compile(R"(
+				var testValue2 = 1 + 2 * 3 + 4;
+			)", context);
+
+			return std::holds_alternative<std::string>(compilationResult);
+	}},
+		{"Using existing var with error", []() {
+			Ketl::Allocator allocator;
+			Ketl::Context context(allocator, 4096);
+			Ketl::Compiler compiler;
+
+			auto compilationResult = compiler.compile(R"(
+				testValue2 = 1 + 2 * 3 + 4;
+			)", context);
+
+			return std::holds_alternative<std::string>(compilationResult);
+	}},
+	};
+	int passed = 0;
+
+	std::cout << "Launching tests:" << std::endl;
+	for (const auto& [name, test] : tests) {
+		auto result = test();
+		passed += result;
+		auto status = result ? "SUCCEED" : "FAILED";
+		std::cout << name << ": " << status << std::endl;
 	}
-	*reinterpret_cast<T*>(bytes.data() + bytes.size() - sizeof(T)) = value;
+
+	std::cout << "Tests passed: " << passed << "/" << tests.size() << std::endl;
 }
 
-void insert(std::vector <uint8_t>& bytes, const char* str) {
-	while (*str != '\0') {
-		bytes.emplace_back(*str);
-		++str;
-	}
-	bytes.emplace_back('\0');
-}
-
-Ketl::Argument literal(uint64_t value) {
-	Ketl::Argument argument;
-	argument.integer = value;
-	return argument;
-}
-
-Ketl::Argument stack(uint64_t offset) {
-	Ketl::Argument argument;
-	argument.stack = offset;
-	return argument;
-}
-
-Ketl::Argument pointer(void* ptr) {
-	Ketl::Argument argument;
-	argument.pointer = ptr;
-	return argument;
-}
 
 int main(int argc, char** argv) {
+	//*
 	Ketl::Allocator allocator;
 	Ketl::Context context(allocator, 4096);
 	Ketl::Compiler compiler;
@@ -117,30 +141,24 @@ int main(int argc, char** argv) {
 	context.getVariable("testValue2").as<int64_t>();
 	context.declareGlobal("testValue2", &result, longType);
 
-	//*
-	auto command = compiler.compile(R"(
-	var testValue2 = 1 + 2 * 3 + 4;
+	auto compilationResult = compiler.compile(R"(
+	testValue2 = 1 + 2 * 3 + 4;
 )", context);
 
-	//*/
-	
-	/*
-	auto command = compiler.compile(R"(
-	testValue2 = 1 + 2;
-
-	Float64 adder(Float64 x, Float64 y) {
-		return x + y;
+	if (std::holds_alternative<std::string>(compilationResult)) {
+		std::cerr << std::get<std::string>(compilationResult) << std::endl;
+		return -1;
 	}
 
-	testValue = adder(testValue2, 9);
-)", context);
-	*/
+	auto& command = std::get<0>(compilationResult);
 
 	auto stackPtr = context._globalStack.allocate(command.stackSize());
 	command.call(context._globalStack, stackPtr, nullptr);
 	context._globalStack.deallocate(command.stackSize());
 
 	assert(result == 11u);
+	//*/
+	launchTests();
 
 	/*
 	// TODO thats nonsense

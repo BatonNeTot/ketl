@@ -5,14 +5,13 @@
 
 namespace Ketl {
 
-	FunctionImpl Compiler::compile(const std::string& str, Context& context) {
+	std::variant<FunctionImpl, std::string> Compiler::compile(const std::string& str, Context& context) {
 		auto block = _parser.parseTree(str);
 
-		if (!block) {
-			std::cerr << _parser.errorMsg() << std::endl;
-			return {};
+		if (std::holds_alternative<std::string>(block)) {
+			return std::get<std::string>(block);
 		}
 
-		return _analyzer.compile(std::move(block), context);
+		return _analyzer.compile(std::move(std::get<0>(block)), context);
 	}
 }

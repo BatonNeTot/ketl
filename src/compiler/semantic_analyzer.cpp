@@ -3,6 +3,8 @@
 
 #include "context.h"
 
+#include <sstream>
+
 namespace Ketl {
 
 	class AnalyzerLiteralVar : public AnalyzerVar {
@@ -42,13 +44,22 @@ namespace Ketl {
 	};
 
 	AnalyzerVar* AnalyzerContext::getGlobalVar(const std::string_view& value) {
-		return nullptr;
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
+
+		auto idStr = std::string(value);
+		if (!_context.getVariable(idStr).as<void>()) {
+			pushErrorMsg("[ERROR] Variable " + idStr + " doesn't exists");
+		}
+
+		globalVars.try_emplace(value, ptr.get());
+
+		return ptr.get();
 	}
 
 	AnalyzerVar* AnalyzerContext::createGlobalVar(const std::string_view& value) {
 		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
 
-		globalVars.try_emplace(value, ptr.get());
+		newGlobalVars.try_emplace(value, ptr.get());
 
 		return ptr.get();
 	}
@@ -79,10 +90,19 @@ namespace Ketl {
 		return ptr.get();
 	}
 
+	std::string AnalyzerContext::compilationErrors() const {
+		std::stringstream ss;
+		for (const auto& msg : _compilationErrors) {
+			ss << msg << std::endl;
+		}
+		return ss.str();
+	}
+
 	void AnalyzerContext::bakeContext() {
-		for (auto& var : globalVars) {
+		for (auto& var : newGlobalVars) {
 			auto id = std::string(var.first);
 			if (_context.getVariable(id).as<void>()) {
+				pushErrorMsg("[ERROR] Variable " + id + " already exists");
 				continue;
 			}
 
@@ -92,7 +112,7 @@ namespace Ketl {
 		}
 	}
 
-	FunctionImpl SemanticAnalyzer::compile(std::unique_ptr<IRNode>&& block, Context& context) {
+	std::variant<FunctionImpl, std::string> SemanticAnalyzer::compile(std::unique_ptr<IRNode>&& block, Context& context) {
 		AnalyzerContext acontext(context);
 		std::vector<RawInstruction> rawInstructions;
 
@@ -101,6 +121,9 @@ namespace Ketl {
 		FunctionImpl function(context._alloc, acontext.maxOffsetValue, rawInstructions.size());
 
 		acontext.bakeContext();
+		if (acontext.hasCompilationErrors()) {
+			return acontext.compilationErrors();
+		}
 
 		for (auto i = 0u; i < function._instructionsCount; ++i) {
 			rawInstructions[i].propagadeInstruction(function._instructions[i], acontext);

@@ -241,6 +241,9 @@ namespace Ketl {
 			_top->value.node = node;
 			_top->value.iterator = iterator;
 			_top->value.parent = nullptr;
+			_top->value.firstChild = nullptr;
+			_top->value.prevSibling = nullptr;
+			_top->value.nextSibling = nullptr;
 		}
 
 		void push(Parser::Node* node, const BnfIterator& iterator, ProcessNode* parent) {
@@ -252,6 +255,9 @@ namespace Ketl {
 			_top->value.node = node;
 			_top->value.iterator = iterator;
 			_top->value.parent = parent;
+			_top->value.firstChild = nullptr;
+			_top->value.prevSibling = nullptr;
+			_top->value.nextSibling = nullptr;
 		}
 
 		bool pop() {
@@ -275,8 +281,7 @@ namespace Ketl {
 		Node* _top = nullptr;
 	};
 
-	std::unique_ptr<IRNode> Parser::parseTree(const std::string& str) {
-		_error = {};
+	std::variant<std::unique_ptr<IRNode>, std::string> Parser::parseTree(const std::string& str) {
 		Lexer lexer(str);
 
 		TokenList list;
@@ -355,11 +360,11 @@ namespace Ketl {
 
 			if (end == str.length()) {
 				if (errorProcessNode == nullptr) {
-					_error = std::format("({},{}): parsed all, no expected elements, somehow still an error...",
+					return std::format("({},{}): parsed all, no expected elements, somehow still an error...",
 						line, row);
 				}
 				else {
-					_error = std::format("({},{}): unexpected EOF, expected {}",
+					return std::format("({},{}): unexpected EOF, expected {}",
 						line, row, errorProcessNode->toString());
 				}
 			}
@@ -368,51 +373,47 @@ namespace Ketl {
 					iterator.value().substr(0, 1):
 					iterator.value();
 				if (errorProcessNode == nullptr) {
-					_error = std::format("({},{}): unexpected end of form, parsing {}",
+					return std::format("({},{}): unexpected end of form, parsing {}",
 						line, row, itStr);
 				}
 				else {
-					_error = std::format("({},{}): expected {}, got {}",
+					return std::format("({},{}): expected {}, got {}",
 						line, row, errorProcessNode->toString(), itStr);
 				}
 			}
-
-			return {};
 		}
 
-		{
-			auto* current = processStack.top();
-			while (current->parent != nullptr) {
-				auto& parent = current->parent;
-				auto nextSibling = parent->firstChild;
-				if (!current->node->excludeFromTree(current)) {
-					parent->firstChild = current;
+		auto* current = processStack.top();
+		while (current->parent != nullptr) {
+			auto& parent = current->parent;
+			auto nextSibling = parent->firstChild;
+			if (!current->node->excludeFromTree(current)) {
+				parent->firstChild = current;
+				if (nextSibling != nullptr) {
+					nextSibling->prevSibling = current;
+					current->nextSibling = nextSibling;
+				}
+			}
+			else {
+				if (current->firstChild) {
+					parent->firstChild = current->firstChild;
+					auto lastChild = current->firstChild;
+					while (lastChild->nextSibling) {
+						lastChild = lastChild->nextSibling;
+					}
 					if (nextSibling != nullptr) {
-						nextSibling->prevSibling = current;
-						current->nextSibling = nextSibling;
+						nextSibling->prevSibling = lastChild;
+						lastChild->nextSibling = nextSibling;
 					}
 				}
-				else {
-					if (current->firstChild) {
-						parent->firstChild = current->firstChild;
-						auto lastChild = current->firstChild;
-						while (lastChild->nextSibling) {
-							lastChild = lastChild->nextSibling;
-						}
-						if (nextSibling != nullptr) {
-							nextSibling->prevSibling = lastChild;
-							lastChild->nextSibling = nextSibling;
-						}
-					}
-				}
-
-				processStack.pop();
-				current = processStack.top();
 			}
 
-			auto irTree = current->node->createIRTree(current);
-			return irTree;
+			processStack.pop();
+			current = processStack.top();
 		}
+
+		auto irTree = current->node->createIRTree(current);
+		return irTree;
 	}
 
 }
