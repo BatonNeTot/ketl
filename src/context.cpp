@@ -68,6 +68,14 @@ namespace Ketl {
 		declarePrimitiveType("Void", 0, typeid(void));
 		declarePrimitiveType<int64_t>("Int64");
 
+		_primaryOperators.try_emplace("+:Int64,Int64", Instruction::Code::AddInt64,		"Int64");
+		_primaryOperators.try_emplace("-:Int64,Int64", Instruction::Code::MinusInt64,	"Int64");
+		_primaryOperators.try_emplace("*:Int64,Int64", Instruction::Code::MultyInt64,	"Int64");
+		_primaryOperators.try_emplace("/:Int64,Int64", Instruction::Code::DivideInt64,	"Int64");
+
+		// TODO temporary
+		_primaryOperators.try_emplace("=:Int64,Int64", Instruction::Code::Assign, "Int64");
+
 		//declareType<uint64_t>("UInt64");
 		//declareType<double>("Float64");
 

@@ -102,32 +102,29 @@ namespace Ketl {
 	}
 
 
+	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, const std::string_view& op, std::vector<RawInstruction>& instructions, AnalyzerContext& context) {
+		std::string functionNotation = std::string(op) + std::string(":Int64,Int64");
+		auto primaryOperatorPair = context.context().deducePrimaryOperator(functionNotation);
+
+		if (primaryOperatorPair.first != Instruction::Code::None) {
+			auto& instruction = instructions.emplace_back();
+			instruction.code = primaryOperatorPair.first;
+			instruction.firstVar = lhs;
+			instruction.secondVar = rhs;
+			instruction.outputVar = context.createTemporaryVar(sizeof(int64_t));
+
+			return instruction.outputVar;
+		}
+
+		return nullptr;
+	}
+
+
 	class IRBinaryOperator : public IRNode {
 	public:
 
-		IRBinaryOperator(OperatorCode op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
+		IRBinaryOperator(const std::string_view& op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _ltr(ltr), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
-
-		bool resolveType(Context& context) override {
-			auto lhsSuccess = _lhs->resolveType(context);
-			auto rhsSuccess = _rhs->resolveType(context);
-
-			if (!lhsSuccess && rhsSuccess && _op == OperatorCode::Assign) {
-				auto varId = _lhs->id();
-				if (!varId.empty()) {
-					auto test = 0;
-					return true;
-				}
-			}
-
-			if (!lhsSuccess || !rhsSuccess) {
-				return false;
-			}
-			auto test = 0;
-
-
-			return true;
-		};
 
 		const std::shared_ptr<TypeTemplate>& type() const override {
 			return _type;
@@ -142,48 +139,15 @@ namespace Ketl {
 		}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
-			AnalyzerVar* lhsVar;
-			AnalyzerVar* rhsVar;
+			auto lhsVar = _lhs->produceInstructions(instructions, context);
+			auto rhsVar = _rhs->produceInstructions(instructions, context);
 
-			if (_ltr) {
-				lhsVar = _lhs->produceInstructions(instructions, context);
-				rhsVar = _rhs->produceInstructions(instructions, context);
-			}
-			else {
-				rhsVar = _rhs->produceInstructions(instructions, context);
-				lhsVar = _lhs->produceInstructions(instructions, context);
-			}
-
-			auto& instruction = instructions.emplace_back();
-			instruction.firstVar = lhsVar;
-			instruction.secondVar = rhsVar;
-			instruction.outputVar = context.createTemporaryVar(sizeof(int64_t));
-
-			switch (_op) {
-			case OperatorCode::Plus: {
-				instruction.code = Instruction::Code::AddInt64;
-				break;
-			}
-			case OperatorCode::Multiply: {
-				instruction.code = Instruction::Code::MultyInt64;
-				break;
-			}
-			case OperatorCode::Assign: {
-				instruction.code = Instruction::Code::Assign;
-				break;
-			}
-			default: {
-				auto test = 0;
-				(void)test;
-				break;
-			}
-			}
-			return instruction.outputVar;
+			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
 		};
 
 	private:
 
-		OperatorCode _op;
+		std::string_view _op;
 		bool _ltr;
 		std::shared_ptr<TypeTemplate> _type;
 		std::unique_ptr<IRNode> _lhs;
@@ -202,14 +166,11 @@ namespace Ketl {
 		do {
 			auto opNode = rightArgNode->prevSibling;
 			auto op = opNode->node->value(opNode->iterator);
-			(void)op; // TODO deduce operator code
-
-			auto code = OperatorCode::Assign;
 
 			auto leftArgNode = opNode->prevSibling;
 			auto leftArg = leftArgNode->node->createIRTree(leftArgNode);
 
-			rightArg = std::make_unique<IRBinaryOperator>(code, false, std::move(leftArg), std::move(rightArg));
+			rightArg = std::make_unique<IRBinaryOperator>(op, false, std::move(leftArg), std::move(rightArg));
 
 			rightArgNode = leftArgNode;
 		} while (rightArgNode->prevSibling);
@@ -225,17 +186,11 @@ namespace Ketl {
 		do {
 			auto opNode = leftArgNode->nextSibling;
 			auto op = opNode->node->value(opNode->iterator);
-			(void)op; // TODO deduce operator code
-
-			auto code = OperatorCode::Plus;
-			if (op == "*") {
-				code = OperatorCode::Multiply;
-			}
 
 			auto rightArgNode = opNode->nextSibling;
 			auto rightArg = rightArgNode->node->createIRTree(rightArgNode);
 
-			leftArg = std::make_unique<IRBinaryOperator>(code, true, std::move(leftArg), std::move(rightArg));
+			leftArg = std::make_unique<IRBinaryOperator>(op, true, std::move(leftArg), std::move(rightArg));
 
 			leftArgNode = rightArgNode;
 		} while (leftArgNode->nextSibling);

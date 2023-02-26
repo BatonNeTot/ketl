@@ -9,16 +9,6 @@ namespace Ketl {
 
 	class Context;
 
-	enum class OperatorCode : uint8_t {
-		Constructor,
-		Destructor,
-		Plus,
-		Minus,
-		Multiply,
-		Divide,
-		Assign,
-	};
-
 	class TypeTemplate {
 	public:
 		virtual ~TypeTemplate() = default;
@@ -47,8 +37,6 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual bool resolveType(Context& context) { return false; };
-		virtual bool processInstructions(std::vector<Instruction>& instructions) const { return false; };
 		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const { return {}; };
 		virtual const std::string& id() const {
 			static const std::string empty;

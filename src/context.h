@@ -116,6 +116,11 @@ namespace Ketl {
 			return allocateOnHeap(type.sizeOf());
 		}
 
+		std::pair<Instruction::Code, std::string_view> deducePrimaryOperator(const std::string_view& functionNotation) const {
+			auto it = _primaryOperators.find(functionNotation);
+			return it != _primaryOperators.end() ? it->second : std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
+		}
+
 	public: // TODO
 
 		uint8_t* allocateOnStack(uint64_t size) {
@@ -147,6 +152,8 @@ namespace Ketl {
 		std::unordered_map<std::string, Variable> _globals;
 
 		std::unordered_map<std::type_index, Variable> _userTypes;
+
+		std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>> _primaryOperators;
 	};
 
 	template <class... Args>
