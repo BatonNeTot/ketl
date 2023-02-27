@@ -9,6 +9,34 @@ namespace Ketl {
 
 	class Context;
 
+	enum class OperatorCode : uint8_t {
+		None,
+		Constructor,
+		Destructor,
+		Plus,
+		Minus,
+		Multiply,
+		Divide,
+		Assign,
+		
+	};
+
+	inline OperatorCode parseOperatorCode(const std::string_view& opStr) {
+		switch (opStr.length()) {
+		case 1: {
+			switch (opStr.data()[0]) {
+			case '+': return OperatorCode::Plus;
+			case '-': return OperatorCode::Minus;
+			case '*': return OperatorCode::Multiply;
+			case '/': return OperatorCode::Divide;
+			case '=': return OperatorCode::Assign;
+			}
+		}
+		}
+
+		return OperatorCode::None;
+	}
+
 	class TypeTemplate {
 	public:
 		virtual ~TypeTemplate() = default;

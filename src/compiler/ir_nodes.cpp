@@ -102,9 +102,9 @@ namespace Ketl {
 	}
 
 
-	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, const std::string_view& op, std::vector<RawInstruction>& instructions, AnalyzerContext& context) {
-		std::string functionNotation = std::string(op) + std::string(":Int64,Int64");
-		auto primaryOperatorPair = context.context().deducePrimaryOperator(functionNotation);
+	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, OperatorCode op, std::vector<RawInstruction>& instructions, AnalyzerContext& context) {
+		std::string argumentsNotation = std::string("Int64,Int64");
+		auto primaryOperatorPair = context.context().deducePrimaryOperator(op, argumentsNotation);
 
 		if (primaryOperatorPair.first != Instruction::Code::None) {
 			auto& instruction = instructions.emplace_back();
@@ -123,7 +123,7 @@ namespace Ketl {
 	class IRBinaryOperator : public IRNode {
 	public:
 
-		IRBinaryOperator(const std::string_view& op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
+		IRBinaryOperator(OperatorCode op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _ltr(ltr), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
 		const std::shared_ptr<TypeTemplate>& type() const override {
@@ -147,7 +147,7 @@ namespace Ketl {
 
 	private:
 
-		std::string_view _op;
+		OperatorCode _op;
 		bool _ltr;
 		std::shared_ptr<TypeTemplate> _type;
 		std::unique_ptr<IRNode> _lhs;
@@ -170,7 +170,7 @@ namespace Ketl {
 			auto leftArgNode = opNode->prevSibling;
 			auto leftArg = leftArgNode->node->createIRTree(leftArgNode);
 
-			rightArg = std::make_unique<IRBinaryOperator>(op, false, std::move(leftArg), std::move(rightArg));
+			rightArg = std::make_unique<IRBinaryOperator>(parseOperatorCode(op), false, std::move(leftArg), std::move(rightArg));
 
 			rightArgNode = leftArgNode;
 		} while (rightArgNode->prevSibling);
@@ -190,7 +190,7 @@ namespace Ketl {
 			auto rightArgNode = opNode->nextSibling;
 			auto rightArg = rightArgNode->node->createIRTree(rightArgNode);
 
-			leftArg = std::make_unique<IRBinaryOperator>(op, true, std::move(leftArg), std::move(rightArg));
+			leftArg = std::make_unique<IRBinaryOperator>(parseOperatorCode(op), true, std::move(leftArg), std::move(rightArg));
 
 			leftArgNode = rightArgNode;
 		} while (leftArgNode->nextSibling);

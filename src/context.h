@@ -2,6 +2,7 @@
 #ifndef context_h
 #define context_h
 
+#include "compiler/common.h"
 #include "type.h"
 
 #include <cinttypes>
@@ -116,9 +117,17 @@ namespace Ketl {
 			return allocateOnHeap(type.sizeOf());
 		}
 
-		std::pair<Instruction::Code, std::string_view> deducePrimaryOperator(const std::string_view& functionNotation) const {
-			auto it = _primaryOperators.find(functionNotation);
-			return it != _primaryOperators.end() ? it->second : std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
+		void registerPrimaryOperator(OperatorCode op, const std::string_view& argumentsNotation, Instruction::Code code, const std::string_view& outputType) {
+			_primaryOperators[op].try_emplace(argumentsNotation, code, outputType);
+		}
+
+		std::pair<Instruction::Code, std::string_view> deducePrimaryOperator(OperatorCode op, const std::string_view& argumentsNotation) const {
+			auto opIt = _primaryOperators.find(op);
+			if (opIt == _primaryOperators.end()) {
+				return std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
+			}
+			auto it = opIt->second.find(argumentsNotation);
+			return it != opIt->second.end() ? it->second : std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
 		}
 
 	public: // TODO
@@ -153,7 +162,7 @@ namespace Ketl {
 
 		std::unordered_map<std::type_index, Variable> _userTypes;
 
-		std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>> _primaryOperators;
+		std::unordered_map<OperatorCode, std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>>> _primaryOperators;
 	};
 
 	template <class... Args>
