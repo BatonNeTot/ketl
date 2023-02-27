@@ -101,6 +101,21 @@ namespace Ketl {
 		return std::make_unique<IRDefineVariable>(id, std::move(type), std::move(expression));
 	}
 
+	std::unique_ptr<IRNode> createDefineFunctionTree(const ProcessNode* info) {
+		auto concat = info->firstChild;
+
+		auto outputTypeNode = concat->firstChild;
+		auto outputType = outputTypeNode->node->createIRTree(outputTypeNode);
+
+		auto idNode = outputTypeNode->nextSibling;
+		auto id = idNode->node->value(idNode->iterator);
+
+		auto blockNode = idNode->nextSibling;
+		auto block = blockNode->node->createIRTree(blockNode);
+
+		return nullptr;
+	}
+
 
 	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, OperatorCode op, std::vector<RawInstruction>& instructions, AnalyzerContext& context) {
 		std::string argumentsNotation = std::string("Int64,Int64");
