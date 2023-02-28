@@ -74,11 +74,6 @@ namespace Ketl {
 			static const std::shared_ptr<TypeTemplate> empty;
 			return empty; 
 		};
-		virtual uint64_t childCount() const = 0;
-		virtual const std::unique_ptr<IRNode>& child(uint64_t index) const {
-			static const std::unique_ptr<IRNode> empty;
-			return empty;
-		}
 	};
 
 }

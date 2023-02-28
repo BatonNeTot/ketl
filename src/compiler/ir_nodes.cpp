@@ -11,14 +11,6 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands)
 			: _commands(std::move(commands)) {}
 
-		uint64_t childCount() const override {
-			return _commands.size();
-		}
-
-		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
-			return _commands[index];
-		}
-
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
 			for (auto& command : _commands) {
 				command->produceInstructions(instructions, context);
@@ -58,15 +50,6 @@ namespace Ketl {
 
 		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
-
-		uint64_t childCount() const override {
-			return _expression ? 1 : 0;
-		}
-
-		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
-			static const std::unique_ptr<IRNode> empty;
-			return index == 1 ? _expression : empty;
-		}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
 			auto var = context.createGlobalVar(_id);
@@ -110,7 +93,30 @@ namespace Ketl {
 		auto idNode = outputTypeNode->nextSibling;
 		auto id = idNode->node->value(idNode->iterator);
 
-		auto blockNode = idNode->nextSibling;
+		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> parameters;
+		auto parametersNode = idNode->nextSibling;
+
+		if (parametersNode->nextSibling) {
+			auto it = parametersNode->firstChild;
+			while (it) {
+				auto parameter = it->firstChild;
+
+				auto parameterTypeNode = parameter->firstChild;
+				auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
+
+				auto parameterIdNode = parameterTypeNode->nextSibling;
+				auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
+
+				parameters.emplace_back(std::move(parameterType), std::move(parameterId));
+
+				it = it->nextSibling;
+			}
+		}
+		else {
+			parametersNode = parametersNode->prevSibling;
+		}
+
+		auto blockNode = parametersNode->nextSibling;
 		auto block = blockNode->node->createIRTree(blockNode);
 
 		return nullptr;
@@ -143,14 +149,6 @@ namespace Ketl {
 
 		const std::shared_ptr<TypeTemplate>& type() const override {
 			return _type;
-		}
-
-		uint64_t childCount() const override {
-			return 2;
-		}
-
-		const std::unique_ptr<IRNode>& child(uint64_t index) const override {
-			return index == 0 ? _lhs : _rhs;
 		}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
@@ -231,10 +229,6 @@ namespace Ketl {
 			return _id;
 		}
 
-		uint64_t childCount() const override {
-			return 0;
-		}
-
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
 			return context.getGlobalVar(_id);
 		};
@@ -249,16 +243,18 @@ namespace Ketl {
 	}
 
 
+	std::unique_ptr<IRNode> createType(const ProcessNode* info) {
+		auto idNode = info->firstChild;
+		return std::make_unique<IRVariable>(idNode->node->value(idNode->iterator));
+	}
+
+
 
 	class IRLiteral : public IRNode {
 	public:
 
 		IRLiteral(const std::string_view& value)
 			: _value(value) {}
-
-		uint64_t childCount() const override {
-			return 0;
-		}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
 			return context.createLiteralVar(_value);
@@ -271,4 +267,6 @@ namespace Ketl {
 	std::unique_ptr<IRNode> createLiteral(const ProcessNode* info) {
 		return std::make_unique<IRLiteral>(info->node->value(info->iterator));
 	}
+
+
 }

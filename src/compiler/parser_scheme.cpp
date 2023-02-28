@@ -126,33 +126,33 @@ namespace Ketl {
 			std::make_unique<NodeLiteral>(true, ";")
 			));
 
+		// function parameter
+		_nodes.try_emplace("functionParameter", std::make_unique<NodeConcat>(false,
+			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeConditional>(
+				std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
+				)
+			));
+
 		// define function
 		_nodes.try_emplace("defineFunction", std::make_unique<NodeConcat>(false,
-			std::make_unique<NodeId>(false, "type"),
+			std::make_unique<NodeId>(&createType, false, "type"),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeLiteral>(true, "("),
 			std::make_unique<NodeConditional>(
 				std::make_unique<NodeConcat>(false,
-					std::make_unique<NodeId>(false, "type"),
-					std::make_unique<NodeConditional>(
-						std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
-						),
+					std::make_unique<NodeId>(false, "functionParameter"),
 					std::make_unique<NodeRepeat>(
 						std::make_unique<NodeConcat>(true,
 							std::make_unique<NodeLiteral>(true, ","),
-							std::make_unique<NodeConcat>(false,
-								std::make_unique<NodeId>(false, "type"),
-								std::make_unique<NodeConditional>(
-									std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
-									)
-								)
+							std::make_unique<NodeId>(false, "functionParameter")
 							)
 						)
 					)
 				),
 			std::make_unique<NodeLiteral>(true, ")"),
 			std::make_unique<NodeLiteral>(true, "{"),
-			std::make_unique<NodeId>(false, "several-commands"),
+			std::make_unique<NodeId>(&createBlockTree, false, "several-commands"),
 			std::make_unique<NodeLiteral>(true, "}")
 			));
 

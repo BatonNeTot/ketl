@@ -145,7 +145,8 @@ int main(int argc, char** argv) {
 	testValue2 = 1 + 2 * 3 + 4;
 
 	Int64 adder(Int64 x, Int64 y) {
-		return x + y;
+		var sum = x + y;
+		return sum;
 	}
 )", context);
 
