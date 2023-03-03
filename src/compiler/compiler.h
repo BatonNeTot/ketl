@@ -20,7 +20,6 @@ namespace Ketl {
 
 	private:
 		Parser _parser;
-		SemanticAnalyzer _analyzer;
 	};
 
 }

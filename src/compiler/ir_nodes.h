@@ -13,8 +13,10 @@ namespace Ketl {
 	std::unique_ptr<IRNode> proxyTree(const ProcessNode*);
 	std::unique_ptr<IRNode> emptyTree(const ProcessNode*);
 
-	std::unique_ptr<IRNode> createDefineVariableByAssignmentTree(const ProcessNode* info);
-	std::unique_ptr<IRNode> createDefineFunctionTree(const ProcessNode* info);
+	std::unique_ptr<IRNode> createDefineVariableByAssignment(const ProcessNode* info);
+
+	std::unique_ptr<IRNode> createLambda(const ProcessNode* info);
+	std::unique_ptr<IRNode> createDefineFunction(const ProcessNode* info);
 
 	std::unique_ptr<IRNode> createRtlTree(const ProcessNode* info);
 	std::unique_ptr<IRNode> createLtrTree(const ProcessNode* info);

@@ -6,7 +6,7 @@
 
 namespace Ketl {
 	
-	void RawInstruction::propagadeInstruction(Instruction& instruction, AnalyzerContext& context) {
+	void RawInstruction::propagadeInstruction(Instruction& instruction, SemanticAnalyzer& context) {
 		instruction._code = code;
 		instruction._outputOffset = 0;
 		if (outputVar) {

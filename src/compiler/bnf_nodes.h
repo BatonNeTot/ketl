@@ -189,7 +189,7 @@ namespace Ketl {
 		}
 
 		bool excludeFromTree(const ProcessNode* info) const override {
-			return !info->firstChild || (_optional && !info->firstChild->nextSibling);
+			return _optional && (!info->firstChild || !info->firstChild->nextSibling);
 		}
 
 	private:

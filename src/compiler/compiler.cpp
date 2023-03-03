@@ -12,6 +12,7 @@ namespace Ketl {
 			return std::get<std::string>(block);
 		}
 
-		return _analyzer.compile(std::move(std::get<0>(block)), context);
+		SemanticAnalyzer analyzer(context);
+		return std::move(analyzer).compile(std::move(std::get<0>(block)));
 	}
 }

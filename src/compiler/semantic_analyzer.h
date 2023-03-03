@@ -12,28 +12,20 @@ namespace Ketl {
 
 	class SemanticAnalyzer {
 	public:
-		
 
-		std::variant<FunctionImpl, std::string> compile(std::unique_ptr<IRNode>&& block, Context& context);
+		SemanticAnalyzer(Context& context, bool localScope = false)
+			: _context(context), _localScope(localScope) {}
 
-	};
-
-	class AnalyzerContext {
-	public:
-
-		AnalyzerContext(Context& context)
-			: _context(context) {}
+		std::variant<FunctionImpl, std::string> compile(std::unique_ptr<IRNode>&& block)&&;
 
 		void bakeContext();
 
-		void propagateGlobalVars(Context& context);
+		AnalyzerVar* createTempVar(std::unique_ptr<IRNode>&& type);
 
-		AnalyzerVar* createTemporaryVar(uint64_t size);
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
-		AnalyzerVar* getGlobalVar(const std::string_view& value);
-		AnalyzerVar* createGlobalVar(const std::string_view& value);
-		AnalyzerVar* createGlobalTypedVar(const std::string_view& value);
+		AnalyzerVar* getVar(const std::string_view& id);
+		AnalyzerVar* createVar(const std::string_view& id, std::unique_ptr<IRNode>&& type);
 
 		void pushErrorMsg(const std::string& msg) {
 			_compilationErrors.emplace_back(msg);
@@ -42,9 +34,18 @@ namespace Ketl {
 		bool hasCompilationErrors() const { return !_compilationErrors.empty(); }
 		std::string compilationErrors() const;
 
-		Context& context() {
+		Context& context() const {
 			return _context;
 		}
+
+		bool isLocalScope() const {
+			return _localScope;
+		}
+
+		void pushScope();
+		void popScope();
+
+		void propagateScopeDestructors() {} // TODO
 
 		uint64_t scopeLayer = 0u;
 		uint64_t currentStackOffset = 0u;
@@ -53,17 +54,21 @@ namespace Ketl {
 		std::vector<std::unique_ptr<AnalyzerVar>> vars;
 
 		struct ScopeVar {
-			uint64_t tmpOffset;
-			uint64_t stackOffset;
+			AnalyzerVar* var; 
+			std::unique_ptr<IRNode> type;
+			uint64_t scopeLayer;
 		};
 
 		std::stack<ScopeVar> scopeVars;
+		std::stack<uint64_t> scopeOffsets;
+		std::unordered_map<std::string_view, std::unordered_map<uint64_t, AnalyzerVar*>> scopeVarsByNames;
 		std::unordered_map<std::string_view, AnalyzerVar*> newGlobalVars;
-		std::unordered_map<std::string_view, AnalyzerVar*> globalVars;
 
 		Context& _context;
 
 		std::vector<std::string> _compilationErrors;
+
+		bool _localScope;
 	};
 
 }

@@ -42,12 +42,12 @@ namespace Ketl {
 		virtual ~TypeTemplate() = default;
 	};
 
-	class AnalyzerContext;
+	class SemanticAnalyzer;
 
 	class AnalyzerVar {
 	public:
 		virtual ~AnalyzerVar() = default;
-		virtual std::pair<Argument::Type, Argument> getArgument(AnalyzerContext& context) const = 0;
+		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
 	};
 
 	class RawInstruction {
@@ -57,7 +57,7 @@ namespace Ketl {
 		AnalyzerVar* firstVar;
 		AnalyzerVar* secondVar;
 
-		void propagadeInstruction(Instruction& instruction, AnalyzerContext& context);
+		void propagadeInstruction(Instruction& instruction, SemanticAnalyzer& context);
 	};
 
 	// Intermediate representation node
@@ -65,7 +65,7 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const { return {}; };
+		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context)&& { return {}; };
 		virtual const std::string& id() const {
 			static const std::string empty;
 			return empty;

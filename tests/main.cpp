@@ -134,20 +134,23 @@ int main(int argc, char** argv) {
 	Ketl::Context context(allocator, 4096);
 	Ketl::Compiler compiler;
 
-	int64_t result = 0;
-
 	auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
 
-	context.getVariable("testValue2").as<int64_t>();
+	int64_t result = 0;
 	context.declareGlobal("testValue2", &result, longType);
+
+	int64_t sum = 0;
+	context.declareGlobal("sum", &sum, longType);
 
 	auto compilationResult = compiler.compile(R"(
 	testValue2 = 1 + 2 * 3 + 4;
 
-	Int64 adder(Int64 x, Int64 y) {
-		var sum = x + y;
-		return sum;
-	}
+	//Int64 adder(Int64 x, Int64 y) {
+	var adder = (Int64 x, Int64 y) -> Int64 {
+		sum = x + y;
+		//var sum = x + y;
+		//return sum;
+	};
 )", context);
 
 	if (std::holds_alternative<std::string>(compilationResult)) {

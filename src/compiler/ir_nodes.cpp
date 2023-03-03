@@ -11,9 +11,9 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands)
 			: _commands(std::move(commands)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context)&& override {
 			for (auto& command : _commands) {
-				command->produceInstructions(instructions, context);
+				std::move(*command).produceInstructions(instructions, context);
 			}
 			return {};
 		};
@@ -51,9 +51,9 @@ namespace Ketl {
 		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
-			auto var = context.createGlobalVar(_id);
-			auto expression = _expression->produceInstructions(instructions, context);
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+			auto var = context.createVar(_id, std::move(_type));
+			auto expression = std::move(*_expression).produceInstructions(instructions, context);
 
 			auto& instruction = instructions.emplace_back();
 			instruction.firstVar = var;
@@ -69,7 +69,7 @@ namespace Ketl {
 		std::unique_ptr<IRNode> _expression;
 	};
 
-	std::unique_ptr<IRNode> createDefineVariableByAssignmentTree(const ProcessNode* info) {
+	std::unique_ptr<IRNode> createDefineVariableByAssignment(const ProcessNode* info) {
 		auto concat = info->firstChild;
 
 		auto typeNode = concat->firstChild;
@@ -84,7 +84,69 @@ namespace Ketl {
 		return std::make_unique<IRDefineVariable>(id, std::move(type), std::move(expression));
 	}
 
-	std::unique_ptr<IRNode> createDefineFunctionTree(const ProcessNode* info) {
+	class IRFunction : public IRNode {
+	public:
+
+		IRFunction(std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
+			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
+
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+			SemanticAnalyzer analyzer(context.context(), true);
+
+			for (auto& parameter : _parameters) {
+				analyzer.createVar(parameter.second, std::move(parameter.first));
+			}
+
+			auto function = std::move(analyzer).compile(std::move(_block));
+
+			return {};
+		};
+
+	private:
+		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> _parameters;
+		std::unique_ptr<IRNode> _outputType; // TODO ?
+		// TODO hotfix
+		mutable std::unique_ptr<IRNode> _block;
+	};
+
+	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {
+		auto concat = info->firstChild;
+
+		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> parameters;
+		auto parametersNode = concat->firstChild;
+
+		if (parametersNode->firstChild) {
+			auto it = parametersNode->firstChild;
+			while (it) {
+				auto parameter = it->firstChild->firstChild;
+
+				auto parameterTypeNode = parameter->firstChild;
+				auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
+
+				auto parameterIdNode = parameterTypeNode->nextSibling;
+				auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
+
+				parameters.emplace_back(std::move(parameterType), std::move(parameterId));
+
+				it = it->nextSibling;
+			}
+		}
+
+		auto outputTypeNodeHolder = parametersNode->nextSibling;
+		std::unique_ptr<IRNode> outputType;
+
+		if (outputTypeNodeHolder->firstChild) {
+			auto outputTypeNode = outputTypeNodeHolder->firstChild;
+			outputType = outputTypeNode->node->createIRTree(outputTypeNode);
+		}
+
+		auto blockNode = outputTypeNodeHolder->nextSibling;
+		auto block = blockNode->node->createIRTree(blockNode);
+
+		return std::make_unique<IRFunction>(std::move(parameters), std::move(outputType), std::move(block));
+	}
+
+	std::unique_ptr<IRNode> createDefineFunction(const ProcessNode* info) {
 		auto concat = info->firstChild;
 
 		auto outputTypeNode = concat->firstChild;
@@ -119,11 +181,12 @@ namespace Ketl {
 		auto blockNode = parametersNode->nextSibling;
 		auto block = blockNode->node->createIRTree(blockNode);
 
+		// TODO BIG
 		return nullptr;
 	}
 
 
-	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, OperatorCode op, std::vector<RawInstruction>& instructions, AnalyzerContext& context) {
+	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, OperatorCode op, std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) {
 		std::string argumentsNotation = std::string("Int64,Int64");
 		auto primaryOperatorPair = context.context().deducePrimaryOperator(op, argumentsNotation);
 
@@ -132,7 +195,7 @@ namespace Ketl {
 			instruction.code = primaryOperatorPair.first;
 			instruction.firstVar = lhs;
 			instruction.secondVar = rhs;
-			instruction.outputVar = context.createTemporaryVar(sizeof(int64_t));
+			instruction.outputVar = context.createTempVar(nullptr); // TODO input type
 
 			return instruction.outputVar;
 		}
@@ -151,9 +214,9 @@ namespace Ketl {
 			return _type;
 		}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
-			auto lhsVar = _lhs->produceInstructions(instructions, context);
-			auto rhsVar = _rhs->produceInstructions(instructions, context);
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+			auto lhsVar = std::move(*_lhs).produceInstructions(instructions, context);
+			auto rhsVar = std::move(*_rhs).produceInstructions(instructions, context);
 
 			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
 		};
@@ -229,8 +292,8 @@ namespace Ketl {
 			return _id;
 		}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
-			return context.getGlobalVar(_id);
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+			return context.getVar(_id);
 		};
 
 	private:
@@ -256,7 +319,7 @@ namespace Ketl {
 		IRLiteral(const std::string_view& value)
 			: _value(value) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, AnalyzerContext& context) const override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
 			return context.createLiteralVar(_value);
 		};
 
