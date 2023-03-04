@@ -196,7 +196,6 @@ namespace Ketl {
 			uint64_t uinteger;
 			double floating;
 			void* pointer;
-			const void* cPointer;
 		};
 	};
 

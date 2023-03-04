@@ -16,7 +16,11 @@ namespace Ketl {
 				std::move(*command).produceInstructions(instructions, context);
 			}
 			return {};
-		};
+		}
+
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return context.context().getVariable("Void").as<TypeObject>();
+		}
 
 	private:
 		std::vector<std::unique_ptr<IRNode>> _commands;
@@ -52,7 +56,15 @@ namespace Ketl {
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
-			auto var = context.createVar(_id, std::move(_type));
+			const TypeObject* type = nullptr;
+
+			if (_type) {
+				type = static_cast<TypeObject*>(_type->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
+			}
+			else {
+
+			}
+			auto var = context.createVar(_id, *type);
 			auto expression = std::move(*_expression).produceInstructions(instructions, context);
 
 			auto& instruction = instructions.emplace_back();
@@ -63,9 +75,13 @@ namespace Ketl {
 			return {};
 		};
 
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return context.context().getVariable("Void").as<TypeObject>();
+		}
+
 	private:
 		std::string_view _id;
-		std::unique_ptr<IRNode> _type; // TODO ?
+		std::unique_ptr<IRNode> _type;
 		std::unique_ptr<IRNode> _expression;
 	};
 
@@ -94,19 +110,29 @@ namespace Ketl {
 			SemanticAnalyzer analyzer(context.context(), true);
 
 			for (auto& parameter : _parameters) {
-				analyzer.createVar(parameter.second, std::move(parameter.first));
+				auto type = static_cast<TypeObject*>(parameter.first->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
+				analyzer.createVar(parameter.second, *type);
 			}
 
 			auto function = std::move(analyzer).compile(std::move(_block));
+			if (std::holds_alternative<std::string>(function)) {
+				context.pushErrorMsg(std::get<std::string>(function));
+				// TODO return something not null
+				return {};
+			}
 
-			return {};
+			return context.createFunction(std::move(std::get<0>(function)));
 		};
+
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			// TODO return actual function type
+			return context.context().getVariable("Void").as<TypeObject>();
+		}
 
 	private:
 		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> _parameters;
-		std::unique_ptr<IRNode> _outputType; // TODO ?
-		// TODO hotfix
-		mutable std::unique_ptr<IRNode> _block;
+		std::unique_ptr<IRNode> _outputType;
+		std::unique_ptr<IRNode> _block;
 	};
 
 	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {
@@ -116,9 +142,9 @@ namespace Ketl {
 		auto parametersNode = concat->firstChild;
 
 		if (parametersNode->firstChild) {
-			auto it = parametersNode->firstChild;
+			auto it = parametersNode->firstChild->firstChild;
 			while (it) {
-				auto parameter = it->firstChild->firstChild;
+				auto parameter = it->firstChild;
 
 				auto parameterTypeNode = parameter->firstChild;
 				auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
@@ -195,7 +221,9 @@ namespace Ketl {
 			instruction.code = primaryOperatorPair.first;
 			instruction.firstVar = lhs;
 			instruction.secondVar = rhs;
-			instruction.outputVar = context.createTempVar(nullptr); // TODO input type
+
+			auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
+			instruction.outputVar = context.createTempVar(longType);
 
 			return instruction.outputVar;
 		}
@@ -210,22 +238,25 @@ namespace Ketl {
 		IRBinaryOperator(OperatorCode op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _ltr(ltr), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
-		const std::shared_ptr<TypeTemplate>& type() const override {
-			return _type;
-		}
-
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
 			auto lhsVar = std::move(*_lhs).produceInstructions(instructions, context);
 			auto rhsVar = std::move(*_rhs).produceInstructions(instructions, context);
 
+			// TODO fill _outputType
+			// or remove _outputType and let it deduce type on fly
+
 			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
 		};
+
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return _outputType;
+		}
 
 	private:
 
 		OperatorCode _op;
 		bool _ltr;
-		std::shared_ptr<TypeTemplate> _type;
+		const TypeObject* _outputType;
 		std::unique_ptr<IRNode> _lhs;
 		std::unique_ptr<IRNode> _rhs;
 	};
@@ -281,24 +312,25 @@ namespace Ketl {
 
 		IRVariable(const std::string_view& id)
 			: _id(id) {}
-		IRVariable(const std::string_view& id, std::shared_ptr<TypeTemplate> type)
+		IRVariable(const std::string_view& id, std::unique_ptr<IRNode>&& type)
 			: _id(id), _type(std::move(type)) {}
-
-		const std::shared_ptr<TypeTemplate>& type() const override {
-			return _type;
-		}
-
-		const std::string& id() const override {
-			return _id;
-		}
 
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
 			return context.getVar(_id);
 		};
 
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return static_cast<TypeObject*>(_type->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
+		}
+
+		Variable evaluate(SemanticAnalyzer& context) { 
+			// TODO now works only for type inside Context
+			return context.context().getVariable(_id)._var;
+		}
+
 	private:
 		std::string _id;
-		std::shared_ptr<TypeTemplate> _type;
+		std::unique_ptr<IRNode> _type;
 	};
 
 	std::unique_ptr<IRNode> createVariable(const ProcessNode* info) {
@@ -322,6 +354,10 @@ namespace Ketl {
 		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
 			return context.createLiteralVar(_value);
 		};
+
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return context.context().getVariable("Int64").as<TypeObject>();
+		}
 
 	private:
 		std::string_view _value;

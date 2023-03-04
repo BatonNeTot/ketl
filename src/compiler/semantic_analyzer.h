@@ -7,6 +7,7 @@
 #include "context.h"
 
 #include <stack>
+#include <map>
 
 namespace Ketl {
 
@@ -20,12 +21,14 @@ namespace Ketl {
 
 		void bakeContext();
 
-		AnalyzerVar* createTempVar(std::unique_ptr<IRNode>&& type);
+		AnalyzerVar* createTempVar(const TypeObject& type);
 
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
+		AnalyzerVar* createFunction(FunctionImpl&& function);
+
 		AnalyzerVar* getVar(const std::string_view& id);
-		AnalyzerVar* createVar(const std::string_view& id, std::unique_ptr<IRNode>&& type);
+		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
 
 		void pushErrorMsg(const std::string& msg) {
 			_compilationErrors.emplace_back(msg);
@@ -55,14 +58,16 @@ namespace Ketl {
 
 		struct ScopeVar {
 			AnalyzerVar* var; 
-			std::unique_ptr<IRNode> type;
+			const TypeObject* type;
 			uint64_t scopeLayer;
 		};
 
 		std::stack<ScopeVar> scopeVars;
 		std::stack<uint64_t> scopeOffsets;
-		std::unordered_map<std::string_view, std::unordered_map<uint64_t, AnalyzerVar*>> scopeVarsByNames;
+		std::unordered_map<std::string_view, std::map<uint64_t, AnalyzerVar*>> scopeVarsByNames;
 		std::unordered_map<std::string_view, AnalyzerVar*> newGlobalVars;
+
+		std::vector<std::pair<FunctionImpl, AnalyzerVar*>> newFunctions;
 
 		Context& _context;
 

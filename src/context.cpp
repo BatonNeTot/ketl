@@ -5,7 +5,7 @@ namespace Ketl {
 
 	void* Variable::as(std::type_index typeIndex, Context& context) const {
 		auto typeVarIt = context._userTypes.find(typeIndex);
-		if (typeVarIt == context._userTypes.end()) {
+		if (typeVarIt == context._userTypes.end() && typeIndex != std::type_index(typeid(FunctionImpl*))) {
 			return nullptr;
 		}
 
@@ -13,11 +13,6 @@ namespace Ketl {
 	}
 
 	Variable Context::_emptyVar;
-
-	static void constructFloat64(StackAllocator&, uint8_t* stackPtr, uint8_t* returnPtr) {
-		auto value = **reinterpret_cast<double**>(stackPtr);
-		*reinterpret_cast<double*>(returnPtr) = value;
-	}
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
 		auto classTypePtr = getVariable("ClassType").as<ClassTypeObject>();

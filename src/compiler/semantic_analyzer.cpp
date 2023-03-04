@@ -46,6 +46,32 @@ namespace Ketl {
 		return ptr.get();
 	}
 
+	class AnalyzerFunctionVar : public AnalyzerVar {
+	public:
+		AnalyzerFunctionVar(FunctionImpl& function)
+			: _function(&function) {}
+
+		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+			auto type = Argument::Type::Literal;
+			Argument argument;
+			argument.pointer = _function;
+			return std::make_pair(type, argument);
+		}
+
+		friend SemanticAnalyzer;
+
+		FunctionImpl* _function;
+	};
+
+	AnalyzerVar* SemanticAnalyzer::createFunction(FunctionImpl&& function) {
+		auto& it = newFunctions.emplace_back(std::move(function), nullptr);
+
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionVar>(it.first));
+		it.second = ptr.get();
+
+		return ptr.get();
+	}
+
 	class AnalyzerGlobalVar : public AnalyzerVar {
 	public:
 		AnalyzerGlobalVar(const std::string_view& id)
@@ -64,21 +90,22 @@ namespace Ketl {
 	AnalyzerVar* SemanticAnalyzer::getVar(const std::string_view& value) {
 		auto scopeIt = scopeVarsByNames.find(value);
 		if (scopeIt != scopeVarsByNames.end()) {
-			// TODO
+			auto it = scopeIt->second.rbegin();
+			return it->second;
 		}
 
 		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
 
 		auto idStr = std::string(value);
-		if (!_context.getVariable(idStr).as<void>()) {
-			pushErrorMsg("[ERROR] Variable " + idStr + " doesn't exists");
+		if (_context.getVariable(idStr).as<void>()) {
 			return ptr.get();
 		}
 
+		pushErrorMsg("[ERROR] Variable " + idStr + " doesn't exists");
 		return ptr.get();
 	}
 
-	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& value, std::unique_ptr<IRNode>&& type) {
+	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& value, const TypeObject& type) {
 		if (isLocalScope()) {
 			auto id = std::string(value);
 
@@ -89,7 +116,7 @@ namespace Ketl {
 				return varIt->second;
 			}
 
-			auto tempVar = createTempVar(std::move(type));
+			auto tempVar = createTempVar(type);
 			varIt->second = tempVar;
 
 			return varIt->second;
@@ -124,7 +151,7 @@ namespace Ketl {
 		uint64_t _offset;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createTempVar(std::unique_ptr<IRNode>&& type) {
+	AnalyzerVar* SemanticAnalyzer::createTempVar(const TypeObject& type) {
 		// TODO alignment
 		auto offset = currentStackOffset;
 
@@ -139,7 +166,7 @@ namespace Ketl {
 		auto& scopeVar = scopeVars.emplace();
 
 		scopeVar.scopeLayer = scopeLayer;
-		scopeVar.type = std::move(type);
+		scopeVar.type = &type;
 		scopeVar.var = ptr.get();
 
 		return ptr.get();
@@ -165,12 +192,22 @@ namespace Ketl {
 			auto ptr = _context.allocateGlobal(longType);
 			_context.declareGlobal(id, ptr, longType);
 		}
+
+		for (auto& [function, var] : newFunctions) {
+			auto* functionVar = static_cast<AnalyzerFunctionVar*>(var);
+
+			auto& functionPtr = context()._functions.emplace_back(std::make_unique<FunctionImpl>(std::move(function)));
+			functionVar->_function = functionPtr.get();
+		}
 	}
 
 	std::variant<FunctionImpl, std::string> SemanticAnalyzer::compile(std::unique_ptr<IRNode>&& block)&& {
 		std::vector<RawInstruction> rawInstructions;
 
 		std::move(*block).produceInstructions(rawInstructions, *this);
+		if (hasCompilationErrors()) {
+			return compilationErrors();
+		}
 
 		FunctionImpl function(context()._alloc, maxOffsetValue, rawInstructions.size());
 

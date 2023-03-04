@@ -154,15 +154,13 @@ namespace Ketl {
 
 		// lambda output type
 		_nodes.try_emplace("lambdaOutputType", std::make_unique<NodeConditional>(
-				std::make_unique<NodeConcat>(false,
-					std::make_unique<NodeLiteral>(true, "->"),
-					std::make_unique<NodeId>(&createType, false, "type")
-					)
+				std::make_unique<NodeId>(&createType, false, "type")
 			));
 
 		// define lambda
 		_nodes.try_emplace("defineLambda", std::make_unique<NodeConcat>(false,
 			std::make_unique<NodeId>(false, "functionParameters"),
+			std::make_unique<NodeLiteral>(true, "->"),
 			std::make_unique<NodeId>(false, "lambdaOutputType"),
 			std::make_unique<NodeLiteral>(true, "{"),
 			std::make_unique<NodeId>(&createBlockTree, false, "several-commands"),

@@ -146,8 +146,8 @@ int main(int argc, char** argv) {
 	testValue2 = 1 + 2 * 3 + 4;
 
 	//Int64 adder(Int64 x, Int64 y) {
-	var adder = (Int64 x, Int64 y) -> Int64 {
-		sum = x + y;
+	var adder = (Int64 x, Int64 y) -> {
+		sum = testValue2;//x + y;
 		//var sum = x + y;
 		//return sum;
 	};
@@ -160,11 +160,24 @@ int main(int argc, char** argv) {
 
 	auto& command = std::get<0>(compilationResult);
 
-	auto stackPtr = context._globalStack.allocate(command.stackSize());
-	command.call(context._globalStack, stackPtr, nullptr);
-	context._globalStack.deallocate(command.stackSize());
+	{
+		auto stackPtr = context._globalStack.allocate(command.stackSize());
+		command.call(context._globalStack, stackPtr, nullptr);
+		context._globalStack.deallocate(command.stackSize());
+	}
 
 	assert(result == 11u);
+
+	auto& adder = **context.getVariable("adder").as<Ketl::FunctionImpl*>();
+
+	{
+		auto stackPtr = context._globalStack.allocate(adder.stackSize());
+		adder.call(context._globalStack, stackPtr, nullptr);
+		context._globalStack.deallocate(adder.stackSize());
+	}
+
+	assert(sum == 11u);
+
 	//*/
 	launchTests();
 
