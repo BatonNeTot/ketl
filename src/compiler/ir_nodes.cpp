@@ -70,7 +70,7 @@ namespace Ketl {
 			auto& instruction = instructions.emplace_back();
 			instruction.firstVar = var;
 			instruction.secondVar = expression;
-			instruction.code = Instruction::Code::Define;
+			instruction.code = Instruction::Code::DefinePrimitive;
 			
 			return {};
 		};
@@ -111,7 +111,7 @@ namespace Ketl {
 
 			for (auto& parameter : _parameters) {
 				auto type = static_cast<TypeObject*>(parameter.first->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
-				analyzer.createVar(parameter.second, *type);
+				analyzer.createFunctionParameterVar(parameter.second, *type);
 			}
 
 			auto function = std::move(analyzer).compile(std::move(_block));
@@ -121,7 +121,7 @@ namespace Ketl {
 				return {};
 			}
 
-			return context.createFunction(std::move(std::get<0>(function)));
+			return context.createFunctionVar(std::move(std::get<0>(function)));
 		};
 
 		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
@@ -207,8 +207,84 @@ namespace Ketl {
 		auto blockNode = parametersNode->nextSibling;
 		auto block = blockNode->node->createIRTree(blockNode);
 
-		// TODO BIG
+		// TODO old code, need to fix. lambda is an example
 		return nullptr;
+	}
+
+	class IRFunctionCall : public IRNode {
+	public:
+
+		IRFunctionCall(std::unique_ptr<IRNode>&& caller, std::vector<std::unique_ptr<IRNode>>&& arguments)
+			: _caller(std::move(caller)), _arguments(std::move(arguments)) {}
+
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+			auto callerVar = std::move(*_caller).produceInstructions(instructions, context);
+
+			// TODO get actual function from caller (function itself, type constructor, call operator of an object)
+			auto functionVar = callerVar;
+
+			// allocating stack
+			auto& defineInstruction = instructions.emplace_back();
+			defineInstruction.code = Instruction::Code::AllocateFunctionStack;
+
+			defineInstruction.firstVar = functionVar;
+
+			// evaluating arguments
+			for (auto i = 0u; i < _arguments.size(); ++i) {
+				auto& argument = _arguments[i];
+				auto argumentVar = std::move(*argument).produceInstructions(instructions, context);
+				
+				// TODO create copy for the function call, for now it's reference only
+				auto parameterVar = argumentVar;
+
+				auto& defineInstruction = instructions.emplace_back();
+				defineInstruction.code = Instruction::Code::DefineFuncParameter;
+
+				defineInstruction.firstVar = context.createFunctionArgumentVar(i);
+				defineInstruction.secondVar = parameterVar;
+			}
+
+			// calling the function
+			auto& instruction = instructions.emplace_back();
+			instruction.code = Instruction::Code::CallFunction;
+			instruction.firstVar = functionVar;
+
+			// TODO get actual return type
+			auto& returnType = *context.context().getVariable("Void").as<TypeObject>();
+			instruction.outputVar = context.createTempVar(returnType);
+
+			return instruction.outputVar;
+		};
+
+		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
+			return context.context().getVariable("Int64").as<TypeObject>();
+		}
+
+	private:
+		std::unique_ptr<IRNode> _caller;
+		std::vector<std::unique_ptr<IRNode>> _arguments;
+	};
+
+	std::unique_ptr<IRNode> createFirstPrecedence(const ProcessNode* info) {
+		auto callerNode = info->firstChild;
+		auto caller = callerNode->node->createIRTree(callerNode);
+
+		auto opNode = callerNode->nextSibling;
+		auto op = opNode->node->value(opNode->iterator);
+
+		if (op != "(") {
+			// TODO
+			return nullptr;
+		}
+
+		std::vector<std::unique_ptr<IRNode>> arguments;
+		auto argumentNode = opNode->nextSibling;
+		while (argumentNode) {
+			arguments.emplace_back(argumentNode->node->createIRTree(argumentNode));
+			argumentNode = argumentNode->nextSibling;
+		}
+
+		return std::make_unique<IRFunctionCall>(std::move(caller), std::move(arguments));
 	}
 
 
@@ -216,19 +292,20 @@ namespace Ketl {
 		std::string argumentsNotation = std::string("Int64,Int64");
 		auto primaryOperatorPair = context.context().deducePrimaryOperator(op, argumentsNotation);
 
-		if (primaryOperatorPair.first != Instruction::Code::None) {
-			auto& instruction = instructions.emplace_back();
-			instruction.code = primaryOperatorPair.first;
-			instruction.firstVar = lhs;
-			instruction.secondVar = rhs;
+		if (primaryOperatorPair.first == Instruction::Code::None) {
 
-			auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
-			instruction.outputVar = context.createTempVar(longType);
-
-			return instruction.outputVar;
+			return nullptr;
 		}
 
-		return nullptr;
+		auto& instruction = instructions.emplace_back();
+		instruction.code = primaryOperatorPair.first;
+		instruction.firstVar = lhs;
+		instruction.secondVar = rhs;
+
+		auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
+		instruction.outputVar = context.createTempVar(longType);
+
+		return instruction.outputVar;
 	}
 
 

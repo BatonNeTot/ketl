@@ -8,11 +8,14 @@
 #include <cinttypes>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <set>
 #include <memory>
 #include <optional>
 #include <typeindex>
 #include <iostream>
 #include <functional>
+#include <algorithm>
 
 namespace Ketl {
 
@@ -45,6 +48,10 @@ namespace Ketl {
 	public:
 
 		Context(Allocator& allocator, uint64_t globalStackSize);
+		~Context() {
+			_rootObjects.clear();
+			collectGarbage();
+		}
 
 		// maybe would be better to return pointer and make it null in case of lack
 		ContextedVariable getVariable(const std::string_view& id) {
@@ -111,6 +118,92 @@ namespace Ketl {
 
 		void declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex);
 
+		void markObject(void* ptr) {
+			// there must be one, so we can skip wasting time on checking 
+			auto& info = _heapObjects.find(ptr)->second;
+			if (info.usageFlag == _currentUsedFlag) {
+				return;
+			}
+			info.usageFlag = _currentUsedFlag;
+			for (const auto& link : info.links) {
+				markObject(link);
+			}
+		}
+
+		struct HeapObjectInfo {
+			using Destructor = void(*)(void*);
+
+			HeapObjectInfo(bool currentUsageFlag, Destructor dtor_)
+				: usageFlag(currentUsageFlag), dtor(dtor_) {}
+
+			bool usageFlag;
+			Destructor dtor;
+			std::set<void*> links;
+		};
+
+		static void emptyDtor(void*) {};
+
+		template <typename T>
+		static void defaultDtor(void* ptr) {
+			reinterpret_cast<T*>(ptr)->~T();
+		}
+
+		void registerObject(void* ptr, HeapObjectInfo::Destructor dtor = &emptyDtor) {
+			_heapObjects.try_emplace(ptr, _currentUsedFlag, dtor);
+		}
+
+		void* allocateObject(size_t size, HeapObjectInfo::Destructor dtor = &emptyDtor) {
+			auto ptr = _alloc.allocate(size);
+			registerObject(ptr, dtor);
+			return ptr;
+		}
+
+		template <typename T>
+		inline T* allocateObject() {
+			return reinterpret_cast<FunctionImpl*>(allocateObject(sizeof(FunctionImpl), &Context::defaultDtor<FunctionImpl>));
+		}
+
+		template <typename T, typename... Args>
+		inline T* createObject(Args&&... args) {
+			auto ptr = allocateObject<T>();
+			new(ptr) T(std::forward<Args>(args)...);
+			return ptr;
+		}
+
+		// TODO right now, _rootObjects and links in info does not filling
+		// so, do not call until destructor for now
+		void collectGarbage() {
+			_currentUsedFlag = !_currentUsedFlag;
+
+			for (const auto& ptr : _rootObjects) {
+				markObject(ptr);
+			}
+
+			std::set<void*> deletedObjects;
+
+			for (auto it = _heapObjects.begin(), end = _heapObjects.end(); it != end;) {
+				if (it->second.usageFlag != _currentUsedFlag) {
+					// there must be dtor, so we can skip wasting time on checking 
+					it->second.dtor(it->first);
+					_alloc.deallocate(it->first);
+					deletedObjects.emplace(it->first);
+					it = _heapObjects.erase(it);
+				}
+				else {
+					++it;
+				}
+			}
+
+			for (auto& pair : _heapObjects) {
+				std::set<void*> diff;
+				std::set_difference(
+					pair.second.links.begin(), pair.second.links.end(),
+					deletedObjects.begin(), deletedObjects.end(),
+					std::inserter(diff, diff.begin()));
+				pair.second.links = std::move(diff);
+			}
+		}
+
 		static Variable _emptyVar;
 		Allocator& _alloc;
 		StackAllocator _globalStack;
@@ -120,7 +213,10 @@ namespace Ketl {
 
 		std::unordered_map<OperatorCode, std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>>> _primaryOperators;
 
-		std::vector<std::unique_ptr<FunctionImpl>> _functions;
+		bool _currentUsedFlag = false;
+
+		std::unordered_set<void*> _rootObjects;
+		std::unordered_map<void*, HeapObjectInfo> _heapObjects;
 	};
 
 	template <class... Args>

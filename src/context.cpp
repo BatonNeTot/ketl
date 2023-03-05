@@ -62,17 +62,16 @@ namespace Ketl {
 
 		declarePrimitiveType("Void", 0, typeid(void));
 		declarePrimitiveType<int64_t>("Int64");
+		declarePrimitiveType<uint64_t>("UInt64");
+		declarePrimitiveType<double>("Float64");
 
-		registerPrimaryOperator(OperatorCode::Plus,		"Int64,Int64", Instruction::Code::AddInt64,		"Int64");
-		registerPrimaryOperator(OperatorCode::Minus,	"Int64,Int64", Instruction::Code::MinusInt64,	"Int64");
-		registerPrimaryOperator(OperatorCode::Multiply,	"Int64,Int64", Instruction::Code::MultyInt64,	"Int64");
-		registerPrimaryOperator(OperatorCode::Divide,	"Int64,Int64", Instruction::Code::DivideInt64,	"Int64");
+		registerPrimaryOperator(OperatorCode::Plus,		"Int64,Int64", Instruction::Code::AddInt64,			"Int64");
+		registerPrimaryOperator(OperatorCode::Minus,	"Int64,Int64", Instruction::Code::MinusInt64,		"Int64");
+		registerPrimaryOperator(OperatorCode::Multiply,	"Int64,Int64", Instruction::Code::MultyInt64,		"Int64");
+		registerPrimaryOperator(OperatorCode::Divide,	"Int64,Int64", Instruction::Code::DivideInt64,		"Int64");
 
 		// TODO temporary
-		registerPrimaryOperator(OperatorCode::Assign,	"Int64,Int64", Instruction::Code::Assign, "Int64");
-
-		//declareType<uint64_t>("UInt64");
-		//declareType<double>("Float64");
+		registerPrimaryOperator(OperatorCode::Assign,	"Int64,Int64", Instruction::Code::AssignPrimitive,	"Int64");
 
 		/*
 		{

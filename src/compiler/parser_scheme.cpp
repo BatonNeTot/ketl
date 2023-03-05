@@ -45,7 +45,7 @@ namespace Ketl {
 			std::make_unique<NodeId>(true, "primary"),
 			std::make_unique<NodeConditional>(
 				std::make_unique<NodeConcat>(true,
-					std::make_unique<NodeLiteral>(true, "("),
+					std::make_unique<NodeLiteral>(false, "("),
 					std::make_unique<NodeConditional>(
 						std::make_unique<NodeConcat>(true,
 							std::make_unique<NodeId>(true, "expression"),
@@ -63,14 +63,14 @@ namespace Ketl {
 			)); 
 
 		_nodes.try_emplace("precedence-2-expression", std::make_unique<NodeConcat>(true,
-			std::make_unique<NodeId>(&proxyTree, true, "precedence-1-expression"),
+			std::make_unique<NodeId>(&createFirstPrecedence, true, "precedence-1-expression"),
 			std::make_unique<NodeRepeat>(
 				std::make_unique<NodeConcat>(true,
 					std::make_unique<NodeOr>(
 						std::make_unique<NodeLiteral>(false, "*"),
 						std::make_unique<NodeLiteral>(false, "/")
 						),
-					std::make_unique<NodeId>(&proxyTree, true, "precedence-1-expression")
+					std::make_unique<NodeId>(&createFirstPrecedence, true, "precedence-1-expression")
 					)
 				)
 			));

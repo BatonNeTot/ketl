@@ -16,6 +16,12 @@ namespace Ketl {
 
 		SemanticAnalyzer(Context& context, bool localScope = false)
 			: _context(context), _localScope(localScope) {}
+		~SemanticAnalyzer() {
+			for (auto& functionPtr : newFunctions) {
+				functionPtr->~FunctionImpl();
+				_context._alloc.deallocate(functionPtr);
+			}
+		}
 
 		std::variant<FunctionImpl, std::string> compile(std::unique_ptr<IRNode>&& block)&&;
 
@@ -25,7 +31,10 @@ namespace Ketl {
 
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
-		AnalyzerVar* createFunction(FunctionImpl&& function);
+		AnalyzerVar* createFunctionVar(FunctionImpl&& function);
+
+		AnalyzerVar* createFunctionArgumentVar(uint64_t index);
+		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
 
 		AnalyzerVar* getVar(const std::string_view& id);
 		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
@@ -67,7 +76,7 @@ namespace Ketl {
 		std::unordered_map<std::string_view, std::map<uint64_t, AnalyzerVar*>> scopeVarsByNames;
 		std::unordered_map<std::string_view, AnalyzerVar*> newGlobalVars;
 
-		std::vector<std::pair<FunctionImpl, AnalyzerVar*>> newFunctions;
+		std::vector<FunctionImpl*> newFunctions;
 
 		Context& _context;
 

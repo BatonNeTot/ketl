@@ -58,16 +58,37 @@ namespace Ketl {
 			return std::make_pair(type, argument);
 		}
 
-		friend SemanticAnalyzer;
-
 		FunctionImpl* _function;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createFunction(FunctionImpl&& function) {
-		auto& it = newFunctions.emplace_back(std::move(function), nullptr);
+	AnalyzerVar* SemanticAnalyzer::createFunctionVar(FunctionImpl&& function) {
+		auto functionPtr = context()._alloc.allocate<FunctionImpl>();
+		new(functionPtr) FunctionImpl(std::move(function));
 
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionVar>(it.first));
-		it.second = ptr.get();
+		newFunctions.emplace_back(functionPtr);
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionVar>(*functionPtr));
+
+		return ptr.get();
+	}
+
+
+	class AnalyzerFunctionParameterVar : public AnalyzerVar {
+	public:
+		AnalyzerFunctionParameterVar(uint64_t index)
+			: _index(index) {}
+
+		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+			auto type = Argument::Type::Literal;
+			Argument argument;
+			argument.stack = _index * sizeof(void*);
+			return std::make_pair(type, argument);
+		}
+
+		uint64_t _index;
+	};
+
+	AnalyzerVar* SemanticAnalyzer::createFunctionArgumentVar(uint64_t index) {
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionParameterVar>(index));
 
 		return ptr.get();
 	}
@@ -87,32 +108,36 @@ namespace Ketl {
 		std::string_view _id;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::getVar(const std::string_view& value) {
-		auto scopeIt = scopeVarsByNames.find(value);
+	AnalyzerVar* SemanticAnalyzer::getVar(const std::string_view& id) {
+		auto globalIt = newGlobalVars.find(id);
+		if (globalIt != newGlobalVars.end()) {
+			return globalIt->second;
+		}
+
+		auto scopeIt = scopeVarsByNames.find(id);
 		if (scopeIt != scopeVarsByNames.end()) {
 			auto it = scopeIt->second.rbegin();
 			return it->second;
 		}
 
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id));
 
-		auto idStr = std::string(value);
-		if (_context.getVariable(idStr).as<void>()) {
+		if (_context.getVariable(id).as<void>()) {
 			return ptr.get();
 		}
 
+		auto idStr = std::string(id);
 		pushErrorMsg("[ERROR] Variable " + idStr + " doesn't exists");
 		return ptr.get();
 	}
 
-	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& value, const TypeObject& type) {
+	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type) {
 		if (isLocalScope()) {
-			auto id = std::string(value);
 
-			auto& scopedNames = scopeVarsByNames[value];
+			auto& scopedNames = scopeVarsByNames[id];
 			auto [varIt, success] = scopedNames.try_emplace(scopeLayer, nullptr);
 			if (!success) {
-				pushErrorMsg("[ERROR] Variable " + id + " already exists in local scope");
+				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in local scope");
 				return varIt->second;
 			}
 
@@ -122,18 +147,52 @@ namespace Ketl {
 			return varIt->second;
 		}
 		else {
-			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(value));
+			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id));
 
-			auto id = std::string(value);
 			if (_context.getVariable(id).as<void>()) {
-				pushErrorMsg("[ERROR] Variable " + id + " already exists in global scope");
+				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in global scope");
 				return ptr.get();
 			}
 
-			newGlobalVars.try_emplace(value, ptr.get());
+			newGlobalVars.try_emplace(id, ptr.get());
 
 			return ptr.get();
 		}
+	}
+
+	class AnalyzerParameterVar : public AnalyzerVar {
+	public:
+		AnalyzerParameterVar(uint64_t offset)
+			: _offset(offset) {}
+
+		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+			auto type = Argument::Type::FunctionParameter;
+			Argument argument;
+			argument.stack = _offset;
+			return std::make_pair(type, argument);
+		}
+
+		uint64_t _offset;
+	};
+
+	AnalyzerVar* SemanticAnalyzer::createFunctionParameterVar(const std::string_view& id, const TypeObject& type) {
+		auto& scopedNames = scopeVarsByNames[id];
+		auto [varIt, success] = scopedNames.try_emplace(scopeLayer, nullptr);
+		if (!success) {
+			pushErrorMsg("[ERROR] Parameter " + std::string(id) + " already exists");
+			return varIt->second;
+		}
+
+		auto offset = currentStackOffset;
+		uint64_t size = sizeof(void*);
+
+		currentStackOffset += size;
+		maxOffsetValue = std::max(currentStackOffset, maxOffsetValue);
+
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerParameterVar>(offset));
+		varIt->second = ptr.get();
+
+		return ptr.get();
 	}
 
 	class AnalyzerTemporaryVar : public AnalyzerVar {
@@ -193,12 +252,10 @@ namespace Ketl {
 			_context.declareGlobal(id, ptr, longType);
 		}
 
-		for (auto& [function, var] : newFunctions) {
-			auto* functionVar = static_cast<AnalyzerFunctionVar*>(var);
-
-			auto& functionPtr = context()._functions.emplace_back(std::make_unique<FunctionImpl>(std::move(function)));
-			functionVar->_function = functionPtr.get();
+		for (auto& functionPtr : newFunctions) {
+			context().registerObject(functionPtr, &Context::defaultDtor<FunctionImpl>);
 		}
+		newFunctions.clear();
 	}
 
 	std::variant<FunctionImpl, std::string> SemanticAnalyzer::compile(std::unique_ptr<IRNode>&& block)&& {

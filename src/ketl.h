@@ -148,45 +148,11 @@ namespace Ketl {
 		enum class Type : uint8_t {
 			None,
 			Global,
-			DerefGlobal,
-			//TODO this is something really stupid, i hope better solution'll come later  
-			DerefDerefGlobal,
 			Stack,
-			DerefStack,
-			//TODO same 
-			DerefDerefStack,
 			Literal,
-			DerefLiteral,
 			Return,
-			DerefReturn,
-
-			FunctionArgument,
-		}; 
-		
-		static Type deref(const Type type) {
-			switch (type) {
-			case Type::Stack: {
-				return Type::DerefStack;
-			}
-			case Type::DerefStack: {
-				return Type::DerefDerefStack;
-			}
-			case Type::Global: {
-				return Type::DerefGlobal;
-			}
-			case Type::DerefGlobal: {
-				return Type::DerefDerefGlobal;
-			}
-			case Type::Literal: {
-				return Type::DerefLiteral;
-			}
-			case Type::Return: {
-				return Type::DerefReturn;
-			}
-			}
-
-			return Type::None;
-		}
+			FunctionParameter,
+		};
 
 		union {
 			void* globalPtr = nullptr;
@@ -212,124 +178,44 @@ namespace Ketl {
 			MinusFloat64,
 			MultyFloat64,
 			DivideFloat64,
-			Define,
-			Assign,
-			Reference,
+			DefinePrimitive,
+			AssignPrimitive,
 			AllocateFunctionStack,
+			DefineFuncParameter,
 			CallFunction,
 		};
 
 		Instruction() {}
 		Instruction(
-			Code code,
-			Argument::Type outputType,
-			Argument::Type firstType,
-			Argument::Type secondType,
+			Code code_,
 
-			Argument output,
-			Argument first,
-			Argument second)
+			Argument::Type outputType_,
+			Argument::Type firstType_,
+			Argument::Type secondType_,
+
+			Argument output_,
+			Argument first_,
+			Argument second_)
 			:
-			_code(code),
-			_outputType(outputType),
-			_firstType(firstType),
-			_secondType(secondType),
+			code(code_),
 
-			_output(output),
-			_first(first),
-			_second(second) {}
-		Instruction(
-			Code code,
-			uint16_t outputOffset,
-			Argument::Type outputType,
-			Argument::Type firstType,
-			Argument::Type secondType,
+			outputType(outputType_),
+			firstType(firstType_),
+			secondType(secondType_),
 
-			Argument output,
-			Argument first,
-			Argument second)
-			:
-			_code(code),
-			_outputType(outputType),
-			_firstType(firstType),
-			_secondType(secondType),
+			output(output_),
+			first(first_),
+			second(second_) {}
 
-			_outputOffset(outputOffset),
+		Instruction::Code code = Instruction::Code::AddInt64;
 
-			_output(output),
-			_first(first),
-			_second(second) {
-			__debugbreak();
-		}
+		Argument::Type outputType = Argument::Type::None;
+		Argument::Type firstType = Argument::Type::None;
+		Argument::Type secondType = Argument::Type::None;
 
-		void call(uint64_t& index, StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
-
-	public: // TODO
-
-		template <class T>
-		inline T& output(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _outputType, _output) + _outputOffset);
-		}
-
-		template <class T>
-		inline T& first(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _firstType, _first));
-		}
-
-		template <class T>
-		inline T& second(uint8_t* stackPtr, uint8_t* returnPtr) {
-			return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, _secondType, _second));
-		}
-
-		static inline uint8_t* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
-			switch (type) {
-			case Argument::Type::Global: {
-				return reinterpret_cast<uint8_t*>(value.globalPtr);
-			}
-			case Argument::Type::DerefGlobal: {
-				return *reinterpret_cast<uint8_t**>(value.globalPtr);
-			}
-			case Argument::Type::DerefDerefGlobal: {
-				return **reinterpret_cast<uint8_t***>(value.globalPtr);
-			}
-			case Argument::Type::Stack: {
-				return stackPtr + value.stack;
-			}
-			case Argument::Type::DerefStack: {
-				return *reinterpret_cast<uint8_t**>(stackPtr + value.stack);
-			}
-			case Argument::Type::DerefDerefStack: {
-				return **reinterpret_cast<uint8_t***>(stackPtr + value.stack);
-			}
-			case Argument::Type::Literal: {
-				return reinterpret_cast<uint8_t*>(&value);
-			}
-			case Argument::Type::DerefLiteral: {
-				return *reinterpret_cast<uint8_t**>(&value);
-			}
-			case Argument::Type::Return: {
-				return returnPtr;
-			}
-			case Argument::Type::DerefReturn: {
-				return *reinterpret_cast<uint8_t**>(returnPtr);
-			}
-			}
-			return nullptr;
-		}
-
-		friend class Linker;
-
-		Instruction::Code _code = Instruction::Code::AddInt64;
-		Argument::Type _outputType = Argument::Type::None;
-
-		Argument::Type _firstType = Argument::Type::None;
-		Argument::Type _secondType = Argument::Type::None;
-
-		uint16_t _outputOffset = 0;
-
-		Argument _output;
-		Argument _first;
-		Argument _second;
+		Argument output;
+		Argument first;
+		Argument second;
 	};
 
 	using CFunction = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
@@ -341,12 +227,12 @@ namespace Ketl {
 		FunctionImpl() {}
 		FunctionImpl(Allocator& alloc, uint64_t stackSize, uint64_t instructionsCount)
 			: _alloc(&alloc)
-			, _stackSize(stackSize)
+			, _stackSize(stackSize + sizeof(uint64_t))
 			, _instructionsCount(instructionsCount)
 			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
 		FunctionImpl(Allocator& alloc, uint64_t stackSize, CFunction cfun)
 			: _alloc(&alloc)
-			, _stackSize(stackSize)
+			, _stackSize(stackSize + sizeof(uint64_t))
 			, _instructionsCount(CFUNC_INSTRUCTION_COUNT)
 			, _cfunc(cfun) {}
 		FunctionImpl(const FunctionImpl& function) = delete;
@@ -374,16 +260,7 @@ namespace Ketl {
 			return *this;
 		}
 
-		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
-			if (_instructionsCount != CFUNC_INSTRUCTION_COUNT) {
-				for (uint64_t index = 0u; index < _instructionsCount;) {
-					_instructions[index].call(index, stack, stackPtr, returnPtr);
-				}
-			}
-			else {
-				_cfunc(stack, stackPtr, returnPtr);
-			}
-		}
+		void call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const;
 
 		uint64_t stackSize() const {
 			return _stackSize;
@@ -398,7 +275,6 @@ namespace Ketl {
 		}
 
 	public:
-		friend class Linker;
 
 		Allocator* _alloc = nullptr;
 		uint64_t _stackSize = 0;

@@ -18,6 +18,7 @@ namespace Ketl {
 	std::unique_ptr<IRNode> createLambda(const ProcessNode* info);
 	std::unique_ptr<IRNode> createDefineFunction(const ProcessNode* info);
 
+	std::unique_ptr<IRNode> createFirstPrecedence(const ProcessNode* info);
 	std::unique_ptr<IRNode> createRtlTree(const ProcessNode* info);
 	std::unique_ptr<IRNode> createLtrTree(const ProcessNode* info);
 
