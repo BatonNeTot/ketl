@@ -39,7 +39,7 @@ namespace Ketl {
 		}
 
 		const TypeObject* getType(SemanticAnalyzer& context) const override {
-			return *context.context().getVariable("Int64").as<TypeObject*>();
+			return context.context().getVariable("Int64").as<TypeObject>();
 		}
 
 	private:
@@ -296,7 +296,7 @@ namespace Ketl {
 				continue;
 			}
 
-			auto& longType = **_context.getVariable("Int64").as<TypeObject*>();
+			auto& longType = *_context.getVariable("Int64").as<TypeObject>();
 			auto ptr = _context.allocateGlobal(longType);
 			_context.declareGlobal(id, ptr, longType);
 		}

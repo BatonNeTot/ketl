@@ -108,7 +108,7 @@ namespace Ketl {
 			}
 			else {
 				// TODO deduce from block
-				returnType = *context.context().getVariable("Void").as<TypeObject*>();
+				returnType = context.context().getVariable("Void").as<TypeObject>();
 			} 
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
@@ -252,7 +252,7 @@ namespace Ketl {
 			instruction.firstVar = functionVar;
 
 			// TODO get actual return type
-			auto& returnType = **context.context().getVariable("Void").as<TypeObject*>();
+			auto& returnType = *context.context().getVariable("Void").as<TypeObject>();
 			instruction.outputVar = context.createTempVar(returnType);
 
 			return instruction.outputVar;
@@ -300,7 +300,7 @@ namespace Ketl {
 		instruction.firstVar = lhs;
 		instruction.secondVar = rhs;
 
-		auto& longType = **context.context().getVariable("Int64").as<TypeObject*>();
+		auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
 		instruction.outputVar = context.createTempVar(longType);
 
 		return instruction.outputVar;

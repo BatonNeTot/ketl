@@ -14,7 +14,10 @@ namespace Ketl {
 
 		// TODO BIG
 		// do correct convertation, etc. PrimitiveTypeObject* -> TypeObject*
-		// and automaticly for classes return its pointer, not holder
+
+		if (_type && _type->isLight()) {
+			return *reinterpret_cast<void**>(_data);
+		}
 
 		return _data;
 	}
@@ -22,7 +25,7 @@ namespace Ketl {
 	Variable Context::_emptyVar;
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
-		auto classTypeHolder = getVariable("ClassType").as<ClassTypeObject*>();
+		auto classTypeHolder = reinterpret_cast<TypeObject**>(_globals.find("ClassType")->second._data);
 		auto* classTypePtr = *classTypeHolder;
 
 		// actual type
@@ -51,7 +54,6 @@ namespace Ketl {
 			classTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 			*classTypeHolder = classTypePtr;
 			_globals.try_emplace(classTypePtr->id(), classTypeHolder, *classTypePtr);
-			_userTypes.try_emplace(std::type_index(typeid(ClassTypeObject)), classTypePtr, *classTypePtr);
 		}
 
 		// interface Type
@@ -61,7 +63,6 @@ namespace Ketl {
 		auto interfaceTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 		*interfaceTypeHolder = interfaceTypePtr;
 		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypeHolder, *classTypePtr);
-		_userTypes.try_emplace(std::type_index(typeid(InterfaceTypeObject)), interfaceTypePtr, *classTypePtr);
 
 		// The Type
 		auto theTypePtr = createObject<InterfaceTypeObject>("Type"/*, 0*/);
@@ -87,7 +88,6 @@ namespace Ketl {
 		auto primitiveTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 		*primitiveTypeHolder = primitiveTypePtr;
 		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypeHolder, *classTypePtr);
-		_userTypes.try_emplace(std::type_index(typeid(PrimitiveTypeObject)), primitiveTypePtr, *classTypePtr);
 
 		declarePrimitiveType("Void", 0, typeid(void));
 		declarePrimitiveType<int64_t>("Int64");

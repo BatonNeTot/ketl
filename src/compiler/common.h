@@ -115,6 +115,8 @@ namespace Ketl {
 
 	private:
 
+		friend class Context;
+
 		void* _data = nullptr;
 		const TypeObject* _type = nullptr;
 

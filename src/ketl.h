@@ -228,19 +228,30 @@ namespace Ketl {
 
 		template <typename T>
 		void registerLink(T** link) {
-			_links.emplace_back([link]() {
-				return static_cast<const HeapObject*>(*link);
-				});
+			// this code is genius or madness
+			auto* ptr = *link;
+			auto heapObject = static_cast<const HeapObject*>(ptr);
+			uint64_t diff = reinterpret_cast<const uint8_t*>(heapObject) - reinterpret_cast<const uint8_t*>(ptr);
+			_links.emplace_back(reinterpret_cast<const uint8_t* const*>(link), diff);
 		}
 
 	private:
 
 		friend class Context;
 
+		struct Link {
+			const uint8_t* const* holder;
+			uint64_t diff;
+
+			const HeapObject* ptr() const {
+				return reinterpret_cast<const HeapObject*>(*holder + diff);
+			}
+		};
+
 		virtual void* rootPtr() { return this; }
 
 		mutable bool _usageFlag = false;
-		std::vector<std::function<const HeapObject*()>> _links;
+		std::vector<Link> _links;
 	};
 
 	class FunctionImpl : public HeapObject {

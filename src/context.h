@@ -124,7 +124,7 @@ namespace Ketl {
 			}
 			ptr->_usageFlag = _currentUsedFlag;
 			for (const auto& link : ptr->_links) {
-				markObject(link());
+				markObject(link.ptr());
 			}
 		}
 
