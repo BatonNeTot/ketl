@@ -23,7 +23,7 @@ namespace Ketl {
 			}
 		}
 
-		std::variant<FunctionImpl, std::string> compile(std::unique_ptr<IRNode>&& block)&&;
+		std::variant<FunctionImpl, std::string> compile(const IRNode& block)&&;
 
 		void bakeContext();
 
@@ -31,13 +31,15 @@ namespace Ketl {
 
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
-		AnalyzerVar* createFunctionVar(FunctionImpl&& function);
+		AnalyzerVar* createFunctionVar(FunctionImpl&& function, const TypeObject& type);
 
-		AnalyzerVar* createFunctionArgumentVar(uint64_t index);
+		AnalyzerVar* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
 		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
 
 		AnalyzerVar* getVar(const std::string_view& id);
 		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
+
+		Variable evaluate(const IRNode& node);
 
 		void pushErrorMsg(const std::string& msg) {
 			_compilationErrors.emplace_back(msg);

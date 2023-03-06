@@ -61,6 +61,7 @@ namespace Ketl {
 	public:
 		virtual ~AnalyzerVar() = default;
 		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
+		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
 	};
 
 	class RawInstruction {
@@ -124,9 +125,7 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context)&& { return {}; }
-		virtual const TypeObject* evaluateType(SemanticAnalyzer& context) const = 0;
-		virtual Variable evaluate(SemanticAnalyzer& context) { return {}; }
+		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const { return {}; }
 	};
 
 }

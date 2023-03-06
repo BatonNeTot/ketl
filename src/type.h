@@ -22,6 +22,8 @@ namespace Ketl {
 
 	private:
 
+		void* rootPtr() override { return this; }
+
 		std::string _id;
 	};
 
@@ -43,6 +45,8 @@ namespace Ketl {
 
 		friend Context;
 
+		void* rootPtr() override { return this; }
+
 		std::string _id;
 		uint64_t _size;
 		std::vector<InterfaceTypeObject*> _interfaces;
@@ -63,8 +67,54 @@ namespace Ketl {
 
 	private:
 
+		void* rootPtr() override { return this; }
+
 		std::string _id;
 		uint64_t _size;
+	};
+
+	class FunctionTypeObject : public TypeObject {
+	public:
+
+		struct Parameter {
+			bool isConst = false;
+			bool isRef = false;
+			const TypeObject* type = nullptr;
+		};
+
+		FunctionTypeObject(const TypeObject& returnType, std::vector<Parameter>&& parameters)
+			: _returnType(&returnType), _parameters(std::move(parameters)) {
+			registerLink(&_returnType);
+			for (auto& parameter : _parameters) {
+				registerLink(&parameter.type);
+			}
+		};
+		virtual ~FunctionTypeObject() = default;
+
+		virtual std::string id() const { 
+			// TODO calculate it once and cache
+			auto idStr = _returnType->id() + "(";
+			auto parameterIt = _parameters.begin(), parameterEnd = _parameters.end();
+			if (parameterIt != parameterEnd) {
+				idStr += parameterIt->type->id();
+			}
+			for (++parameterIt; parameterIt != parameterEnd; ++parameterIt) {
+				idStr += ", " + parameterIt->type->id();
+			}
+			idStr += ")";
+			return idStr;
+		}
+
+		virtual uint64_t sizeOf() const { return sizeof(FunctionImpl); }
+
+		virtual bool isLight() const { return true; }
+
+	private:
+
+		void* rootPtr() override { return this; }
+
+		const TypeObject* _returnType;
+		std::vector<Parameter> _parameters;
 	};
 }
 

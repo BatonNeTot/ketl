@@ -4,10 +4,17 @@
 namespace Ketl {
 
 	void* Variable::as(std::type_index typeIndex, Context& context) const {
+		// TODO
+		/*
 		auto typeVarIt = context._userTypes.find(typeIndex);
-		if (typeVarIt == context._userTypes.end() && typeIndex != std::type_index(typeid(FunctionImpl*))) {
+		if (typeVarIt == context._userTypes.end()) {
 			return nullptr;
 		}
+		*/
+
+		// TODO BIG
+		// do correct convertation, etc. PrimitiveTypeObject* -> TypeObject*
+		// and automaticly for classes return its pointer, not holder
 
 		return _data;
 	}
@@ -15,11 +22,20 @@ namespace Ketl {
 	Variable Context::_emptyVar;
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
-		auto classTypePtr = getVariable("ClassType").as<ClassTypeObject>();
+		auto classTypeHolder = getVariable("ClassType").as<ClassTypeObject*>();
+		auto* classTypePtr = *classTypeHolder;
 
-		auto primitiveTypePtr = reinterpret_cast<PrimitiveTypeObject*>(allocateGlobal(*classTypePtr));
-		new(primitiveTypePtr) PrimitiveTypeObject(id, size);
-		_globals.try_emplace(id, primitiveTypePtr, *classTypePtr);
+		// actual type
+		auto primitiveTypePtr = createObject<PrimitiveTypeObject>(id, size);
+		// register links
+		primitiveTypePtr->registerLink(classTypeHolder);
+		// register root
+		_rootObjects.emplace(primitiveTypePtr);
+		// create holder for class
+		auto primitiveTypeHolder = reinterpret_cast<PrimitiveTypeObject**>(allocateOnHeap(sizeof(void*)));
+		*primitiveTypeHolder = primitiveTypePtr;
+		// put holder in global
+		_globals.try_emplace(id, primitiveTypeHolder, *classTypePtr);
 		_userTypes.try_emplace(typeIndex, primitiveTypePtr, *classTypePtr);
 	}
 
@@ -28,36 +44,49 @@ namespace Ketl {
 		// TYPE BASE
 
 		// class Type
-		ClassTypeObject* classTypePtr;
+		ClassTypeObject** classTypeHolder;
+		auto classTypePtr = createObject<ClassTypeObject>("ClassType", sizeof(ClassTypeObject));
 		{
-			ClassTypeObject classType("ClassType", sizeof(ClassTypeObject));
-			classTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(classType));
-			new(classTypePtr) ClassTypeObject(std::move(classType));
-			_globals.try_emplace(classTypePtr->id(), classTypePtr, *classTypePtr);
+			_rootObjects.emplace(classTypePtr);
+			classTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
+			*classTypeHolder = classTypePtr;
+			_globals.try_emplace(classTypePtr->id(), classTypeHolder, *classTypePtr);
 			_userTypes.try_emplace(std::type_index(typeid(ClassTypeObject)), classTypePtr, *classTypePtr);
 		}
 
 		// interface Type
-		auto interfaceTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
-		new(interfaceTypePtr) ClassTypeObject("InterfaceType", sizeof(InterfaceTypeObject));
-		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypePtr, *classTypePtr);
+		auto interfaceTypePtr = createObject<ClassTypeObject>("InterfaceType", sizeof(InterfaceTypeObject));
+		interfaceTypePtr->registerLink(classTypeHolder);
+		_rootObjects.emplace(interfaceTypePtr);
+		auto interfaceTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
+		*interfaceTypeHolder = interfaceTypePtr;
+		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypeHolder, *classTypePtr);
 		_userTypes.try_emplace(std::type_index(typeid(InterfaceTypeObject)), interfaceTypePtr, *classTypePtr);
 
 		// The Type
-		auto theTypePtr = reinterpret_cast<InterfaceTypeObject*>(allocateGlobal(*interfaceTypePtr));
-		new(theTypePtr) InterfaceTypeObject("Type"/*, 0*/);
-		_globals.try_emplace(theTypePtr->id(), theTypePtr, *interfaceTypePtr);
+		auto theTypePtr = createObject<InterfaceTypeObject>("Type"/*, 0*/);
+		theTypePtr->registerLink(interfaceTypeHolder);
+		_rootObjects.emplace(theTypePtr);
+		auto theTypeHolder = reinterpret_cast<InterfaceTypeObject**>(allocateOnHeap(sizeof(void*)));
+		*theTypeHolder = theTypePtr;
+		_globals.try_emplace(theTypePtr->id(), theTypeHolder, *interfaceTypePtr);
 		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr, *interfaceTypePtr);
 
 		classTypePtr->_interfaces.emplace_back(theTypePtr);
+		classTypePtr->registerLink(theTypeHolder);
 		interfaceTypePtr->_interfaces.emplace_back(theTypePtr);
+		interfaceTypePtr->registerLink(theTypeHolder);
 
 		// PRIMITIVES
 
 		// primitive type
-		auto primitiveTypePtr = reinterpret_cast<ClassTypeObject*>(allocateGlobal(*classTypePtr));
-		new(primitiveTypePtr) ClassTypeObject("PrimitiveType", sizeof(PrimitiveTypeObject), std::vector<InterfaceTypeObject*>{theTypePtr});
-		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypePtr, *classTypePtr);
+		auto primitiveTypePtr = createObject<ClassTypeObject>("PrimitiveType", sizeof(PrimitiveTypeObject), std::vector<InterfaceTypeObject*>{theTypePtr});
+		primitiveTypePtr->registerLink(interfaceTypeHolder);
+		primitiveTypePtr->registerLink(theTypeHolder);
+		_rootObjects.emplace(primitiveTypePtr);
+		auto primitiveTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
+		*primitiveTypeHolder = primitiveTypePtr;
+		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypeHolder, *classTypePtr);
 		_userTypes.try_emplace(std::type_index(typeid(PrimitiveTypeObject)), primitiveTypePtr, *classTypePtr);
 
 		declarePrimitiveType("Void", 0, typeid(void));

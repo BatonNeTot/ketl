@@ -132,10 +132,7 @@
 		<DisplayString>Ketl::FunctionImpl</DisplayString>
 		<Expand>
 			<Item Name="[stackSize]" ExcludeView="simple">_stackSize</Item>
-			<Item Condition="_instructionsCount != Ketl::FunctionImpl::CFUNC_INSTRUCTION_COUNT 
-				  &amp;&amp; _instructions" Name="[count]" ExcludeView="simple">_instructionsCount</Item>
-			<Item Condition="_instructionsCount == Ketl::FunctionImpl::CFUNC_INSTRUCTION_COUNT 
-				  &amp;&amp; _instructions" Name="[cfunc]" ExcludeView="simple">_cfunc</Item>
+			<Item Condition="_instructions" Name="[count]" ExcludeView="simple">_instructionsCount</Item>
 			<ArrayItems>
 				<Size>_instructionsCount</Size>
 				<ValuePointer>_instructions</ValuePointer>

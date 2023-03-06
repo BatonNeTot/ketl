@@ -13,6 +13,6 @@ namespace Ketl {
 		}
 
 		SemanticAnalyzer analyzer(context);
-		return std::move(analyzer).compile(std::move(std::get<0>(block)));
+		return std::move(analyzer).compile(*std::get<0>(block));
 	}
 }

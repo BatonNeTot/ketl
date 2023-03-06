@@ -118,49 +118,29 @@ namespace Ketl {
 
 		void declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex);
 
-		void markObject(void* ptr) {
-			// there must be one, so we can skip wasting time on checking 
-			auto& info = _heapObjects.find(ptr)->second;
-			if (info.usageFlag == _currentUsedFlag) {
+		void markObject(const HeapObject* ptr) {
+			if (ptr->_usageFlag == _currentUsedFlag) {
 				return;
 			}
-			info.usageFlag = _currentUsedFlag;
-			for (const auto& link : info.links) {
-				markObject(link);
+			ptr->_usageFlag = _currentUsedFlag;
+			for (const auto& link : ptr->_links) {
+				markObject(link());
 			}
 		}
 
-		struct HeapObjectInfo {
-			using Destructor = void(*)(void*);
-
-			HeapObjectInfo(bool currentUsageFlag, Destructor dtor_)
-				: usageFlag(currentUsageFlag), dtor(dtor_) {}
-
-			bool usageFlag;
-			Destructor dtor;
-			std::set<void*> links;
-		};
-
-		static void emptyDtor(void*) {};
-
-		template <typename T>
-		static void defaultDtor(void* ptr) {
-			reinterpret_cast<T*>(ptr)->~T();
+		void registerObject(HeapObject* ptr) {
+			_heapObjects.emplace(ptr);
+			ptr->_usageFlag = _currentUsedFlag;
 		}
 
-		void registerObject(void* ptr, HeapObjectInfo::Destructor dtor = &emptyDtor) {
-			_heapObjects.try_emplace(ptr, _currentUsedFlag, dtor);
-		}
-
-		void* allocateObject(size_t size, HeapObjectInfo::Destructor dtor = &emptyDtor) {
+		void* allocateObject(size_t size) {
 			auto ptr = _alloc.allocate(size);
-			registerObject(ptr, dtor);
 			return ptr;
 		}
 
 		template <typename T>
 		inline T* allocateObject() {
-			return reinterpret_cast<FunctionImpl*>(allocateObject(sizeof(FunctionImpl), &Context::defaultDtor<FunctionImpl>));
+			return reinterpret_cast<T*>(allocateObject(sizeof(T)));
 		}
 
 		template <typename T, typename... Args>
@@ -179,28 +159,18 @@ namespace Ketl {
 				markObject(ptr);
 			}
 
-			std::set<void*> deletedObjects;
-
 			for (auto it = _heapObjects.begin(), end = _heapObjects.end(); it != end;) {
-				if (it->second.usageFlag != _currentUsedFlag) {
+				auto* ptr = *it;
+				if (ptr->_usageFlag != _currentUsedFlag) {
 					// there must be dtor, so we can skip wasting time on checking 
-					it->second.dtor(it->first);
-					_alloc.deallocate(it->first);
-					deletedObjects.emplace(it->first);
+					auto root = ptr->rootPtr();
+					ptr->~HeapObject();
+					_alloc.deallocate(root);
 					it = _heapObjects.erase(it);
 				}
 				else {
 					++it;
 				}
-			}
-
-			for (auto& pair : _heapObjects) {
-				std::set<void*> diff;
-				std::set_difference(
-					pair.second.links.begin(), pair.second.links.end(),
-					deletedObjects.begin(), deletedObjects.end(),
-					std::inserter(diff, diff.begin()));
-				pair.second.links = std::move(diff);
 			}
 		}
 
@@ -215,8 +185,8 @@ namespace Ketl {
 
 		bool _currentUsedFlag = false;
 
-		std::unordered_set<void*> _rootObjects;
-		std::unordered_map<void*, HeapObjectInfo> _heapObjects;
+		std::unordered_set<HeapObject*> _rootObjects;
+		std::unordered_set<HeapObject*> _heapObjects;
 	};
 
 	template <class... Args>

@@ -218,10 +218,32 @@ namespace Ketl {
 		Argument second;
 	};
 
-	using CFunction = void(*)(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr);
+	class HeapObject {
+	public:
 
+		HeapObject() = default;
+		virtual ~HeapObject() = default;
 
-	class FunctionImpl {
+	protected:
+
+		template <typename T>
+		void registerLink(T** link) {
+			_links.emplace_back([link]() {
+				return static_cast<const HeapObject*>(*link);
+				});
+		}
+
+	private:
+
+		friend class Context;
+
+		virtual void* rootPtr() { return this; }
+
+		mutable bool _usageFlag = false;
+		std::vector<std::function<const HeapObject*()>> _links;
+	};
+
+	class FunctionImpl : public HeapObject {
 	public:
 
 		FunctionImpl() {}
@@ -230,11 +252,6 @@ namespace Ketl {
 			, _stackSize(stackSize + sizeof(uint64_t))
 			, _instructionsCount(instructionsCount)
 			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
-		FunctionImpl(Allocator& alloc, uint64_t stackSize, CFunction cfun)
-			: _alloc(&alloc)
-			, _stackSize(stackSize + sizeof(uint64_t))
-			, _instructionsCount(CFUNC_INSTRUCTION_COUNT)
-			, _cfunc(cfun) {}
 		FunctionImpl(const FunctionImpl& function) = delete;
 		FunctionImpl(FunctionImpl&& function) noexcept
 			: _alloc(function._alloc)
@@ -244,9 +261,7 @@ namespace Ketl {
 			function._instructions = nullptr;
 		}
 		~FunctionImpl() {
-			if (_instructions != nullptr && _instructionsCount != CFUNC_INSTRUCTION_COUNT) {
-				_alloc->deallocate(_instructions);
-			}
+			_alloc->deallocate(_instructions);
 		}
 
 		FunctionImpl& operator =(FunctionImpl&& other) noexcept {
@@ -276,16 +291,13 @@ namespace Ketl {
 
 	public:
 
+		void* rootPtr() override { return this; }
+
 		Allocator* _alloc = nullptr;
 		uint64_t _stackSize = 0;
 
 		uint64_t _instructionsCount = 0;
-		constexpr static auto CFUNC_INSTRUCTION_COUNT = std::numeric_limits<decltype(_instructionsCount)>::max();
-
-		union {
-			Instruction* _instructions = nullptr;
-			CFunction _cfunc;
-		};
+		Instruction* _instructions = nullptr;
 	};
 
 	class FunctionHolder {
@@ -320,7 +332,7 @@ namespace Ketl {
 		FunctionImpl _function;
 	};
 
-	class TypeObject {
+	class TypeObject : public HeapObject {
 	public:
 		TypeObject() = default;
 		virtual ~TypeObject() = default;
@@ -334,6 +346,11 @@ namespace Ketl {
 		friend bool operator==(const TypeObject& lhs, const TypeObject& rhs) {
 			return lhs.id() == rhs.id();
 		}
+
+	private:
+
+		void* rootPtr() override { return this; }
+
 	};
 }
 

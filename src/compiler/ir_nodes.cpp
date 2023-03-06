@@ -11,15 +11,11 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands)
 			: _commands(std::move(commands)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context)&& override {
-			for (auto& command : _commands) {
-				std::move(*command).produceInstructions(instructions, context);
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
+			for (const auto& command : _commands) {
+				command->produceInstructions(instructions, context);
 			}
 			return {};
-		}
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return context.context().getVariable("Void").as<TypeObject>();
 		}
 
 	private:
@@ -55,17 +51,18 @@ namespace Ketl {
 		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
+			auto expression = _expression->produceInstructions(instructions, context);
+
 			const TypeObject* type = nullptr;
 
 			if (_type) {
-				type = static_cast<TypeObject*>(_type->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
+				type = reinterpret_cast<TypeObject*>(context.evaluate(*_type).as(typeid(TypeObject), context.context())); // TODO hide into var
 			}
 			else {
-
+				type = expression->getType(context);
 			}
 			auto var = context.createVar(_id, *type);
-			auto expression = std::move(*_expression).produceInstructions(instructions, context);
 
 			auto& instruction = instructions.emplace_back();
 			instruction.firstVar = var;
@@ -74,10 +71,6 @@ namespace Ketl {
 			
 			return {};
 		};
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return context.context().getVariable("Void").as<TypeObject>();
-		}
 
 	private:
 		std::string_view _id;
@@ -106,28 +99,37 @@ namespace Ketl {
 		IRFunction(std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
 			SemanticAnalyzer analyzer(context.context(), true);
 
+			TypeObject* returnType = nullptr; 
+			if (_outputType) {
+				returnType = reinterpret_cast<TypeObject*>(context.evaluate(*_outputType).as(typeid(TypeObject), context.context()));
+			}
+			else {
+				// TODO deduce from block
+				returnType = *context.context().getVariable("Void").as<TypeObject*>();
+			} 
+			std::vector<FunctionTypeObject::Parameter> parameters;
+			
 			for (auto& parameter : _parameters) {
-				auto type = static_cast<TypeObject*>(parameter.first->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
+				auto type = reinterpret_cast<TypeObject*>(context.evaluate(*parameter.first).as(typeid(TypeObject), context.context())); // TODO hide into var
 				analyzer.createFunctionParameterVar(parameter.second, *type);
+				// TODO get const and ref from node
+				parameters.emplace_back(false, false, type);
 			}
 
-			auto function = std::move(analyzer).compile(std::move(_block));
+			auto function = std::move(analyzer).compile(*_block);
 			if (std::holds_alternative<std::string>(function)) {
 				context.pushErrorMsg(std::get<std::string>(function));
 				// TODO return something not null
 				return {};
 			}
 
-			return context.createFunctionVar(std::move(std::get<0>(function)));
-		};
+			auto* functionType = context.context().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
 
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			// TODO return actual function type
-			return context.context().getVariable("Void").as<TypeObject>();
-		}
+			return context.createFunctionVar(std::move(std::get<0>(function)), *functionType);
+		};
 
 	private:
 		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> _parameters;
@@ -217,7 +219,7 @@ namespace Ketl {
 		IRFunctionCall(std::unique_ptr<IRNode>&& caller, std::vector<std::unique_ptr<IRNode>>&& arguments)
 			: _caller(std::move(caller)), _arguments(std::move(arguments)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
 			auto callerVar = std::move(*_caller).produceInstructions(instructions, context);
 
 			// TODO get actual function from caller (function itself, type constructor, call operator of an object)
@@ -240,7 +242,7 @@ namespace Ketl {
 				auto& defineInstruction = instructions.emplace_back();
 				defineInstruction.code = Instruction::Code::DefineFuncParameter;
 
-				defineInstruction.firstVar = context.createFunctionArgumentVar(i);
+				defineInstruction.firstVar = context.createFunctionArgumentVar(i, *argumentVar->getType(context));
 				defineInstruction.secondVar = parameterVar;
 			}
 
@@ -250,15 +252,11 @@ namespace Ketl {
 			instruction.firstVar = functionVar;
 
 			// TODO get actual return type
-			auto& returnType = *context.context().getVariable("Void").as<TypeObject>();
+			auto& returnType = **context.context().getVariable("Void").as<TypeObject*>();
 			instruction.outputVar = context.createTempVar(returnType);
 
 			return instruction.outputVar;
 		};
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return context.context().getVariable("Int64").as<TypeObject>();
-		}
 
 	private:
 		std::unique_ptr<IRNode> _caller;
@@ -302,7 +300,7 @@ namespace Ketl {
 		instruction.firstVar = lhs;
 		instruction.secondVar = rhs;
 
-		auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
+		auto& longType = **context.context().getVariable("Int64").as<TypeObject*>();
 		instruction.outputVar = context.createTempVar(longType);
 
 		return instruction.outputVar;
@@ -315,19 +313,15 @@ namespace Ketl {
 		IRBinaryOperator(OperatorCode op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _ltr(ltr), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
-			auto lhsVar = std::move(*_lhs).produceInstructions(instructions, context);
-			auto rhsVar = std::move(*_rhs).produceInstructions(instructions, context);
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
+			auto lhsVar = _lhs->produceInstructions(instructions, context);
+			auto rhsVar = _rhs->produceInstructions(instructions, context);
 
 			// TODO fill _outputType
 			// or remove _outputType and let it deduce type on fly
 
 			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
 		};
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return _outputType;
-		}
 
 	private:
 
@@ -392,13 +386,9 @@ namespace Ketl {
 		IRVariable(const std::string_view& id, std::unique_ptr<IRNode>&& type)
 			: _id(id), _type(std::move(type)) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
 			return context.getVar(_id);
 		};
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return static_cast<TypeObject*>(_type->evaluate(context).as(typeid(TypeObject), context.context())); // TODO hide into var
-		}
 
 		Variable evaluate(SemanticAnalyzer& context) { 
 			// TODO now works only for type inside Context
@@ -428,13 +418,9 @@ namespace Ketl {
 		IRLiteral(const std::string_view& value)
 			: _value(value) {}
 
-		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) && override {
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
 			return context.createLiteralVar(_value);
 		};
-
-		const TypeObject* evaluateType(SemanticAnalyzer& context) const {
-			return context.context().getVariable("Int64").as<TypeObject>();
-		}
 
 	private:
 		std::string_view _value;
