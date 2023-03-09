@@ -76,11 +76,8 @@ namespace Ketl {
 		const TypeObject* _type;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createFunctionVar(FunctionImpl&& function, const TypeObject& type) {
-		auto functionPtr = context()._alloc.allocate<FunctionImpl>();
-		new(functionPtr) FunctionImpl(std::move(function));
-
-		newFunctions.emplace_back(functionPtr);
+	AnalyzerVar* SemanticAnalyzer::createFunctionVar(FunctionImpl* functionPtr, const TypeObject& type) {
+		resultRefs.emplace_back(functionPtr);
 		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionVar>(*functionPtr, type));
 
 		return ptr.get();
@@ -258,8 +255,7 @@ namespace Ketl {
 		// TODO alignment
 		auto offset = currentStackOffset;
 
-		// TODO get size from type
-		uint64_t size = 8;
+		uint64_t size = type.sizeOf();
 
 		currentStackOffset += size;
 		maxOffsetValue = std::max(currentStackOffset, maxOffsetValue);
@@ -300,14 +296,9 @@ namespace Ketl {
 			auto ptr = _context.allocateGlobal(longType);
 			_context.declareGlobal(id, ptr, longType);
 		}
-
-		for (auto& functionPtr : newFunctions) {
-			context().registerObject(functionPtr);
-		}
-		newFunctions.clear();
 	}
 
-	std::variant<FunctionImpl, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
+	std::variant<FunctionImpl*, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
 		std::vector<RawInstruction> rawInstructions;
 
 		block.produceInstructions(rawInstructions, *this);
@@ -315,17 +306,21 @@ namespace Ketl {
 			return compilationErrors();
 		}
 
-		FunctionImpl function(context()._alloc, maxOffsetValue, rawInstructions.size());
+		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, maxOffsetValue, rawInstructions.size());
 
 		bakeContext();
 		if (hasCompilationErrors()) {
 			return compilationErrors();
 		}
 
-		for (auto i = 0u; i < function._instructionsCount; ++i) {
-			rawInstructions[i].propagadeInstruction(function._instructions[i], *this);
+		for (const auto& ref : resultRefs) {
+			functionRefs->registerAbsLink(ref);
 		}
 
-		return function;
+		for (auto i = 0u; i < functionPtr->_instructionsCount; ++i) {
+			rawInstructions[i].propagadeInstruction(functionPtr->_instructions[i], *this);
+		}
+
+		return functionPtr;
 	}
 }

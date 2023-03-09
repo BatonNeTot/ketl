@@ -35,9 +35,9 @@ void testSpeed() {
 )", context));
 
 	for (auto i = 0; i < N; ++i) {
-		auto stackPtr = context._globalStack.allocate(command.stackSize());
-		command.call(context._globalStack, stackPtr, nullptr);
-		context._globalStack.deallocate(command.stackSize());
+		auto stackPtr = context._globalStack.allocate(command->stackSize());
+		command->call(context._globalStack, stackPtr, nullptr);
+		context._globalStack.deallocate(command->stackSize());
 	}
 
 	lua_State* L;
@@ -96,9 +96,9 @@ int main(int argc, char** argv) {
 	auto& command = std::get<0>(compilationResult);
 
 	{
-		auto stackPtr = context._globalStack.allocate(command.stackSize());
-		command.call(context._globalStack, stackPtr, nullptr);
-		context._globalStack.deallocate(command.stackSize());
+		auto stackPtr = context._globalStack.allocate(command->stackSize());
+		command->call(context._globalStack, stackPtr, nullptr);
+		context._globalStack.deallocate(command->stackSize());
 	}
 
 	assert(result == 11u);

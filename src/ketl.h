@@ -218,43 +218,9 @@ namespace Ketl {
 		Argument second;
 	};
 
-	class HeapObject {
-	public:
+	class TypeObject;
 
-		HeapObject() = default;
-		virtual ~HeapObject() = default;
-
-	protected:
-
-		template <typename T>
-		void registerLink(T** link) {
-			// this code is genius or madness
-			auto* ptr = *link;
-			auto heapObject = static_cast<const HeapObject*>(ptr);
-			uint64_t diff = reinterpret_cast<const uint8_t*>(heapObject) - reinterpret_cast<const uint8_t*>(ptr);
-			_links.emplace_back(reinterpret_cast<const uint8_t* const*>(link), diff);
-		}
-
-	private:
-
-		friend class Context;
-
-		struct Link {
-			const uint8_t* const* holder;
-			uint64_t diff;
-
-			const HeapObject* ptr() const {
-				return reinterpret_cast<const HeapObject*>(*holder + diff);
-			}
-		};
-
-		virtual void* rootPtr() { return this; }
-
-		mutable bool _usageFlag = false;
-		std::vector<Link> _links;
-	};
-
-	class FunctionImpl : public HeapObject {
+	class FunctionImpl {
 	public:
 
 		FunctionImpl() {}
@@ -302,8 +268,6 @@ namespace Ketl {
 
 	public:
 
-		void* rootPtr() override { return this; }
-
 		Allocator* _alloc = nullptr;
 		uint64_t _stackSize = 0;
 
@@ -343,7 +307,7 @@ namespace Ketl {
 		FunctionImpl _function;
 	};
 
-	class TypeObject : public HeapObject {
+	class TypeObject {
 	public:
 		TypeObject() = default;
 		virtual ~TypeObject() = default;
@@ -357,10 +321,6 @@ namespace Ketl {
 		friend bool operator==(const TypeObject& lhs, const TypeObject& rhs) {
 			return lhs.id() == rhs.id();
 		}
-
-	private:
-
-		void* rootPtr() override { return this; }
 
 	};
 }

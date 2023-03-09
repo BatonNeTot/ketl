@@ -2,6 +2,7 @@
 #include "ir_nodes.h"
 
 #include "bnf_nodes.h"
+#include "garbage_collector.h"
 
 namespace Ketl {
 
@@ -115,8 +116,10 @@ namespace Ketl {
 			for (auto& parameter : _parameters) {
 				auto type = reinterpret_cast<TypeObject*>(context.evaluate(*parameter.first).as(typeid(TypeObject), context.context())); // TODO hide into var
 				analyzer.createFunctionParameterVar(parameter.second, *type);
-				// TODO get const and ref from node
-				parameters.emplace_back(false, false, type);
+				// TODO get 'const' and 'ref' from node
+				auto isConst = false;
+				auto isRef = true;
+				parameters.emplace_back(isConst, isRef, type);
 			}
 
 			auto function = std::move(analyzer).compile(*_block);
@@ -125,10 +128,16 @@ namespace Ketl {
 				// TODO return something not null
 				return {};
 			}
+			
+			auto classType = context.context().getVariable("ClassType").as<TypeObject>();
+			auto [functionType, refHolder] = context.context().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
+			refHolder->registerAbsLink(classType);
+			refHolder->registerAbsLink(returnType);
+			for (const auto& type : functionType->getParameters()) {
+				refHolder->registerAbsLink(type.type);
+			}
 
-			auto* functionType = context.context().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
-
-			return context.createFunctionVar(std::move(std::get<0>(function)), *functionType);
+			return context.createFunctionVar(std::get<0>(function), *functionType);
 		};
 
 	private:
@@ -235,9 +244,12 @@ namespace Ketl {
 			for (auto i = 0u; i < _arguments.size(); ++i) {
 				auto& argument = _arguments[i];
 				auto argumentVar = std::move(*argument).produceInstructions(instructions, context);
-				
-				// TODO create copy for the function call, for now it's reference only
+
 				auto parameterVar = argumentVar;
+				auto isRef = true;
+				if (!isRef) {
+					// TODO create copy for the function call if needed, for now it's reference only
+				}
 
 				auto& defineInstruction = instructions.emplace_back();
 				defineInstruction.code = Instruction::Code::DefineFuncParameter;
@@ -317,9 +329,6 @@ namespace Ketl {
 			auto lhsVar = _lhs->produceInstructions(instructions, context);
 			auto rhsVar = _rhs->produceInstructions(instructions, context);
 
-			// TODO fill _outputType
-			// or remove _outputType and let it deduce type on fly
-
 			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
 		};
 
@@ -327,7 +336,6 @@ namespace Ketl {
 
 		OperatorCode _op;
 		bool _ltr;
-		const TypeObject* _outputType;
 		std::unique_ptr<IRNode> _lhs;
 		std::unique_ptr<IRNode> _rhs;
 	};

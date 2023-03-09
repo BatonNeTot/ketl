@@ -20,9 +20,9 @@ BEFORE_MAIN_ACTION([]() {
 		auto& command = std::get<0>(compilationResult);
 
 		{
-			auto stackPtr = context._globalStack.allocate(command.stackSize());
-			command.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command.stackSize());
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
 		}
 
 		auto resultPtr = context.getVariable("testValue2").as<int64_t>();
@@ -54,9 +54,9 @@ BEFORE_MAIN_ACTION([]() {
 		auto& command = std::get<0>(compilationResult);
 
 		{
-			auto stackPtr = context._globalStack.allocate(command.stackSize());
-			command.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command.stackSize());
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
 		}
 
 		auto resultPtr = context.getVariable("testValue2").as<int64_t>();

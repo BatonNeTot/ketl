@@ -11,18 +11,15 @@ namespace Ketl {
 	class InterfaceTypeObject : public TypeObject {
 	public:
 		InterfaceTypeObject(const std::string& id)
-			: _id(id) {};
-		virtual ~InterfaceTypeObject() = default;
+			: _id(id) {}
 
-		virtual std::string id() const { return _id; }
+		std::string id() const override { return _id; }
 
-		virtual uint64_t sizeOf() const { return 0; }
+		uint64_t sizeOf() const override { return 0; }
 
-		virtual bool isLight() const { return true; }
+		bool isLight() const override { return true; }
 
 	private:
-
-		void* rootPtr() override { return this; }
 
 		std::string _id;
 	};
@@ -30,22 +27,19 @@ namespace Ketl {
 	class ClassTypeObject : public TypeObject {
 	public:
 		ClassTypeObject(const std::string& id, uint64_t size)
-			: _id(id), _size(size) {};
+			: _id(id), _size(size) {}
 		ClassTypeObject(const std::string& id, uint64_t size, std::vector<InterfaceTypeObject*>&& interfaces)
-			: _id(id), _size(size), _interfaces(std::move(interfaces)) {};
-		virtual ~ClassTypeObject() = default;
+			: _id(id), _size(size), _interfaces(std::move(interfaces)) {}
 
-		virtual std::string id() const { return _id; }
+		std::string id() const override { return _id; }
 
-		virtual uint64_t sizeOf() const { return _size; }
+		uint64_t sizeOf() const override { return _size; }
 
-		virtual bool isLight() const { return true; }
+		bool isLight() const override { return true; }
 
 	private:
 
 		friend Context;
-
-		void* rootPtr() override { return this; }
 
 		std::string _id;
 		uint64_t _size;
@@ -56,18 +50,15 @@ namespace Ketl {
 	public:
 
 		PrimitiveTypeObject(const std::string& id, uint64_t size)
-			: _id(id), _size(size) {};
-		virtual ~PrimitiveTypeObject() = default;
+			: _id(id), _size(size) {}
 
-		virtual std::string id() const { return _id; }
+		std::string id() const override { return _id; }
 
-		virtual uint64_t sizeOf() const { return _size; }
+		uint64_t sizeOf() const override { return _size; }
 
-		virtual bool isLight() const { return false; }
+		bool isLight() const override { return false; }
 
 	private:
-
-		void* rootPtr() override { return this; }
 
 		std::string _id;
 		uint64_t _size;
@@ -84,35 +75,30 @@ namespace Ketl {
 
 		FunctionTypeObject(const TypeObject& returnType, std::vector<Parameter>&& parameters)
 			: _returnType(&returnType), _parameters(std::move(parameters)) {
-			registerLink(&_returnType);
-			for (auto& parameter : _parameters) {
-				registerLink(&parameter.type);
-			}
-		};
-		virtual ~FunctionTypeObject() = default;
-
-		virtual std::string id() const { 
-			// TODO calculate it once and cache
-			auto idStr = _returnType->id() + "(";
+			_id = _returnType->id() + "(";
 			auto parameterIt = _parameters.begin(), parameterEnd = _parameters.end();
 			if (parameterIt != parameterEnd) {
-				idStr += parameterIt->type->id();
+				_id += parameterIt->type->id();
 			}
 			for (++parameterIt; parameterIt != parameterEnd; ++parameterIt) {
-				idStr += ", " + parameterIt->type->id();
+				_id += ", " + parameterIt->type->id();
 			}
-			idStr += ")";
-			return idStr;
+			_id += ")";
 		}
 
-		virtual uint64_t sizeOf() const { return sizeof(FunctionImpl); }
+		std::string id() const override { 
+			return _id;
+		}
 
-		virtual bool isLight() const { return true; }
+		uint64_t sizeOf() const override { return sizeof(FunctionImpl); }
+
+		bool isLight() const override { return true; }
+
+		const std::vector<Parameter>& getParameters() const { return _parameters; };
 
 	private:
 
-		void* rootPtr() override { return this; }
-
+		std::string _id;
 		const TypeObject* _returnType;
 		std::vector<Parameter> _parameters;
 	};

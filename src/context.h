@@ -4,6 +4,7 @@
 
 #include "compiler/common.h"
 #include "type.h"
+#include "garbage_collector.h"
 
 #include <cinttypes>
 #include <string>
@@ -48,10 +49,7 @@ namespace Ketl {
 	public:
 
 		Context(Allocator& allocator, uint64_t globalStackSize);
-		~Context() {
-			_rootObjects.clear();
-			collectGarbage();
-		}
+		~Context() {}
 
 		// maybe would be better to return pointer and make it null in case of lack
 		ContextedVariable getVariable(const std::string_view& id) {
@@ -59,7 +57,6 @@ namespace Ketl {
 			return ContextedVariable(*this, it == _globals.end() ? _emptyVar : it->second);
 		}
 
-		// TODO std::unique_ptr<Type> and std::unique_ptr<const Type> need to deal with it somehow
 		bool declareGlobal(const std::string_view& id, void* stackPtr, const TypeObject& type) {
 			auto [it, success] = _globals.try_emplace(std::string(id), stackPtr, type);
 			return success;
@@ -93,7 +90,7 @@ namespace Ketl {
 			return it != opIt->second.end() ? it->second : std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
 		}
 
-	public: // TODO
+	public: // TODO private
 
 		uint8_t* allocateOnStack(uint64_t size) {
 			return _globalStack.allocate(size);
@@ -118,60 +115,18 @@ namespace Ketl {
 
 		void declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex);
 
-		void markObject(const HeapObject* ptr) {
-			if (ptr->_usageFlag == _currentUsedFlag) {
-				return;
-			}
-			ptr->_usageFlag = _currentUsedFlag;
-			for (const auto& link : ptr->_links) {
-				markObject(link.ptr());
-			}
-		}
-
-		void registerObject(HeapObject* ptr) {
-			_heapObjects.emplace(ptr);
-			ptr->_usageFlag = _currentUsedFlag;
-		}
-
-		void* allocateObject(size_t size) {
-			auto ptr = _alloc.allocate(size);
-			return ptr;
-		}
-
 		template <typename T>
-		inline T* allocateObject() {
-			return reinterpret_cast<T*>(allocateObject(sizeof(T)));
+		static void dtor(void* ptr) {
+			reinterpret_cast<T*>(ptr)->~T();
 		}
 
 		template <typename T, typename... Args>
-		inline T* createObject(Args&&... args) {
-			auto ptr = allocateObject<T>();
+		inline auto createObject(Args&&... args) {
+			constexpr auto size = sizeof(T);
+			auto ptr = reinterpret_cast<T*>(_alloc.allocate(size));
 			new(ptr) T(std::forward<Args>(args)...);
-			return ptr;
-		}
-
-		// TODO right now, _rootObjects and links in info does not filling
-		// so, do not call until destructor for now
-		void collectGarbage() {
-			_currentUsedFlag = !_currentUsedFlag;
-
-			for (const auto& ptr : _rootObjects) {
-				markObject(ptr);
-			}
-
-			for (auto it = _heapObjects.begin(), end = _heapObjects.end(); it != end;) {
-				auto* ptr = *it;
-				if (ptr->_usageFlag != _currentUsedFlag) {
-					// there must be dtor, so we can skip wasting time on checking 
-					auto root = ptr->rootPtr();
-					ptr->~HeapObject();
-					_alloc.deallocate(root);
-					it = _heapObjects.erase(it);
-				}
-				else {
-					++it;
-				}
-			}
+			auto& links = _gc.registerMemory(ptr, size, &dtor<T>);
+			return std::make_pair(ptr, &links);
 		}
 
 		static Variable _emptyVar;
@@ -183,10 +138,7 @@ namespace Ketl {
 
 		std::unordered_map<OperatorCode, std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>>> _primaryOperators;
 
-		bool _currentUsedFlag = false;
-
-		std::unordered_set<HeapObject*> _rootObjects;
-		std::unordered_set<HeapObject*> _heapObjects;
+		GarbageCollector _gc;
 	};
 
 	template <class... Args>

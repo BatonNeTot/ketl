@@ -5,7 +5,7 @@
 
 namespace Ketl {
 
-	std::variant<FunctionImpl, std::string> Compiler::compile(const std::string& str, Context& context) {
+	std::variant<FunctionImpl*, std::string> Compiler::compile(const std::string& str, Context& context) {
 		auto block = _parser.parseTree(str);
 
 		if (std::holds_alternative<std::string>(block)) {

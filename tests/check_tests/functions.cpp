@@ -1,7 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "check_tests.h"
 
-BEFORE_MAIN_ACTION([]() {
+static auto registerTests = []() {
 
 	registerTest("Creating function and using in C", []() {
 		Ketl::Allocator allocator;
@@ -27,9 +27,9 @@ BEFORE_MAIN_ACTION([]() {
 		auto& command = std::get<0>(compilationResult);
 
 		{
-			auto stackPtr = context._globalStack.allocate(command.stackSize());
-			command.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command.stackSize());
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
 		}
 
 		auto adderPtr = *context.getVariable("adder").as<Ketl::FunctionImpl*>();
@@ -74,9 +74,9 @@ BEFORE_MAIN_ACTION([]() {
 		auto& command = std::get<0>(compilationResult);
 
 		{
-			auto stackPtr = context._globalStack.allocate(command.stackSize());
-			command.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command.stackSize());
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
 		}
 
 		return sum == 11u;
@@ -107,9 +107,9 @@ BEFORE_MAIN_ACTION([]() {
 			auto& command = std::get<0>(compilationResult);
 
 			{
-				auto stackPtr = context._globalStack.allocate(command.stackSize());
-				command.call(context._globalStack, stackPtr, nullptr);
-				context._globalStack.deallocate(command.stackSize());
+				auto stackPtr = context._globalStack.allocate(command->stackSize());
+				command->call(context._globalStack, stackPtr, nullptr);
+				context._globalStack.deallocate(command->stackSize());
 			}
 		}
 
@@ -126,9 +126,9 @@ BEFORE_MAIN_ACTION([]() {
 			auto& command = std::get<0>(compilationResult);
 
 			{
-				auto stackPtr = context._globalStack.allocate(command.stackSize());
-				command.call(context._globalStack, stackPtr, nullptr);
-				context._globalStack.deallocate(command.stackSize());
+				auto stackPtr = context._globalStack.allocate(command->stackSize());
+				command->call(context._globalStack, stackPtr, nullptr);
+				context._globalStack.deallocate(command->stackSize());
 			}
 		}
 
@@ -161,13 +161,15 @@ BEFORE_MAIN_ACTION([]() {
 		auto& command = std::get<0>(compilationResult);
 
 		{
-			auto stackPtr = context._globalStack.allocate(command.stackSize());
-			command.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command.stackSize());
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
 		}
 
 		return sum == 18u;
 		});
 
 	return false;
-	});
+	};
+	
+BEFORE_MAIN_ACTION(registerTests);
