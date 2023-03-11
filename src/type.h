@@ -79,9 +79,9 @@ namespace Ketl {
 			auto parameterIt = _parameters.begin(), parameterEnd = _parameters.end();
 			if (parameterIt != parameterEnd) {
 				_id += parameterIt->type->id();
-			}
-			for (++parameterIt; parameterIt != parameterEnd; ++parameterIt) {
-				_id += ", " + parameterIt->type->id();
+				for (++parameterIt; parameterIt != parameterEnd; ++parameterIt) {
+					_id += ", " + parameterIt->type->id();
+				}
 			}
 			_id += ")";
 		}

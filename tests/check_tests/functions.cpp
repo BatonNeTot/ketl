@@ -169,6 +169,74 @@ static auto registerTests = []() {
 		return sum == 18u;
 		});
 
+	registerTest("Sugar creating function with parameters and calling it", []() {
+		Ketl::Allocator allocator;
+		Ketl::Context context(allocator, 4096);
+		Ketl::Compiler compiler;
+
+		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
+
+		int64_t sum = 0;
+		context.declareGlobal("sum", &sum, longType);
+
+		auto compilationResult = compiler.compile(R"(
+			Void adder(Int64 x, Int64 y) {
+				sum = x + y;
+			};
+
+			adder(5, 13);
+		)", context);
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		auto& command = std::get<0>(compilationResult);
+
+		{
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
+		}
+
+		return sum == 18u;
+		});
+
+	registerTest("Calling function with return", []() {
+		Ketl::Allocator allocator;
+		Ketl::Context context(allocator, 4096);
+		Ketl::Compiler compiler;
+
+		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
+
+		int64_t sum = 0;
+		context.declareGlobal("sum", &sum, longType);
+
+		auto compilationResult = compiler.compile(R"(
+			Int64 adder(Int64 x, Int64 y) {
+				return x + y;
+			};
+
+			sum = adder(5, 13);
+		)", context);
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		auto& command = std::get<0>(compilationResult);
+
+		{
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
+		}
+
+		return sum == 18u;
+		});
+
 	return false;
 	};
 	

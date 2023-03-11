@@ -26,6 +26,8 @@ namespace Ketl {
 
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
+		AnalyzerVar* createReturnVar(AnalyzerVar* expression);
+
 		AnalyzerVar* createFunctionVar(FunctionImpl* function, const TypeObject& type);
 
 		AnalyzerVar* createFunctionArgumentVar(uint64_t index, const TypeObject& type);

@@ -25,7 +25,7 @@ void testSpeed() {
 	Ketl::Compiler compiler;
 
 	auto command = std::get<0>(compiler.compile(R"(
-	testValue2 = 1 + 2;
+	var testValue2 = 1 + 2;
 
 	Float64 adder(Float64 x, Float64 y) {
 		return x + y;
@@ -69,23 +69,21 @@ int main(int argc, char** argv) {
 
 	auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
 
-	int64_t result = 0;
-	context.declareGlobal("testValue2", &result, longType);
-
 	int64_t sum = 0;
 	context.declareGlobal("sum", &sum, longType);
 
 	auto compilationResult = compiler.compile(R"(
-	testValue2 = 1 + 2 * 3 + 4;
-
-	//Int64 adder(Int64 x, Int64 y) {
-	var adder = (Int64 x, Int64 y) -> {
-		sum = x + y;
-		//var sum = x + y;
-		//return sum;
+	Void adder(Int64 x, Int64 y) {
+		var sum = x + y;
+		return sum;
+	};
+	
+	var adder(Int64 x) {
+		return x;
 	};
 
-	adder(5, 10);
+	sum = adder(5, 10);
+
 )", context);
 
 	if (std::holds_alternative<std::string>(compilationResult)) {
@@ -101,7 +99,6 @@ int main(int argc, char** argv) {
 		context._globalStack.deallocate(command->stackSize());
 	}
 
-	assert(result == 11u);
 	assert(sum == 15u);
 
 	//*/

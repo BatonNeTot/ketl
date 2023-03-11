@@ -53,6 +53,32 @@ namespace Ketl {
 
 		return ptr.get();
 	}
+	
+	class AnalyzerReturnVar : public AnalyzerVar {
+	public:
+		AnalyzerReturnVar(AnalyzerVar* value)
+			: _value(value) {}
+
+		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+			auto type = Argument::Type::Return;
+			Argument argument;
+			return std::make_pair(type, argument);
+		}
+
+		const TypeObject* getType(SemanticAnalyzer& context) const override {
+			return _value ? _value->getType(context) : context.context().getVariable("Void").as<TypeObject>();
+		}
+
+	private:
+
+		AnalyzerVar* _value;
+	};
+
+	AnalyzerVar* SemanticAnalyzer::createReturnVar(AnalyzerVar* expression) {
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerReturnVar>(expression));
+
+		return ptr.get();
+	}
 
 	class AnalyzerFunctionVar : public AnalyzerVar {
 	public:
@@ -177,6 +203,11 @@ namespace Ketl {
 			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, type));
 
 			if (_context.getVariable(id).as<void>()) {
+				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in global scope");
+				return ptr.get();
+			}
+
+			if (newGlobalVars.find(id) != newGlobalVars.end()) {
 				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in global scope");
 				return ptr.get();
 			}

@@ -1,7 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "check_tests.h"
 
-BEFORE_MAIN_ACTION([]() {
+static auto registerTests = []() {
 	
 	registerTest("Creating var", []() {
 		Ketl::Allocator allocator;
@@ -95,5 +95,42 @@ BEFORE_MAIN_ACTION([]() {
 		return std::holds_alternative<std::string>(compilationResult);
 		});
 
+	registerTest("Using local variable", []() {
+		Ketl::Allocator allocator;
+		Ketl::Context context(allocator, 4096);
+		Ketl::Compiler compiler;
+
+		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
+
+		int64_t sum = 0;
+		context.declareGlobal("sum", &sum, longType);
+
+		auto compilationResult = compiler.compile(R"(
+			Int64 adder(Int64 x, Int64 y) {
+				var sum = x + y;
+				return sum;
+			};
+
+			sum = adder(5, 13);
+		)", context);
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		auto& command = std::get<0>(compilationResult);
+
+		{
+			auto stackPtr = context._globalStack.allocate(command->stackSize());
+			command->call(context._globalStack, stackPtr, nullptr);
+			context._globalStack.deallocate(command->stackSize());
+		}
+
+		return sum == 18u;
+		});
+
 	return false;
-	});
+	};
+
+BEFORE_MAIN_ACTION(registerTests);

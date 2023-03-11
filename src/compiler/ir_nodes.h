@@ -24,8 +24,9 @@ namespace Ketl {
 
 	std::unique_ptr<IRNode> createVariable(const ProcessNode* info);
 	std::unique_ptr<IRNode> createType(const ProcessNode* info);
-
 	std::unique_ptr<IRNode> createLiteral(const ProcessNode* info);
+
+	std::unique_ptr<IRNode> createReturn(const ProcessNode* info);
 
 }
 

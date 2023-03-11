@@ -136,10 +136,10 @@ namespace Ketl {
 			));
 
 		// function parameters
-		_nodes.try_emplace("functionParameters", std::make_unique<NodeConcat>(false,
+		_nodes.try_emplace("functionParameters", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeLiteral>(true, "("),
 			std::make_unique<NodeConditional>(
-				std::make_unique<NodeConcat>(false,
+				std::make_unique<NodeConcat>(true,
 					std::make_unique<NodeId>(false, "functionParameter"),
 					std::make_unique<NodeRepeat>(
 						std::make_unique<NodeConcat>(true,
@@ -169,7 +169,10 @@ namespace Ketl {
 
 		// define function
 		_nodes.try_emplace("defineFunction", std::make_unique<NodeConcat>(false,
-			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeOr>(
+				std::make_unique<NodeLiteral>(&emptyTree, false, "var"),
+				std::make_unique<NodeId>(&createType, false, "type")
+				),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeId>(false, "functionParameters"),
 			std::make_unique<NodeLiteral>(true, "{"),
@@ -177,17 +180,18 @@ namespace Ketl {
 			std::make_unique<NodeLiteral>(true, "}")
 			));
 
+		// return
+		_nodes.try_emplace("return", std::make_unique<NodeConcat>(false,
+			std::make_unique<NodeLiteral>(true, "return"),
+			std::make_unique<NodeConditional>(
+				std::make_unique<NodeId>(true, "expression")
+				),
+			std::make_unique<NodeLiteral>(true, ";")
+			));
+
 		_nodes.try_emplace("command", std::make_unique<NodeOr>(
-			// expression
-			std::make_unique<NodeConcat>(false,
-				// return
-				std::make_unique<NodeConditional>(
-					std::make_unique<NodeLiteral>(false, "return")
-				),
-				std::make_unique<NodeConditional>(
-					std::make_unique<NodeId>(true, "expression")),
-				std::make_unique<NodeLiteral>(true, ";")
-				),
+			// return
+			std::make_unique<NodeId>(&createReturn, false, "return"),
 			// define variable by =
 			std::make_unique<NodeId>(&createDefineVariableByAssignment, false, "defineVariableAssignment"),
 			// define variable by {}
@@ -215,6 +219,13 @@ namespace Ketl {
 				),
 			// define function
 			std::make_unique<NodeId>(&createDefineFunction, false, "defineFunction"),
+			// expression
+			std::make_unique<NodeConcat>(false,
+				std::make_unique<NodeConditional>(
+					std::make_unique<NodeId>(true, "expression")
+					),
+				std::make_unique<NodeLiteral>(true, ";")
+				),
 			// block
 			std::make_unique<NodeConcat>(false,
 				std::make_unique<NodeLiteral>(true, "{"),

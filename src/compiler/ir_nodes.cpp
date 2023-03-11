@@ -153,7 +153,7 @@ namespace Ketl {
 		auto parametersNode = concat->firstChild;
 
 		if (parametersNode->firstChild) {
-			auto it = parametersNode->firstChild->firstChild;
+			auto it = parametersNode->firstChild;
 			while (it) {
 				auto parameter = it->firstChild;
 
@@ -195,7 +195,7 @@ namespace Ketl {
 		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> parameters;
 		auto parametersNode = idNode->nextSibling;
 
-		if (parametersNode->nextSibling) {
+		if (parametersNode->firstChild) {
 			auto it = parametersNode->firstChild;
 			while (it) {
 				auto parameter = it->firstChild;
@@ -211,15 +211,13 @@ namespace Ketl {
 				it = it->nextSibling;
 			}
 		}
-		else {
-			parametersNode = parametersNode->prevSibling;
-		}
 
 		auto blockNode = parametersNode->nextSibling;
 		auto block = blockNode->node->createIRTree(blockNode);
 
-		// TODO old code, need to fix. lambda is an example
-		return nullptr;
+		auto function = std::make_unique<IRFunction>(std::move(parameters), std::move(outputType), std::move(block));
+
+		return std::make_unique<IRDefineVariable>(id, nullptr, std::move(function));
 	}
 
 	class IRFunctionCall : public IRNode {
@@ -233,6 +231,10 @@ namespace Ketl {
 
 			// TODO get actual function from caller (function itself, type constructor, call operator of an object)
 			auto functionVar = callerVar;
+
+			// TODO get actual return type
+			auto& returnType = *context.context().getVariable("Int64").as<TypeObject>();
+			auto outputVar = context.createTempVar(returnType);
 
 			// allocating stack
 			auto& defineInstruction = instructions.emplace_back();
@@ -262,10 +264,7 @@ namespace Ketl {
 			auto& instruction = instructions.emplace_back();
 			instruction.code = Instruction::Code::CallFunction;
 			instruction.firstVar = functionVar;
-
-			// TODO get actual return type
-			auto& returnType = *context.context().getVariable("Void").as<TypeObject>();
-			instruction.outputVar = context.createTempVar(returnType);
+			instruction.outputVar = outputVar;
 
 			return instruction.outputVar;
 		};
@@ -438,5 +437,32 @@ namespace Ketl {
 		return std::make_unique<IRLiteral>(info->node->value(info->iterator));
 	}
 
+	class IRReturn : public IRNode {
+	public:
+
+		IRReturn(std::unique_ptr<IRNode>&& expression)
+			: _expression(std::move(expression)) {}
+
+		AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const override {
+			auto expression = _expression->produceInstructions(instructions, context);
+
+			auto& instruction = instructions.emplace_back();
+			instruction.firstVar = context.createReturnVar(expression);
+			instruction.secondVar = expression;
+			instruction.code = Instruction::Code::DefinePrimitive;
+
+			return nullptr;
+		};
+
+	private:
+		std::unique_ptr<IRNode> _expression;
+	};
+
+	std::unique_ptr<IRNode> createReturn(const ProcessNode* info) {
+		auto expresstionNode = info->firstChild;
+		auto expression = expresstionNode->node->createIRTree(expresstionNode);
+
+		return std::make_unique<IRReturn>(std::move(expression));
+	}
 
 }
