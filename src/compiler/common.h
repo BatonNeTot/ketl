@@ -55,25 +55,6 @@ namespace Ketl {
 		return OperatorCode::None;
 	}
 
-	class SemanticAnalyzer;
-
-	class AnalyzerVar {
-	public:
-		virtual ~AnalyzerVar() = default;
-		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
-		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
-	};
-
-	class RawInstruction {
-	public:
-		Instruction::Code code = Instruction::Code::None;
-		AnalyzerVar* outputVar;
-		AnalyzerVar* firstVar;
-		AnalyzerVar* secondVar;
-
-		void propagadeInstruction(Instruction& instruction, SemanticAnalyzer& context);
-	};
-
 
 	class TypeObject;
 	class Context;
@@ -120,14 +101,6 @@ namespace Ketl {
 		void* _data = nullptr;
 		const TypeObject* _type = nullptr;
 
-	};
-
-	// Intermediate representation node
-	class IRNode {
-	public:
-
-		virtual ~IRNode() = default;
-		virtual AnalyzerVar* produceInstructions(std::vector<RawInstruction>& instructions, SemanticAnalyzer& context) const { return {}; }
 	};
 
 }

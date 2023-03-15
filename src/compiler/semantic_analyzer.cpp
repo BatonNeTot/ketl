@@ -7,6 +7,25 @@
 
 namespace Ketl {
 
+	RawInstruction& InstructionSequence::addInstruction() {
+		if (_hasReturnStatement && !_raisedAfterReturnError) {
+			_raisedAfterReturnError = true;
+			_context.pushErrorMsg("[WARNING] Statements after return");
+		}
+
+		return _rawInstructions.emplace_back();
+	}
+
+	void InstructionSequence::addReturnStatement(AnalyzerVar* expression) {
+		if (_hasReturnStatement) {
+			_context.pushErrorMsg("[ERROR] Multiple return statements");
+			return;
+		}
+
+		_hasReturnStatement = true;
+		_returnExpression = expression;
+	}
+
 	void SemanticAnalyzer::pushScope() {
 		scopeOffsets.push(currentStackOffset);
 		++scopeLayer;
@@ -330,13 +349,14 @@ namespace Ketl {
 	}
 
 	std::variant<FunctionImpl*, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
-		std::vector<RawInstruction> rawInstructions;
+		InstructionSequence mainSequence(*this);
 
-		block.produceInstructions(rawInstructions, *this);
+		block.produceInstructions(mainSequence, *this);
 		if (hasCompilationErrors()) {
 			return compilationErrors();
 		}
 
+		auto rawInstructions = std::move(mainSequence).buildInstructions();
 		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, maxOffsetValue, rawInstructions.size());
 
 		bakeContext();

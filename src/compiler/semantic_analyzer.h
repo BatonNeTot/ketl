@@ -11,6 +11,62 @@
 
 namespace Ketl {
 
+	class SemanticAnalyzer;
+
+	class AnalyzerVar {
+	public:
+		virtual ~AnalyzerVar() = default;
+		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
+		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
+	};
+
+	class RawInstruction {
+	public:
+		Instruction::Code code = Instruction::Code::None;
+		AnalyzerVar* outputVar;
+		AnalyzerVar* firstVar;
+		AnalyzerVar* secondVar;
+
+		void propagadeInstruction(Instruction& instruction, SemanticAnalyzer& context);
+	};
+
+	class InstructionSequence {
+	public:
+
+		InstructionSequence(SemanticAnalyzer& context)
+			: _context(context) {}
+
+		RawInstruction& addInstruction();
+
+		InstructionSequence									createIfBranch(AnalyzerVar* expression);
+		std::pair<InstructionSequence, InstructionSequence> createIfElseBranches(AnalyzerVar* expression);
+		InstructionSequence									createWhileBranch(AnalyzerVar* expression, const std::string_view& id);
+
+
+		void addReturnStatement(AnalyzerVar* expression);
+
+		std::vector<RawInstruction> buildInstructions()&& {
+			return std::move(_rawInstructions);
+		}
+
+	private:
+
+		bool _hasReturnStatement = false;
+		bool _raisedAfterReturnError = false;
+		AnalyzerVar* _returnExpression = nullptr;
+		SemanticAnalyzer& _context;
+		std::vector<RawInstruction> _rawInstructions;
+
+	};
+
+	// Intermediate representation node
+	class IRNode {
+	public:
+
+		virtual ~IRNode() = default;
+		virtual AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
+	};
+
 	class SemanticAnalyzer {
 	public:
 

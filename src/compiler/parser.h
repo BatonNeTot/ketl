@@ -186,6 +186,7 @@ namespace Ketl {
 	};
 
 	struct ProcessNode;
+	class IRNode;
 
 	class Parser {
 	public:
@@ -219,13 +220,7 @@ namespace Ketl {
 				return false;
 			}
 
-			std::unique_ptr<IRNode> createIRTree(const ProcessNode* info) const {
-				if (_creator == nullptr) {
-					return {};
-				}
-
-				return _creator(info);
-			}
+			std::unique_ptr<IRNode> createIRTree(const ProcessNode* info) const;
 
 		private: 
 

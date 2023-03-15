@@ -1,6 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "parser.h"
 
+#include "semantic_analyzer.h"
 #include "bnf_nodes.h"
 
 #include <format>
@@ -75,6 +76,14 @@ namespace Ketl {
 		Node* _first = nullptr;
 		Node* _top = nullptr;
 	};
+
+	std::unique_ptr<IRNode> Parser::Node::createIRTree(const ProcessNode* info) const {
+		if (_creator == nullptr) {
+			return {};
+		}
+
+		return _creator(info);
+	}
 
 	std::variant<std::unique_ptr<IRNode>, std::string> Parser::parseTree(const std::string& str) {
 		Lexer lexer(str);

@@ -73,14 +73,16 @@ int main(int argc, char** argv) {
 	context.declareGlobal("sum", &sum, longType);
 
 	auto compilationResult = compiler.compile(R"(
-	Void adder(Int64 x, Int64 y) {
+	Int64 adder(Int64 x, Int64 y) {
 		var sum = x + y;
 		return sum;
 	};
 	
+	/*
 	var adder(Int64 x) {
 		return x;
 	};
+	*/
 
 	sum = adder(5, 10);
 

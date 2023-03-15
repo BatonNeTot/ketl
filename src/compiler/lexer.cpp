@@ -59,12 +59,25 @@ namespace Ketl {
 				return { initialCarret, _source.substr(initialCarret, _carret - initialCarret - 1) };
 			}
 
-			if (*itSymbolPtr == '/' && peekSymbol() == '/') {
-				if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
-				for (; *itSymbolPtr != '\0' && *itSymbolPtr != '\n'; itSymbolPtr = &nextSymbol()) {};
-				while (isSpace(*itSymbolPtr)) { itSymbolPtr = &nextSymbol(); }
-				initialCarret = _carret - 1;
-				continue;
+			if (*itSymbolPtr == '/') {
+				if (peekSymbol() == '/') {
+					if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
+					for (; *itSymbolPtr != '\0' && *itSymbolPtr != '\n'; itSymbolPtr = &nextSymbol()) {};
+					while (isSpace(*itSymbolPtr)) { itSymbolPtr = &nextSymbol(); }
+					initialCarret = _carret - 1;
+					continue;
+				}
+				if (peekSymbol() == '*') {
+					if (initialCarret < _carret - 1) { _carret--; return { initialCarret, _source.substr(initialCarret, _carret - initialCarret) }; }
+					// skip start symbols
+					&nextSymbol(); itSymbolPtr = &nextSymbol();
+					for (; *itSymbolPtr != '*' && peekSymbol() != '/'; itSymbolPtr = &nextSymbol()) {};
+					// skip end symbols
+					&nextSymbol(); itSymbolPtr = &nextSymbol();
+					while (isSpace(*itSymbolPtr)) { itSymbolPtr = &nextSymbol(); }
+					initialCarret = _carret - 1;
+					continue;
+				}
 			}
 
 			itSymbolPtr = &nextSymbol();
