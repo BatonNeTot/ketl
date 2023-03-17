@@ -12,7 +12,7 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands)
 			: _commands(std::move(commands)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			for (const auto& command : _commands) {
 				command->produceInstructions(instructions, context);
 			}
@@ -52,7 +52,7 @@ namespace Ketl {
 		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto expression = _expression->produceInstructions(instructions, context);
 
 			const TypeObject* type = nullptr;
@@ -61,13 +61,13 @@ namespace Ketl {
 				type = reinterpret_cast<TypeObject*>(context.evaluate(*_type).as(typeid(TypeObject), context.context())); // TODO hide into var
 			}
 			else {
-				type = expression->getType(context);
+				type = expression.getVarAsItIs()->getType(context);
 			}
 			auto var = context.createVar(_id, *type);
 
 			auto& instruction = instructions.addInstruction();
 			instruction.firstVar = var;
-			instruction.secondVar = expression;
+			instruction.secondVar = expression.getVarAsItIs();
 			instruction.code = Instruction::Code::DefinePrimitive;
 			
 			return {};
@@ -100,7 +100,7 @@ namespace Ketl {
 		IRFunction(std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			SemanticAnalyzer analyzer(context.context(), true);
 
 			TypeObject* returnType = nullptr; 
@@ -226,47 +226,18 @@ namespace Ketl {
 		IRFunctionCall(std::unique_ptr<IRNode>&& caller, std::vector<std::unique_ptr<IRNode>>&& arguments)
 			: _caller(std::move(caller)), _arguments(std::move(arguments)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto callerVar = std::move(*_caller).produceInstructions(instructions, context);
 
-			// TODO get actual function from caller (function itself, type constructor, call operator of an object)
-			auto functionVar = callerVar;
+			std::vector<UndeterminedVar> arguments;
+			arguments.reserve(_arguments.size());
 
-			// TODO get actual return type
-			auto& returnType = *context.context().getVariable("Int64").as<TypeObject>();
-			auto outputVar = context.createTempVar(returnType);
-
-			// allocating stack
-			auto& defineInstruction = instructions.addInstruction();
-			defineInstruction.code = Instruction::Code::AllocateFunctionStack;
-
-			defineInstruction.firstVar = functionVar;
-
-			// evaluating arguments
-			for (auto i = 0u; i < _arguments.size(); ++i) {
-				auto& argument = _arguments[i];
-				auto argumentVar = std::move(*argument).produceInstructions(instructions, context);
-
-				auto parameterVar = argumentVar;
-				auto isRef = true;
-				if (!isRef) {
-					// TODO create copy for the function call if needed, for now it's reference only
-				}
-
-				auto& defineInstruction = instructions.addInstruction();
-				defineInstruction.code = Instruction::Code::DefineFuncParameter;
-
-				defineInstruction.firstVar = context.createFunctionArgumentVar(i, *argumentVar->getType(context));
-				defineInstruction.secondVar = parameterVar;
+			for (const auto& argument : _arguments) {
+				// TODO create temporary instruction sequences for each argument to correctly merge with possible casting
+				arguments.emplace_back(argument->produceInstructions(instructions, context));
 			}
 
-			// calling the function
-			auto& instruction = instructions.addInstruction();
-			instruction.code = Instruction::Code::CallFunction;
-			instruction.firstVar = functionVar;
-			instruction.outputVar = outputVar;
-
-			return instruction.outputVar;
+			return context.deduceFunctionCall(callerVar, arguments, instructions);
 		};
 
 	private:
@@ -297,38 +268,17 @@ namespace Ketl {
 	}
 
 
-	static AnalyzerVar* deduceOperatorCall(AnalyzerVar* lhs, AnalyzerVar* rhs, OperatorCode op, InstructionSequence& instructions, SemanticAnalyzer& context) {
-		std::string argumentsNotation = std::string("Int64,Int64");
-		auto primaryOperatorPair = context.context().deducePrimaryOperator(op, argumentsNotation);
-
-		if (primaryOperatorPair.first == Instruction::Code::None) {
-
-			return nullptr;
-		}
-
-		auto& instruction = instructions.addInstruction();
-		instruction.code = primaryOperatorPair.first;
-		instruction.firstVar = lhs;
-		instruction.secondVar = rhs;
-
-		auto& longType = *context.context().getVariable("Int64").as<TypeObject>();
-		instruction.outputVar = context.createTempVar(longType);
-
-		return instruction.outputVar;
-	}
-
-
 	class IRBinaryOperator : public IRNode {
 	public:
 
 		IRBinaryOperator(OperatorCode op, bool ltr, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _ltr(ltr), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto lhsVar = _lhs->produceInstructions(instructions, context);
 			auto rhsVar = _rhs->produceInstructions(instructions, context);
 
-			return deduceOperatorCall(lhsVar, rhsVar, _op, instructions, context);
+			return context.deduceBinaryOperatorCall(_op, lhsVar, rhsVar, instructions);
 		};
 
 	private:
@@ -393,7 +343,8 @@ namespace Ketl {
 		IRVariable(const std::string_view& id, std::unique_ptr<IRNode>&& type)
 			: _id(id), _type(std::move(type)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			// TODO create actual undetermined var based on name resolution variations
 			return context.getVar(_id);
 		};
 
@@ -425,7 +376,7 @@ namespace Ketl {
 		IRLiteral(const std::string_view& value)
 			: _value(value) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			return context.createLiteralVar(_value);
 		};
 
@@ -443,14 +394,14 @@ namespace Ketl {
 		IRReturn(std::unique_ptr<IRNode>&& expression)
 			: _expression(std::move(expression)) {}
 
-		AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto expression = _expression->produceInstructions(instructions, context);
 
 			// TODO remove later, cause there might be type cast
 			// <!--
 			auto& instruction = instructions.addInstruction();
-			instruction.firstVar = context.createReturnVar(expression);
-			instruction.secondVar = expression;
+			instruction.firstVar = context.createReturnVar(expression.getVarAsItIs());
+			instruction.secondVar = expression.getVarAsItIs();
 			instruction.code = Instruction::Code::DefinePrimitive;
 			// -->
 

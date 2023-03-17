@@ -16,14 +16,14 @@ namespace Ketl {
 		return _rawInstructions.emplace_back();
 	}
 
-	void InstructionSequence::addReturnStatement(AnalyzerVar* expression) {
+	void InstructionSequence::addReturnStatement(UndeterminedVar expression) {
 		if (_hasReturnStatement) {
 			_context.pushErrorMsg("[ERROR] Multiple return statements");
 			return;
 		}
 
 		_hasReturnStatement = true;
-		_returnExpression = expression;
+		_returnExpression = std::move(expression);
 	}
 
 	void SemanticAnalyzer::pushScope() {
@@ -42,6 +42,74 @@ namespace Ketl {
 		propagateScopeDestructors();
 
 		--scopeLayer;
+	}
+
+	AnalyzerVar* SemanticAnalyzer::deduceUnaryOperatorCall(OperatorCode code, const UndeterminedVar& var, InstructionSequence& instructions) {
+		// TODO
+		return nullptr;
+	}
+	AnalyzerVar* SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedVar& lhs, const UndeterminedVar& rhs, InstructionSequence& instructions) {
+		std::string argumentsNotation = std::string("Int64,Int64");
+		auto primaryOperatorPair = context().deducePrimaryOperator(code, argumentsNotation);
+
+		if (primaryOperatorPair.first == Instruction::Code::None) {
+
+			return nullptr;
+		}
+
+		auto& instruction = instructions.addInstruction();
+		instruction.code = primaryOperatorPair.first;
+		instruction.firstVar = lhs.getVarAsItIs();
+		instruction.secondVar = rhs.getVarAsItIs();
+
+		auto& longType = *context().getVariable("Int64").as<TypeObject>();
+		instruction.outputVar = createTempVar(longType);
+
+		return instruction.outputVar;
+	}
+	AnalyzerVar* SemanticAnalyzer::deduceFunctionCall(const UndeterminedVar& caller, const std::vector<UndeterminedVar>& arguments, InstructionSequence& instructions) {
+
+		// TODO get actual function from caller (function itself, type constructor, call operator of an object)
+		auto functionVar = caller;
+
+		// TODO get actual return type
+		auto& returnType = *context().getVariable("Int64").as<TypeObject>();
+		auto outputVar = createTempVar(returnType);
+
+		// allocating stack
+		auto& defineInstruction = instructions.addInstruction();
+		defineInstruction.code = Instruction::Code::AllocateFunctionStack;
+
+		defineInstruction.firstVar = functionVar.getVarAsItIs();
+
+		// evaluating arguments
+		for (auto i = 0u; i < arguments.size(); ++i) {
+			auto& argumentVar = arguments[i];
+
+			auto parameterVar = argumentVar;
+			auto isRef = true;
+			if (!isRef) {
+				// TODO create copy for the function call if needed, for now it's reference only
+			}
+
+			auto& defineInstruction = instructions.addInstruction();
+			defineInstruction.code = Instruction::Code::DefineFuncParameter;
+
+			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getVarAsItIs()->getType(*this));
+			defineInstruction.secondVar = parameterVar.getVarAsItIs();
+		}
+
+		// calling the function
+		auto& instruction = instructions.addInstruction();
+		instruction.code = Instruction::Code::CallFunction;
+		instruction.firstVar = functionVar.getVarAsItIs();
+		instruction.outputVar = outputVar;
+
+		return instruction.outputVar;
+	}
+	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedVar>& vars) {
+		// TODO
+		return nullptr;
 	}
 
 	class AnalyzerLiteralVar : public AnalyzerVar {

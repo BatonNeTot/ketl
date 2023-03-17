@@ -20,6 +20,36 @@ namespace Ketl {
 		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
 	};
 
+	class UndeterminedVar {
+	public:
+
+		UndeterminedVar() = default;
+		UndeterminedVar(AnalyzerVar* predeterminedVar)
+			: _predeterminedVar(predeterminedVar) {}
+
+		std::vector<const TypeObject*> typeVariants(SemanticAnalyzer& context) const {
+			if (_predeterminedVar) {
+				return { _predeterminedVar->getType(context) };
+			}
+			std::vector<const TypeObject*> types;
+			types.reserve(_potentialFunctions.size());
+			for (const auto& functionPair : _potentialFunctions) {
+				types.emplace_back(functionPair.second);
+			}
+			return types;
+		}
+
+		// TODO raise error if there is no var
+		AnalyzerVar* getVarAsItIs() const {
+			return _predeterminedVar;
+		}
+
+	private:
+
+		AnalyzerVar* _predeterminedVar = nullptr;
+		std::vector<std::pair<FunctionImpl*, const TypeObject*>> _potentialFunctions;
+	};
+
 	class RawInstruction {
 	public:
 		Instruction::Code code = Instruction::Code::None;
@@ -43,7 +73,7 @@ namespace Ketl {
 		InstructionSequence									createWhileBranch(AnalyzerVar* expression, const std::string_view& id);
 
 
-		void addReturnStatement(AnalyzerVar* expression);
+		void addReturnStatement(UndeterminedVar expression);
 
 		std::vector<RawInstruction> buildInstructions()&& {
 			return std::move(_rawInstructions);
@@ -53,7 +83,7 @@ namespace Ketl {
 
 		bool _hasReturnStatement = false;
 		bool _raisedAfterReturnError = false;
-		AnalyzerVar* _returnExpression = nullptr;
+		UndeterminedVar _returnExpression;
 		SemanticAnalyzer& _context;
 		std::vector<RawInstruction> _rawInstructions;
 
@@ -64,7 +94,7 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual AnalyzerVar* produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
+		virtual UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
 	};
 
 	class SemanticAnalyzer {
@@ -88,6 +118,13 @@ namespace Ketl {
 
 		AnalyzerVar* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
 		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
+
+
+		AnalyzerVar* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedVar& var, InstructionSequence& instructions);
+		AnalyzerVar* deduceBinaryOperatorCall(OperatorCode code, const UndeterminedVar& lhs, const UndeterminedVar& rhs, InstructionSequence& instructions);
+		AnalyzerVar* deduceFunctionCall(const UndeterminedVar& caller, const std::vector<UndeterminedVar>& arguments, InstructionSequence& instructions);
+		const TypeObject* deduceCommonType(const std::vector<UndeterminedVar>& vars);
+
 
 		AnalyzerVar* getVar(const std::string_view& id);
 		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
