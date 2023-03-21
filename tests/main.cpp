@@ -78,11 +78,9 @@ int main(int argc, char** argv) {
 		return sum;
 	};
 	
-	/*
 	var adder(Int64 x) {
-		return x;
+		return x + 20;
 	};
-	*/
 
 	sum = adder(5, 10);
 

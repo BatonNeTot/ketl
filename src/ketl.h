@@ -10,6 +10,7 @@
 #include <typeindex>
 #include <iostream>
 #include <functional>
+#include <vector>
 
 namespace Ketl {
 	class Allocator {
@@ -218,8 +219,6 @@ namespace Ketl {
 		Argument second;
 	};
 
-	class TypeObject;
-
 	class FunctionImpl {
 	public:
 
@@ -307,6 +306,60 @@ namespace Ketl {
 		FunctionImpl _function;
 	};
 
+	class SemanticAnalyzer;
+	class AnalyzerVar;
+	class TypeObject;
+
+	class UndeterminedVar {
+	public:
+
+		UndeterminedVar() = default;
+		UndeterminedVar(AnalyzerVar* predeterminedVar)
+			: _potentialVars(1) {
+			_potentialVars[0] = predeterminedVar;
+		}
+		UndeterminedVar(std::vector<AnalyzerVar*>&& potentialVars)
+			: _potentialVars(std::move(potentialVars)) {}
+
+		bool empty() const {
+			return _potentialVars.empty();
+		}
+
+		const std::vector<AnalyzerVar*>& getVariants() const {
+			return _potentialVars;
+		}
+
+		AnalyzerVar* getVarAsItIs() const {
+			if (_potentialVars.empty() || _potentialVars.size() > 1) {
+				return nullptr;
+			}
+			return _potentialVars[0];
+		}
+
+		bool canBeOverloadedWith(SemanticAnalyzer& context, const TypeObject& type) const;
+
+		void overload(AnalyzerVar* var) {
+			_potentialVars.emplace_back(var);
+		}
+
+	private:
+
+		std::vector<AnalyzerVar*> _potentialVars;
+	};
+
+	enum class OperatorCode : uint8_t {
+		None,
+		Constructor,
+		Destructor,
+		Call,
+		Plus,
+		Minus,
+		Multiply,
+		Divide,
+		Assign,
+
+	};
+
 	class TypeObject {
 	public:
 		TypeObject() = default;
@@ -314,9 +367,30 @@ namespace Ketl {
 
 		virtual std::string id() const = 0;
 
-		virtual uint64_t sizeOf() const = 0;
+		virtual uint64_t actualSizeOf() const = 0;
 
-		virtual bool isLight() const = 0;
+		virtual bool isLight() const { return false; }
+
+		uint64_t sizeOf() const { return isLight() ? sizeof(void*) : actualSizeOf(); }
+
+		virtual const TypeObject* getReturnType() const { return nullptr; }
+
+		struct Parameter {
+			bool isConst = false;
+			bool isRef = false;
+			const TypeObject* type = nullptr;
+		};
+
+		virtual const std::vector<Parameter>& getParameters() const  { 
+			static const std::vector<Parameter> empty;
+			return empty;
+		};
+
+		virtual bool doesSupportOverload() const { return false; }
+
+		virtual std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedVar>& arguments) const {
+			return std::make_pair<uint64_t, AnalyzerVar*>(std::numeric_limits<uint64_t>::max(), nullptr);
+		};
 
 		friend bool operator==(const TypeObject& lhs, const TypeObject& rhs) {
 			return lhs.id() == rhs.id();

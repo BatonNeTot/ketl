@@ -11,43 +11,11 @@
 
 namespace Ketl {
 
-	class SemanticAnalyzer;
-
 	class AnalyzerVar {
 	public:
 		virtual ~AnalyzerVar() = default;
 		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
 		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
-	};
-
-	class UndeterminedVar {
-	public:
-
-		UndeterminedVar() = default;
-		UndeterminedVar(AnalyzerVar* predeterminedVar)
-			: _predeterminedVar(predeterminedVar) {}
-
-		std::vector<const TypeObject*> typeVariants(SemanticAnalyzer& context) const {
-			if (_predeterminedVar) {
-				return { _predeterminedVar->getType(context) };
-			}
-			std::vector<const TypeObject*> types;
-			types.reserve(_potentialFunctions.size());
-			for (const auto& functionPair : _potentialFunctions) {
-				types.emplace_back(functionPair.second);
-			}
-			return types;
-		}
-
-		// TODO raise error if there is no var
-		AnalyzerVar* getVarAsItIs() const {
-			return _predeterminedVar;
-		}
-
-	private:
-
-		AnalyzerVar* _predeterminedVar = nullptr;
-		std::vector<std::pair<FunctionImpl*, const TypeObject*>> _potentialFunctions;
 	};
 
 	class RawInstruction {
@@ -100,8 +68,8 @@ namespace Ketl {
 	class SemanticAnalyzer {
 	public:
 
-		SemanticAnalyzer(Context& context, bool localScope = false)
-			: _context(context), _localScope(localScope) {}
+		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr)
+			: _context(context), _localScope(parentContext != nullptr) {}
 		~SemanticAnalyzer() {}
 
 		std::variant<FunctionImpl*, std::string> compile(const IRNode& block)&&;
@@ -126,7 +94,7 @@ namespace Ketl {
 		const TypeObject* deduceCommonType(const std::vector<UndeterminedVar>& vars);
 
 
-		AnalyzerVar* getVar(const std::string_view& id);
+		UndeterminedVar getVar(const std::string_view& id);
 		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
 
 		Variable evaluate(const IRNode& node);
@@ -157,6 +125,21 @@ namespace Ketl {
 
 		std::vector<std::unique_ptr<AnalyzerVar>> vars;
 
+		class UndefinedVar : public AnalyzerVar {
+
+			std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+				auto type = Argument::Type::None;
+				Argument argument;
+				return std::make_pair(type, argument);
+			}
+
+			const TypeObject* getType(SemanticAnalyzer& context) const override {
+				return context.context().getVariable("Void").as<TypeObject>();
+			}
+		};
+
+		UndefinedVar _undefinedVar;
+
 		struct ScopeVar {
 			AnalyzerVar* var; 
 			const TypeObject* type;
@@ -165,8 +148,8 @@ namespace Ketl {
 
 		std::stack<ScopeVar> scopeVars;
 		std::stack<uint64_t> scopeOffsets;
-		std::unordered_map<std::string_view, std::map<uint64_t, AnalyzerVar*>> scopeVarsByNames;
-		std::unordered_map<std::string_view, AnalyzerVar*> newGlobalVars;
+		std::unordered_map<std::string_view, std::map<uint64_t, UndeterminedVar>> scopeVarsByNames;
+		std::unordered_map<std::string_view, UndeterminedVar> newGlobalVars;
 
 		std::vector<const void*> resultRefs;
 

@@ -27,18 +27,6 @@ namespace Ketl {
 
 	class Context;
 
-	enum class OperatorCode : uint8_t {
-		None,
-		Constructor,
-		Destructor,
-		Plus,
-		Minus,
-		Multiply,
-		Divide,
-		Assign,
-		
-	};
-
 	inline OperatorCode parseOperatorCode(const std::string_view& opStr) {
 		switch (opStr.length()) {
 		case 1: {
@@ -66,28 +54,14 @@ namespace Ketl {
 		Variable(void* data, const TypeObject& type)
 			: _data(data), _type(&type) {}
 
-		template <class T, class... Args>
-		T* call(StackAllocator& stack, Args&&... args) {
-			/*
-			auto* pureFunction = as<FunctionImpl>();
-
-			auto stackPtr = stack.allocate(pureFunction->stackSize());
-			uint8_t returnData[16]; // TODO
-			pureFunction->call(stack, stackPtr, returnData);
-			stack.deallocate(pureFunction->stackSize());
-			return reinterpret_cast<T*>(returnData);
-			*/
-			return nullptr;
-		}
-
 		void* as(std::type_index typeIndex, Context& context) const;
-
-		Variable operator[](const std::string_view& key) const {
-
-		}
 
 		const TypeObject& type() const {
 			return *_type;
+		}
+
+		void* rawData() const {
+			return _data;
 		}
 
 		void data(void* data) {

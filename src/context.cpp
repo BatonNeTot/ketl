@@ -22,10 +22,10 @@ namespace Ketl {
 		return _data;
 	}
 
-	Variable Context::_emptyVar;
+	std::vector<Variable> Context::_emptyVars;
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
-		auto classTypeHolder = reinterpret_cast<TypeObject**>(_globals.find("ClassType")->second._data);
+		auto classTypeHolder = reinterpret_cast<TypeObject**>(_globals.find("ClassType")->second[0]._data);
 		auto* classTypePtr = *classTypeHolder;
 
 		// actual type
@@ -37,7 +37,7 @@ namespace Ketl {
 		// register root
 		_gc.registerRefRoot(primitiveTypeHolder);
 		// put holder in global
-		_globals.try_emplace(id, primitiveTypeHolder, *classTypePtr);
+		_globals[id].emplace_back(primitiveTypeHolder, *classTypePtr);
 		_userTypes.try_emplace(typeIndex, primitiveTypePtr, *classTypePtr);
 	}
 
@@ -52,7 +52,7 @@ namespace Ketl {
 			classTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 			*classTypeHolder = classTypePtr;
 			_gc.registerRefRoot(classTypeHolder);
-			_globals.try_emplace(classTypePtr->id(), classTypeHolder, *classTypePtr);
+			_globals[classTypePtr->id()].emplace_back(classTypeHolder, *classTypePtr);
 		}
 
 		// interface Type
@@ -61,7 +61,7 @@ namespace Ketl {
 		auto interfaceTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 		*interfaceTypeHolder = interfaceTypePtr;
 		_gc.registerRefRoot(interfaceTypeHolder);
-		_globals.try_emplace(interfaceTypePtr->id(), interfaceTypeHolder, *classTypePtr);
+		_globals[interfaceTypePtr->id()].emplace_back(interfaceTypeHolder, *classTypePtr);
 
 		// The Type
 		auto [theTypePtr, theTypeRefs] = createObject<InterfaceTypeObject>("Type"/*, 0*/);
@@ -69,7 +69,7 @@ namespace Ketl {
 		auto theTypeHolder = reinterpret_cast<InterfaceTypeObject**>(allocateOnHeap(sizeof(void*)));
 		*theTypeHolder = theTypePtr;
 		_gc.registerRefRoot(theTypeHolder);
-		_globals.try_emplace(theTypePtr->id(), theTypeHolder, *interfaceTypePtr);
+		_globals[theTypePtr->id()].emplace_back(theTypeHolder, *interfaceTypePtr);
 		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr, *interfaceTypePtr);
 
 		classTypePtr->_interfaces.emplace_back(theTypePtr);
@@ -87,7 +87,7 @@ namespace Ketl {
 		auto primitiveTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
 		*primitiveTypeHolder = primitiveTypePtr;
 		_gc.registerRefRoot(primitiveTypeHolder);
-		_globals.try_emplace(primitiveTypePtr->id(), primitiveTypeHolder, *classTypePtr);
+		_globals[primitiveTypePtr->id()].emplace_back(primitiveTypeHolder, *classTypePtr);
 
 		declarePrimitiveType("Void", 0, typeid(void));
 		declarePrimitiveType<int64_t>("Int64");

@@ -49,6 +49,7 @@ namespace Ketl {
 		return nullptr;
 	}
 	AnalyzerVar* SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedVar& lhs, const UndeterminedVar& rhs, InstructionSequence& instructions) {
+		// TODO actual deducing
 		std::string argumentsNotation = std::string("Int64,Int64");
 		auto primaryOperatorPair = context().deducePrimaryOperator(code, argumentsNotation);
 
@@ -68,26 +69,62 @@ namespace Ketl {
 		return instruction.outputVar;
 	}
 	AnalyzerVar* SemanticAnalyzer::deduceFunctionCall(const UndeterminedVar& caller, const std::vector<UndeterminedVar>& arguments, InstructionSequence& instructions) {
+		auto& variants = caller.getVariants();
+
+		std::map<uint64_t, AnalyzerVar*> deducedVariants;
+
+		for (const auto& callerVar : variants) {
+			auto type = callerVar->getType(*this);
+			deducedVariants.emplace(type->deduceOperatorCall(callerVar, OperatorCode::Call, arguments));
+		}
+
+		auto bestVariantsIt = deducedVariants.begin();
+		auto bestVariantCost = bestVariantsIt->first;
+
+		if (bestVariantCost == std::numeric_limits<uint64_t>::max()) {
+			pushErrorMsg("[ERROR] No satisfying function");
+			return &_undefinedVar;
+		}
+
+		auto deducedEnd = deducedVariants.end();
+		auto bestVariantsCount = 0u;
+
+		for (;;) {
+			++bestVariantsIt;
+			if (bestVariantsIt != deducedEnd && bestVariantsIt->first == bestVariantCost) {
+				++bestVariantsCount;
+			}
+			else {
+				break;
+			}
+		}
+
+		if (bestVariantsCount > 1) {
+			pushErrorMsg("[ERROR] Coundn't decide call");
+			return &_undefinedVar;
+		}
 
 		// TODO get actual function from caller (function itself, type constructor, call operator of an object)
-		auto functionVar = caller;
+		auto functionVar = deducedVariants.begin()->second;
+		auto functionType = functionVar->getType(*this);
 
-		// TODO get actual return type
-		auto& returnType = *context().getVariable("Int64").as<TypeObject>();
+		auto& returnType = *functionType->getReturnType();
 		auto outputVar = createTempVar(returnType);
 
 		// allocating stack
 		auto& defineInstruction = instructions.addInstruction();
 		defineInstruction.code = Instruction::Code::AllocateFunctionStack;
 
-		defineInstruction.firstVar = functionVar.getVarAsItIs();
+		defineInstruction.firstVar = functionVar;
 
 		// evaluating arguments
+		auto& parameters = functionType->getParameters();
 		for (auto i = 0u; i < arguments.size(); ++i) {
 			auto& argumentVar = arguments[i];
+			auto& parameter = parameters[i];
 
 			auto parameterVar = argumentVar;
-			auto isRef = true;
+			auto isRef = parameter.isRef;
 			if (!isRef) {
 				// TODO create copy for the function call if needed, for now it's reference only
 			}
@@ -102,7 +139,7 @@ namespace Ketl {
 		// calling the function
 		auto& instruction = instructions.addInstruction();
 		instruction.code = Instruction::Code::CallFunction;
-		instruction.firstVar = functionVar.getVarAsItIs();
+		instruction.firstVar = functionVar;
 		instruction.outputVar = outputVar;
 
 		return instruction.outputVar;
@@ -233,7 +270,13 @@ namespace Ketl {
 		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
 			auto type = Argument::Type::Global;
 			Argument argument;
-			argument.globalPtr = context.context().getVariable(std::string(_id)).as<void>();
+			auto& vars = context.context().getVariable(std::string(_id))._vars;
+			for (const auto& var : vars) {
+				if (var.type() == *_type) {
+					argument.globalPtr = var.rawData();
+					break;
+				}
+			}
 			return std::make_pair(type, argument);
 		}
 
@@ -247,59 +290,63 @@ namespace Ketl {
 		std::string_view _id;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::getVar(const std::string_view& id) {
-		auto globalIt = newGlobalVars.find(id);
-		if (globalIt != newGlobalVars.end()) {
-			return globalIt->second;
-		}
-
+	UndeterminedVar SemanticAnalyzer::getVar(const std::string_view& id) {
 		auto scopeIt = scopeVarsByNames.find(id);
 		if (scopeIt != scopeVarsByNames.end()) {
 			auto it = scopeIt->second.rbegin();
 			return it->second;
 		}
 
+		auto globalIt = newGlobalVars.find(id);
+		if (globalIt != newGlobalVars.end()) {
+			return globalIt->second;
+		}
+
 		auto globalVar = _context.getVariable(id);
-		if (globalVar.as<void>()) {
-			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, globalVar.type()));
-			return ptr.get();
+		if (!globalVar.empty()) {
+			UndeterminedVar uvar;
+			for (auto& var : globalVar._vars) {
+				auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, var.type()));
+				uvar.overload(ptr.get());
+			}
+			return uvar;
 		}
 
 		auto idStr = std::string(id);
-		pushErrorMsg("[ERROR] Variable " + idStr + " doesn't exists");
-		// TODO return something not null
-		return nullptr;
+		pushErrorMsg("[ERROR] Variable '" + idStr + "' doesn't exists");
+		return &_undefinedVar;
 	}
 
 	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type) {
 		if (isLocalScope()) {
 
 			auto& scopedNames = scopeVarsByNames[id];
-			auto [varIt, success] = scopedNames.try_emplace(scopeLayer, nullptr);
-			if (!success) {
-				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in local scope");
-				return varIt->second;
+			auto& uvar = scopedNames[scopeLayer];
+
+			if (!uvar.canBeOverloadedWith(*this, type)) {
+				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in local scope");
+				return &_undefinedVar;
 			}
 
 			auto tempVar = createTempVar(type);
-			varIt->second = tempVar;
+			uvar.overload(tempVar);
 
-			return varIt->second;
+			return tempVar;
 		}
 		else {
+			if (!_context.getVariable(id).empty()) {
+				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
+				return &_undefinedVar;
+			}
+
+			auto& uvar = newGlobalVars[id];
+			if (!uvar.canBeOverloadedWith(*this, type)) {
+				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
+				return &_undefinedVar;
+			}
+
 			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, type));
-
-			if (_context.getVariable(id).as<void>()) {
-				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in global scope");
-				return ptr.get();
-			}
-
-			if (newGlobalVars.find(id) != newGlobalVars.end()) {
-				pushErrorMsg("[ERROR] Variable " + std::string(id) + " already exists in global scope");
-				return ptr.get();
-			}
-
-			newGlobalVars.try_emplace(id, ptr.get());
+			uvar.overload(ptr.get());
 
 			return ptr.get();
 		}
@@ -332,7 +379,7 @@ namespace Ketl {
 		auto [varIt, success] = scopedNames.try_emplace(scopeLayer, nullptr);
 		if (!success) {
 			pushErrorMsg("[ERROR] Parameter " + std::string(id) + " already exists");
-			return varIt->second;
+			return &_undefinedVar;
 		}
 
 		auto offset = currentStackOffset;
@@ -399,20 +446,30 @@ namespace Ketl {
 
 	Variable SemanticAnalyzer::evaluate(const IRNode& node) {
 		// TODO evalutaion right now is quite raw
-		return context().getVariable("Void")._var;
+
+		// TODO
+		// So, we need to compile and run it, BUT we need to use context which we didn't bake yet
+		// what about we separate BAKE and COMPILE, so that we can compile without baking.
+		// which is kinda already the thing, because baking only adds names into global name space
+
+		return context().getVariable("Int64")._vars[0];
 	}
 
 	void SemanticAnalyzer::bakeContext() {
 		for (auto& var : newGlobalVars) {
 			auto id = std::string(var.first);
-			if (_context.getVariable(id).as<void>()) {
+			if (!_context.getVariable(id).empty()) {
 				pushErrorMsg("[ERROR] Variable " + id + " already exists");
 				continue;
 			}
 
-			auto& longType = *_context.getVariable("Int64").as<TypeObject>();
-			auto ptr = _context.allocateGlobal(longType);
-			_context.declareGlobal(id, ptr, longType);
+			auto& variants = var.second.getVariants();
+			for (auto& variant : variants) {
+				auto& type = *variant->getType(*this);
+				uint8_t* ptr; 
+				ptr = _context.allocateOnHeap(type.sizeOf());
+				_context.declareGlobal(id, ptr, type);
+			}
 		}
 	}
 

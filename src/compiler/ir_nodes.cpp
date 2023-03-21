@@ -101,7 +101,7 @@ namespace Ketl {
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
 		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
-			SemanticAnalyzer analyzer(context.context(), true);
+			SemanticAnalyzer analyzer(context.context(), &context);
 
 			TypeObject* returnType = nullptr; 
 			if (_outputType) {
@@ -109,7 +109,7 @@ namespace Ketl {
 			}
 			else {
 				// TODO deduce from block
-				returnType = context.context().getVariable("Void").as<TypeObject>();
+				returnType = context.context().getVariable("Int64").as<TypeObject>();
 			} 
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
@@ -125,8 +125,7 @@ namespace Ketl {
 			auto function = std::move(analyzer).compile(*_block);
 			if (std::holds_alternative<std::string>(function)) {
 				context.pushErrorMsg(std::get<std::string>(function));
-				// TODO return something not null
-				return {};
+				return &context._undefinedVar;
 			}
 			
 			auto classType = context.context().getVariable("ClassType").as<TypeObject>();
@@ -347,11 +346,6 @@ namespace Ketl {
 			// TODO create actual undetermined var based on name resolution variations
 			return context.getVar(_id);
 		};
-
-		Variable evaluate(SemanticAnalyzer& context) { 
-			// TODO now works only for type inside Context
-			return context.context().getVariable(_id)._var;
-		}
 
 	private:
 		std::string _id;

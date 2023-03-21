@@ -1,7 +1,15 @@
 ﻿/*🍲Ketl🍲*/
 #include "ketl.h"
+#include "compiler/compiler.h"
 
 namespace Ketl {
+
+	bool UndeterminedVar::canBeOverloadedWith(SemanticAnalyzer& context, const TypeObject& type) const {
+		if (_potentialVars.empty()) {
+			return true;
+		}
+		return _potentialVars[0]->getType(context)->doesSupportOverload() && type.doesSupportOverload();
+	};
 
 	inline static uint8_t* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
 		switch (type) {

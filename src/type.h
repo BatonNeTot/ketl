@@ -15,9 +15,11 @@ namespace Ketl {
 
 		std::string id() const override { return _id; }
 
-		uint64_t sizeOf() const override { return 0; }
+		uint64_t actualSizeOf() const override { return 0; }
 
 		bool isLight() const override { return true; }
+
+		bool doesSupportOverload() const override { return false; };
 
 	private:
 
@@ -33,9 +35,11 @@ namespace Ketl {
 
 		std::string id() const override { return _id; }
 
-		uint64_t sizeOf() const override { return _size; }
+		uint64_t actualSizeOf() const override { return _size; }
 
 		bool isLight() const override { return true; }
+
+		bool doesSupportOverload() const override { return false; };
 
 	private:
 
@@ -54,9 +58,11 @@ namespace Ketl {
 
 		std::string id() const override { return _id; }
 
-		uint64_t sizeOf() const override { return _size; }
+		uint64_t actualSizeOf() const override { return _size; }
 
 		bool isLight() const override { return false; }
+
+		bool doesSupportOverload() const override { return false; };
 
 	private:
 
@@ -66,12 +72,6 @@ namespace Ketl {
 
 	class FunctionTypeObject : public TypeObject {
 	public:
-
-		struct Parameter {
-			bool isConst = false;
-			bool isRef = false;
-			const TypeObject* type = nullptr;
-		};
 
 		FunctionTypeObject(const TypeObject& returnType, std::vector<Parameter>&& parameters)
 			: _returnType(&returnType), _parameters(std::move(parameters)) {
@@ -90,11 +90,24 @@ namespace Ketl {
 			return _id;
 		}
 
-		uint64_t sizeOf() const override { return sizeof(FunctionImpl); }
+		uint64_t actualSizeOf() const override { return sizeof(FunctionImpl); }
 
 		bool isLight() const override { return true; }
 
-		const std::vector<Parameter>& getParameters() const { return _parameters; };
+		bool doesSupportOverload() const override { return true; };
+
+		std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedVar>& arguments) const {
+			if (arguments.size() != _parameters.size()) {
+				return std::make_pair<uint64_t, AnalyzerVar*>(std::numeric_limits<uint64_t>::max(), nullptr);
+			}
+
+			// TODO do cast checking and counting
+			return std::make_pair(0u, caller);
+		};
+
+		const TypeObject* getReturnType() const override { return _returnType; }
+
+		const std::vector<Parameter>& getParameters() const override { return _parameters; };
 
 	private:
 

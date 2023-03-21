@@ -23,26 +23,24 @@ namespace Ketl {
 	class ContextedVariable {
 	public:
 
-		ContextedVariable(Context& context, Variable& variable)
-			: _context(context), _var(variable) {}
+		ContextedVariable(Context& context, std::vector<Variable>& variables)
+			: _context(context), _vars(variables) {}
 
-		template <class... Args>
-		void operator()(Args&&... args);
+		bool empty() const {
+			return _vars.empty();
+		}
 
 		template <class T>
 		T* as() const {
-			return reinterpret_cast<T*>(_var.as(typeid(T), _context));
-		}
-
-		const TypeObject& type() const {
-			return _var.type();
+			// TODO fix deducing
+			return reinterpret_cast<T*>(_vars[0].as(typeid(T), _context));
 		}
 
 		// TODO
 	public:
 
 		Context& _context;
-		Variable& _var;
+		std::vector<Variable>& _vars;
 	};
 
 	class Context {
@@ -54,12 +52,18 @@ namespace Ketl {
 		// maybe would be better to return pointer and make it null in case of lack
 		ContextedVariable getVariable(const std::string_view& id) {
 			auto it = _globals.find(id);
-			return ContextedVariable(*this, it == _globals.end() ? _emptyVar : it->second);
+			return ContextedVariable(*this, it == _globals.end() ? _emptyVars : it->second);
 		}
 
 		bool declareGlobal(const std::string_view& id, void* stackPtr, const TypeObject& type) {
-			auto [it, success] = _globals.try_emplace(std::string(id), stackPtr, type);
-			return success;
+			auto& vars = _globals[std::string(id)];
+			for (const auto& var : vars) {
+				if (var.type() == type) {
+					return false;
+				}
+			}
+			vars.emplace_back(stackPtr, type);
+			return true;
 		}
 
 		template <class T>
@@ -129,10 +133,10 @@ namespace Ketl {
 			return std::make_pair(ptr, &links);
 		}
 
-		static Variable _emptyVar;
+		static std::vector<Variable> _emptyVars;
 		Allocator& _alloc;
 		StackAllocator _globalStack;
-		std::unordered_map<std::string, Variable, StringHash, StringEqualTo> _globals;
+		std::unordered_map<std::string, std::vector<Variable>, StringHash, StringEqualTo> _globals;
 
 		std::unordered_map<std::type_index, Variable> _userTypes;
 
@@ -140,11 +144,6 @@ namespace Ketl {
 
 		GarbageCollector _gc;
 	};
-
-	template <class... Args>
-	void ContextedVariable::operator()(Args&&... args) {
-		_var.call<void>(_context._globalStack, std::forward<Args>(args)...);
-	}
 }
 
 #endif /*context_h*/
