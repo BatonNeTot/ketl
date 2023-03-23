@@ -61,7 +61,7 @@ namespace Ketl {
 				type = reinterpret_cast<TypeObject*>(context.evaluate(*_type).as(typeid(TypeObject), context.context())); // TODO hide into var
 			}
 			else {
-				type = expression.getVarAsItIs()->getType(context);
+				type = expression.getVarAsItIs()->getType();
 			}
 			auto var = context.createVar(_id, *type);
 
@@ -80,9 +80,7 @@ namespace Ketl {
 	};
 
 	std::unique_ptr<IRNode> createDefineVariableByAssignment(const ProcessNode* info) {
-		auto concat = info->firstChild;
-
-		auto typeNode = concat->firstChild;
+		auto typeNode = info->firstChild;
 		auto type = typeNode->node->createIRTree(typeNode);
 
 		auto idNode = typeNode->nextSibling;
@@ -97,7 +95,14 @@ namespace Ketl {
 	class IRFunction : public IRNode {
 	public:
 
-		IRFunction(std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
+		struct Parameter {
+			std::unique_ptr<IRNode> type;
+			std::string_view id;
+			bool isConst;
+			bool isRef;
+		};
+
+		IRFunction(std::vector<Parameter>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
 		UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
@@ -114,11 +119,10 @@ namespace Ketl {
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
 			for (auto& parameter : _parameters) {
-				auto type = reinterpret_cast<TypeObject*>(context.evaluate(*parameter.first).as(typeid(TypeObject), context.context())); // TODO hide into var
-				analyzer.createFunctionParameterVar(parameter.second, *type);
-				// TODO get 'const' and 'ref' from node
-				auto isConst = false;
-				auto isRef = true;
+				auto type = reinterpret_cast<TypeObject*>(context.evaluate(*parameter.type).as(typeid(TypeObject), context.context())); // TODO hide into var
+				analyzer.createFunctionParameterVar(parameter.id, *type);
+				auto isConst = parameter.isConst;
+				auto isRef = parameter.isRef;
 				parameters.emplace_back(isConst, isRef, type);
 			}
 
@@ -140,32 +144,45 @@ namespace Ketl {
 		};
 
 	private:
-		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> _parameters;
+		std::vector<Parameter> _parameters;
 		std::unique_ptr<IRNode> _outputType;
 		std::unique_ptr<IRNode> _block;
 	};
 
-	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {
-		auto concat = info->firstChild;
-
-		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> parameters;
-		auto parametersNode = concat->firstChild;
-
-		if (parametersNode->firstChild) {
-			auto it = parametersNode->firstChild;
-			while (it) {
-				auto parameter = it->firstChild;
-
-				auto parameterTypeNode = parameter->firstChild;
-				auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
-
-				auto parameterIdNode = parameterTypeNode->nextSibling;
-				auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
-
-				parameters.emplace_back(std::move(parameterType), std::move(parameterId));
-
-				it = it->nextSibling;
+	static void createParameter(const ProcessNode* parameter, std::vector<IRFunction::Parameter>& parameters) {
+		auto parameterQualifiers = parameter->firstChild;
+		auto isConst = false;
+		auto isRef = false;
+		for (auto it = parameterQualifiers->firstChild; it != nullptr; it = it->nextSibling) {
+			auto qualifier = it->node->value(it->iterator);
+			if (qualifier == "const") {
+				isConst = true;
 			}
+			else if (qualifier == "in") {
+				isRef = true;
+			}
+			else if (qualifier == "out") {
+				isRef = true;
+			}
+		}
+
+		auto parameterTypeNode = parameterQualifiers->nextSibling;
+		auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
+
+		auto parameterIdNode = parameterTypeNode->nextSibling;
+		auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
+
+		parameters.emplace_back(std::move(parameterType), parameterId, isConst, isRef);
+	}
+
+	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {
+		std::vector<IRFunction::Parameter> parameters;
+		auto parametersNode = info->firstChild;
+
+		for (auto it = parametersNode->firstChild; it != nullptr; it = it->nextSibling) {
+			auto parameter = it->firstChild;
+
+			createParameter(parameter, parameters);
 		}
 
 		auto outputTypeNodeHolder = parametersNode->nextSibling;
@@ -183,32 +200,19 @@ namespace Ketl {
 	}
 
 	std::unique_ptr<IRNode> createDefineFunction(const ProcessNode* info) {
-		auto concat = info->firstChild;
-
-		auto outputTypeNode = concat->firstChild;
+		auto outputTypeNode = info->firstChild;
 		auto outputType = outputTypeNode->node->createIRTree(outputTypeNode);
 
 		auto idNode = outputTypeNode->nextSibling;
 		auto id = idNode->node->value(idNode->iterator);
 
-		std::vector<std::pair<std::unique_ptr<IRNode>, std::string_view>> parameters;
+		std::vector<IRFunction::Parameter> parameters;
 		auto parametersNode = idNode->nextSibling;
 
-		if (parametersNode->firstChild) {
-			auto it = parametersNode->firstChild;
-			while (it) {
-				auto parameter = it->firstChild;
+		for (auto it = parametersNode->firstChild; it != nullptr; it = it->nextSibling) {
+			auto parameter = it->firstChild;
 
-				auto parameterTypeNode = parameter->firstChild;
-				auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
-
-				auto parameterIdNode = parameterTypeNode->nextSibling;
-				auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
-
-				parameters.emplace_back(std::move(parameterType), std::move(parameterId));
-
-				it = it->nextSibling;
-			}
+			createParameter(parameter, parameters);
 		}
 
 		auto blockNode = parametersNode->nextSibling;
@@ -217,6 +221,35 @@ namespace Ketl {
 		auto function = std::make_unique<IRFunction>(std::move(parameters), std::move(outputType), std::move(block));
 
 		return std::make_unique<IRDefineVariable>(id, nullptr, std::move(function));
+	}
+
+	std::unique_ptr<IRNode> createDefineStruct(const ProcessNode* info) {
+		auto idNode = info->firstChild;
+		auto id = idNode->node->value(idNode->iterator);
+
+		std::string_view globalAccessQualifier = "public";
+		for (auto it = idNode->nextSibling; it != nullptr; it = it->nextSibling) {
+			auto qualifierNode = it->firstChild;
+			if (qualifierNode->nextSibling == nullptr) {
+				globalAccessQualifier = qualifierNode->node->value(qualifierNode->iterator);
+				continue;
+			}
+			auto localAccessQualifier = globalAccessQualifier;
+			if (qualifierNode->firstChild != nullptr) {
+				auto node = qualifierNode->firstChild;
+				localAccessQualifier = node->node->value(node->iterator);
+			}
+
+			auto typeNode = qualifierNode->nextSibling;
+			auto type = typeNode->node->createIRTree(typeNode);
+
+			for (auto fieldNode = typeNode->nextSibling; fieldNode != nullptr; fieldNode = fieldNode->nextSibling) {
+				auto fieldId = fieldNode->node->value(fieldNode->iterator);
+				// do something with it
+			}
+		}
+
+		return nullptr;
 	}
 
 	class IRFunctionCall : public IRNode {

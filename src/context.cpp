@@ -101,22 +101,5 @@ namespace Ketl {
 
 		// TODO temporary
 		registerPrimaryOperator(OperatorCode::Assign,	"Int64,Int64", Instruction::Code::AssignPrimitive,	"Int64");
-
-		/*
-		{
-			auto typeOfType = std::make_unique<TypeOfType>(nullptr);
-			auto typePtr = reinterpret_cast<BasicTypeBody*>(allocateGlobal(*typeOfType));
-			new(typePtr) BasicTypeBody("Float64", sizeof(double));
-			_globals.try_emplace("Float64", typePtr, std::move(typeOfType));
-
-
-			auto& constructor = typePtr->_cstrs.emplace_back();
-			auto baseType = std::make_unique<BasicType>(typePtr);
-			baseType->isConst = true;
-			baseType->isRef = true;
-			constructor.argTypes.emplace_back(std::move(baseType));
-			constructor.func = FunctionImpl(allocator, sizeof(void*), &constructFloat64);
-		}
-		*/
 	}
 }

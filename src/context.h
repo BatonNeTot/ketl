@@ -49,7 +49,7 @@ namespace Ketl {
 		Context(Allocator& allocator, uint64_t globalStackSize);
 		~Context() {}
 
-		// maybe would be better to return pointer and make it null in case of lack
+		// TODO maybe would be better to return pointer and make it null in case of lack
 		ContextedVariable getVariable(const std::string_view& id) {
 			auto it = _globals.find(id);
 			return ContextedVariable(*this, it == _globals.end() ? _emptyVars : it->second);

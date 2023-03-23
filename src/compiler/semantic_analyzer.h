@@ -14,8 +14,9 @@ namespace Ketl {
 	class AnalyzerVar {
 	public:
 		virtual ~AnalyzerVar() = default;
-		virtual std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const = 0;
-		virtual const TypeObject* getType(SemanticAnalyzer& context) const = 0;
+		virtual void bake(void* ptr) {}
+		virtual std::pair<Argument::Type, Argument> getArgument() const = 0;
+		virtual const TypeObject* getType() const = 0;
 	};
 
 	class RawInstruction {
@@ -25,7 +26,7 @@ namespace Ketl {
 		AnalyzerVar* firstVar;
 		AnalyzerVar* secondVar;
 
-		void propagadeInstruction(Instruction& instruction, SemanticAnalyzer& context);
+		void propagadeInstruction(Instruction& instruction);
 	};
 
 	class InstructionSequence {
@@ -69,7 +70,7 @@ namespace Ketl {
 	public:
 
 		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr)
-			: _context(context), _localScope(parentContext != nullptr) {}
+			: _context(context), _localScope(parentContext != nullptr), _undefinedVar(context) {}
 		~SemanticAnalyzer() {}
 
 		std::variant<FunctionImpl*, std::string> compile(const IRNode& block)&&;
@@ -126,16 +127,23 @@ namespace Ketl {
 		std::vector<std::unique_ptr<AnalyzerVar>> vars;
 
 		class UndefinedVar : public AnalyzerVar {
+		public:
+			UndefinedVar(Context& context) {
+				_type = context.getVariable("Void").as<TypeObject>();
+			}
 
-			std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		private:
+			std::pair<Argument::Type, Argument> getArgument() const override {
 				auto type = Argument::Type::None;
 				Argument argument;
 				return std::make_pair(type, argument);
 			}
 
-			const TypeObject* getType(SemanticAnalyzer& context) const override {
-				return context.context().getVariable("Void").as<TypeObject>();
+			const TypeObject* getType() const override {
+				return _type;
 			}
+
+			const TypeObject* _type = nullptr;
 		};
 
 		UndefinedVar _undefinedVar;

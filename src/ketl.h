@@ -336,7 +336,7 @@ namespace Ketl {
 			return _potentialVars[0];
 		}
 
-		bool canBeOverloadedWith(SemanticAnalyzer& context, const TypeObject& type) const;
+		bool canBeOverloadedWith(const TypeObject& type) const;
 
 		void overload(AnalyzerVar* var) {
 			_potentialVars.emplace_back(var);

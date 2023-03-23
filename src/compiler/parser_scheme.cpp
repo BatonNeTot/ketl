@@ -116,7 +116,7 @@ namespace Ketl {
 		_nodes.try_emplace("expression", std::make_unique<NodeId>(&createRtlTree, true, "precedence-5-expression"));
 
 		// define variable by assignment
-		_nodes.try_emplace("defineVariableAssignment", std::make_unique<NodeConcat>(false,
+		_nodes.try_emplace("defineVariableAssignment", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeOr>(
 				std::make_unique<NodeLiteral>(&emptyTree, false, "var"),
 				std::make_unique<NodeId>(false, "type")
@@ -127,8 +127,18 @@ namespace Ketl {
 			std::make_unique<NodeLiteral>(true, ";")
 			));
 
+		// function parameter qualifiers
+		_nodes.try_emplace("functionParameterQualifiers", std::make_unique<NodeRepeat>(
+			std::make_unique<NodeOr>(
+				std::make_unique<NodeLiteral>(false, "const"),
+				std::make_unique<NodeLiteral>(false, "in"),
+				std::make_unique<NodeLiteral>(false, "out")
+				)
+			));
+
 		// function parameter
 		_nodes.try_emplace("functionParameter", std::make_unique<NodeConcat>(false,
+			std::make_unique<NodeId>(false, "functionParameterQualifiers"),
 			std::make_unique<NodeId>(&createType, false, "type"),
 			std::make_unique<NodeConditional>(
 				std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
@@ -158,7 +168,7 @@ namespace Ketl {
 			));
 
 		// define lambda
-		_nodes.try_emplace("defineLambda", std::make_unique<NodeConcat>(false,
+		_nodes.try_emplace("defineLambda", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeId>(false, "functionParameters"),
 			std::make_unique<NodeLiteral>(true, "->"),
 			std::make_unique<NodeId>(false, "lambdaOutputType"),
@@ -168,7 +178,7 @@ namespace Ketl {
 			));
 
 		// define function
-		_nodes.try_emplace("defineFunction", std::make_unique<NodeConcat>(false,
+		_nodes.try_emplace("defineFunction", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeOr>(
 				std::make_unique<NodeLiteral>(&emptyTree, false, "var"),
 				std::make_unique<NodeId>(&createType, false, "type")
@@ -177,6 +187,52 @@ namespace Ketl {
 			std::make_unique<NodeId>(false, "functionParameters"),
 			std::make_unique<NodeLiteral>(true, "{"),
 			std::make_unique<NodeId>(&createBlockTree, false, "several-commands"),
+			std::make_unique<NodeLiteral>(true, "}")
+			));
+
+		// access qualifiers
+		_nodes.try_emplace("accessQualifiers", std::make_unique<NodeOr>(
+			std::make_unique<NodeLiteral>(false, "public"),
+			std::make_unique<NodeLiteral>(false, "protected"),
+			std::make_unique<NodeLiteral>(false, "private")
+			));
+
+		// global access qualifiers
+		_nodes.try_emplace("globalAccessQualifiers", std::make_unique<NodeConcat>(true,
+			std::make_unique<NodeId>(true, "accessQualifiers"),
+			std::make_unique<NodeLiteral>(true, ":")
+			));
+
+		// local access qualifiers
+		_nodes.try_emplace("localAccessQualifiers", std::make_unique<NodeConditional>(
+			std::make_unique<NodeId>(true, "accessQualifiers")
+			));
+
+		// define fields
+		_nodes.try_emplace("defineFields", std::make_unique<NodeConcat>(true,
+			std::make_unique<NodeId>(false, "localAccessQualifiers"),
+			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
+			std::make_unique<NodeRepeat>(
+				std::make_unique<NodeConcat>(true,
+					std::make_unique<NodeLiteral>(true, ","),
+					std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
+					)
+				),
+			std::make_unique<NodeLiteral>(true, ";")
+			));
+
+		// define struct
+		_nodes.try_emplace("defineStruct", std::make_unique<NodeConcat>(true,
+			std::make_unique<NodeLiteral>(true, "struct"),
+			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
+			std::make_unique<NodeLiteral>(true, "{"),
+			std::make_unique<NodeRepeat>(
+				std::make_unique<NodeOr>(
+					std::make_unique<NodeId>(false, "globalAccessQualifiers"),
+					std::make_unique<NodeId>(false, "defineFields")
+					)
+				),
 			std::make_unique<NodeLiteral>(true, "}")
 			));
 
@@ -194,31 +250,10 @@ namespace Ketl {
 			std::make_unique<NodeId>(&createReturn, false, "return"),
 			// define variable by =
 			std::make_unique<NodeId>(&createDefineVariableByAssignment, false, "defineVariableAssignment"),
-			// define variable by {}
-			std::make_unique<NodeConcat>(false,
-				std::make_unique<NodeId>(false, "type"),
-				std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
-				std::make_unique<NodeConditional>(
-					std::make_unique<NodeConcat>(false,
-						std::make_unique<NodeLiteral>(true, "{"),
-						std::make_unique<NodeConditional>(
-							std::make_unique<NodeConcat>(true,
-								std::make_unique<NodeId>(true, "expression"),
-								std::make_unique<NodeRepeat>(
-									std::make_unique<NodeConcat>(true,
-										std::make_unique<NodeLiteral>(true, ","),
-										std::make_unique<NodeId>(true, "expression")
-										)
-									)
-								)
-							),
-						std::make_unique<NodeLiteral>(true, "}")
-						)
-					),
-				std::make_unique<NodeLiteral>(true, ";")
-				),
 			// define function
 			std::make_unique<NodeId>(&createDefineFunction, false, "defineFunction"),
+			// define struct
+			std::make_unique<NodeId>(&createDefineStruct, false, "defineStruct"),
 			// expression
 			std::make_unique<NodeConcat>(false,
 				std::make_unique<NodeConditional>(

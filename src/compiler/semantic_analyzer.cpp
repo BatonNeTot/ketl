@@ -74,7 +74,7 @@ namespace Ketl {
 		std::map<uint64_t, AnalyzerVar*> deducedVariants;
 
 		for (const auto& callerVar : variants) {
-			auto type = callerVar->getType(*this);
+			auto type = callerVar->getType();
 			deducedVariants.emplace(type->deduceOperatorCall(callerVar, OperatorCode::Call, arguments));
 		}
 
@@ -104,9 +104,8 @@ namespace Ketl {
 			return &_undefinedVar;
 		}
 
-		// TODO get actual function from caller (function itself, type constructor, call operator of an object)
 		auto functionVar = deducedVariants.begin()->second;
-		auto functionType = functionVar->getType(*this);
+		auto functionType = functionVar->getType();
 
 		auto& returnType = *functionType->getReturnType();
 		auto outputVar = createTempVar(returnType);
@@ -132,7 +131,7 @@ namespace Ketl {
 			auto& defineInstruction = instructions.addInstruction();
 			defineInstruction.code = Instruction::Code::DefineFuncParameter;
 
-			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getVarAsItIs()->getType(*this));
+			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getVarAsItIs()->getType());
 			defineInstruction.secondVar = parameterVar.getVarAsItIs();
 		}
 
@@ -152,54 +151,60 @@ namespace Ketl {
 	class AnalyzerLiteralVar : public AnalyzerVar {
 	public:
 		// TODO
-		AnalyzerLiteralVar(const std::string_view& value)
-			: _value(value) {}
+		AnalyzerLiteralVar(const std::string_view& value, SemanticAnalyzer& context)
+			: _value(value) {
+			_type = context.context().getVariable("Int64").as<TypeObject>();
+		}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Literal;
 			Argument argument;
 			argument.uinteger = std::stoull(std::string(_value));
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
-			return context.context().getVariable("Int64").as<TypeObject>();
+		const TypeObject* getType() const override {
+			return _type;
 		}
 
 	private:
 
+		const TypeObject* _type = nullptr;
 		std::string_view _value;
 		std::string_view _id;
 	};
 
 	AnalyzerVar* SemanticAnalyzer::createLiteralVar(const std::string_view& value) {
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerLiteralVar>(value));
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerLiteralVar>(value, *this));
 
 		return ptr.get();
 	}
 	
 	class AnalyzerReturnVar : public AnalyzerVar {
 	public:
-		AnalyzerReturnVar(AnalyzerVar* value)
-			: _value(value) {}
+		AnalyzerReturnVar(AnalyzerVar* value, SemanticAnalyzer& context)
+			: _value(value) {
+			_type = _value ? _value->getType() : context.context().getVariable("Void").as<TypeObject>();
+		}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Return;
 			Argument argument;
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
-			return _value ? _value->getType(context) : context.context().getVariable("Void").as<TypeObject>();
+		const TypeObject* getType() const override {
+			return _type;
 		}
 
 	private:
 
 		AnalyzerVar* _value;
+		const TypeObject* _type;
 	};
 
 	AnalyzerVar* SemanticAnalyzer::createReturnVar(AnalyzerVar* expression) {
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerReturnVar>(expression));
+		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerReturnVar>(expression, *this));
 
 		return ptr.get();
 	}
@@ -209,14 +214,14 @@ namespace Ketl {
 		AnalyzerFunctionVar(FunctionImpl& function, const TypeObject& type)
 			: _function(&function), _type(&type) {}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Literal;
 			Argument argument;
 			argument.pointer = _function;
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
+		const TypeObject* getType() const override {
 			return _type;
 		}
 
@@ -239,14 +244,14 @@ namespace Ketl {
 		AnalyzerFunctionParameterVar(uint64_t index, const TypeObject& type)
 			: _index(index), _type(&type) {}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Literal;
 			Argument argument;
 			argument.stack = _index * sizeof(void*);
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
+		const TypeObject* getType() const override {
 			return _type;
 		}
 
@@ -264,30 +269,30 @@ namespace Ketl {
 
 	class AnalyzerGlobalVar : public AnalyzerVar {
 	public:
-		AnalyzerGlobalVar(const std::string_view& id, const TypeObject& type)
-			: _id(id), _type(&type) {}
+		AnalyzerGlobalVar(const TypeObject& type)
+			: _type(&type) {}
+		AnalyzerGlobalVar(void* ptr, const TypeObject& type)
+			: _ptr(ptr), _type(&type) {}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		void bake(void* ptr) override {
+			_ptr = ptr;
+		}
+
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Global;
 			Argument argument;
-			auto& vars = context.context().getVariable(std::string(_id))._vars;
-			for (const auto& var : vars) {
-				if (var.type() == *_type) {
-					argument.globalPtr = var.rawData();
-					break;
-				}
-			}
+			argument.globalPtr = _ptr;
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
+		const TypeObject* getType() const override {
 			return _type;
 		}
 
 	private:
 
 		const TypeObject* _type;
-		std::string_view _id;
+		void* _ptr = nullptr;
 	};
 
 	UndeterminedVar SemanticAnalyzer::getVar(const std::string_view& id) {
@@ -306,7 +311,7 @@ namespace Ketl {
 		if (!globalVar.empty()) {
 			UndeterminedVar uvar;
 			for (auto& var : globalVar._vars) {
-				auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, var.type()));
+				auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(var.rawData(), var.type()));
 				uvar.overload(ptr.get());
 			}
 			return uvar;
@@ -323,7 +328,7 @@ namespace Ketl {
 			auto& scopedNames = scopeVarsByNames[id];
 			auto& uvar = scopedNames[scopeLayer];
 
-			if (!uvar.canBeOverloadedWith(*this, type)) {
+			if (!uvar.canBeOverloadedWith(type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in local scope");
 				return &_undefinedVar;
 			}
@@ -340,12 +345,12 @@ namespace Ketl {
 			}
 
 			auto& uvar = newGlobalVars[id];
-			if (!uvar.canBeOverloadedWith(*this, type)) {
+			if (!uvar.canBeOverloadedWith(type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
 				return &_undefinedVar;
 			}
 
-			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(id, type));
+			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(type));
 			uvar.overload(ptr.get());
 
 			return ptr.get();
@@ -357,14 +362,14 @@ namespace Ketl {
 		AnalyzerParameterVar(uint64_t offset, const TypeObject& type)
 			: _offset(offset), _type(&type) {}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::FunctionParameter;
 			Argument argument;
 			argument.stack = _offset;
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
+		const TypeObject* getType() const override {
 			return _type;
 		}
 
@@ -399,14 +404,14 @@ namespace Ketl {
 		AnalyzerTemporaryVar(uint64_t offset, const TypeObject& type)
 			: _offset(offset), _type(&type) {}
 
-		std::pair<Argument::Type, Argument> getArgument(SemanticAnalyzer& context) const override {
+		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Stack;
 			Argument argument;
 			argument.stack = _offset;
 			return std::make_pair(type, argument);
 		}
 
-		const TypeObject* getType(SemanticAnalyzer& context) const override {
+		const TypeObject* getType() const override {
 			return _type;
 		}
 
@@ -465,10 +470,11 @@ namespace Ketl {
 
 			auto& variants = var.second.getVariants();
 			for (auto& variant : variants) {
-				auto& type = *variant->getType(*this);
+				auto& type = *variant->getType();
 				uint8_t* ptr; 
-				ptr = _context.allocateOnHeap(type.sizeOf());
+				ptr = _context.allocateOnStack(type.sizeOf());
 				_context.declareGlobal(id, ptr, type);
+				variant->bake(ptr);
 			}
 		}
 	}
@@ -494,7 +500,7 @@ namespace Ketl {
 		}
 
 		for (auto i = 0u; i < functionPtr->_instructionsCount; ++i) {
-			rawInstructions[i].propagadeInstruction(functionPtr->_instructions[i], *this);
+			rawInstructions[i].propagadeInstruction(functionPtr->_instructions[i]);
 		}
 
 		return functionPtr;
