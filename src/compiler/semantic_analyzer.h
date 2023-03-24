@@ -58,12 +58,31 @@ namespace Ketl {
 
 	};
 
+	enum class TypeAccessModifier : uint8_t {
+		Public,
+		Protected,
+		Private
+	};
+
+	inline TypeAccessModifier modifierFromString(const std::string_view& value) {
+		if (value == "public") {
+			return TypeAccessModifier::Public;
+		}
+		if (value == "protected") {
+			return TypeAccessModifier::Protected;
+		}
+		if (value == "private") {
+			return TypeAccessModifier::Private;
+		}
+		return TypeAccessModifier::Public;
+	}
+ 
 	// Intermediate representation node
 	class IRNode {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
+		virtual UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar* additionalContext = nullptr) const { return {}; }
 	};
 
 	class SemanticAnalyzer {

@@ -10,7 +10,7 @@ namespace Ketl {
 
 	class InterfaceTypeObject : public TypeObject {
 	public:
-		InterfaceTypeObject(const std::string& id)
+		InterfaceTypeObject(const std::string_view& id)
 			: _id(id) {}
 
 		std::string id() const override { return _id; }
@@ -28,9 +28,9 @@ namespace Ketl {
 
 	class ClassTypeObject : public TypeObject {
 	public:
-		ClassTypeObject(const std::string& id, uint64_t size)
+		ClassTypeObject(const std::string_view& id, uint64_t size)
 			: _id(id), _size(size) {}
-		ClassTypeObject(const std::string& id, uint64_t size, std::vector<InterfaceTypeObject*>&& interfaces)
+		ClassTypeObject(const std::string_view& id, uint64_t size, std::vector<InterfaceTypeObject*>&& interfaces)
 			: _id(id), _size(size), _interfaces(std::move(interfaces)) {}
 
 		std::string id() const override { return _id; }
@@ -53,7 +53,7 @@ namespace Ketl {
 	class PrimitiveTypeObject : public TypeObject {
 	public:
 
-		PrimitiveTypeObject(const std::string& id, uint64_t size)
+		PrimitiveTypeObject(const std::string_view& id, uint64_t size)
 			: _id(id), _size(size) {}
 
 		std::string id() const override { return _id; }
@@ -114,6 +114,39 @@ namespace Ketl {
 		std::string _id;
 		const TypeObject* _returnType;
 		std::vector<Parameter> _parameters;
+	};
+
+	class StructTypeObject : public TypeObject {
+	public:
+
+		StructTypeObject(const std::string_view id, std::vector<Field>&& fields, std::vector<StaticField>&& staticFields)
+			: _id(id), _fields(std::move(fields)), _staticFields(std::move(staticFields)) {
+			// calculate size and fields offsets
+			uint64_t currentOffset = 0u;
+			for (auto& field : _fields) {
+				// TODO align
+				currentOffset = currentOffset;
+				field.offset = currentOffset;
+				currentOffset += field.type->sizeOf();
+			}
+			// TODO align
+			currentOffset = currentOffset;
+			_size = currentOffset;
+		}
+
+		std::string id() const override {
+			return _id;
+		}
+
+		uint64_t actualSizeOf() const override { 
+			return _size; 
+		}
+
+	private:
+		std::string _id;
+		uint64_t _size = 0u;
+		std::vector<Field> _fields;
+		std::vector<StaticField> _staticFields;
 	};
 }
 

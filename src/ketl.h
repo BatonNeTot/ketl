@@ -386,6 +386,19 @@ namespace Ketl {
 			return empty;
 		};
 
+		struct Field {
+			const TypeObject* type = nullptr;
+			uint64_t offset = 0u;
+			std::string id;
+		};
+
+		struct StaticField {
+			const TypeObject* type = nullptr;
+			// TODO replace with Variable?
+			std::string id;
+			void* ptr;
+		};
+
 		virtual bool doesSupportOverload() const { return false; }
 
 		virtual std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedVar>& arguments) const {

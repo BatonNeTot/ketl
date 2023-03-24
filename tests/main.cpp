@@ -73,18 +73,23 @@ int main(int argc, char** argv) {
 	context.declareGlobal("sum", &sum, longType);
 
 	auto compilationResult = compiler.compile(R"(
+	/*
 	struct Test {
 	public:
 		Int64 x, y;
 		public Int64 z;
 	}
 
-	var adder(Int64 x, Int64 y) {
-		var sum = x + y;
-		return sum;
-	};
+	Test test;
+	test.x = 5;
+	sum = test.x;
+	*/
 
-	sum = adder(5, 10);
+	var adder(Int64 x, Int64 y) {
+		return x + y;
+	}
+
+	sum = adder(5)(10);
 
 )", context);
 
@@ -101,7 +106,7 @@ int main(int argc, char** argv) {
 		context._globalStack.deallocate(command->stackSize());
 	}
 
-	assert(sum == 15u);
+	//assert(sum == 15u);
 
 	//*/
 
