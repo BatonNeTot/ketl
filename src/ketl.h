@@ -347,6 +347,44 @@ namespace Ketl {
 		std::vector<AnalyzerVar*> _potentialVars;
 	};
 
+	class UndeterminedDelegate {
+	public:
+
+		UndeterminedDelegate() = default;
+
+		UndeterminedDelegate(UndeterminedVar&& uvar)
+			: _uvar(std::move(uvar)) {}
+		UndeterminedDelegate(UndeterminedVar&& uvar, std::vector<UndeterminedDelegate>&& arguments)
+			: _uvar(std::move(uvar)), _arguments(std::move(arguments)) {}
+
+		UndeterminedDelegate(AnalyzerVar* predeterminedVar)
+			: _uvar(predeterminedVar) {}
+		UndeterminedDelegate(std::vector<AnalyzerVar*>&& potentialVars)
+			: _uvar(std::move(potentialVars)) {}
+
+		UndeterminedVar& getUVar() {
+			return _uvar;
+		}
+		const UndeterminedVar& getUVar() const {
+			return _uvar;
+		}
+
+		std::vector<UndeterminedDelegate>& getArguments() {
+			return _arguments;
+		}
+		const std::vector<UndeterminedDelegate>& getArguments() const {
+			return _arguments;
+		}
+
+		bool hasSavedArguments() const {
+			return !_arguments.empty();
+		}
+
+	private:
+		UndeterminedVar _uvar;
+		std::vector<UndeterminedDelegate> _arguments;
+	};
+
 	enum class OperatorCode : uint8_t {
 		None,
 		Constructor,
@@ -401,7 +439,7 @@ namespace Ketl {
 
 		virtual bool doesSupportOverload() const { return false; }
 
-		virtual std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedVar>& arguments) const {
+		virtual std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedDelegate>& arguments) const {
 			return std::make_pair<uint64_t, AnalyzerVar*>(std::numeric_limits<uint64_t>::max(), nullptr);
 		};
 

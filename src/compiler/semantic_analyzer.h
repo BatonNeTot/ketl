@@ -42,7 +42,7 @@ namespace Ketl {
 		InstructionSequence									createWhileBranch(AnalyzerVar* expression, const std::string_view& id);
 
 
-		void addReturnStatement(UndeterminedVar expression);
+		void addReturnStatement(UndeterminedDelegate expression);
 
 		std::vector<RawInstruction> buildInstructions()&& {
 			return std::move(_rawInstructions);
@@ -52,7 +52,7 @@ namespace Ketl {
 
 		bool _hasReturnStatement = false;
 		bool _raisedAfterReturnError = false;
-		UndeterminedVar _returnExpression;
+		UndeterminedDelegate _returnExpression;
 		SemanticAnalyzer& _context;
 		std::vector<RawInstruction> _rawInstructions;
 
@@ -82,7 +82,7 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual UndeterminedVar produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar* additionalContext = nullptr) const { return {}; }
+		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar* additionalContext = nullptr) const { return {}; }
 	};
 
 	class SemanticAnalyzer {
@@ -108,10 +108,10 @@ namespace Ketl {
 		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
 
 
-		AnalyzerVar* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedVar& var, InstructionSequence& instructions);
-		AnalyzerVar* deduceBinaryOperatorCall(OperatorCode code, const UndeterminedVar& lhs, const UndeterminedVar& rhs, InstructionSequence& instructions);
-		AnalyzerVar* deduceFunctionCall(const UndeterminedVar& caller, const std::vector<UndeterminedVar>& arguments, InstructionSequence& instructions);
-		const TypeObject* deduceCommonType(const std::vector<UndeterminedVar>& vars);
+		AnalyzerVar* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
+		AnalyzerVar* deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions);
+		UndeterminedDelegate deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions);
+		const TypeObject* deduceCommonType(const std::vector<UndeterminedDelegate>& vars);
 
 
 		UndeterminedVar getVar(const std::string_view& id);

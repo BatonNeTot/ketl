@@ -16,7 +16,7 @@ namespace Ketl {
 		return _rawInstructions.emplace_back();
 	}
 
-	void InstructionSequence::addReturnStatement(UndeterminedVar expression) {
+	void InstructionSequence::addReturnStatement(UndeterminedDelegate expression) {
 		if (_hasReturnStatement) {
 			_context.pushErrorMsg("[ERROR] Multiple return statements");
 			return;
@@ -44,11 +44,11 @@ namespace Ketl {
 		--scopeLayer;
 	}
 
-	AnalyzerVar* SemanticAnalyzer::deduceUnaryOperatorCall(OperatorCode code, const UndeterminedVar& var, InstructionSequence& instructions) {
+	AnalyzerVar* SemanticAnalyzer::deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions) {
 		// TODO
 		return nullptr;
 	}
-	AnalyzerVar* SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedVar& lhs, const UndeterminedVar& rhs, InstructionSequence& instructions) {
+	AnalyzerVar* SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions) {
 		// TODO actual deducing
 		std::string argumentsNotation = std::string("Int64,Int64");
 		auto primaryOperatorPair = context().deducePrimaryOperator(code, argumentsNotation);
@@ -60,22 +60,38 @@ namespace Ketl {
 
 		auto& instruction = instructions.addInstruction();
 		instruction.code = primaryOperatorPair.first;
-		instruction.firstVar = lhs.getVarAsItIs();
-		instruction.secondVar = rhs.getVarAsItIs();
+		instruction.firstVar = lhs.getUVar().getVarAsItIs();
+		instruction.secondVar = rhs.getUVar().getVarAsItIs();
 
 		auto& longType = *context().getVariable("Int64").as<TypeObject>();
 		instruction.outputVar = createTempVar(longType);
 
 		return instruction.outputVar;
 	}
-	AnalyzerVar* SemanticAnalyzer::deduceFunctionCall(const UndeterminedVar& caller, const std::vector<UndeterminedVar>& arguments, InstructionSequence& instructions) {
-		auto& variants = caller.getVariants();
+	UndeterminedDelegate SemanticAnalyzer::deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions) {
+		auto& variants = caller.getUVar().getVariants();
+		auto& delegatedArguments = caller.getArguments(); 
+		
+		if (variants.empty()) {
+			pushErrorMsg("[ERROR] No satisfying function");
+			return &_undefinedVar;
+		}
+
+		std::vector<UndeterminedDelegate> totalArguments;
+		totalArguments.reserve(delegatedArguments.size() + arguments.size());
+
+		for (const auto& argument : delegatedArguments) {
+			totalArguments.emplace_back(argument);
+		}
+		for (const auto& argument : arguments) {
+			totalArguments.emplace_back(argument);
+		}
 
 		std::map<uint64_t, AnalyzerVar*> deducedVariants;
 
 		for (const auto& callerVar : variants) {
 			auto type = callerVar->getType();
-			deducedVariants.emplace(type->deduceOperatorCall(callerVar, OperatorCode::Call, arguments));
+			deducedVariants.emplace(type->deduceOperatorCall(callerVar, OperatorCode::Call, totalArguments));
 		}
 
 		auto bestVariantsIt = deducedVariants.begin();
@@ -89,14 +105,16 @@ namespace Ketl {
 		auto deducedEnd = deducedVariants.end();
 		auto bestVariantsCount = 0u;
 
-		for (;;) {
-			++bestVariantsIt;
-			if (bestVariantsIt != deducedEnd && bestVariantsIt->first == bestVariantCost) {
+		for (;bestVariantsIt != deducedEnd && bestVariantsIt->first == bestVariantCost; ++bestVariantsIt) {
+			if (bestVariantsIt->second != nullptr) {
 				++bestVariantsCount;
 			}
-			else {
-				break;
-			}
+		}
+
+		if (bestVariantsCount == 0) {
+			// specifically a copy
+			auto newDelegateCaller = caller.getUVar();
+			return UndeterminedDelegate(std::move(newDelegateCaller), std::move(totalArguments));
 		}
 
 		if (bestVariantsCount > 1) {
@@ -118,8 +136,8 @@ namespace Ketl {
 
 		// evaluating arguments
 		auto& parameters = functionType->getParameters();
-		for (auto i = 0u; i < arguments.size(); ++i) {
-			auto& argumentVar = arguments[i];
+		for (auto i = 0u; i < totalArguments.size(); ++i) {
+			auto& argumentVar = totalArguments[i];
 			auto& parameter = parameters[i];
 
 			auto parameterVar = argumentVar;
@@ -131,8 +149,8 @@ namespace Ketl {
 			auto& defineInstruction = instructions.addInstruction();
 			defineInstruction.code = Instruction::Code::DefineFuncParameter;
 
-			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getVarAsItIs()->getType());
-			defineInstruction.secondVar = parameterVar.getVarAsItIs();
+			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getUVar().getVarAsItIs()->getType());
+			defineInstruction.secondVar = parameterVar.getUVar().getVarAsItIs();
 		}
 
 		// calling the function
@@ -143,7 +161,7 @@ namespace Ketl {
 
 		return instruction.outputVar;
 	}
-	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedVar>& vars) {
+	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedDelegate>& vars) {
 		// TODO
 		return nullptr;
 	}

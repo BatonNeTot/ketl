@@ -96,12 +96,16 @@ namespace Ketl {
 
 		bool doesSupportOverload() const override { return true; };
 
-		std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedVar>& arguments) const {
-			if (arguments.size() != _parameters.size()) {
+		std::pair<uint64_t, AnalyzerVar*> deduceOperatorCall(AnalyzerVar* caller, OperatorCode code, const std::vector<UndeterminedDelegate>& arguments) const {
+			if (arguments.size() > _parameters.size()) {
 				return std::make_pair<uint64_t, AnalyzerVar*>(std::numeric_limits<uint64_t>::max(), nullptr);
 			}
 
 			// TODO do cast checking and counting
+			if (arguments.size() < _parameters.size()) {
+				return std::make_pair<uint64_t, AnalyzerVar*>(0u, nullptr);
+			}
+
 			return std::make_pair(0u, caller);
 		};
 
