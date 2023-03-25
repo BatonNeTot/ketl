@@ -376,6 +376,10 @@ namespace Ketl {
 			return _arguments;
 		}
 
+		void addArgument(UndeterminedDelegate&& argument) {
+			_arguments.emplace_back(std::move(argument));
+		}
+
 		bool hasSavedArguments() const {
 			return !_arguments.empty();
 		}
@@ -425,16 +429,19 @@ namespace Ketl {
 		};
 
 		struct Field {
+			Field(const std::string_view& id_, const TypeObject* type_)
+				: type(type_), id(id_) {}
+
 			const TypeObject* type = nullptr;
 			uint64_t offset = 0u;
 			std::string id;
 		};
 
 		struct StaticField {
+			// TODO replace with TypedPtr?
 			const TypeObject* type = nullptr;
-			// TODO replace with Variable?
-			std::string id;
 			void* ptr;
+			std::string id;
 		};
 
 		virtual bool doesSupportOverload() const { return false; }

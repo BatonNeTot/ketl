@@ -16,7 +16,7 @@ namespace Ketl {
 	class Compiler {
 	public:
 
-		std::variant<FunctionImpl*, std::string> compile(const std::string& str, Context& context);
+		std::variant<Variable, std::string> compile(const std::string& str, Context& context);
 
 	private:
 		Parser _parser;

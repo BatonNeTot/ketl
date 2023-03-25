@@ -46,7 +46,10 @@ namespace Ketl {
 			std::make_unique<NodeRepeat>(
 				std::make_unique<NodeConcat>(true,
 					std::make_unique<NodeLiteral>(false, "."),
-					std::make_unique<NodeId>(true, "primary")
+					std::make_unique<NodeOr>(
+						std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
+						std::make_unique<NodeId>(false, "primary")
+						)
 					)
 				)
 			));

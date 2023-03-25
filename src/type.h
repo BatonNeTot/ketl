@@ -123,7 +123,7 @@ namespace Ketl {
 	class StructTypeObject : public TypeObject {
 	public:
 
-		StructTypeObject(const std::string_view id, std::vector<Field>&& fields, std::vector<StaticField>&& staticFields)
+		StructTypeObject(const std::string_view& id, std::vector<Field>&& fields, std::vector<StaticField>&& staticFields)
 			: _id(id), _fields(std::move(fields)), _staticFields(std::move(staticFields)) {
 			// calculate size and fields offsets
 			uint64_t currentOffset = 0u;

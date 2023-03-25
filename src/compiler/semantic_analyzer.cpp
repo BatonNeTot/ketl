@@ -227,15 +227,15 @@ namespace Ketl {
 		return ptr.get();
 	}
 
-	class AnalyzerFunctionVar : public AnalyzerVar {
+	class AnalyzerLiteralClassVar : public AnalyzerVar {
 	public:
-		AnalyzerFunctionVar(FunctionImpl& function, const TypeObject& type)
-			: _function(&function), _type(&type) {}
+		AnalyzerLiteralClassVar(void* ptr, const TypeObject& type)
+			: _ptr(ptr), _type(&type) {}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Literal;
 			Argument argument;
-			argument.pointer = _function;
+			argument.pointer = _ptr;
 			return std::make_pair(type, argument);
 		}
 
@@ -245,15 +245,15 @@ namespace Ketl {
 
 	private:
 
-		FunctionImpl* _function;
+		void* _ptr;
 		const TypeObject* _type;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createFunctionVar(FunctionImpl* functionPtr, const TypeObject& type) {
-		resultRefs.emplace_back(functionPtr);
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionVar>(*functionPtr, type));
+	AnalyzerVar* SemanticAnalyzer::createLiteralClassVar(void* ptr, const TypeObject& type) {
+		resultRefs.emplace_back(ptr);
+		auto& var = vars.emplace_back(std::make_unique<AnalyzerLiteralClassVar>(ptr, type));
 
-		return ptr.get();
+		return var.get();
 	}
 
 
@@ -475,23 +475,24 @@ namespace Ketl {
 		// what about we separate BAKE and COMPILE, so that we can compile without baking.
 		// which is kinda already the thing, because baking only adds names into global name space
 
-		return context().getVariable("Int64")._vars[0];
+		return context().getVariable("Int64");
+	}
+
+	const TypeObject* SemanticAnalyzer::evaluateType(const IRNode& node) {
+		
+		return context().getVariable("Int64").as<TypeObject>();
 	}
 
 	void SemanticAnalyzer::bakeContext() {
 		for (auto& var : newGlobalVars) {
-			auto id = std::string(var.first);
-			if (!_context.getVariable(id).empty()) {
-				pushErrorMsg("[ERROR] Variable " + id + " already exists");
-				continue;
-			}
-
 			auto& variants = var.second.getVariants();
 			for (auto& variant : variants) {
 				auto& type = *variant->getType();
-				uint8_t* ptr; 
-				ptr = _context.allocateOnStack(type.sizeOf());
-				_context.declareGlobal(id, ptr, type);
+				void* ptr = _context.allocateGlobal(var.first, type);
+				if (ptr == nullptr) {
+					std::string id(var.first);
+					pushErrorMsg("[ERROR] Variable " + id + " already exists");
+				}
 				variant->bake(ptr);
 			}
 		}

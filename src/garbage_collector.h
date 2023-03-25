@@ -50,9 +50,21 @@ namespace Ketl {
 			std::vector<const void* const*> _refLinks;
 		};
 
+		RefHolder& registerRefMemory(void* ptr, size_t size) {
+			auto it = _objects.try_emplace(Object(_currUsageFlag, ptr, size, nullptr)).first;
+			return it->second;
+		}
+
 		RefHolder& registerMemory(void* ptr, size_t size, std::nullptr_t) = delete;
 		RefHolder& registerMemory(void* ptr, size_t size, Finalizer finalizer = &emptyFinalizer) {
-			return _objects.try_emplace(Object(_currUsageFlag, ptr, size, finalizer)).first->second;
+			auto it = _objects.try_emplace(Object(_currUsageFlag, ptr, size, finalizer)).first;
+			_managedObject.emplace_back(it);
+			return it->second;
+		}
+
+		template <typename T>
+		inline void registerAbsRoot(const T* ptr) {
+			_absRoots.emplace(reinterpret_cast<const void*>(ptr));
 		}
 
 		template <typename T>
@@ -95,7 +107,10 @@ namespace Ketl {
 				: _usageFlag(other._usageFlag), _ptr(other._ptr), _size(other._size), _finalizer(other._finalizer) {
 				other._finalizer = &emptyFinalizer;
 			}
-			~Object();
+
+			inline void finalize() const {
+				_finalizer(_ptr);
+			}
 
 			inline friend bool operator<(const Object& lhs, const Object& rhs) {
 				return lhs._ptr < rhs._ptr;
@@ -122,8 +137,11 @@ namespace Ketl {
 		bool _currUsageFlag = false;
 		Allocator& _alloc;
 
+		std::unordered_set<const void*> _absRoots;
 		std::unordered_set<const void* const*> _refRoots;
 		std::map<Object, RefHolder> _objects;
+		std::list<decltype(_objects)::iterator> _managedObject;
+
 
 	};
 }

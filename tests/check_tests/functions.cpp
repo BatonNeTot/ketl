@@ -3,17 +3,13 @@
 
 static auto registerTests = []() {
 
-	// TODO restore and fix static polymorphism call 
-	/*
 	registerTest("Creating function and using in C", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			var adder = () -> {
@@ -27,39 +23,25 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
+		command();
 
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
-
-		auto adderPtr = *context.getVariable("adder").as<Ketl::FunctionImpl*>();
-		if (adderPtr == nullptr) {
+		auto adder = context.getVariable("adder");
+		if (adder.empty()) {
 			return false;
 		}
 
-		auto& adder = *adderPtr;
-
-		{
-			auto stackPtr = context._globalStack.allocate(adder.stackSize());
-			adder.call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(adder.stackSize());
-		}
+		adder();
 
 		return sum == 11u;
 		});
-		*/
 
 	registerTest("Creating function and calling it", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			var adder = () -> {
@@ -74,13 +56,8 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		auto command = std::get<0>(compilationResult);
+		command();
 
 		return sum == 11u;
 		});
@@ -90,10 +67,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		{
 			auto compilationResult = compiler.compile(R"(
@@ -108,12 +83,7 @@ static auto registerTests = []() {
 			}
 
 			auto& command = std::get<0>(compilationResult);
-
-			{
-				auto stackPtr = context._globalStack.allocate(command->stackSize());
-				command->call(context._globalStack, stackPtr, nullptr);
-				context._globalStack.deallocate(command->stackSize());
-			}
+			command();
 		}
 
 		{
@@ -127,12 +97,7 @@ static auto registerTests = []() {
 			}
 
 			auto& command = std::get<0>(compilationResult);
-
-			{
-				auto stackPtr = context._globalStack.allocate(command->stackSize());
-				command->call(context._globalStack, stackPtr, nullptr);
-				context._globalStack.deallocate(command->stackSize());
-			}
+			command();
 		}
 
 		return sum == 11u;
@@ -143,10 +108,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			var adder = (Int64 x, Int64 y) -> {
@@ -162,12 +125,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		return sum == 18u;
 		});
@@ -177,10 +135,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			Void adder(Int64 x, Int64 y) {
@@ -196,12 +152,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		return sum == 18u;
 		});
@@ -211,10 +162,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
@@ -230,12 +179,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		return sum == 18u;
 		});
@@ -245,10 +189,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
@@ -269,12 +211,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		return sum == 15u;
 		});
@@ -284,10 +221,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
@@ -304,12 +239,34 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
+		command();
 
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
+		return sum == 15u;
+		});
+
+	registerTest("Dot operator calling function", []() {
+		Ketl::Allocator allocator;
+		Ketl::Context context(allocator, 4096);
+		Ketl::Compiler compiler;
+
+		int64_t sum = 0;
+		context.declareGlobal("sum", &sum);
+
+		auto compilationResult = compiler.compile(R"(
+			Int64 adder(Int64 x, Int64 y) {
+				return x + y;
+			};
+
+			sum = 5.adder(10);
+		)", context);
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
 		}
+
+		auto& command = std::get<0>(compilationResult);
+		command();
 
 		return sum == 15u;
 		});

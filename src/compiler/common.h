@@ -47,12 +47,12 @@ namespace Ketl {
 	class TypeObject;
 	class Context;
 
-	class Variable {
+	class TypedPtr {
 	public:
 
-		Variable() {}
-		Variable(void* data, const TypeObject& type)
-			: _data(data), _type(&type) {}
+		TypedPtr() {}
+		TypedPtr(void* ptr, const TypeObject& type)
+			: _ptr(ptr), _type(&type) {}
 
 		void* as(std::type_index typeIndex, Context& context) const;
 
@@ -61,18 +61,18 @@ namespace Ketl {
 		}
 
 		void* rawData() const {
-			return _data;
+			return _ptr;
 		}
 
-		void data(void* data) {
-			_data = data;
+		void data(void* ptr) {
+			_ptr = ptr;
 		}
 
 	private:
 
 		friend class Context;
 
-		void* _data = nullptr;
+		void* _ptr = nullptr;
 		const TypeObject* _type = nullptr;
 
 	};

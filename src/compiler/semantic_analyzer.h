@@ -82,7 +82,7 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar* additionalContext = nullptr) const { return {}; }
+		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
 	};
 
 	class SemanticAnalyzer {
@@ -100,9 +100,9 @@ namespace Ketl {
 
 		AnalyzerVar* createLiteralVar(const std::string_view& value);
 
-		AnalyzerVar* createReturnVar(AnalyzerVar* expression);
+		AnalyzerVar* createLiteralClassVar(void* ptr, const TypeObject& type);
 
-		AnalyzerVar* createFunctionVar(FunctionImpl* function, const TypeObject& type);
+		AnalyzerVar* createReturnVar(AnalyzerVar* expression);
 
 		AnalyzerVar* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
 		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
@@ -118,6 +118,7 @@ namespace Ketl {
 		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
 
 		Variable evaluate(const IRNode& node);
+		const TypeObject* evaluateType(const IRNode& node);
 
 		void pushErrorMsg(const std::string& msg) {
 			_compilationErrors.emplace_back(msg);

@@ -3,7 +3,7 @@
 
 namespace Ketl {
 
-	void* Variable::as(std::type_index typeIndex, Context& context) const {
+	void* TypedPtr::as(std::type_index typeIndex, Context& context) const {
 		// TODO
 		/*
 		auto typeVarIt = context._userTypes.find(typeIndex);
@@ -16,29 +16,24 @@ namespace Ketl {
 		// do correct convertation, etc. PrimitiveTypeObject* -> TypeObject*
 
 		if (_type && _type->isLight()) {
-			return *reinterpret_cast<void**>(_data);
+			return *reinterpret_cast<void**>(_ptr);
 		}
 
-		return _data;
+		return _ptr;
 	}
 
-	std::vector<Variable> Context::_emptyVars;
+	std::vector<TypedPtr> Context::_emptyVars;
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
-		auto classTypeHolder = reinterpret_cast<TypeObject**>(_globals.find("ClassType")->second[0]._data);
-		auto* classTypePtr = *classTypeHolder;
+		auto* classTypePtr = getVariable("ClassType").as<TypeObject>();
 
 		// actual type
 		auto [primitiveTypePtr, refHolder] = createObject<PrimitiveTypeObject>(id, size);
 		refHolder->registerAbsLink(classTypePtr);
 		// create holder for class
-		auto primitiveTypeHolder = reinterpret_cast<PrimitiveTypeObject**>(allocateOnHeap(sizeof(void*)));
+		auto primitiveTypeHolder = allocateGlobal<PrimitiveTypeObject*>(id, *classTypePtr);
 		*primitiveTypeHolder = primitiveTypePtr;
-		// register root
-		_gc.registerRefRoot(primitiveTypeHolder);
-		// put holder in global
-		_globals[id].emplace_back(primitiveTypeHolder, *classTypePtr);
-		_userTypes.try_emplace(typeIndex, primitiveTypePtr, *classTypePtr);
+		_userTypes.try_emplace(typeIndex, primitiveTypePtr);
 	}
 
 	Context::Context(Allocator& allocator, uint64_t globalStackSize)
@@ -48,46 +43,40 @@ namespace Ketl {
 		// class Type
 		ClassTypeObject** classTypeHolder;
 		auto [classTypePtr, classTypeRefs] = createObject<ClassTypeObject>("ClassType", sizeof(ClassTypeObject));
-		{
-			classTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
-			*classTypeHolder = classTypePtr;
-			_gc.registerRefRoot(classTypeHolder);
-			_globals[classTypePtr->id()].emplace_back(classTypeHolder, *classTypePtr);
-		}
+		classTypeHolder = allocateGlobal<ClassTypeObject*>(classTypePtr->id(), *classTypePtr);
+		*classTypeHolder = classTypePtr;
 
 		// interface Type
 		auto [interfaceTypePtr, interfaceTypeRefs] = createObject<ClassTypeObject>("InterfaceType", sizeof(InterfaceTypeObject));
 		interfaceTypeRefs->registerAbsLink(classTypePtr);
-		auto interfaceTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
+		auto interfaceTypeHolder = allocateGlobal<ClassTypeObject*>(interfaceTypePtr->id(), *classTypePtr);
 		*interfaceTypeHolder = interfaceTypePtr;
-		_gc.registerRefRoot(interfaceTypeHolder);
-		_globals[interfaceTypePtr->id()].emplace_back(interfaceTypeHolder, *classTypePtr);
 
 		// The Type
 		auto [theTypePtr, theTypeRefs] = createObject<InterfaceTypeObject>("Type"/*, 0*/);
 		theTypeRefs->registerAbsLink(interfaceTypePtr);
-		auto theTypeHolder = reinterpret_cast<InterfaceTypeObject**>(allocateOnHeap(sizeof(void*)));
+		auto theTypeHolder = allocateGlobal<InterfaceTypeObject*>(theTypePtr->id(), *interfaceTypePtr);
 		*theTypeHolder = theTypePtr;
-		_gc.registerRefRoot(theTypeHolder);
-		_globals[theTypePtr->id()].emplace_back(theTypeHolder, *interfaceTypePtr);
-		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr, *interfaceTypePtr);
+		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr);
 
 		classTypePtr->_interfaces.emplace_back(theTypePtr);
 		classTypeRefs->registerAbsLink(theTypePtr);
 		interfaceTypePtr->_interfaces.emplace_back(theTypePtr);
 		interfaceTypeRefs->registerAbsLink(theTypePtr);
 
+		// struct Type
+		auto [structTypePtr, structTypeRefs] = createObject<ClassTypeObject>("StructType", sizeof(StructTypeObject), std::vector<InterfaceTypeObject*>{theTypePtr});
+		structTypeRefs->registerAbsLink(theTypePtr);
+		auto structTypeHolder = allocateGlobal<ClassTypeObject*>(structTypePtr->id(), *classTypePtr);
+		*structTypeHolder = structTypePtr;
+
 		// PRIMITIVES
 
 		// primitive type
 		auto [primitiveTypePtr, primitiveTypeRefs] = createObject<ClassTypeObject>("PrimitiveType", sizeof(PrimitiveTypeObject), std::vector<InterfaceTypeObject*>{theTypePtr});
-		primitiveTypeRefs->registerAbsLink(interfaceTypePtr);
 		primitiveTypeRefs->registerAbsLink(theTypePtr);
-		//_rootObjects.emplace(primitiveTypePtr);
-		auto primitiveTypeHolder = reinterpret_cast<ClassTypeObject**>(allocateOnHeap(sizeof(void*)));
+		auto primitiveTypeHolder = allocateGlobal<ClassTypeObject*>(primitiveTypePtr->id(), *classTypePtr);
 		*primitiveTypeHolder = primitiveTypePtr;
-		_gc.registerRefRoot(primitiveTypeHolder);
-		_globals[primitiveTypePtr->id()].emplace_back(primitiveTypeHolder, *classTypePtr);
 
 		declarePrimitiveType("Void", 0, typeid(void));
 		declarePrimitiveType<int64_t>("Int64");

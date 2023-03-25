@@ -18,12 +18,7 @@ static auto registerTests = []() {
 
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		auto resultPtr = context.getVariable("testValue2").as<int64_t>();
 		if (resultPtr == nullptr) {
@@ -39,8 +34,7 @@ static auto registerTests = []() {
 		Ketl::Compiler compiler;
 
 		int64_t result = 0;
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-		context.declareGlobal("testValue2", &result, longType);
+		context.declareGlobal("testValue2", &result);
 
 		auto compilationResult = compiler.compile(R"(
 				testValue2 = 1 + 2 * 3 + 4;
@@ -52,12 +46,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		auto resultPtr = context.getVariable("testValue2").as<int64_t>();
 		if (resultPtr != &result) {
@@ -73,8 +62,7 @@ static auto registerTests = []() {
 		Ketl::Compiler compiler;
 
 		int64_t result = 0;
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-		context.declareGlobal("testValue2", &result, longType);
+		context.declareGlobal("testValue2", &result);
 
 		auto compilationResult = compiler.compile(R"(
 				var testValue2 = 1 + 2 * 3 + 4;
@@ -100,10 +88,8 @@ static auto registerTests = []() {
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
 
-		auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum, longType);
+		context.declareGlobal("sum", &sum);
 
 		auto compilationResult = compiler.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
@@ -120,12 +106,7 @@ static auto registerTests = []() {
 		}
 
 		auto& command = std::get<0>(compilationResult);
-
-		{
-			auto stackPtr = context._globalStack.allocate(command->stackSize());
-			command->call(context._globalStack, stackPtr, nullptr);
-			context._globalStack.deallocate(command->stackSize());
-		}
+		command();
 
 		return sum == 18u;
 		});

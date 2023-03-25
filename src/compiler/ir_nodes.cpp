@@ -12,7 +12,7 @@ namespace Ketl {
 		IRBlock(std::vector<std::unique_ptr<IRNode>>&& commands)
 			: _commands(std::move(commands)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			for (const auto& command : _commands) {
 				command->produceInstructions(instructions, context);
 			}
@@ -50,23 +50,28 @@ namespace Ketl {
 		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
-			auto expression = _expression->produceInstructions(instructions, context);
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			UndeterminedDelegate expression;
+			if (_expression) {
+				expression = _expression->produceInstructions(instructions, context);
+			}
 
 			const TypeObject* type = nullptr;
 
 			if (_type) {
-				type = reinterpret_cast<TypeObject*>(context.evaluate(*_type).as(typeid(TypeObject), context.context())); // TODO hide into var
+				type = context.evaluateType(*_type);
 			}
 			else {
 				type = expression.getUVar().getVarAsItIs()->getType();
 			}
 			auto var = context.createVar(_id, *type);
 
-			auto& instruction = instructions.addInstruction();
-			instruction.firstVar = var;
-			instruction.secondVar = expression.getUVar().getVarAsItIs();
-			instruction.code = Instruction::Code::DefinePrimitive;
+			if (_expression) {
+				auto& instruction = instructions.addInstruction();
+				instruction.firstVar = var;
+				instruction.secondVar = expression.getUVar().getVarAsItIs();
+				instruction.code = Instruction::Code::DefinePrimitive;
+			}
 			
 			return {};
 		};
@@ -113,12 +118,12 @@ namespace Ketl {
 		IRFunction(std::vector<Parameter>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			SemanticAnalyzer analyzer(context.context(), &context);
 
-			TypeObject* returnType = nullptr; 
+			const TypeObject* returnType = nullptr; 
 			if (_outputType) {
-				returnType = reinterpret_cast<TypeObject*>(context.evaluate(*_outputType).as(typeid(TypeObject), context.context()));
+				returnType = context.evaluateType(*_outputType);
 			}
 			else {
 				// TODO deduce from block
@@ -127,7 +132,7 @@ namespace Ketl {
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
 			for (auto& parameter : _parameters) {
-				auto type = reinterpret_cast<TypeObject*>(context.evaluate(*parameter.type).as(typeid(TypeObject), context.context())); // TODO hide into var
+				auto type = context.evaluateType(*parameter.type);
 				analyzer.createFunctionParameterVar(parameter.id, *type);
 				auto isConst = parameter.isConst;
 				auto isRef = parameter.isRef;
@@ -141,14 +146,14 @@ namespace Ketl {
 			}
 			
 			auto classType = context.context().getVariable("ClassType").as<TypeObject>();
-			auto [functionType, refHolder] = context.context().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
-			refHolder->registerAbsLink(classType);
-			refHolder->registerAbsLink(returnType);
+			auto [functionType, typeRefHolder] = context.context().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
+			typeRefHolder->registerAbsLink(classType);
+			typeRefHolder->registerAbsLink(returnType);
 			for (const auto& type : functionType->getParameters()) {
-				refHolder->registerAbsLink(type.type);
+				typeRefHolder->registerAbsLink(type.type);
 			}
 
-			return context.createFunctionVar(std::get<0>(function), *functionType);
+			return context.createLiteralClassVar(std::get<0>(function), *functionType);
 		};
 
 	private:
@@ -243,10 +248,23 @@ namespace Ketl {
 		IRStruct(const std::string_view& id, std::vector<Field>&& fields)
 			: _id(id), _fields(std::move(fields)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
-			__debugbreak();
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			std::vector<StructTypeObject::Field> fields;
+			fields.reserve(_fields.size());
+			const TypeObject* fieldType = nullptr;
+			for (auto& field : _fields) {
+				if (field.type) {
+					fieldType = context.evaluateType(*field.type);
+				}
+				fields.emplace_back(field.id, fieldType);
+			}
 
-			return {};
+			std::vector<StructTypeObject::StaticField> staticFields;
+
+			auto* structType = context.context().getVariable("StructType").as<TypeObject>();
+			auto [mStructType, refStructHolder] = context.context().createObject<StructTypeObject>(_id, std::move(fields), std::move(staticFields));
+
+			return context.createLiteralClassVar(mStructType, *structType);
 		};
 
 	private:
@@ -291,14 +309,41 @@ namespace Ketl {
 		IRDotOperator(std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
-			auto lhsUDelegate = _lhs->produceInstructions(instructions, context);
-			auto lhsVar = lhsUDelegate.getUVar().getVarAsItIs();
-			if (lhsVar != nullptr) {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			auto lhsVar = _lhs->produceInstructions(instructions, context);
+			auto rhsVar = _rhs->produceInstructions(instructions, context);
+
+			rhsVar.addArgument(std::move(lhsVar));
+			return rhsVar;
+		};
+
+	private:
+
+		std::unique_ptr<IRNode> _lhs;
+		std::unique_ptr<IRNode> _rhs;
+	};
+
+	class IRDotIdOperator : public IRNode {
+	public:
+
+		IRDotIdOperator(std::unique_ptr<IRNode>&& value, const std::string_view& id)
+			: _value(std::move(value)), _id(id) {}
+
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			auto valueUDelegate = _value->produceInstructions(instructions, context);
+			auto var = valueUDelegate.getUVar().getVarAsItIs();
+			if (var == nullptr) {
 				context.pushErrorMsg("[ERROR] Can't determin variable");
 				return &context._undefinedVar;
 			}
-			auto rhsVar = _rhs->produceInstructions(instructions, context, lhsVar);
+
+			auto type = var->getType();
+
+			if (true) {
+				UndeterminedDelegate result = context.getVar(_id);
+				result.addArgument(std::move(valueUDelegate));
+				return result;
+			}
 
 			__debugbreak();
 			return nullptr;
@@ -306,9 +351,8 @@ namespace Ketl {
 
 	private:
 
-		OperatorCode _op;
-		std::unique_ptr<IRNode> _lhs;
-		std::unique_ptr<IRNode> _rhs;
+		std::unique_ptr<IRNode> _value;
+		std::string_view _id;
 	};
 
 	std::unique_ptr<IRNode> createDotTree(const ProcessNode* info) {
@@ -320,9 +364,16 @@ namespace Ketl {
 			auto opNode = leftArgNode->nextSibling;
 
 			auto rightArgNode = opNode->nextSibling;
-			auto rightArg = rightArgNode->node->createIRTree(rightArgNode);
+			auto rightId = rightArgNode->node->value(rightArgNode->iterator);
 
-			leftArg = std::make_unique<IRDotOperator>(std::move(leftArg), std::move(rightArg));
+			if (rightId.empty()) {
+				auto argNode = rightArgNode->firstChild;
+				auto rightArg = argNode->node->createIRTree(argNode);
+				leftArg = std::make_unique<IRDotOperator>(std::move(leftArg), std::move(rightArg));
+			}
+			else {
+				leftArg = std::make_unique<IRDotIdOperator>(std::move(leftArg), rightId);
+			}
 
 			leftArgNode = rightArgNode;
 		} while (leftArgNode->nextSibling);
@@ -337,7 +388,7 @@ namespace Ketl {
 		IRFunctionCall(std::unique_ptr<IRNode>&& caller, std::vector<std::unique_ptr<IRNode>>&& arguments)
 			: _caller(std::move(caller)), _arguments(std::move(arguments)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto callerVar = std::move(*_caller).produceInstructions(instructions, context);
 
 			std::vector<UndeterminedDelegate> arguments;
@@ -389,7 +440,7 @@ namespace Ketl {
 		IRBinaryOperator(OperatorCode op, std::unique_ptr<IRNode>&& lhs, std::unique_ptr<IRNode>&& rhs)
 			: _op(op), _lhs(std::move(lhs)), _rhs(std::move(rhs)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto lhsVar = _lhs->produceInstructions(instructions, context);
 			auto rhsVar = _rhs->produceInstructions(instructions, context);
 
@@ -454,17 +505,13 @@ namespace Ketl {
 
 		IRVariable(const std::string_view& id)
 			: _id(id) {}
-		IRVariable(const std::string_view& id, std::unique_ptr<IRNode>&& type)
-			: _id(id), _type(std::move(type)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
-			// TODO create actual undetermined var based on name resolution variations
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			return context.getVar(_id);
 		};
 
 	private:
 		std::string _id;
-		std::unique_ptr<IRNode> _type;
 	};
 
 	std::unique_ptr<IRNode> createVariable(const ProcessNode* info) {
@@ -485,7 +532,7 @@ namespace Ketl {
 		IRLiteral(const std::string_view& value)
 			: _value(value) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			return context.createLiteralVar(_value);
 		};
 
@@ -503,7 +550,7 @@ namespace Ketl {
 		IRReturn(std::unique_ptr<IRNode>&& expression)
 			: _expression(std::move(expression)) {}
 
-		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context, AnalyzerVar*) const override {
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto expression = _expression->produceInstructions(instructions, context);
 
 			// TODO remove later, cause there might be type cast

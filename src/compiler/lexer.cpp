@@ -29,7 +29,7 @@ namespace Ketl {
 					if (isNumber(next)) {
 						continue;
 					}
-					if (isNumberDot(next)) {
+					if (isNumberDot(next) && isNumber(peekSymbol())) {
 						while (isNumber(nextSymbol())) {};
 						--_carret;
 						return { start, _source.substr(start, _carret - start), 0u };

@@ -6,11 +6,6 @@
 
 namespace Ketl {
 
-	GarbageCollector::Object::~Object() {
-		// there will be finalizer, so we can skip wasting time on checking 
-		_finalizer(_ptr);
-	}
-
 	void GarbageCollector::fillLinks(const std::set<const void*>& source, std::set<const void*>& target) const {
 		auto itLinks = source.cbegin();
 		auto endLinks = source.cend();
@@ -62,6 +57,9 @@ namespace Ketl {
 		auto* linksSourcePtr = &links1;
 		auto* linksTargetPtr = &links2;
 
+		for (const auto& abs : _absRoots) {
+			linksSourcePtr->emplace(abs);
+		}
 		for (const auto& ref : _refRoots) {
 			linksSourcePtr->emplace(*ref);
 		}
@@ -80,15 +78,20 @@ namespace Ketl {
 	size_t GarbageCollector::swipeStage() {
 		size_t totalCleared = 0u;
 
-		for (auto it = _objects.begin(), end = _objects.end(); it != end;) {
-			if (it->first.getUsageFlag() != _currUsageFlag) {
-				totalCleared += it->first.size();
-				auto ptr = it->first.begin();
-				it = _objects.erase(it);
+		for (auto mIt = _managedObject.begin(), end = _managedObject.end(); mIt != end;) {
+			auto& objectIt = *mIt;
+			if (objectIt->first.getUsageFlag() != _currUsageFlag) {
+				totalCleared += objectIt->first.size();
+
+				objectIt->first.finalize();
+				auto ptr = objectIt->first.begin();
 				_alloc.deallocate(ptr);
+
+				_objects.erase(objectIt);
+				mIt = _managedObject.erase(mIt);
 			}
 			else {
-				++it;
+				++mIt;
 			}
 		}
 

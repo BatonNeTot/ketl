@@ -27,7 +27,7 @@ void testSpeed() {
 	auto command = std::get<0>(compiler.compile(R"(
 	var testValue2 = 1 + 2;
 
-	Float64 adder(Float64 x, Float64 y) {
+	Int64 adder(in Int64 x, in Int64 y) {
 		return x + y;
 	}
 
@@ -35,9 +35,7 @@ void testSpeed() {
 )", context));
 
 	for (auto i = 0; i < N; ++i) {
-		auto stackPtr = context._globalStack.allocate(command->stackSize());
-		command->call(context._globalStack, stackPtr, nullptr);
-		context._globalStack.deallocate(command->stackSize());
+		command();
 	}
 
 	lua_State* L;
@@ -62,17 +60,20 @@ void testSpeed() {
 
 
 int main(int argc, char** argv) {
-	//*
+	launchCheckTests();
+
 	Ketl::Allocator allocator;
 	Ketl::Context context(allocator, 4096);
 	Ketl::Compiler compiler;
 
-	auto& longType = *context.getVariable("Int64").as<Ketl::TypeObject>();
-
 	int64_t sum = 0;
-	context.declareGlobal("sum", &sum, longType);
+	context.declareGlobal("sum", &sum);
 
 	auto compilationResult = compiler.compile(R"(
+	Int64 adder(Int64 x) {
+		return x + 10;
+	}
+
 	/*
 	struct Test {
 	public:
@@ -82,14 +83,10 @@ int main(int argc, char** argv) {
 
 	Test test;
 	test.x = 5;
-	sum = test.x;
+	sum = test.x.(adder)();
 	*/
 
-	var adder(Int64 x, Int64 y) {
-		return x + y;
-	}
-
-	sum = adder(5)(10);
+	sum = 3.adder();
 
 )", context);
 
@@ -99,18 +96,9 @@ int main(int argc, char** argv) {
 	}
 
 	auto& command = std::get<0>(compilationResult);
+	command();
 
-	{
-		auto stackPtr = context._globalStack.allocate(command->stackSize());
-		command->call(context._globalStack, stackPtr, nullptr);
-		context._globalStack.deallocate(command->stackSize());
-	}
-
-	//assert(sum == 15u);
-
-	//*/
-
-	launchCheckTests();
+	assert(sum == 13u);
 
 	return 0;
 }

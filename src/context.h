@@ -20,27 +20,35 @@
 
 namespace Ketl {
 
-	class ContextedVariable {
+	class Variable {
 	public:
 
-		ContextedVariable(Context& context, std::vector<Variable>& variables)
-			: _context(context), _vars(variables) {}
+		Variable(Context& context)
+			: _context(context) {}
+		Variable(Context& context, const TypedPtr& var)
+			: _context(context) {
+			_vars.emplace_back(var);
+		}
+		Variable(Context& context, std::vector<TypedPtr>&& vars)
+			: _context(context), _vars(std::move(vars)) {}
+
+		template <typename ...Args>
+		Variable operator()(Args&& ...args) const;
+
+		template <typename T>
+		T* as() {
+			return reinterpret_cast<T*>(_vars[0].as(typeid(T), _context));
+		}
 
 		bool empty() const {
 			return _vars.empty();
 		}
 
-		template <class T>
-		T* as() const {
-			// TODO fix deducing
-			return reinterpret_cast<T*>(_vars[0].as(typeid(T), _context));
-		}
-
-		// TODO
-	public:
+	private:
+		friend class SemanticAnalyzer;
 
 		Context& _context;
-		std::vector<Variable>& _vars;
+		std::vector<TypedPtr> _vars;
 	};
 
 	class Context {
@@ -49,36 +57,73 @@ namespace Ketl {
 		Context(Allocator& allocator, uint64_t globalStackSize);
 		~Context() {}
 
-		// TODO maybe would be better to return pointer and make it null in case of lack
-		ContextedVariable getVariable(const std::string_view& id) {
-			auto it = _globals.find(id);
-			return ContextedVariable(*this, it == _globals.end() ? _emptyVars : it->second);
+		template <typename T>
+		const TypeObject* typeOf() const {
+			auto userIt = _userTypes.find(typeid(T));
+			if (userIt == _userTypes.end()) {
+				return nullptr;
+			}
+			return userIt->second;
 		}
 
-		bool declareGlobal(const std::string_view& id, void* stackPtr, const TypeObject& type) {
+		Variable getVariable(const std::string_view& id) {
+			auto it = _globals.find(id);
+			if (it == _globals.end()) {
+				return Variable(*this);
+			}
+			std::vector<TypedPtr> vars;
+			vars = it->second;
+			return Variable(*this, std::move(vars));
+		}
+
+		template <typename T>
+		bool declareGlobal(const std::string_view& id, T* ptr) {
+			auto* type = typeOf<T>();
+			if (type == nullptr) {
+				return false;
+			}
+
 			auto& vars = _globals[std::string(id)];
 			for (const auto& var : vars) {
-				if (var.type() == type) {
+				if (var.type() == *type) {
 					return false;
 				}
 			}
-			vars.emplace_back(stackPtr, type);
+
+			vars.emplace_back(ptr, *type);
+			if (type->isLight()) {
+				_gc.registerRefRoot(reinterpret_cast<void**>(ptr));
+			}
+			else {
+				_gc.registerAbsRoot(ptr);
+			}
 			return true;
 		}
 
-		template <class T>
-		T* declareGlobal(const std::string_view& id, const TypeObject& type) {
-			auto [it, success] = _globals.try_emplace(std::string(id), nullptr, type);
-			if (success) {
-				auto valuePtr = allocateGlobal(type);
-				it->second.data(valuePtr);
-			}
-			return it->second.as<T>();
-		}
-		////////////////////////
+	public: // TODO private
 
-		uint8_t* allocateGlobal(const TypeObject& type) {
-			return allocateOnHeap(type.sizeOf());
+		template <typename T = void>
+		T* allocateGlobal(const std::string_view& id, const TypeObject& type) {
+			if (!std::is_void_v<T> && !std::is_pointer_v<T> && type.isLight()) {
+				return nullptr;
+			}
+
+			auto& vars = _globals[std::string(id)];
+			for (const auto& var : vars) {
+				if (var.type() == type) {
+					return reinterpret_cast<T*>(var.rawData());
+				}
+			}
+			auto ptr = allocateOnStack(type.sizeOf());
+
+			vars.emplace_back(ptr, type);
+			if (type.isLight()) {
+				_gc.registerRefRoot(reinterpret_cast<void**>(ptr));
+			}
+			else {
+				_gc.registerAbsRoot(ptr);
+			}
+			return reinterpret_cast<T*>(ptr);
 		}
 
 		void registerPrimaryOperator(OperatorCode op, const std::string_view& argumentsNotation, Instruction::Code code, const std::string_view& outputType) {
@@ -93,8 +138,6 @@ namespace Ketl {
 			auto it = opIt->second.find(argumentsNotation);
 			return it != opIt->second.end() ? it->second : std::make_pair<Instruction::Code, std::string_view>(Instruction::Code::None, "");
 		}
-
-	public: // TODO private
 
 		uint8_t* allocateOnStack(uint64_t size) {
 			return _globalStack.allocate(size);
@@ -133,17 +176,31 @@ namespace Ketl {
 			return std::make_pair(ptr, &links);
 		}
 
-		static std::vector<Variable> _emptyVars;
+		static std::vector<TypedPtr> _emptyVars;
 		Allocator& _alloc;
 		StackAllocator _globalStack;
-		std::unordered_map<std::string, std::vector<Variable>, StringHash, StringEqualTo> _globals;
+		std::unordered_map<std::string, std::vector<TypedPtr>, StringHash, StringEqualTo> _globals;
 
-		std::unordered_map<std::type_index, Variable> _userTypes;
+		std::unordered_map<std::type_index, const TypeObject*> _userTypes;
 
 		std::unordered_map<OperatorCode, std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>>> _primaryOperators;
 
 		GarbageCollector _gc;
 	};
+
+	template <typename ...Args>
+	Variable Variable::operator()(Args&& ...args) const {
+		//std::vector<const TypeObject*> argTypes = { _context.typeOf<Args>()... };
+
+
+		auto command = *reinterpret_cast<FunctionImpl**>(_vars[0].rawData());
+
+		auto stackPtr = _context._globalStack.allocate(command->stackSize());
+		command->call(_context._globalStack, stackPtr, nullptr);
+		_context._globalStack.deallocate(command->stackSize());
+
+		return Variable(_context);
+	}
 }
 
 #endif /*context_h*/
