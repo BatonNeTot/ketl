@@ -193,11 +193,11 @@ namespace Ketl {
 		//std::vector<const TypeObject*> argTypes = { _context.typeOf<Args>()... };
 
 
-		auto command = *reinterpret_cast<FunctionImpl**>(_vars[0].rawData());
+		auto function = *reinterpret_cast<FunctionImpl**>(_vars[0].rawData());
 
-		auto stackPtr = _context._globalStack.allocate(command->stackSize());
-		command->call(_context._globalStack, stackPtr, nullptr);
-		_context._globalStack.deallocate(command->stackSize());
+		auto stackPtr = _context._globalStack.allocate(function->stackSize());
+		function->call(_context._globalStack, stackPtr, nullptr);
+		_context._globalStack.deallocate(function->stackSize());
 
 		return Variable(_context);
 	}

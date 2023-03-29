@@ -7,6 +7,13 @@
 
 namespace Ketl {
 
+	bool UndeterminedVar::canBeOverloadedWith(const TypeObject& type) const {
+		if (_potentialVars.empty()) {
+			return true;
+		}
+		return _potentialVars[0].argument->getType()->doesSupportOverload() && type.doesSupportOverload();
+	};
+
 	RawInstruction& InstructionSequence::addInstruction() {
 		if (_hasReturnStatement && !_raisedAfterReturnError) {
 			_raisedAfterReturnError = true;
@@ -26,47 +33,45 @@ namespace Ketl {
 		_returnExpression = std::move(expression);
 	}
 
+	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
+		: _context(context), _localScope(parentContext != nullptr)
+		, _undefinedArgument(context), _undefinedVar(&_undefinedArgument, true, false, false) {
+		_rootLocal = &_localVars.emplace_back();
+		_currentLocal = _rootLocal;
+
+		_localsByName.emplace_back();
+	}
+
 	void SemanticAnalyzer::pushScope() {
-		scopeOffsets.push(currentStackOffset);
-		++scopeLayer;
+		// TODO
 	}
 	void SemanticAnalyzer::popScope() {
-		if (scopeLayer == 0) {
-			// TODO error
-			return;
-		}
-
-		currentStackOffset = scopeOffsets.top();
-		scopeOffsets.pop();
-
-		propagateScopeDestructors();
-
-		--scopeLayer;
+		// TODO
 	}
 
-	AnalyzerVar* SemanticAnalyzer::deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions) {
+	RawArgument* SemanticAnalyzer::deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions) {
 		// TODO
 		return nullptr;
 	}
-	AnalyzerVar* SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions) {
+	CompilerVar SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions) {
 		// TODO actual deducing
 		std::string argumentsNotation = std::string("Int64,Int64");
 		auto primaryOperatorPair = context().deducePrimaryOperator(code, argumentsNotation);
 
 		if (primaryOperatorPair.first == Instruction::Code::None) {
 
-			return nullptr;
+			return CompilerVar();
 		}
 
 		auto& instruction = instructions.addInstruction();
 		instruction.code = primaryOperatorPair.first;
-		instruction.firstVar = lhs.getUVar().getVarAsItIs();
-		instruction.secondVar = rhs.getUVar().getVarAsItIs();
+		instruction.firstVar = lhs.getUVar().getVarAsItIs().argument;
+		instruction.secondVar = rhs.getUVar().getVarAsItIs().argument;
 
 		auto& longType = *context().getVariable("Int64").as<TypeObject>();
 		instruction.outputVar = createTempVar(longType);
 
-		return instruction.outputVar;
+		return CompilerVar(instruction.outputVar, false, false, false);
 	}
 	UndeterminedDelegate SemanticAnalyzer::deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions) {
 		auto& variants = caller.getUVar().getVariants();
@@ -74,7 +79,7 @@ namespace Ketl {
 		
 		if (variants.empty()) {
 			pushErrorMsg("[ERROR] No satisfying function");
-			return &_undefinedVar;
+			return _undefinedVar;
 		}
 
 		std::vector<UndeterminedDelegate> totalArguments;
@@ -87,11 +92,33 @@ namespace Ketl {
 			totalArguments.emplace_back(argument);
 		}
 
-		std::map<uint64_t, AnalyzerVar*> deducedVariants;
+		std::map<uint64_t, RawArgument*> deducedVariants;
 
 		for (const auto& callerVar : variants) {
-			auto type = callerVar->getType();
-			deducedVariants.emplace(type->deduceOperatorCall(callerVar, OperatorCode::Call, totalArguments));
+			auto type = callerVar.argument->getType();
+			if (type->getReturnType()) {
+				// it is a function
+				auto& parameters = type->getParameters();
+
+				if (totalArguments.size() > parameters.size()) {
+					deducedVariants.emplace(std::make_pair<uint64_t, RawArgument*>(std::numeric_limits<uint64_t>::max(), nullptr));
+					continue;
+				}
+
+				// TODO do cast checking and counting
+				if (totalArguments.size() < parameters.size()) {
+					deducedVariants.emplace(std::make_pair<uint64_t, RawArgument*>(0u, nullptr));
+					continue;
+				}
+
+				deducedVariants.emplace(std::make_pair(0u, callerVar.argument));
+				continue;
+			}
+
+			auto& callOperators = type->getCallFunctions();
+			for (auto& callOperator : callOperators) {
+				// TODO
+			}
 		}
 
 		auto bestVariantsIt = deducedVariants.begin();
@@ -99,7 +126,7 @@ namespace Ketl {
 
 		if (bestVariantCost == std::numeric_limits<uint64_t>::max()) {
 			pushErrorMsg("[ERROR] No satisfying function");
-			return &_undefinedVar;
+			return _undefinedVar;
 		}
 
 		auto deducedEnd = deducedVariants.end();
@@ -119,7 +146,7 @@ namespace Ketl {
 
 		if (bestVariantsCount > 1) {
 			pushErrorMsg("[ERROR] Coundn't decide call");
-			return &_undefinedVar;
+			return _undefinedVar;
 		}
 
 		auto functionVar = deducedVariants.begin()->second;
@@ -149,8 +176,8 @@ namespace Ketl {
 			auto& defineInstruction = instructions.addInstruction();
 			defineInstruction.code = Instruction::Code::DefineFuncParameter;
 
-			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getUVar().getVarAsItIs()->getType());
-			defineInstruction.secondVar = parameterVar.getUVar().getVarAsItIs();
+			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getUVar().getVarAsItIs().argument->getType());
+			defineInstruction.secondVar = parameterVar.getUVar().getVarAsItIs().argument;
 		}
 
 		// calling the function
@@ -159,17 +186,17 @@ namespace Ketl {
 		instruction.firstVar = functionVar;
 		instruction.outputVar = outputVar;
 
-		return instruction.outputVar;
+		return CompilerVar(instruction.outputVar, false, false, false);
 	}
 	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedDelegate>& vars) {
 		// TODO
 		return nullptr;
 	}
 
-	class AnalyzerLiteralVar : public AnalyzerVar {
+	class LiteralArgument : public RawArgument {
 	public:
 		// TODO
-		AnalyzerLiteralVar(const std::string_view& value, SemanticAnalyzer& context)
+		LiteralArgument(const std::string_view& value, SemanticAnalyzer& context)
 			: _value(value) {
 			_type = context.context().getVariable("Int64").as<TypeObject>();
 		}
@@ -192,15 +219,15 @@ namespace Ketl {
 		std::string_view _id;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createLiteralVar(const std::string_view& value) {
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerLiteralVar>(value, *this));
+	CompilerVar SemanticAnalyzer::createLiteralVar(const std::string_view& value) {
+		auto ptr = vars.emplace_back(std::make_unique<LiteralArgument>(value, *this)).get();
 
-		return ptr.get();
+		return CompilerVar(ptr, true, true, false);
 	}
 	
-	class AnalyzerReturnVar : public AnalyzerVar {
+	class ReturnArgument : public RawArgument {
 	public:
-		AnalyzerReturnVar(AnalyzerVar* value, SemanticAnalyzer& context)
+		ReturnArgument(RawArgument* value, SemanticAnalyzer& context)
 			: _value(value) {
 			_type = _value ? _value->getType() : context.context().getVariable("Void").as<TypeObject>();
 		}
@@ -217,19 +244,19 @@ namespace Ketl {
 
 	private:
 
-		AnalyzerVar* _value;
+		RawArgument* _value;
 		const TypeObject* _type;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createReturnVar(AnalyzerVar* expression) {
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerReturnVar>(expression, *this));
+	RawArgument* SemanticAnalyzer::createReturnVar(RawArgument* expression) {
+		auto& ptr = vars.emplace_back(std::make_unique<ReturnArgument>(expression, *this));
 
 		return ptr.get();
 	}
 
-	class AnalyzerLiteralClassVar : public AnalyzerVar {
+	class LiteralClassArgument : public RawArgument {
 	public:
-		AnalyzerLiteralClassVar(void* ptr, const TypeObject& type)
+		LiteralClassArgument(void* ptr, const TypeObject& type)
 			: _ptr(ptr), _type(&type) {}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
@@ -249,21 +276,74 @@ namespace Ketl {
 		const TypeObject* _type;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createLiteralClassVar(void* ptr, const TypeObject& type) {
+	CompilerVar SemanticAnalyzer::createLiteralClassVar(void* ptr, const TypeObject& type) {
 		resultRefs.emplace_back(ptr);
-		auto& var = vars.emplace_back(std::make_unique<AnalyzerLiteralClassVar>(ptr, type));
+		auto var = vars.emplace_back(std::make_unique<LiteralClassArgument>(ptr, type)).get();
 
-		return var.get();
+		return CompilerVar(var, true, true, false);
 	}
 
-
-	class AnalyzerFunctionParameterVar : public AnalyzerVar {
+	class StackArgument : public RawArgument {
 	public:
-		AnalyzerFunctionParameterVar(uint64_t index, const TypeObject& type)
-			: _index(index), _type(&type) {}
+		StackArgument(const TypeObject& type)
+			: _type(&type) {}
+
+		void bake(void* ptr) override {
+			_ptr = ptr;
+		}
+
+		inline void setOffset(uint64_t offset) {
+			_offset = offset;
+		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
-			auto type = Argument::Type::Literal;
+			if (_ptr != nullptr) {
+				auto type = Argument::Type::Global;
+				Argument argument;
+				argument.globalPtr = _ptr;
+				return std::make_pair(type, argument);
+			}
+			else {
+				auto type = Argument::Type::Stack;
+				Argument argument;
+				argument.stack = _offset;
+				return std::make_pair(type, argument);
+			}
+		}
+
+		const TypeObject* getType() const override {
+			return _type;
+		}
+
+	private:
+
+		const TypeObject* _type = nullptr;
+		uint64_t _offset = 0u;
+		void* _ptr = nullptr;
+	};
+
+	RawArgument* SemanticAnalyzer::createTempVar(const TypeObject& type) {
+		auto stackVar = std::make_unique<StackArgument>(type);
+		auto stackPtr = stackVar.get();
+		auto ptr = vars.emplace_back(std::move(stackVar)).get();
+
+		auto localVar = &_localVars.emplace_back();
+		localVar->argument = stackPtr;
+
+		localVar->parent = _currentLocal->parent;
+		_currentLocal->nextSibling = localVar;
+		_currentLocal = localVar;
+
+		return ptr;
+	}
+
+	class ParameterArgument : public RawArgument {
+	public:
+		ParameterArgument(uint64_t index, const TypeObject& type)
+			: _type(&type), _index(index) {}
+
+		std::pair<Argument::Type, Argument> getArgument() const override {
+			auto type = Argument::Type::FunctionParameter;
 			Argument argument;
 			argument.stack = _index * sizeof(void*);
 			return std::make_pair(type, argument);
@@ -279,17 +359,17 @@ namespace Ketl {
 		uint64_t _index;
 	};
 
-	AnalyzerVar* SemanticAnalyzer::createFunctionArgumentVar(uint64_t index, const TypeObject& type) {
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerFunctionParameterVar>(index, type));
+	RawArgument* SemanticAnalyzer::createFunctionArgumentVar(uint64_t index, const TypeObject& type) {
+		auto& ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, type));
 
 		return ptr.get();
 	}
 
-	class AnalyzerGlobalVar : public AnalyzerVar {
+	class GlobalArgument : public RawArgument {
 	public:
-		AnalyzerGlobalVar(const TypeObject& type)
+		GlobalArgument(const TypeObject& type)
 			: _type(&type) {}
-		AnalyzerGlobalVar(void* ptr, const TypeObject& type)
+		GlobalArgument(void* ptr, const TypeObject& type)
 			: _ptr(ptr), _type(&type) {}
 
 		void bake(void* ptr) override {
@@ -314,10 +394,11 @@ namespace Ketl {
 	};
 
 	UndeterminedVar SemanticAnalyzer::getVar(const std::string_view& id) {
-		auto scopeIt = scopeVarsByNames.find(id);
-		if (scopeIt != scopeVarsByNames.end()) {
-			auto it = scopeIt->second.rbegin();
-			return it->second;
+		for (auto nameScopeIt = _localsByName.rbegin(), end = _localsByName.rend(); nameScopeIt != end; ++nameScopeIt) {
+			auto nameIt = nameScopeIt->find(id);
+			if (nameIt != nameScopeIt->end()) {
+				return nameIt->second;
+			}
 		}
 
 		auto globalIt = newGlobalVars.find(id);
@@ -329,134 +410,66 @@ namespace Ketl {
 		if (!globalVar.empty()) {
 			UndeterminedVar uvar;
 			for (auto& var : globalVar._vars) {
-				auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(var.rawData(), var.type()));
-				uvar.overload(ptr.get());
+				auto& ptr = vars.emplace_back(std::make_unique<GlobalArgument>(var.rawData(), var.type()));
+				// TODO get const and ref from var
+				uvar.overload(CompilerVar(ptr.get(), false, false, false));
 			}
 			return uvar;
 		}
 
 		auto idStr = std::string(id);
 		pushErrorMsg("[ERROR] Variable '" + idStr + "' doesn't exists");
-		return &_undefinedVar;
+		return _undefinedVar;
 	}
 
-	AnalyzerVar* SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type) {
+	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type, bool isConst, bool isRef) {
 		if (isLocalScope()) {
-
-			auto& scopedNames = scopeVarsByNames[id];
-			auto& uvar = scopedNames[scopeLayer];
+			auto& uvar = _localsByName.back()[id];
 
 			if (!uvar.canBeOverloadedWith(type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in local scope");
-				return &_undefinedVar;
+				return _undefinedVar;
 			}
 
 			auto tempVar = createTempVar(type);
-			uvar.overload(tempVar);
+			CompilerVar var(tempVar, isConst, false, isRef);
+			uvar.overload(var);
 
-			return tempVar;
+			return var;
 		}
 		else {
 			if (!_context.getVariable(id).empty()) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
-				return &_undefinedVar;
+				return _undefinedVar;
 			}
 
 			auto& uvar = newGlobalVars[id];
 			if (!uvar.canBeOverloadedWith(type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
-				return &_undefinedVar;
+				return _undefinedVar;
 			}
 
-			auto& ptr = vars.emplace_back(std::make_unique<AnalyzerGlobalVar>(type));
-			uvar.overload(ptr.get());
+			auto ptr = vars.emplace_back(std::make_unique<GlobalArgument>(type)).get();
+			CompilerVar var(ptr, isConst, false, isRef);
+			uvar.overload(var);
 
-			return ptr.get();
+			return var;
 		}
 	}
 
-	class AnalyzerParameterVar : public AnalyzerVar {
-	public:
-		AnalyzerParameterVar(uint64_t offset, const TypeObject& type)
-			: _offset(offset), _type(&type) {}
-
-		std::pair<Argument::Type, Argument> getArgument() const override {
-			auto type = Argument::Type::FunctionParameter;
-			Argument argument;
-			argument.stack = _offset;
-			return std::make_pair(type, argument);
-		}
-
-		const TypeObject* getType() const override {
-			return _type;
-		}
-
-	private:
-
-		const TypeObject* _type;
-		uint64_t _offset;
-	};
-
-	AnalyzerVar* SemanticAnalyzer::createFunctionParameterVar(const std::string_view& id, const TypeObject& type) {
-		auto& scopedNames = scopeVarsByNames[id];
-		auto [varIt, success] = scopedNames.try_emplace(scopeLayer, nullptr);
+	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, bool isConst, bool isRef) {
+		auto [varIt, success] = _localsByName.back().try_emplace(id);
 		if (!success) {
 			pushErrorMsg("[ERROR] Parameter " + std::string(id) + " already exists");
-			return &_undefinedVar;
+			return _undefinedVar;
 		}
 
-		auto offset = currentStackOffset;
-		uint64_t size = sizeof(void*);
+		++_parametersCount;
+		auto ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, type)).get();
+		CompilerVar var(ptr, isConst, false, isRef);
+		varIt->second.overload(var);
 
-		currentStackOffset += size;
-		maxOffsetValue = std::max(currentStackOffset, maxOffsetValue);
-
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerParameterVar>(offset, type));
-		varIt->second = ptr.get();
-
-		return ptr.get();
-	}
-
-	class AnalyzerTemporaryVar : public AnalyzerVar {
-	public:
-		AnalyzerTemporaryVar(uint64_t offset, const TypeObject& type)
-			: _offset(offset), _type(&type) {}
-
-		std::pair<Argument::Type, Argument> getArgument() const override {
-			auto type = Argument::Type::Stack;
-			Argument argument;
-			argument.stack = _offset;
-			return std::make_pair(type, argument);
-		}
-
-		const TypeObject* getType() const override {
-			return _type;
-		}
-
-	private:
-
-		const TypeObject* _type;
-		uint64_t _offset;
-	};
-
-	AnalyzerVar* SemanticAnalyzer::createTempVar(const TypeObject& type) {
-		// TODO alignment
-		auto offset = currentStackOffset;
-
-		uint64_t size = type.sizeOf();
-
-		currentStackOffset += size;
-		maxOffsetValue = std::max(currentStackOffset, maxOffsetValue);
-
-		auto& ptr = vars.emplace_back(std::make_unique<AnalyzerTemporaryVar>(offset, type));
-
-		auto& scopeVar = scopeVars.emplace();
-
-		scopeVar.scopeLayer = scopeLayer;
-		scopeVar.type = &type;
-		scopeVar.var = ptr.get();
-
-		return ptr.get();
+		return var;
 	}
 
 	std::string SemanticAnalyzer::compilationErrors() const {
@@ -483,17 +496,62 @@ namespace Ketl {
 		return context().getVariable("Int64").as<TypeObject>();
 	}
 
+	void SemanticAnalyzer::bakeLocalVars() {
+		std::stack<uint64_t> stackOffsets;
+		uint64_t currentOffset = _parametersCount * sizeof(void*);
+		_stackSize = currentOffset;
+		stackOffsets.push(currentOffset);
+
+		auto localIt = _rootLocal;
+		if (localIt->firstChild) {
+			while (localIt->firstChild) {
+				localIt = localIt->firstChild;
+				stackOffsets.push(currentOffset);
+			}
+		}
+		else {
+			localIt = localIt->nextSibling;
+		}
+
+		while (localIt) {
+			// TODO alignment
+			localIt->argument->setOffset(currentOffset);
+			currentOffset += localIt->argument->getType()->sizeOf();
+
+			if (currentOffset > _stackSize) {
+				_stackSize = currentOffset;
+			}
+
+			if (localIt->firstChild) {
+				while (localIt->firstChild) {
+					localIt = localIt->firstChild;
+					stackOffsets.push(currentOffset);
+				}
+				continue;
+			}
+
+			if (localIt->nextSibling) {
+				localIt = localIt->nextSibling;
+				continue;
+			}
+
+			localIt = localIt->parent;
+			currentOffset = stackOffsets.top();
+			stackOffsets.pop();
+		}
+	}
+
 	void SemanticAnalyzer::bakeContext() {
 		for (auto& var : newGlobalVars) {
 			auto& variants = var.second.getVariants();
 			for (auto& variant : variants) {
-				auto& type = *variant->getType();
+				auto& type = *variant.argument->getType();
 				void* ptr = _context.allocateGlobal(var.first, type);
 				if (ptr == nullptr) {
 					std::string id(var.first);
 					pushErrorMsg("[ERROR] Variable " + id + " already exists");
 				}
-				variant->bake(ptr);
+				variant.argument->bake(ptr);
 			}
 		}
 	}
@@ -506,8 +564,10 @@ namespace Ketl {
 			return compilationErrors();
 		}
 
+		bakeLocalVars();
+
 		auto rawInstructions = std::move(mainSequence).buildInstructions();
-		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, maxOffsetValue, rawInstructions.size());
+		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, _stackSize, rawInstructions.size());
 
 		bakeContext();
 		if (hasCompilationErrors()) {

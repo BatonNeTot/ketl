@@ -62,14 +62,15 @@ namespace Ketl {
 				type = context.evaluateType(*_type);
 			}
 			else {
-				type = expression.getUVar().getVarAsItIs()->getType();
+				type = expression.getUVar().getVarAsItIs().argument->getType();
 			}
-			auto var = context.createVar(_id, *type);
+			// TODO get const and ref
+			auto var = context.createVar(_id, *type, false, false);
 
 			if (_expression) {
 				auto& instruction = instructions.addInstruction();
-				instruction.firstVar = var;
-				instruction.secondVar = expression.getUVar().getVarAsItIs();
+				instruction.firstVar = var.argument;
+				instruction.secondVar = expression.getUVar().getVarAsItIs().argument;
 				instruction.code = Instruction::Code::DefinePrimitive;
 			}
 			
@@ -131,18 +132,19 @@ namespace Ketl {
 			} 
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
+			uint64_t counter = 0u;
 			for (auto& parameter : _parameters) {
 				auto type = context.evaluateType(*parameter.type);
-				analyzer.createFunctionParameterVar(parameter.id, *type);
 				auto isConst = parameter.isConst;
 				auto isRef = parameter.isRef;
+				analyzer.createFunctionParameterVar(counter++, parameter.id, *type, isConst, isRef);
 				parameters.emplace_back(isConst, isRef, type);
 			}
 
 			auto function = std::move(analyzer).compile(*_block);
 			if (std::holds_alternative<std::string>(function)) {
 				context.pushErrorMsg(std::get<std::string>(function));
-				return &context._undefinedVar;
+				return context._undefinedVar;
 			}
 			
 			auto classType = context.context().getVariable("ClassType").as<TypeObject>();
@@ -332,12 +334,12 @@ namespace Ketl {
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto valueUDelegate = _value->produceInstructions(instructions, context);
 			auto var = valueUDelegate.getUVar().getVarAsItIs();
-			if (var == nullptr) {
+			if (var.argument == nullptr) {
 				context.pushErrorMsg("[ERROR] Can't determin variable");
-				return &context._undefinedVar;
+				return context._undefinedVar;
 			}
 
-			auto type = var->getType();
+			auto type = var.argument->getType();
 
 			if (true) {
 				UndeterminedDelegate result = context.getVar(_id);
@@ -346,7 +348,7 @@ namespace Ketl {
 			}
 
 			__debugbreak();
-			return nullptr;
+			return CompilerVar();
 		};
 
 	private:
@@ -389,7 +391,7 @@ namespace Ketl {
 			: _caller(std::move(caller)), _arguments(std::move(arguments)) {}
 
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
-			auto callerVar = std::move(*_caller).produceInstructions(instructions, context);
+			auto callerVar = _caller->produceInstructions(instructions, context);
 
 			std::vector<UndeterminedDelegate> arguments;
 			arguments.reserve(_arguments.size());
@@ -556,14 +558,14 @@ namespace Ketl {
 			// TODO remove later, cause there might be type cast
 			// <!--
 			auto& instruction = instructions.addInstruction();
-			instruction.firstVar = context.createReturnVar(expression.getUVar().getVarAsItIs());
-			instruction.secondVar = expression.getUVar().getVarAsItIs();
+			instruction.firstVar = context.createReturnVar(expression.getUVar().getVarAsItIs().argument);
+			instruction.secondVar = expression.getUVar().getVarAsItIs().argument;
 			instruction.code = Instruction::Code::DefinePrimitive;
 			// -->
 
 			instructions.addReturnStatement(expression);
 
-			return nullptr;
+			return CompilerVar();
 		};
 
 	private:

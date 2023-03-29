@@ -4,13 +4,6 @@
 
 namespace Ketl {
 
-	bool UndeterminedVar::canBeOverloadedWith(const TypeObject& type) const {
-		if (_potentialVars.empty()) {
-			return true;
-		}
-		return _potentialVars[0]->getType()->doesSupportOverload() && type.doesSupportOverload();
-	};
-
 	inline static uint8_t* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
 		switch (type) {
 		case Argument::Type::Global: {
@@ -100,7 +93,7 @@ namespace Ketl {
 				break;
 			}
 			case Instruction::Code::DefineFuncParameter: {
-				*reinterpret_cast<void**>(functionStack + first<uint64_t>(instruction, stackPtr, returnPtr)) = &second<uint8_t>(instruction, stackPtr, returnPtr);
+				*reinterpret_cast<void**>(functionStack + instruction.first.stack) = &second<uint8_t>(instruction, stackPtr, returnPtr);
 				break;
 			}
 			case Instruction::Code::CallFunction: {

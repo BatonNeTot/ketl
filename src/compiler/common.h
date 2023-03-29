@@ -43,40 +43,6 @@ namespace Ketl {
 		return OperatorCode::None;
 	}
 
-
-	class TypeObject;
-	class Context;
-
-	class TypedPtr {
-	public:
-
-		TypedPtr() {}
-		TypedPtr(void* ptr, const TypeObject& type)
-			: _ptr(ptr), _type(&type) {}
-
-		void* as(std::type_index typeIndex, Context& context) const;
-
-		const TypeObject& type() const {
-			return *_type;
-		}
-
-		void* rawData() const {
-			return _ptr;
-		}
-
-		void data(void* ptr) {
-			_ptr = ptr;
-		}
-
-	private:
-
-		friend class Context;
-
-		void* _ptr = nullptr;
-		const TypeObject* _type = nullptr;
-
-	};
-
 }
 
 #endif /*compiler_common_h*/

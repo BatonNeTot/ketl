@@ -11,9 +11,114 @@
 
 namespace Ketl {
 
-	class AnalyzerVar {
+	class SemanticAnalyzer;
+	class RawArgument;
+	class TypeObject;
+
+	struct CompilerVar {
+		CompilerVar() = default;
+		CompilerVar(RawArgument* argument_, bool isConst_, bool isPure_, bool isRef_)
+			: isConst(isConst_), isPure(isPure_), isRef(isRef_), argument(argument_) {}
+
+		bool isConst = false;
+		bool isPure = false;
+		bool isRef = false;
+		RawArgument* argument = nullptr;
+	};
+
+	class UndeterminedVar {
 	public:
-		virtual ~AnalyzerVar() = default;
+
+		UndeterminedVar() = default;
+		UndeterminedVar(const CompilerVar& predeterminedVar) {
+			_potentialVars.emplace_back(predeterminedVar);
+		}
+		UndeterminedVar(CompilerVar&& predeterminedVar) {
+			_potentialVars.emplace_back(std::move(predeterminedVar));
+		}
+		UndeterminedVar(std::vector<CompilerVar>&& potentialVars)
+			: _potentialVars(std::move(potentialVars)) {}
+
+		bool empty() const {
+			return _potentialVars.empty();
+		}
+
+		const std::vector<CompilerVar>& getVariants() const {
+			return _potentialVars;
+		}
+
+		const CompilerVar& getVarAsItIs() const {
+			if (_potentialVars.empty() || _potentialVars.size() > 1) {
+				static CompilerVar emptyVar;
+				return emptyVar;
+			}
+			return _potentialVars[0];
+		}
+
+		bool canBeOverloadedWith(const TypeObject& type) const;
+
+		void overload(const CompilerVar& var) {
+			_potentialVars.emplace_back(var);
+		}
+		void overload(CompilerVar&& var) {
+			_potentialVars.emplace_back(std::move(var));
+		}
+
+	private:
+
+		std::vector<CompilerVar> _potentialVars;
+	};
+
+	class UndeterminedDelegate {
+	public:
+
+		UndeterminedDelegate() = default;
+
+		UndeterminedDelegate(const UndeterminedVar& uvar)
+			: _uvar(uvar) {}
+		UndeterminedDelegate(UndeterminedVar&& uvar)
+			: _uvar(std::move(uvar)) {}
+		UndeterminedDelegate(UndeterminedVar&& uvar, std::vector<UndeterminedDelegate>&& arguments)
+			: _uvar(std::move(uvar)), _arguments(std::move(arguments)) {}
+
+		UndeterminedDelegate(const CompilerVar& predeterminedVar)
+			: _uvar(predeterminedVar) {}
+		UndeterminedDelegate(CompilerVar&& predeterminedVar)
+			: _uvar(std::move(predeterminedVar)) {}
+		UndeterminedDelegate(std::vector<CompilerVar>&& potentialVars)
+			: _uvar(std::move(potentialVars)) {}
+
+		UndeterminedVar& getUVar() {
+			return _uvar;
+		}
+		const UndeterminedVar& getUVar() const {
+			return _uvar;
+		}
+
+		std::vector<UndeterminedDelegate>& getArguments() {
+			return _arguments;
+		}
+		const std::vector<UndeterminedDelegate>& getArguments() const {
+			return _arguments;
+		}
+
+		void addArgument(UndeterminedDelegate&& argument) {
+			_arguments.emplace_back(std::move(argument));
+		}
+
+		bool hasSavedArguments() const {
+			return !_arguments.empty();
+		}
+
+	private:
+		UndeterminedVar _uvar;
+		std::vector<UndeterminedDelegate> _arguments;
+	};
+
+
+	class RawArgument {
+	public:
+		virtual ~RawArgument() = default;
 		virtual void bake(void* ptr) {}
 		virtual std::pair<Argument::Type, Argument> getArgument() const = 0;
 		virtual const TypeObject* getType() const = 0;
@@ -22,9 +127,9 @@ namespace Ketl {
 	class RawInstruction {
 	public:
 		Instruction::Code code = Instruction::Code::None;
-		AnalyzerVar* outputVar;
-		AnalyzerVar* firstVar;
-		AnalyzerVar* secondVar;
+		RawArgument* outputVar;
+		RawArgument* firstVar;
+		RawArgument* secondVar;
 
 		void propagadeInstruction(Instruction& instruction);
 	};
@@ -37,9 +142,9 @@ namespace Ketl {
 
 		RawInstruction& addInstruction();
 
-		InstructionSequence									createIfBranch(AnalyzerVar* expression);
-		std::pair<InstructionSequence, InstructionSequence> createIfElseBranches(AnalyzerVar* expression);
-		InstructionSequence									createWhileBranch(AnalyzerVar* expression, const std::string_view& id);
+		InstructionSequence									createIfBranch(RawArgument* expression);
+		std::pair<InstructionSequence, InstructionSequence> createIfElseBranches(RawArgument* expression);
+		InstructionSequence									createWhileBranch(RawArgument* expression, const std::string_view& id);
 
 
 		void addReturnStatement(UndeterminedDelegate expression);
@@ -85,37 +190,37 @@ namespace Ketl {
 		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
 	};
 
+	class StackArgument;
 	class SemanticAnalyzer {
 	public:
 
-		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr)
-			: _context(context), _localScope(parentContext != nullptr), _undefinedVar(context) {}
-		~SemanticAnalyzer() {}
+		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr);
+		~SemanticAnalyzer() = default;
 
 		std::variant<FunctionImpl*, std::string> compile(const IRNode& block)&&;
 
+		void bakeLocalVars();
 		void bakeContext();
 
-		AnalyzerVar* createTempVar(const TypeObject& type);
+		RawArgument* createTempVar(const TypeObject& type);
 
-		AnalyzerVar* createLiteralVar(const std::string_view& value);
+		CompilerVar createLiteralVar(const std::string_view& value);
+		CompilerVar createLiteralClassVar(void* ptr, const TypeObject& type);
 
-		AnalyzerVar* createLiteralClassVar(void* ptr, const TypeObject& type);
+		RawArgument* createReturnVar(RawArgument* expression);
 
-		AnalyzerVar* createReturnVar(AnalyzerVar* expression);
-
-		AnalyzerVar* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
-		AnalyzerVar* createFunctionParameterVar(const std::string_view& id, const TypeObject& type);
+		RawArgument* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
+		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, bool isConst, bool isRef);
 
 
-		AnalyzerVar* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
-		AnalyzerVar* deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions);
+		RawArgument* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
+		CompilerVar deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions);
 		UndeterminedDelegate deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions);
 		const TypeObject* deduceCommonType(const std::vector<UndeterminedDelegate>& vars);
 
 
 		UndeterminedVar getVar(const std::string_view& id);
-		AnalyzerVar* createVar(const std::string_view& id, const TypeObject& type);
+		CompilerVar createVar(const std::string_view& id, const TypeObject& type, bool isConst, bool isRef);
 
 		Variable evaluate(const IRNode& node);
 		const TypeObject* evaluateType(const IRNode& node);
@@ -140,15 +245,14 @@ namespace Ketl {
 
 		void propagateScopeDestructors() {} // TODO
 
-		uint64_t scopeLayer = 0u;
-		uint64_t currentStackOffset = 0u;
-		uint64_t maxOffsetValue = 0u;
+		uint64_t _parametersCount = 0u;
+		uint64_t _stackSize = 0u;
 
-		std::vector<std::unique_ptr<AnalyzerVar>> vars;
+		std::vector<std::unique_ptr<RawArgument>> vars;
 
-		class UndefinedVar : public AnalyzerVar {
+		class UndefinedArgument : public RawArgument {
 		public:
-			UndefinedVar(Context& context) {
+			UndefinedArgument(Context& context) {
 				_type = context.getVariable("Void").as<TypeObject>();
 			}
 
@@ -166,18 +270,22 @@ namespace Ketl {
 			const TypeObject* _type = nullptr;
 		};
 
-		UndefinedVar _undefinedVar;
+		UndefinedArgument _undefinedArgument;
+		CompilerVar _undefinedVar;
 
-		struct ScopeVar {
-			AnalyzerVar* var; 
-			const TypeObject* type;
-			uint64_t scopeLayer;
+		std::unordered_map<std::string_view, UndeterminedVar> newGlobalVars;
+
+		struct LocalVar {
+			StackArgument* argument = nullptr;
+			LocalVar* parent = nullptr;
+			LocalVar* nextSibling = nullptr;
+			LocalVar* firstChild = nullptr;
 		};
 
-		std::stack<ScopeVar> scopeVars;
-		std::stack<uint64_t> scopeOffsets;
-		std::unordered_map<std::string_view, std::map<uint64_t, UndeterminedVar>> scopeVarsByNames;
-		std::unordered_map<std::string_view, UndeterminedVar> newGlobalVars;
+		std::list<std::unordered_map<std::string_view, UndeterminedVar>> _localsByName;
+		std::list<LocalVar> _localVars;
+		LocalVar* _rootLocal = nullptr;
+		LocalVar* _currentLocal = nullptr;
 
 		std::vector<const void*> resultRefs;
 
