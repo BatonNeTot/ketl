@@ -70,23 +70,13 @@ int main(int argc, char** argv) {
 	context.declareGlobal("sum", &sum);
 
 	auto compilationResult = compiler.compile(R"(
-	Int64 adder(Int64 x) {
-		return x + 10;
+	sum = 3;
+
+	if (sum == 3) {
+		sum = 5;
+	} else {
+		sum = 7;
 	}
-
-	/*
-	struct Test {
-	public:
-		Int64 x, y;
-		public Int64 z;
-	}
-
-	Test test;
-	test.x = 5;
-	sum = test.x.(adder)();
-	*/
-
-	sum = 3.adder();
 
 )", context);
 
@@ -98,7 +88,7 @@ int main(int argc, char** argv) {
 	auto& command = std::get<0>(compilationResult);
 	command();
 
-	assert(sum == 13u);
+	assert(sum == (3 + 9 * 4 - 5));
 
 	return 0;
 }

@@ -17,12 +17,12 @@ namespace Ketl {
 
 	struct CompilerVar {
 		CompilerVar() = default;
-		CompilerVar(RawArgument* argument_, bool isConst_, bool isPure_, bool isRef_)
-			: isConst(isConst_), isPure(isPure_), isRef(isRef_), argument(argument_) {}
+		CompilerVar(RawArgument* argument_, bool isCTK_, VarTraits traits_)
+			: isCTK(isCTK_), traits(traits_), argument(argument_) {}
 
-		bool isConst = false;
-		bool isPure = false;
-		bool isRef = false;
+		// compile time known
+		bool isCTK = false;
+		VarTraits traits;
 		RawArgument* argument = nullptr;
 	};
 
@@ -142,9 +142,10 @@ namespace Ketl {
 
 		RawInstruction& addInstruction();
 
-		InstructionSequence									createIfBranch(RawArgument* expression);
+		void createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock);
+
 		std::pair<InstructionSequence, InstructionSequence> createIfElseBranches(RawArgument* expression);
-		InstructionSequence									createWhileBranch(RawArgument* expression, const std::string_view& id);
+		InstructionSequence&								createWhileBranch(RawArgument* expression, const std::string_view& id);
 
 
 		void addReturnStatement(UndeterminedDelegate expression);
@@ -160,6 +161,8 @@ namespace Ketl {
 		UndeterminedDelegate _returnExpression;
 		SemanticAnalyzer& _context;
 		std::vector<RawInstruction> _rawInstructions;
+
+		//std::unordered_map<uint64_t, InstructionSequence>
 
 	};
 
@@ -210,7 +213,7 @@ namespace Ketl {
 		RawArgument* createReturnVar(RawArgument* expression);
 
 		RawArgument* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
-		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, bool isConst, bool isRef);
+		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits);
 
 
 		RawArgument* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
@@ -220,7 +223,7 @@ namespace Ketl {
 
 
 		UndeterminedVar getVar(const std::string_view& id);
-		CompilerVar createVar(const std::string_view& id, const TypeObject& type, bool isConst, bool isRef);
+		CompilerVar createVar(const std::string_view& id, const TypeObject& type, VarTraits traits);
 
 		Variable evaluate(const IRNode& node);
 		const TypeObject* evaluateType(const IRNode& node);

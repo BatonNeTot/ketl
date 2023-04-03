@@ -181,6 +181,8 @@ namespace Ketl {
 			DivideFloat64,
 			DefinePrimitive,
 			AssignPrimitive,
+			IsPrimitiveEqual,
+			IsPrimitiveNonEqual,
 			AllocateFunctionStack,
 			DefineFuncParameter,
 			CallFunction,
@@ -223,16 +225,18 @@ namespace Ketl {
 	public:
 
 		FunctionImpl() {}
-		FunctionImpl(Allocator& alloc, uint64_t stackSize, uint64_t instructionsCount)
+		FunctionImpl(Allocator& alloc, bool isPure, uint64_t stackSize, uint32_t instructionsCount)
 			: _alloc(&alloc)
 			, _stackSize(stackSize + sizeof(uint64_t))
 			, _instructionsCount(instructionsCount)
+			, _isPure(isPure)
 			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
 		FunctionImpl(const FunctionImpl& function) = delete;
 		FunctionImpl(FunctionImpl&& function) noexcept
 			: _alloc(function._alloc)
 			, _stackSize(function._stackSize)
 			, _instructionsCount(function._instructionsCount)
+			, _isPure(function._isPure)
 			, _instructions(function._instructions) {
 			function._instructions = nullptr;
 		}
@@ -245,6 +249,7 @@ namespace Ketl {
 			_stackSize = other._stackSize;
 			_instructionsCount = other._instructionsCount;
 			_instructions = other._instructions;
+			_isPure = other._isPure;
 
 			other._instructions = nullptr;
 
@@ -270,7 +275,8 @@ namespace Ketl {
 		Allocator* _alloc = nullptr;
 		uint64_t _stackSize = 0;
 
-		uint64_t _instructionsCount = 0;
+		uint32_t _instructionsCount = 0;
+		bool _isPure;
 		Instruction* _instructions = nullptr;
 	};
 
@@ -283,6 +289,8 @@ namespace Ketl {
 		Minus,
 		Multiply,
 		Divide,
+		Equal,
+		NonEqual,
 		Assign,
 
 	};
@@ -320,6 +328,11 @@ namespace Ketl {
 
 	};
 
+	struct VarTraits {
+		bool isConst = false;
+		bool isRef = false;
+	};
+
 	class TypeObject {
 	public:
 		TypeObject() = default;
@@ -336,9 +349,8 @@ namespace Ketl {
 		virtual const TypeObject* getReturnType() const { return nullptr; }
 
 		struct Parameter {
-			bool isConst = false;
-			bool isRef = false;
 			const TypeObject* type = nullptr;
+			VarTraits traits;
 		};
 
 		virtual const std::vector<Parameter>& getParameters() const  { 

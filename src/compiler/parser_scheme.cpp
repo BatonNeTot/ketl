@@ -267,7 +267,24 @@ namespace Ketl {
 			std::make_unique<NodeLiteral>(true, ";")
 			));
 
+		// if else
+		_nodes.try_emplace("ifElse", std::make_unique<NodeConcat>(true,
+			std::make_unique<NodeLiteral>(true, "if"),
+			std::make_unique<NodeLiteral>(true, "("),
+			std::make_unique<NodeId>(true, "expression"),
+			std::make_unique<NodeLiteral>(true, ")"),
+			std::make_unique<NodeId>(&proxyTree, false, "command"),
+			std::make_unique<NodeConditional>(
+				std::make_unique<NodeConcat>(true,
+					std::make_unique<NodeLiteral>(true, "else"),
+					std::make_unique<NodeId>(true, "command")
+					)
+				)
+			));
+
 		_nodes.try_emplace("command", std::make_unique<NodeOr>(
+			// if else
+			std::make_unique<NodeId>(&createIfElseStatement, false, "ifElse"),
 			// return
 			std::make_unique<NodeId>(&createReturn, false, "return"),
 			// define variable
@@ -286,9 +303,9 @@ namespace Ketl {
 				std::make_unique<NodeLiteral>(true, ";")
 				),
 			// block
-			std::make_unique<NodeConcat>(false,
+			std::make_unique<NodeConcat>(true,
 				std::make_unique<NodeLiteral>(true, "{"),
-				std::make_unique<NodeId>(false, "several-commands"),
+				std::make_unique<NodeId>(true, "several-commands"),
 				std::make_unique<NodeLiteral>(true, "}")
 				)
 			));

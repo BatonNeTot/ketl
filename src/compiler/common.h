@@ -29,15 +29,25 @@ namespace Ketl {
 
 	inline OperatorCode parseOperatorCode(const std::string_view& opStr) {
 		switch (opStr.length()) {
-		case 1: {
-			switch (opStr.data()[0]) {
+		case 1: 
+			switch (opStr[0]) {
 			case '+': return OperatorCode::Plus;
 			case '-': return OperatorCode::Minus;
 			case '*': return OperatorCode::Multiply;
 			case '/': return OperatorCode::Divide;
 			case '=': return OperatorCode::Assign;
-			}
-		}
+			} break;
+		case 2: 
+			switch (opStr[0]) {
+			case '=':
+				switch (opStr[1]) {
+				case '=': return OperatorCode::Equal;
+				} break;
+			case '!':
+				switch (opStr[1]) {
+				case '=': return OperatorCode::NonEqual;
+				} break;
+			} break;
 		}
 
 		return OperatorCode::None;

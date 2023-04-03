@@ -37,7 +37,7 @@ namespace Ketl {
 
 	std::unique_ptr<IRNode> proxyTree(const ProcessNode* info) {
 		auto child = info->firstChild;
-		return child->node->createIRTree(child);
+		return child ? child->node->createIRTree(child) : nullptr;
 	}
 
 	std::unique_ptr<IRNode> emptyTree(const ProcessNode*) {
@@ -65,7 +65,7 @@ namespace Ketl {
 				type = expression.getUVar().getVarAsItIs().argument->getType();
 			}
 			// TODO get const and ref
-			auto var = context.createVar(_id, *type, false, false);
+			auto var = context.createVar(_id, *type, { false, false });
 
 			if (_expression) {
 				auto& instruction = instructions.addInstruction();
@@ -112,8 +112,7 @@ namespace Ketl {
 		struct Parameter {
 			std::unique_ptr<IRNode> type;
 			std::string_view id;
-			bool isConst;
-			bool isRef;
+			VarTraits traits;
 		};
 
 		IRFunction(std::vector<Parameter>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
@@ -135,10 +134,8 @@ namespace Ketl {
 			uint64_t counter = 0u;
 			for (auto& parameter : _parameters) {
 				auto type = context.evaluateType(*parameter.type);
-				auto isConst = parameter.isConst;
-				auto isRef = parameter.isRef;
-				analyzer.createFunctionParameterVar(counter++, parameter.id, *type, isConst, isRef);
-				parameters.emplace_back(isConst, isRef, type);
+				analyzer.createFunctionParameterVar(counter++, parameter.id, *type, parameter.traits);
+				parameters.emplace_back(type, parameter.traits);
 			}
 
 			auto function = std::move(analyzer).compile(*_block);
@@ -187,7 +184,7 @@ namespace Ketl {
 		auto parameterIdNode = parameterTypeNode->nextSibling;
 		auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
 
-		parameters.emplace_back(std::move(parameterType), parameterId, isConst, isRef);
+		parameters.emplace_back(std::move(parameterType), parameterId, VarTraits{ isConst, isRef });
 	}
 
 	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {
@@ -573,10 +570,44 @@ namespace Ketl {
 	};
 
 	std::unique_ptr<IRNode> createReturn(const ProcessNode* info) {
-		auto expresstionNode = info->firstChild;
-		auto expression = expresstionNode->node->createIRTree(expresstionNode);
+		auto expressionNode = info->firstChild;
+		auto expression = expressionNode->node->createIRTree(expressionNode);
 
 		return std::make_unique<IRReturn>(std::move(expression));
+	}
+
+	class IRIfElse : public IRNode {
+	public:
+
+		IRIfElse(std::unique_ptr<IRNode>&& condition, std::unique_ptr<IRNode>&& trueBlock, std::unique_ptr<IRNode>&& falseBlock)
+			: _condition(std::move(condition)), _trueBlock(std::move(trueBlock)), _falseBlock(std::move(falseBlock)) {}
+
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			instructions.createIfElseBranches(*_condition, _trueBlock.get(), _falseBlock.get());
+
+			return CompilerVar();
+		};
+
+	private:
+		std::unique_ptr<IRNode> _condition;
+		std::unique_ptr<IRNode> _trueBlock;
+		std::unique_ptr<IRNode> _falseBlock;
+	};
+
+	std::unique_ptr<IRNode> createIfElseStatement(const ProcessNode* info) {
+		auto conditionNode = info->firstChild;
+		auto condition = conditionNode->node->createIRTree(conditionNode);
+
+		auto trueBlockNode = conditionNode->nextSibling;
+		auto trueBlock = trueBlockNode->node->createIRTree(trueBlockNode);
+
+		auto falseBlockNode = trueBlockNode->nextSibling;
+		std::unique_ptr<IRNode> falseBlock;
+		if (falseBlockNode) {
+			falseBlock = falseBlockNode->node->createIRTree(falseBlockNode);
+		}
+
+		return std::make_unique<IRIfElse>(std::move(condition), std::move(trueBlock), std::move(falseBlock));
 	}
 
 }

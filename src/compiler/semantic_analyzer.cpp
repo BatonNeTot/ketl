@@ -23,6 +23,10 @@ namespace Ketl {
 		return _rawInstructions.emplace_back();
 	}
 
+	void InstructionSequence::createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock) {
+		__debugbreak();
+	}
+
 	void InstructionSequence::addReturnStatement(UndeterminedDelegate expression) {
 		if (_hasReturnStatement) {
 			_context.pushErrorMsg("[ERROR] Multiple return statements");
@@ -35,7 +39,7 @@ namespace Ketl {
 
 	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
 		: _context(context), _localScope(parentContext != nullptr)
-		, _undefinedArgument(context), _undefinedVar(&_undefinedArgument, true, false, false) {
+		, _undefinedArgument(context), _undefinedVar(&_undefinedArgument, false, {true, false}) {
 		_rootLocal = &_localVars.emplace_back();
 		_currentLocal = _rootLocal;
 
@@ -71,7 +75,7 @@ namespace Ketl {
 		auto& longType = *context().getVariable("Int64").as<TypeObject>();
 		instruction.outputVar = createTempVar(longType);
 
-		return CompilerVar(instruction.outputVar, false, false, false);
+		return CompilerVar(instruction.outputVar, false, {});
 	}
 	UndeterminedDelegate SemanticAnalyzer::deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions) {
 		auto& variants = caller.getUVar().getVariants();
@@ -168,7 +172,7 @@ namespace Ketl {
 			auto& parameter = parameters[i];
 
 			auto parameterVar = argumentVar;
-			auto isRef = parameter.isRef;
+			auto isRef = parameter.traits.isRef;
 			if (!isRef) {
 				// TODO create copy for the function call if needed, for now it's reference only
 			}
@@ -186,7 +190,7 @@ namespace Ketl {
 		instruction.firstVar = functionVar;
 		instruction.outputVar = outputVar;
 
-		return CompilerVar(instruction.outputVar, false, false, false);
+		return CompilerVar(instruction.outputVar, false, {});
 	}
 	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedDelegate>& vars) {
 		// TODO
@@ -222,7 +226,7 @@ namespace Ketl {
 	CompilerVar SemanticAnalyzer::createLiteralVar(const std::string_view& value) {
 		auto ptr = vars.emplace_back(std::make_unique<LiteralArgument>(value, *this)).get();
 
-		return CompilerVar(ptr, true, true, false);
+		return CompilerVar(ptr, true, { true, false });
 	}
 	
 	class ReturnArgument : public RawArgument {
@@ -280,7 +284,7 @@ namespace Ketl {
 		resultRefs.emplace_back(ptr);
 		auto var = vars.emplace_back(std::make_unique<LiteralClassArgument>(ptr, type)).get();
 
-		return CompilerVar(var, true, true, false);
+		return CompilerVar(var, true, { true, false });
 	}
 
 	class StackArgument : public RawArgument {
@@ -365,16 +369,36 @@ namespace Ketl {
 		return ptr.get();
 	}
 
-	class GlobalArgument : public RawArgument {
+	class NewGlobalArgument : public RawArgument {
 	public:
-		GlobalArgument(const TypeObject& type)
+		NewGlobalArgument(const TypeObject& type)
 			: _type(&type) {}
-		GlobalArgument(void* ptr, const TypeObject& type)
-			: _ptr(ptr), _type(&type) {}
 
 		void bake(void* ptr) override {
 			_ptr = ptr;
 		}
+
+		std::pair<Argument::Type, Argument> getArgument() const override {
+			auto type = Argument::Type::Global;
+			Argument argument;
+			argument.globalPtr = _ptr;
+			return std::make_pair(type, argument);
+		}
+
+		const TypeObject* getType() const override {
+			return _type;
+		}
+
+	private:
+
+		const TypeObject* _type;
+		void* _ptr = nullptr;
+	};
+
+	class GlobalArgument : public RawArgument {
+	public:
+		GlobalArgument(void* ptr, const TypeObject& type)
+			: _ptr(ptr), _type(&type) {}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
 			auto type = Argument::Type::Global;
@@ -412,7 +436,7 @@ namespace Ketl {
 			for (auto& var : globalVar._vars) {
 				auto& ptr = vars.emplace_back(std::make_unique<GlobalArgument>(var.rawData(), var.type()));
 				// TODO get const and ref from var
-				uvar.overload(CompilerVar(ptr.get(), false, false, false));
+				uvar.overload(CompilerVar(ptr.get(), true, {}));
 			}
 			return uvar;
 		}
@@ -422,7 +446,7 @@ namespace Ketl {
 		return _undefinedVar;
 	}
 
-	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type, bool isConst, bool isRef) {
+	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type, VarTraits traits) {
 		if (isLocalScope()) {
 			auto& uvar = _localsByName.back()[id];
 
@@ -432,7 +456,7 @@ namespace Ketl {
 			}
 
 			auto tempVar = createTempVar(type);
-			CompilerVar var(tempVar, isConst, false, isRef);
+			CompilerVar var(tempVar, false, traits);
 			uvar.overload(var);
 
 			return var;
@@ -449,15 +473,15 @@ namespace Ketl {
 				return _undefinedVar;
 			}
 
-			auto ptr = vars.emplace_back(std::make_unique<GlobalArgument>(type)).get();
-			CompilerVar var(ptr, isConst, false, isRef);
+			auto ptr = vars.emplace_back(std::make_unique<NewGlobalArgument>(type)).get();
+			CompilerVar var(ptr, false, traits);
 			uvar.overload(var);
 
 			return var;
 		}
 	}
 
-	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, bool isConst, bool isRef) {
+	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits) {
 		auto [varIt, success] = _localsByName.back().try_emplace(id);
 		if (!success) {
 			pushErrorMsg("[ERROR] Parameter " + std::string(id) + " already exists");
@@ -466,7 +490,7 @@ namespace Ketl {
 
 		++_parametersCount;
 		auto ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, type)).get();
-		CompilerVar var(ptr, isConst, false, isRef);
+		CompilerVar var(ptr, false, traits);
 		varIt->second.overload(var);
 
 		return var;
@@ -567,7 +591,7 @@ namespace Ketl {
 		bakeLocalVars();
 
 		auto rawInstructions = std::move(mainSequence).buildInstructions();
-		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, _stackSize, rawInstructions.size());
+		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructions.size()));
 
 		bakeContext();
 		if (hasCompilationErrors()) {
