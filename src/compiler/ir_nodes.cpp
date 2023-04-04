@@ -64,17 +64,8 @@ namespace Ketl {
 			else {
 				type = expression.getUVar().getVarAsItIs().argument->getType();
 			}
-			// TODO get const and ref
-			auto var = context.createVar(_id, *type, { false, false });
-
-			if (_expression) {
-				auto& instruction = instructions.addInstruction();
-				instruction.firstVar = var.argument;
-				instruction.secondVar = expression.getUVar().getVarAsItIs().argument;
-				instruction.code = Instruction::Code::DefinePrimitive;
-			}
 			
-			return {};
+			return instructions.createDefine(_id, *type, _expression ? expression.getUVar().getVarAsItIs().argument : nullptr);
 		};
 
 	private:
@@ -552,15 +543,7 @@ namespace Ketl {
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
 			auto expression = _expression->produceInstructions(instructions, context);
 
-			// TODO remove later, cause there might be type cast
-			// <!--
-			auto& instruction = instructions.addInstruction();
-			instruction.firstVar = context.createReturnVar(expression.getUVar().getVarAsItIs().argument);
-			instruction.secondVar = expression.getUVar().getVarAsItIs().argument;
-			instruction.code = Instruction::Code::DefinePrimitive;
-			// -->
-
-			instructions.addReturnStatement(expression);
+			instructions.createReturnStatement(expression);
 
 			return CompilerVar();
 		};

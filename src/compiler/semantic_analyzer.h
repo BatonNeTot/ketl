@@ -126,43 +126,54 @@ namespace Ketl {
 
 	class RawInstruction {
 	public:
-		Instruction::Code code = Instruction::Code::None;
-		RawArgument* outputVar;
-		RawArgument* firstVar;
-		RawArgument* secondVar;
-
-		void propagadeInstruction(Instruction& instruction);
+		virtual void propagadeInstruction(Instruction* instructions) const = 0;
+		virtual uint64_t countInstructions() const = 0;
+		virtual void fillReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const {};
 	};
 
-	class InstructionSequence {
+	class InstructionSequence : public RawInstruction {
 	public:
 
 		InstructionSequence(SemanticAnalyzer& context)
 			: _context(context) {}
 
-		RawInstruction& addInstruction();
+		RawArgument* createFullInstruction(Instruction::Code code, RawArgument* first, RawArgument* second, const TypeObject& outputType);
+		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
 
+		RawArgument* createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments);
 		void createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock);
 
-		std::pair<InstructionSequence, InstructionSequence> createIfElseBranches(RawArgument* expression);
-		InstructionSequence&								createWhileBranch(RawArgument* expression, const std::string_view& id);
+		void createReturnStatement(UndeterminedDelegate expression);
 
+		void propagadeInstruction(Instruction* instructions) const override;
 
-		void addReturnStatement(UndeterminedDelegate expression);
+		uint64_t countInstructions() const {
+			uint64_t sum = 0u;
+			for (const auto& rawInstruction : _rawInstructions) {
+				sum += rawInstruction->countInstructions();
+			}
+			if (!_returnExpression.getUVar().empty()) {
+				++sum;
+			}
+			return sum;
+		}
 
-		std::vector<RawInstruction> buildInstructions()&& {
-			return std::move(_rawInstructions);
+		void fillReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const override {
+			returnInstructions.emplace_back(_returnExpression);
+			for (const auto& rawInstruction : _rawInstructions) {
+				rawInstruction->fillReturnStatements(returnInstructions);
+			}
 		}
 
 	private:
+
+		bool verifyReturn();
 
 		bool _hasReturnStatement = false;
 		bool _raisedAfterReturnError = false;
 		UndeterminedDelegate _returnExpression;
 		SemanticAnalyzer& _context;
-		std::vector<RawInstruction> _rawInstructions;
-
-		//std::unordered_map<uint64_t, InstructionSequence>
+		std::vector<std::unique_ptr<RawInstruction>> _rawInstructions;
 
 	};
 

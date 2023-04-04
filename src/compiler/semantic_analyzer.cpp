@@ -14,20 +14,142 @@ namespace Ketl {
 		return _potentialVars[0].argument->getType()->doesSupportOverload() && type.doesSupportOverload();
 	};
 
-	RawInstruction& InstructionSequence::addInstruction() {
+	bool InstructionSequence::verifyReturn() {
 		if (_hasReturnStatement && !_raisedAfterReturnError) {
 			_raisedAfterReturnError = true;
 			_context.pushErrorMsg("[WARNING] Statements after return");
 		}
 
-		return _rawInstructions.emplace_back();
+		return !_raisedAfterReturnError;
+	}
+
+	class FullInstruction : public RawInstruction {
+	public:
+		Instruction::Code code = Instruction::Code::None;
+		RawArgument* outputVar = nullptr;
+		RawArgument* firstVar = nullptr;
+		RawArgument* secondVar = nullptr;
+
+		void propagadeInstruction(Instruction* instructions) const override {
+			auto& instruction = instructions[0];
+
+			instruction.code = code;
+			if (outputVar) {
+				std::tie(instruction.outputType, instruction.output) = outputVar->getArgument();
+			}
+			else {
+				instruction.outputType = Argument::Type::None;
+			}
+			std::tie(instruction.firstType, instruction.first) = firstVar->getArgument();
+			if (secondVar) {
+				std::tie(instruction.secondType, instruction.second) = secondVar->getArgument();
+			}
+			else {
+				instruction.secondType = Argument::Type::None;
+			}
+		}
+		uint64_t countInstructions() const override { return 1; }
+
+	};
+
+	RawArgument* InstructionSequence::createFullInstruction(Instruction::Code code, RawArgument* first, RawArgument* second, const TypeObject& outputType) {
+		auto fullInstruction = std::make_unique<FullInstruction>();
+
+		fullInstruction->code = code;
+		fullInstruction->firstVar = first;
+		fullInstruction->secondVar = second;
+
+		auto output = _context.createTempVar(outputType);
+		fullInstruction->outputVar = output;
+
+		_rawInstructions.emplace_back(std::move(fullInstruction));
+		return output;
+	}
+
+	class CallInstruction : public RawInstruction {
+	public:
+		RawArgument* caller;
+		std::vector<RawArgument*> arguments;
+
+		void propagadeInstruction(Instruction* instructions) const override {
+			__debugbreak();
+		}
+		uint64_t countInstructions() const override {
+			return arguments.size() + 2; // allocate; set all arguments; call
+		}
+	};
+
+	CompilerVar InstructionSequence::createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression) {
+		// TODO get const and ref
+		auto var = _context.createVar(id, type, { false, false });
+
+		if (expression) {
+			auto instruction = std::make_unique<FullInstruction>();
+
+			instruction->firstVar = var.argument;
+			instruction->secondVar = expression;
+			instruction->code = Instruction::Code::DefinePrimitive;
+
+			_rawInstructions.emplace_back(std::move(instruction));
+		}
+
+		return var;
+	}
+
+	RawArgument* InstructionSequence::createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments) {
+		auto functionVar = caller;
+		auto functionType = functionVar->getType();
+
+		// allocating stack
+		auto allocInstruction = std::make_unique<FullInstruction>();
+		allocInstruction->code = Instruction::Code::AllocateFunctionStack;
+
+		auto stackVar = _context.createTempVar(*_context.context().getVariable("UInt64").as<TypeObject>());
+		allocInstruction->firstVar = stackVar;
+		allocInstruction->secondVar = functionVar;
+
+		_rawInstructions.emplace_back(std::move(allocInstruction));
+
+		// evaluating arguments
+		auto& parameters = functionType->getParameters();
+		for (auto i = 0u; i < arguments.size(); ++i) {
+			auto& argumentVar = arguments[i];
+			auto& parameter = parameters[i];
+
+			auto isRef = parameter.traits.isRef;
+			if (!isRef) {
+				// TODO create copy for the function call if needed, for now it's reference only
+			}
+
+			auto defineInstruction = std::make_unique<FullInstruction>();
+			defineInstruction->code = Instruction::Code::DefineFuncParameter;
+
+			defineInstruction->outputVar = stackVar;
+			defineInstruction->firstVar = _context.createFunctionArgumentVar(i, *argumentVar->getType());
+			defineInstruction->secondVar = argumentVar;
+
+			_rawInstructions.emplace_back(std::move(defineInstruction));
+		}
+
+		auto& returnType = *functionType->getReturnType();
+		auto outputVar = _context.createTempVar(returnType);
+
+		// calling the function
+		auto callInstruction = std::make_unique<FullInstruction>();
+		callInstruction->code = Instruction::Code::CallFunction;
+		callInstruction->firstVar = stackVar;
+		callInstruction->secondVar = functionVar;
+		callInstruction->outputVar = outputVar;
+		_rawInstructions.emplace_back(std::move(callInstruction));
+
+		return outputVar;
 	}
 
 	void InstructionSequence::createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock) {
 		__debugbreak();
 	}
 
-	void InstructionSequence::addReturnStatement(UndeterminedDelegate expression) {
+	void InstructionSequence::createReturnStatement(UndeterminedDelegate expression) {
 		if (_hasReturnStatement) {
 			_context.pushErrorMsg("[ERROR] Multiple return statements");
 			return;
@@ -35,6 +157,24 @@ namespace Ketl {
 
 		_hasReturnStatement = true;
 		_returnExpression = std::move(expression);
+	}
+
+	void InstructionSequence::propagadeInstruction(Instruction* instructions) const {
+		uint64_t offset = 0u;
+		for (auto& rawInstruction : _rawInstructions) {
+			rawInstruction->propagadeInstruction(instructions + offset);
+			offset += rawInstruction->countInstructions();
+		}
+
+		if (_hasReturnStatement) {
+			FullInstruction instruction;
+
+			instruction.firstVar = _context.createReturnVar(_returnExpression.getUVar().getVarAsItIs().argument);
+			instruction.secondVar = _returnExpression.getUVar().getVarAsItIs().argument;
+			instruction.code = Instruction::Code::DefinePrimitive;
+
+			instruction.propagadeInstruction(instructions + offset);
+		}
 	}
 
 	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
@@ -67,15 +207,14 @@ namespace Ketl {
 			return CompilerVar();
 		}
 
-		auto& instruction = instructions.addInstruction();
-		instruction.code = primaryOperatorPair.first;
-		instruction.firstVar = lhs.getUVar().getVarAsItIs().argument;
-		instruction.secondVar = rhs.getUVar().getVarAsItIs().argument;
+		auto output = instructions.createFullInstruction(
+			primaryOperatorPair.first,
+			lhs.getUVar().getVarAsItIs().argument,
+			rhs.getUVar().getVarAsItIs().argument,
+			*context().getVariable("Int64").as<TypeObject>()
+		);
 
-		auto& longType = *context().getVariable("Int64").as<TypeObject>();
-		instruction.outputVar = createTempVar(longType);
-
-		return CompilerVar(instruction.outputVar, false, {});
+		return CompilerVar(output, false, {});
 	}
 	UndeterminedDelegate SemanticAnalyzer::deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions) {
 		auto& variants = caller.getUVar().getVariants();
@@ -154,43 +293,18 @@ namespace Ketl {
 		}
 
 		auto functionVar = deducedVariants.begin()->second;
-		auto functionType = functionVar->getType();
 
-		auto& returnType = *functionType->getReturnType();
-		auto outputVar = createTempVar(returnType);
-
-		// allocating stack
-		auto& defineInstruction = instructions.addInstruction();
-		defineInstruction.code = Instruction::Code::AllocateFunctionStack;
-
-		defineInstruction.firstVar = functionVar;
-
-		// evaluating arguments
-		auto& parameters = functionType->getParameters();
+		std::vector<RawArgument*> callArguments(totalArguments.size());
 		for (auto i = 0u; i < totalArguments.size(); ++i) {
-			auto& argumentVar = totalArguments[i];
-			auto& parameter = parameters[i];
-
-			auto parameterVar = argumentVar;
-			auto isRef = parameter.traits.isRef;
-			if (!isRef) {
-				// TODO create copy for the function call if needed, for now it's reference only
-			}
-
-			auto& defineInstruction = instructions.addInstruction();
-			defineInstruction.code = Instruction::Code::DefineFuncParameter;
-
-			defineInstruction.firstVar = createFunctionArgumentVar(i, *argumentVar.getUVar().getVarAsItIs().argument->getType());
-			defineInstruction.secondVar = parameterVar.getUVar().getVarAsItIs().argument;
+			callArguments[i] = totalArguments[i].getUVar().getVarAsItIs().argument;
 		}
 
-		// calling the function
-		auto& instruction = instructions.addInstruction();
-		instruction.code = Instruction::Code::CallFunction;
-		instruction.firstVar = functionVar;
-		instruction.outputVar = outputVar;
+		auto outputVar = instructions.createFunctionCall(
+			functionVar,
+			std::move(callArguments)
+		);
 
-		return CompilerVar(instruction.outputVar, false, {});
+		return CompilerVar(outputVar, false, {});
 	}
 	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::vector<UndeterminedDelegate>& vars) {
 		// TODO
@@ -436,7 +550,7 @@ namespace Ketl {
 			for (auto& var : globalVar._vars) {
 				auto& ptr = vars.emplace_back(std::make_unique<GlobalArgument>(var.rawData(), var.type()));
 				// TODO get const and ref from var
-				uvar.overload(CompilerVar(ptr.get(), true, {}));
+				uvar.overload(CompilerVar(ptr.get(), !isLocalScope(), {}));
 			}
 			return uvar;
 		}
@@ -590,8 +704,8 @@ namespace Ketl {
 
 		bakeLocalVars();
 
-		auto rawInstructions = std::move(mainSequence).buildInstructions();
-		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructions.size()));
+		auto rawInstructionCount = mainSequence.countInstructions();
+		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
 
 		bakeContext();
 		if (hasCompilationErrors()) {
@@ -602,9 +716,7 @@ namespace Ketl {
 			functionRefs->registerAbsLink(ref);
 		}
 
-		for (auto i = 0u; i < functionPtr->_instructionsCount; ++i) {
-			rawInstructions[i].propagadeInstruction(functionPtr->_instructions[i]);
-		}
+		mainSequence.propagadeInstruction(functionPtr->_instructions);
 
 		return functionPtr;
 	}

@@ -41,9 +41,8 @@ namespace Ketl {
 	}
 
 	void FunctionImpl::call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
-		uint8_t* functionStack = stackPtr;
 		uint64_t& index = *reinterpret_cast<uint64_t*>(stackPtr);
-		stackPtr += sizeof(uint64_t);
+		stackPtr += sizeof(index);
 		for (index = 0u; index < _instructionsCount;) {
 			auto& instruction = _instructions[index];
 			switch (instruction.code) {
@@ -92,19 +91,19 @@ namespace Ketl {
 				break;
 			}
 			case Instruction::Code::AllocateFunctionStack: {
-				auto& function = *first<FunctionImpl*>(instruction, stackPtr, returnPtr);
-				functionStack = stack.allocate(function.stackSize()) + sizeof(uint64_t);
+				auto& function = *second<FunctionImpl*>(instruction, stackPtr, returnPtr);
+				first<uint8_t*>(instruction, stackPtr, returnPtr) = stack.allocate(function.stackSize());
 				break;
 			}
 			case Instruction::Code::DefineFuncParameter: {
-				*reinterpret_cast<void**>(functionStack + instruction.first.stack) = &second<uint8_t>(instruction, stackPtr, returnPtr);
+				*reinterpret_cast<void**>(output<uint8_t*>(instruction, stackPtr, returnPtr) + sizeof(uint64_t) + instruction.first.stack) = &second<uint8_t>(instruction, stackPtr, returnPtr);
 				break;
 			}
 			case Instruction::Code::CallFunction: {
-				auto& pureFunction = *first<FunctionImpl*>(instruction, stackPtr, returnPtr);
+				auto& pureFunction = *second<FunctionImpl*>(instruction, stackPtr, returnPtr);
 				auto& stackStart = output<uint8_t*>(instruction, stackPtr, returnPtr);
 				auto funcReturnPtr = &output<uint8_t>(instruction, stackPtr, returnPtr);
-				pureFunction.call(stack, functionStack - sizeof(uint64_t), funcReturnPtr);
+				pureFunction.call(stack, first<uint8_t*>(instruction, stackPtr, returnPtr), funcReturnPtr);
 				stack.deallocate(pureFunction.stackSize());
 				break;
 			}
