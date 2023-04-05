@@ -1,19 +1,23 @@
 ﻿/*🍲Ketl🍲*/
 #include "check_tests.h"
 
-static TestContainer& getTests() {
-	static TestContainer container;
+#include <vector>
+
+using CheckTestContainer = std::vector<std::pair<std::string_view, CheckTestFunction>>;
+
+static CheckTestContainer& getTests() {
+	static CheckTestContainer container;
 	return container;
 }
 
-void registerTest(std::string_view&& name, std::function<bool()>&& test) {
+void registerCheckTest(std::string_view&& name, CheckTestFunction&& test) {
 	getTests().emplace_back(std::move(name), std::move(test));
 }
 
 void launchCheckTests() {
 	int passed = 0;
 
-	std::cout << "Launching tests:" << std::endl;
+	std::cout << "Launching check tests:" << std::endl;
 	for (const auto& [name, test] : getTests()) {
 		auto result = test();
 		passed += result;

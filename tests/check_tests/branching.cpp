@@ -3,7 +3,7 @@
 
 static auto registerTests = []() {
 
-	registerTest("If else statement true", []() {
+	registerCheckTest("If else statement true", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -32,7 +32,7 @@ static auto registerTests = []() {
 		return sum == 5;
 		});
 
-	registerTest("If else statement false", []() {
+	registerCheckTest("If else statement false", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -61,7 +61,7 @@ static auto registerTests = []() {
 		return sum == 7;
 		});
 
-	registerTest("Single if statement true", []() {
+	registerCheckTest("Single if statement true", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -88,7 +88,7 @@ static auto registerTests = []() {
 		return sum == 5;
 		});
 
-	registerTest("Empty if statement false", []() {
+	registerCheckTest("Empty if statement false", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -115,7 +115,7 @@ static auto registerTests = []() {
 		return sum == 3;
 		});
 
-	registerTest("Empty if statement true", []() {
+	registerCheckTest("Empty if statement true", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -142,7 +142,7 @@ static auto registerTests = []() {
 		return sum == 5;
 		});
 
-	registerTest("Multiple if statement layers", []() {
+	registerCheckTest("Multiple if statement layers", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -171,7 +171,7 @@ static auto registerTests = []() {
 		return sum == 4;
 		});
 
-	registerTest("Simple while statement", []() {
+	registerCheckTest("Simple while statement", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -198,7 +198,7 @@ static auto registerTests = []() {
 		return sum == 3;
 		});
 
-	registerTest("Simple while statement (no loop)", []() {
+	registerCheckTest("Simple while statement (no loop)", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -229,7 +229,7 @@ static auto registerTests = []() {
 		return sum == 3 && test == 0;
 		});
 
-	registerTest("While else statement (else missed)", []() {
+	registerCheckTest("While else statement (else missed)", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -263,7 +263,7 @@ static auto registerTests = []() {
 		return sum == 3 && test == 1;
 		});
 
-	registerTest("While else statement (else called)", []() {
+	registerCheckTest("While else statement (else called)", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;

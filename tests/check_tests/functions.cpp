@@ -3,7 +3,7 @@
 
 static auto registerTests = []() {
 
-	registerTest("Creating function and using in C", []() {
+	registerCheckTest("Creating function and using in C", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -35,7 +35,7 @@ static auto registerTests = []() {
 		return sum == 11u;
 		});
 
-	registerTest("Creating function and calling it", []() {
+	registerCheckTest("Creating function and calling it", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -62,7 +62,7 @@ static auto registerTests = []() {
 		return sum == 11u;
 		});
 
-	registerTest("Creating function and calling it with separate compilation", []() {
+	registerCheckTest("Creating function and calling it with separate compilation", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -103,7 +103,7 @@ static auto registerTests = []() {
 		return sum == 11u;
 		});
 
-	registerTest("Creating function with parameters and calling it", []() {
+	registerCheckTest("Creating function with parameters and calling it", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -130,7 +130,7 @@ static auto registerTests = []() {
 		return sum == 18u;
 		});
 
-	registerTest("Sugar creating function with parameters and calling it", []() {
+	registerCheckTest("Sugar creating function with parameters and calling it", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -157,7 +157,7 @@ static auto registerTests = []() {
 		return sum == 18u;
 		});
 
-	registerTest("Calling function with return", []() {
+	registerCheckTest("Calling function with return", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -184,7 +184,7 @@ static auto registerTests = []() {
 		return sum == 18u;
 		});
 
-	registerTest("Creating two function with same name and calling one", []() {
+	registerCheckTest("Creating two function with same name and calling one", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -216,7 +216,7 @@ static auto registerTests = []() {
 		return sum == 15u;
 		});
 
-	registerTest("Pseudo-currying function (currying and immediately calling with necessary arguments)", []() {
+	registerCheckTest("Pseudo-currying function (currying and immediately calling with necessary arguments)", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -244,7 +244,7 @@ static auto registerTests = []() {
 		return sum == 15u;
 		});
 
-	registerTest("Dot operator calling function", []() {
+	registerCheckTest("Dot operator calling function", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;

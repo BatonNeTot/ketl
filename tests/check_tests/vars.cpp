@@ -3,7 +3,7 @@
 
 static auto registerTests = []() {
 	
-	registerTest("Creating var", []() {
+	registerCheckTest("Creating var", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -28,7 +28,7 @@ static auto registerTests = []() {
 		return *resultPtr == 11u;
 		});
 
-	registerTest("Using existing var", []() {
+	registerCheckTest("Using existing var", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -56,7 +56,7 @@ static auto registerTests = []() {
 		return result == 11u;
 		});
 
-	registerTest("Creating var with error", []() {
+	registerCheckTest("Creating var with error", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -71,7 +71,7 @@ static auto registerTests = []() {
 		return std::holds_alternative<std::string>(compilationResult);
 		});
 
-	registerTest("Using existing var with error", []() {
+	registerCheckTest("Using existing var with error", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
@@ -83,7 +83,7 @@ static auto registerTests = []() {
 		return std::holds_alternative<std::string>(compilationResult);
 		});
 
-	registerTest("Using local variable", []() {
+	registerCheckTest("Using local variable", []() {
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
