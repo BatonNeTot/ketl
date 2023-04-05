@@ -593,4 +593,38 @@ namespace Ketl {
 		return std::make_unique<IRIfElse>(std::move(condition), std::move(trueBlock), std::move(falseBlock));
 	}
 
+	class IRWhileElse : public IRNode {
+	public:
+
+		IRWhileElse(std::unique_ptr<IRNode>&& condition, std::unique_ptr<IRNode>&& loopBlock, std::unique_ptr<IRNode>&& elseBlock)
+			: _condition(std::move(condition)), _loopBlock(std::move(loopBlock)), _elseBlock(std::move(elseBlock)) {}
+
+		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const override {
+			instructions.createWhileElseBranches(*_condition, _loopBlock.get(), _elseBlock.get());
+
+			return CompilerVar();
+		};
+
+	private:
+		std::unique_ptr<IRNode> _condition;
+		std::unique_ptr<IRNode> _loopBlock;
+		std::unique_ptr<IRNode> _elseBlock;
+	};
+
+	std::unique_ptr<IRNode> createWhileElseStatement(const ProcessNode* info) {
+		auto conditionNode = info->firstChild;
+		auto condition = conditionNode->node->createIRTree(conditionNode);
+
+		auto loopBlockNode = conditionNode->nextSibling;
+		auto loopBlock = loopBlockNode->node->createIRTree(loopBlockNode);
+
+		auto elseBlockNode = loopBlockNode->nextSibling;
+		std::unique_ptr<IRNode> elseBlock;
+		if (elseBlockNode) {
+			elseBlock = elseBlockNode->node->createIRTree(elseBlockNode);
+		}
+
+		return std::make_unique<IRWhileElse>(std::move(condition), std::move(loopBlock), std::move(elseBlock));
+	}
+
 }

@@ -141,7 +141,9 @@ namespace Ketl {
 		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
 
 		RawArgument* createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments);
+
 		void createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock);
+		void createWhileElseBranches(const IRNode& condition, const IRNode* loopBlock, const IRNode* elseBlock);
 
 		void createReturnStatement(UndeterminedDelegate expression);
 

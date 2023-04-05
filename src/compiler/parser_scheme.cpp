@@ -267,6 +267,21 @@ namespace Ketl {
 			std::make_unique<NodeLiteral>(true, ";")
 			));
 
+		// while
+		_nodes.try_emplace("whileElse", std::make_unique<NodeConcat>(true,
+			std::make_unique<NodeLiteral>(true, "while"),
+			std::make_unique<NodeLiteral>(true, "("),
+			std::make_unique<NodeId>(true, "expression"),
+			std::make_unique<NodeLiteral>(true, ")"),
+			std::make_unique<NodeId>(&proxyTree, false, "command"),
+			std::make_unique<NodeConditional>(
+				std::make_unique<NodeConcat>(true,
+					std::make_unique<NodeLiteral>(true, "else"),
+					std::make_unique<NodeId>(true, "command")
+					)
+				)
+			));
+
 		// if else
 		_nodes.try_emplace("ifElse", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeLiteral>(true, "if"),
@@ -285,6 +300,8 @@ namespace Ketl {
 		_nodes.try_emplace("command", std::make_unique<NodeOr>(
 			// if else
 			std::make_unique<NodeId>(&createIfElseStatement, false, "ifElse"),
+			// if else
+			std::make_unique<NodeId>(&createWhileElseStatement, false, "whileElse"),
 			// return
 			std::make_unique<NodeId>(&createReturn, false, "return"),
 			// define variable
@@ -296,7 +313,7 @@ namespace Ketl {
 			// define struct
 			std::make_unique<NodeId>(&createDefineStruct, false, "defineStruct"),
 			// expression
-			std::make_unique<NodeConcat>(false,
+			std::make_unique<NodeConcat>(true,
 				std::make_unique<NodeConditional>(
 					std::make_unique<NodeId>(true, "expression")
 					),
@@ -305,13 +322,13 @@ namespace Ketl {
 			// block
 			std::make_unique<NodeConcat>(true,
 				std::make_unique<NodeLiteral>(true, "{"),
-				std::make_unique<NodeId>(true, "several-commands"),
+				std::make_unique<NodeId>(&createBlockTree, true, "several-commands"),
 				std::make_unique<NodeLiteral>(true, "}")
 				)
 			));
 
-		_root = _nodes.try_emplace("several-commands", std::make_unique<NodeRepeat>( &createBlockTree,
-			std::make_unique<NodeId>(true, "command")
+		_root = _nodes.try_emplace("several-commands", std::make_unique<NodeRepeat>(createBlockTree,	// this createBlockTree used only in the root
+			std::make_unique<NodeId>(true, "command")													// its nature will exlude it from tree with NodeRepeat
 			)).first->second.get();
 
 		for (auto& nodePair : _nodes) {

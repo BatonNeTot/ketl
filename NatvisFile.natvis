@@ -109,23 +109,18 @@
 	
 	<!--Ketl-->
 	<Type Name="Ketl::Instruction">
-		<DisplayString>{_code}</DisplayString>
+		<DisplayString>{code}</DisplayString>
 		<Expand>
-			<Item Name="[code]" ExcludeView="simple">_code</Item>
-			<Item Name="[outputOffset]" ExcludeView="simple">_outputOffset</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::Stack" Name="[output stack]" ExcludeView="simple">_output.stack</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::DerefStack" Name="[output deref stack]" ExcludeView="simple">_output.stack</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::DerefDerefStack" Name="[output deref deref stack]" ExcludeView="simple">_output.stack</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::Global" Name="[output global]" ExcludeView="simple">_output.globalPtr</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::DerefGlobal" Name="[output deref global]" ExcludeView="simple">_output.globalPtr</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::DerefDerefGlobal" Name="[output deref deref global]" ExcludeView="simple">_output.globalPtr</Item>
-			<Item Condition="_outputType == Ketl::Argument::Type::Return" Name="[output return]" ExcludeView="simple">0</Item>
-			<Item Condition="_firstType == Ketl::Argument::Type::Stack" Name="[first stack]" ExcludeView="simple">_first.stack</Item>
-			<Item Condition="_firstType == Ketl::Argument::Type::Global" Name="[first global]" ExcludeView="simple">_first.globalPtr</Item>
-			<Item Condition="_firstType == Ketl::Argument::Type::Literal" Name="[first literal]" ExcludeView="simple">_first</Item>
-			<Item Condition="_secondType == Ketl::Argument::Type::Stack" Name="[second stack]" ExcludeView="simple">_second.stack</Item>
-			<Item Condition="_secondType == Ketl::Argument::Type::Global" Name="[second global]" ExcludeView="simple">_second.globalPtr</Item>
-			<Item Condition="_secondType == Ketl::Argument::Type::Literal" Name="[second literal]" ExcludeView="simple">_second</Item>
+			<Item Name="[code]" ExcludeView="simple">code</Item>
+			<Item Condition="outputType == Ketl::Argument::Type::Stack" Name="[output stack]" ExcludeView="simple">output.stack</Item>
+			<Item Condition="outputType == Ketl::Argument::Type::Global" Name="[output global]" ExcludeView="simple">output.globalPtr</Item>
+			<Item Condition="outputType == Ketl::Argument::Type::Return" Name="[output return]" ExcludeView="simple">0</Item>
+			<Item Condition="firstType == Ketl::Argument::Type::Stack" Name="[first stack]" ExcludeView="simple">first.stack</Item>
+			<Item Condition="firstType == Ketl::Argument::Type::Global" Name="[first global]" ExcludeView="simple">first.globalPtr</Item>
+			<Item Condition="firstType == Ketl::Argument::Type::Literal" Name="[first literal]" ExcludeView="simple">first</Item>
+			<Item Condition="secondType == Ketl::Argument::Type::Stack" Name="[second stack]" ExcludeView="simple">second.stack</Item>
+			<Item Condition="secondType == Ketl::Argument::Type::Global" Name="[second global]" ExcludeView="simple">second.globalPtr</Item>
+			<Item Condition="secondType == Ketl::Argument::Type::Literal" Name="[second literal]" ExcludeView="simple">second</Item>
 		</Expand>
 	</Type>
 	<Type Name="Ketl::FunctionImpl">

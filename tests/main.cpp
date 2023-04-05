@@ -70,14 +70,13 @@ int main(int argc, char** argv) {
 	context.declareGlobal("sum", &sum);
 
 	auto compilationResult = compiler.compile(R"(
-	sum = 3;
+	sum = 0;
 
-	if (sum == 3) {
-		sum = 5;
+	while (sum != 3) {
+		sum = sum + 1;
 	} else {
 		sum = 7;
 	}
-
 )", context);
 
 	if (std::holds_alternative<std::string>(compilationResult)) {
@@ -88,7 +87,7 @@ int main(int argc, char** argv) {
 	auto& command = std::get<0>(compilationResult);
 	command();
 
-	assert(sum == 5);
+	assert(sum == 3);
 
 	return 0;
 }

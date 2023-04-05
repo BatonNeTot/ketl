@@ -175,7 +175,6 @@ namespace Ketl {
 			}
 			else {
 				_trueBlockSeq.propagadeInstruction(instructions + offset);
-				auto trueSize = _falseBlockSeq.countInstructions();
 
 				if (falseSize == 0) {
 					instructions[conditionSize].code = Instruction::Code::JumpIfZero;
@@ -205,7 +204,7 @@ namespace Ketl {
 				+ falseSize
 				+ 1; // jump instruction
 			if (trueSize != 0 && falseSize != 0) {
-				++countBase;
+				++countBase; // goto instruction
 			}
 			return countBase;
 		}
@@ -247,6 +246,116 @@ namespace Ketl {
 		}
 
 		_rawInstructions.emplace_back(std::move(ifElseInstruction));
+	}
+
+	class WhileElseInstruction : public RawInstruction {
+	public:
+
+		WhileElseInstruction(SemanticAnalyzer& context)
+			: _conditionSeq(context), _loopBlockSeq(context), _elseBlockSeq(context) {}
+
+		void propagadeInstruction(Instruction* instructions) const override {
+			_conditionSeq.propagadeInstruction(instructions);
+			auto conditionSize = _conditionSeq.countInstructions();
+			auto offset = conditionSize + 1;
+
+			std::tie(instructions[conditionSize].secondType, instructions[conditionSize].second) = _conditionVar->getArgument();
+
+			auto loopSize = _loopBlockSeq.countInstructions();
+			auto elseSize = _elseBlockSeq.countInstructions();
+
+			if (elseSize == 0) {
+				_loopBlockSeq.propagadeInstruction(instructions + offset);
+				offset += loopSize;
+
+				instructions[conditionSize].code = Instruction::Code::JumpIfZero;
+				instructions[conditionSize].first.integer = loopSize + 2; // plus if jump and goto jump
+				instructions[conditionSize].firstType = Argument::Type::Literal;
+
+				auto backJump = -static_cast<int64_t>(loopSize + conditionSize + 1);
+				instructions[offset].code = Instruction::Code::Jump;
+				instructions[offset].first.integer = backJump;
+				instructions[offset].firstType = Argument::Type::Literal;
+			}
+			else {
+				_elseBlockSeq.propagadeInstruction(instructions + offset);
+				offset += elseSize;
+				auto elseJump = offset;
+				offset += 1; // else goto jump
+
+				instructions[conditionSize].code = Instruction::Code::JumpIfNotZero;
+				instructions[conditionSize].first.integer = elseSize + 2; // plus if jump and goto jump
+				instructions[conditionSize].firstType = Argument::Type::Literal;
+
+				_loopBlockSeq.propagadeInstruction(instructions + offset);
+				offset += loopSize;
+
+				_conditionSeq.propagadeInstruction(instructions + offset); // duplicate conditional seq
+				offset += conditionSize;
+
+				auto backJump = -static_cast<int64_t>(loopSize + conditionSize);
+				instructions[offset].code = Instruction::Code::JumpIfNotZero;
+				instructions[offset].first.integer = backJump;
+				instructions[offset].firstType = Argument::Type::Literal;
+				std::tie(instructions[offset].secondType, instructions[offset].second) = _conditionVar->getArgument();
+
+				instructions[elseJump].code = Instruction::Code::Jump;
+				instructions[elseJump].first.integer = loopSize + conditionSize + 2; // plus if jump and goto jump
+				instructions[elseJump].firstType = Argument::Type::Literal;
+			}
+		}
+		uint64_t countInstructions() const override {
+			auto conditionSize = _conditionSeq.countInstructions();
+			auto loopSize = _loopBlockSeq.countInstructions();
+			auto elseSize = _elseBlockSeq.countInstructions();
+			auto countBase = conditionSize
+				+ loopSize
+				+ 2; // if jump and goto jump
+			if (elseSize != 0) {
+				countBase += conditionSize // separate condition block
+					+ 1 // additional if jump
+					+ elseSize;
+			}
+			return countBase;
+		}
+
+		InstructionSequence& conditionSeq() {
+			return _conditionSeq;
+		}
+
+		InstructionSequence& loopBlockSeq() {
+			return _loopBlockSeq;
+		}
+
+		InstructionSequence& elseBlockSeq() {
+			return _elseBlockSeq;
+		}
+
+		void setConditionVar(RawArgument* var) {
+			_conditionVar = var;
+		}
+
+	private:
+		InstructionSequence _conditionSeq;
+		InstructionSequence _loopBlockSeq;
+		InstructionSequence _elseBlockSeq;
+		RawArgument* _conditionVar;
+	};
+
+	void InstructionSequence::createWhileElseBranches(const IRNode& condition, const IRNode* loopBlock, const IRNode* elseBlock) {
+		auto whileElseInstruction = std::make_unique<WhileElseInstruction>(_context);
+
+		auto conditionVar = condition.produceInstructions(whileElseInstruction->conditionSeq(), _context);
+		whileElseInstruction->setConditionVar(conditionVar.getUVar().getVarAsItIs().argument);
+
+		if (loopBlock) {
+			loopBlock->produceInstructions(whileElseInstruction->loopBlockSeq(), _context);
+		}
+		if (elseBlock) {
+			elseBlock->produceInstructions(whileElseInstruction->elseBlockSeq(), _context);
+		}
+
+		_rawInstructions.emplace_back(std::move(whileElseInstruction));
 	}
 
 	void InstructionSequence::createReturnStatement(UndeterminedDelegate expression) {

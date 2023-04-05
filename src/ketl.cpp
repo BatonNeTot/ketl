@@ -82,6 +82,10 @@ namespace Ketl {
 				output<uint64_t>(instruction, stackPtr, returnPtr) = (first<uint64_t>(instruction, stackPtr, returnPtr) == second<uint64_t>(instruction, stackPtr, returnPtr));
 				break;
 			}
+			case Instruction::Code::IsPrimitiveNonEqual: {
+				output<uint64_t>(instruction, stackPtr, returnPtr) = (first<uint64_t>(instruction, stackPtr, returnPtr) != second<uint64_t>(instruction, stackPtr, returnPtr));
+				break;
+			}
 			case Instruction::Code::DefinePrimitive: {
 				first<Argument>(instruction, stackPtr, returnPtr) = second<Argument>(instruction, stackPtr, returnPtr);
 				break;
