@@ -40,7 +40,12 @@ namespace Ketl {
 			else {
 				instruction.outputType = Argument::Type::None;
 			}
-			std::tie(instruction.firstType, instruction.first) = firstVar->getArgument();
+			if (firstVar) {
+				std::tie(instruction.firstType, instruction.first) = firstVar->getArgument();
+			}
+			else {
+				instruction.firstType = Argument::Type::None;
+			}
 			if (secondVar) {
 				std::tie(instruction.secondType, instruction.second) = secondVar->getArgument();
 			}
@@ -145,8 +150,103 @@ namespace Ketl {
 		return outputVar;
 	}
 
+	class IfElseInstruction : public RawInstruction {
+	public:
+
+		IfElseInstruction(SemanticAnalyzer& context)
+			: _conditionSeq(context), _trueBlockSeq(context), _falseBlockSeq(context) {}
+
+		void propagadeInstruction(Instruction* instructions) const override {
+			_conditionSeq.propagadeInstruction(instructions);
+			auto conditionSize = _conditionSeq.countInstructions();
+			auto offset = conditionSize + 1;
+
+			std::tie(instructions[conditionSize].secondType, instructions[conditionSize].second) = _conditionVar->getArgument();
+
+			auto trueSize = _trueBlockSeq.countInstructions();
+			auto falseSize = _falseBlockSeq.countInstructions();
+
+			if (trueSize == 0) {
+				_falseBlockSeq.propagadeInstruction(instructions + offset);
+
+				instructions[conditionSize].code = Instruction::Code::JumpIfNotZero;
+				instructions[conditionSize].first.integer = falseSize + 1; // plus if jump
+				instructions[conditionSize].firstType = Argument::Type::Literal;
+			}
+			else {
+				_trueBlockSeq.propagadeInstruction(instructions + offset);
+				auto trueSize = _falseBlockSeq.countInstructions();
+
+				if (falseSize == 0) {
+					instructions[conditionSize].code = Instruction::Code::JumpIfZero;
+					instructions[conditionSize].first.integer = trueSize + 1; // plus if jump
+					instructions[conditionSize].firstType = Argument::Type::Literal;
+				}
+				else {
+					instructions[conditionSize].code = Instruction::Code::JumpIfZero;
+					instructions[conditionSize].first.integer = trueSize + 2; // plus if jump and goto jump
+					instructions[conditionSize].firstType = Argument::Type::Literal;
+
+					offset += trueSize;
+					instructions[offset].code = Instruction::Code::Jump;
+					instructions[offset].first.integer = falseSize + 1; // plus goto jump
+					instructions[offset].firstType = Argument::Type::Literal;
+
+					_falseBlockSeq.propagadeInstruction(instructions + offset + 1);
+				}
+			}
+		}
+		uint64_t countInstructions() const override {
+			auto conditionSize = _conditionSeq.countInstructions();
+			auto trueSize = _trueBlockSeq.countInstructions();
+			auto falseSize = _falseBlockSeq.countInstructions();
+			auto countBase = conditionSize
+				+ trueSize
+				+ falseSize
+				+ 1; // jump instruction
+			if (trueSize != 0 && falseSize != 0) {
+				++countBase;
+			}
+			return countBase;
+		}
+
+		InstructionSequence& conditionSeq() {
+			return _conditionSeq;
+		}
+
+		InstructionSequence& trueBlockSeq() {
+			return _trueBlockSeq;
+		}
+
+		InstructionSequence& falseBlockSeq() {
+			return _falseBlockSeq;
+		}
+
+		void setConditionVar(RawArgument* var) {
+			_conditionVar = var;
+		}
+
+	private:
+		InstructionSequence _conditionSeq;
+		InstructionSequence _trueBlockSeq;
+		InstructionSequence _falseBlockSeq;
+		RawArgument* _conditionVar;
+	};
+
 	void InstructionSequence::createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock) {
-		__debugbreak();
+		auto ifElseInstruction = std::make_unique<IfElseInstruction>(_context);
+
+		auto conditionVar = condition.produceInstructions(ifElseInstruction->conditionSeq(), _context);
+		ifElseInstruction->setConditionVar(conditionVar.getUVar().getVarAsItIs().argument);
+
+		if (trueBlock) {
+			trueBlock->produceInstructions(ifElseInstruction->trueBlockSeq(), _context);
+		}
+		if (falseBlock) {
+			falseBlock->produceInstructions(ifElseInstruction->falseBlockSeq(), _context);
+		}
+
+		_rawInstructions.emplace_back(std::move(ifElseInstruction));
 	}
 
 	void InstructionSequence::createReturnStatement(UndeterminedDelegate expression) {
@@ -165,16 +265,20 @@ namespace Ketl {
 			rawInstruction->propagadeInstruction(instructions + offset);
 			offset += rawInstruction->countInstructions();
 		}
-
+		
 		if (_hasReturnStatement) {
 			FullInstruction instruction;
-
 			instruction.firstVar = _context.createReturnVar(_returnExpression.getUVar().getVarAsItIs().argument);
 			instruction.secondVar = _returnExpression.getUVar().getVarAsItIs().argument;
-			instruction.code = Instruction::Code::DefinePrimitive;
-
+			instruction.code = Instruction::Code::ReturnPrimitive;
 			instruction.propagadeInstruction(instructions + offset);
 		}
+		else if (_mainSequence) {
+			FullInstruction instruction;
+			instruction.code = Instruction::Code::Return;
+			instruction.propagadeInstruction(instructions + offset);
+		}
+
 	}
 
 	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
@@ -695,7 +799,7 @@ namespace Ketl {
 	}
 
 	std::variant<FunctionImpl*, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
-		InstructionSequence mainSequence(*this);
+		InstructionSequence mainSequence(*this, true);
 
 		block.produceInstructions(mainSequence, *this);
 		if (hasCompilationErrors()) {

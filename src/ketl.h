@@ -186,6 +186,11 @@ namespace Ketl {
 			AllocateFunctionStack,
 			DefineFuncParameter,
 			CallFunction,
+			Jump,
+			JumpIfZero,
+			JumpIfNotZero,
+			Return,
+			ReturnPrimitive,
 		};
 
 		Instruction() {}
@@ -230,7 +235,7 @@ namespace Ketl {
 			, _stackSize(stackSize + sizeof(uint64_t))
 			, _instructionsCount(instructionsCount)
 			, _isPure(isPure)
-			, _instructions(_alloc->allocate<Instruction>(_instructionsCount)) {}
+			, _instructions(_alloc->allocate<Instruction>(instructionsCount)) {}
 		FunctionImpl(const FunctionImpl& function) = delete;
 		FunctionImpl(FunctionImpl&& function) noexcept
 			: _alloc(function._alloc)

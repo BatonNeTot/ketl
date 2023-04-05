@@ -134,8 +134,8 @@ namespace Ketl {
 	class InstructionSequence : public RawInstruction {
 	public:
 
-		InstructionSequence(SemanticAnalyzer& context)
-			: _context(context) {}
+		InstructionSequence(SemanticAnalyzer& context, bool mainSequence = false)
+			: _context(context), _mainSequence(mainSequence) {}
 
 		RawArgument* createFullInstruction(Instruction::Code code, RawArgument* first, RawArgument* second, const TypeObject& outputType);
 		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
@@ -152,7 +152,7 @@ namespace Ketl {
 			for (const auto& rawInstruction : _rawInstructions) {
 				sum += rawInstruction->countInstructions();
 			}
-			if (!_returnExpression.getUVar().empty()) {
+			if (_mainSequence || !_returnExpression.getUVar().empty()) {
 				++sum;
 			}
 			return sum;
@@ -169,6 +169,7 @@ namespace Ketl {
 
 		bool verifyReturn();
 
+		bool _mainSequence = false;
 		bool _hasReturnStatement = false;
 		bool _raisedAfterReturnError = false;
 		UndeterminedDelegate _returnExpression;

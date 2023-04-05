@@ -43,7 +43,7 @@ namespace Ketl {
 	void FunctionImpl::call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
 		uint64_t& index = *reinterpret_cast<uint64_t*>(stackPtr);
 		stackPtr += sizeof(index);
-		for (index = 0u; index < _instructionsCount;) {
+		for (index = 0u;;) {
 			auto& instruction = _instructions[index];
 			switch (instruction.code) {
 			case Instruction::Code::AddInt64: {
@@ -106,6 +106,31 @@ namespace Ketl {
 				pureFunction.call(stack, first<uint8_t*>(instruction, stackPtr, returnPtr), funcReturnPtr);
 				stack.deallocate(pureFunction.stackSize());
 				break;
+			}
+			case Instruction::Code::Jump: {
+				index += first<int64_t>(instruction, stackPtr, returnPtr);
+				continue;
+			}
+			case Instruction::Code::JumpIfZero: {
+				if (second<uint64_t>(instruction, stackPtr, returnPtr) == 0) {
+					index += first<int64_t>(instruction, stackPtr, returnPtr);
+					continue;
+				}
+				break;
+			}
+			case Instruction::Code::JumpIfNotZero: {
+				if (second<uint64_t>(instruction, stackPtr, returnPtr) != 0) {
+					index += first<int64_t>(instruction, stackPtr, returnPtr);
+					continue;
+				}
+				break;
+			}
+			case Instruction::Code::Return: {
+				return;
+			}
+			case Instruction::Code::ReturnPrimitive: {
+				first<Argument>(instruction, stackPtr, returnPtr) = second<Argument>(instruction, stackPtr, returnPtr);
+				return;
 			}
 			}
 			++index;

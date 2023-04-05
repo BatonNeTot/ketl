@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
 	auto& command = std::get<0>(compilationResult);
 	command();
 
-	//assert(sum == 5);
+	assert(sum == 5);
 
 	return 0;
 }
