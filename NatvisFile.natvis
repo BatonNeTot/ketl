@@ -112,15 +112,21 @@
 		<DisplayString>{code}</DisplayString>
 		<Expand>
 			<Item Name="[code]" ExcludeView="simple">code</Item>
-			<Item Condition="outputType == Ketl::Argument::Type::Stack" Name="[output stack]" ExcludeView="simple">output.stack</Item>
-			<Item Condition="outputType == Ketl::Argument::Type::Global" Name="[output global]" ExcludeView="simple">output.globalPtr</Item>
-			<Item Condition="outputType == Ketl::Argument::Type::Return" Name="[output return]" ExcludeView="simple">0</Item>
-			<Item Condition="firstType == Ketl::Argument::Type::Stack" Name="[first stack]" ExcludeView="simple">first.stack</Item>
-			<Item Condition="firstType == Ketl::Argument::Type::Global" Name="[first global]" ExcludeView="simple">first.globalPtr</Item>
-			<Item Condition="firstType == Ketl::Argument::Type::Literal" Name="[first literal]" ExcludeView="simple">first</Item>
-			<Item Condition="secondType == Ketl::Argument::Type::Stack" Name="[second stack]" ExcludeView="simple">second.stack</Item>
-			<Item Condition="secondType == Ketl::Argument::Type::Global" Name="[second global]" ExcludeView="simple">second.globalPtr</Item>
-			<Item Condition="secondType == Ketl::Argument::Type::Literal" Name="[second literal]" ExcludeView="simple">second</Item>
+			<CustomListItems>
+				<Variable Name="i" InitialValue="1" />
+
+				<Loop>
+					<If Condition="i > Ketl::Instruction::CodeSizes[static_cast&lt;uint8_t&gt;(code)] - 1">
+						<Break/>
+					</If>
+					<Item Condition="_argumentTypes[i] == Ketl::Argument::Type::Stack" Name="[{i - 1} stack]">(this + i)->_argument.stack</Item>
+					<Item Condition="_argumentTypes[i] == Ketl::Argument::Type::Global" Name="[{i - 1} global]">(this + i)->_argument.globalPtr</Item>
+					<Item Condition="_argumentTypes[i] == Ketl::Argument::Type::Literal" Name="[{i - 1} literal]">(this + i)->_argument</Item>
+					<Item Condition="_argumentTypes[i] == Ketl::Argument::Type::FunctionParameter" Name="[{i - 1} parameter]">(this + i)->_argument.stack</Item>
+					<Item Condition="_argumentTypes[i] == Ketl::Argument::Type::None" Name="[{i - 1} empty]">"empty"</Item>
+					<Exec>++i</Exec>
+				</Loop>
+			</CustomListItems>
 		</Expand>
 	</Type>
 	<Type Name="Ketl::FunctionImpl">
@@ -128,10 +134,21 @@
 		<Expand>
 			<Item Name="[stackSize]" ExcludeView="simple">_stackSize</Item>
 			<Item Condition="_instructions" Name="[count]" ExcludeView="simple">_instructionsCount</Item>
-			<ArrayItems>
-				<Size>_instructionsCount</Size>
-				<ValuePointer>_instructions</ValuePointer>
-			</ArrayItems>
+			<CustomListItems>
+				<Variable Name="it" InitialValue="_instructions"/>
+				<Variable Name="i" InitialValue="0" />
+				<Variable Name="counter" InitialValue="0" />
+
+				<Loop>
+					<If Condition="i >= _instructionsCount">
+						<Break/>
+					</If>
+					<Item Name="[{counter}] ({i})">*it</Item>
+					<Exec>++counter</Exec>
+					<Exec>i += Ketl::Instruction::CodeSizes[static_cast&lt;uint8_t&gt;(it->code)]</Exec>
+					<Exec>it += Ketl::Instruction::CodeSizes[static_cast&lt;uint8_t&gt;(it->code)]</Exec>
+				</Loop>
+			</CustomListItems>
 		</Expand>
 	</Type>
 	<Type Name="Ketl::FunctionContainer">

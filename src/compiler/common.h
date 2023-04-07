@@ -7,6 +7,10 @@
 
 namespace Ketl {
 
+	struct CharStruct {
+		char value;
+	};
+
 	struct StringHash {
 		using is_transparent = std::true_type;
 

@@ -115,6 +115,41 @@ namespace Ketl {
 		std::vector<UndeterminedDelegate> _arguments;
 	};
 
+	class InstructionIterator {
+	public:
+		InstructionIterator(Instruction* ptr) 
+			: _ptr(ptr) {}
+
+		InstructionIterator(Instruction* ptr, uint64_t offset)
+			: _ptr(ptr), _offset(offset) {}
+
+		Instruction* operator->() {
+			return _ptr + _offset;
+		}
+
+		Instruction& operator[](uint64_t index) {
+			return *(_ptr + _offset + index);
+		}
+
+		InstructionIterator operator+(uint64_t offset) {
+			return {_ptr, _offset + offset};
+		}
+
+		InstructionIterator& operator+=(uint64_t offset) {
+			_offset += offset;
+			return *this;
+		}
+
+		uint64_t offset() const {
+			return _offset;
+		}
+
+	private:
+
+		Instruction* _ptr = nullptr;
+		uint64_t _offset = 0;
+	};
+
 
 	class RawArgument {
 	public:
@@ -126,9 +161,30 @@ namespace Ketl {
 
 	class RawInstruction {
 	public:
-		virtual void propagadeInstruction(Instruction* instructions) const = 0;
+		virtual void propagadeInstruction(InstructionIterator instructions) const = 0;
 		virtual uint64_t countInstructions() const = 0;
 		virtual void fillReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const {};
+	};
+
+	class FullInstruction : public RawInstruction {
+	public:
+		Instruction::Code code = Instruction::Code::None;
+		std::list<RawArgument*> arguments;
+
+		void propagadeInstruction(InstructionIterator instructions) const override {
+			if (countInstructions() != arguments.size() + 1) {
+				__debugbreak();
+			}
+			instructions->argument(0).uinteger = 0;
+			instructions->code() = code;
+			auto counter = 0u;
+			for (const auto& argument : arguments) {
+				++counter;
+				std::tie(instructions->argumentType(counter), instructions->argument(counter)) = argument->getArgument();
+			}
+		}
+		uint64_t countInstructions() const override { return Instruction::getCodeSize(code); }
+
 	};
 
 	class InstructionSequence : public RawInstruction {
@@ -137,7 +193,7 @@ namespace Ketl {
 		InstructionSequence(SemanticAnalyzer& context, bool mainSequence = false)
 			: _context(context), _mainSequence(mainSequence) {}
 
-		RawArgument* createFullInstruction(Instruction::Code code, RawArgument* first, RawArgument* second, const TypeObject& outputType);
+		FullInstruction* createFullInstruction();
 		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
 
 		RawArgument* createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments);
@@ -147,15 +203,18 @@ namespace Ketl {
 
 		void createReturnStatement(UndeterminedDelegate expression);
 
-		void propagadeInstruction(Instruction* instructions) const override;
+		void propagadeInstruction(InstructionIterator instructions) const override;
 
 		uint64_t countInstructions() const {
 			uint64_t sum = 0u;
 			for (const auto& rawInstruction : _rawInstructions) {
 				sum += rawInstruction->countInstructions();
 			}
-			if (_mainSequence || !_returnExpression.getUVar().empty()) {
-				++sum;
+			if (!_returnExpression.getUVar().empty()) {
+				sum += Instruction::getCodeSize(Instruction::Code::ReturnValue);
+			}
+			else if (_mainSequence) {
+				sum += Instruction::getCodeSize(Instruction::Code::Return);
 			}
 			return sum;
 		}
@@ -221,12 +280,11 @@ namespace Ketl {
 
 		RawArgument* createTempVar(const TypeObject& type);
 
+		CompilerVar createLiteralVar(uint64_t value);
 		CompilerVar createLiteralVar(const std::string_view& value);
 		CompilerVar createLiteralClassVar(void* ptr, const TypeObject& type);
 
-		RawArgument* createReturnVar(RawArgument* expression);
-
-		RawArgument* createFunctionArgumentVar(uint64_t index, const TypeObject& type);
+		RawArgument* createFunctionArgumentVar(uint64_t index);
 		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits);
 
 

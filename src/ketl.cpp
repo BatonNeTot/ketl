@@ -4,7 +4,7 @@
 
 namespace Ketl {
 
-	inline static uint8_t* getArgument(uint8_t* stackPtr, uint8_t* returnPtr, Argument::Type type, Argument& value) {
+	inline static uint8_t* getArgument(uint8_t* stackPtr, Argument::Type type, Argument& value) {
 		switch (type) {
 		case Argument::Type::Global: {
 			return reinterpret_cast<uint8_t*>(value.globalPtr);
@@ -15,9 +15,6 @@ namespace Ketl {
 		case Argument::Type::Literal: {
 			return reinterpret_cast<uint8_t*>(&value);
 		}
-		case Argument::Type::Return: {
-			return returnPtr;
-		}
 		case Argument::Type::FunctionParameter: {
 			return *reinterpret_cast<uint8_t**>(stackPtr + value.stack);
 		}
@@ -25,19 +22,13 @@ namespace Ketl {
 		return nullptr;
 	}
 
-	template <class T>
-	inline static T& output(Instruction& instruction, uint8_t* stackPtr, uint8_t* returnPtr) {
-		return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, instruction.outputType, instruction.output));
+	template <unsigned N, class T>
+	inline static T& argument(Instruction& instruction, uint8_t* stackPtr) {
+		return *reinterpret_cast<T*>(getArgument(stackPtr, instruction.argumentType<N + 1>(), instruction.argument(N + 1)));
 	}
 
-	template <class T>
-	inline static T& first(Instruction& instruction, uint8_t* stackPtr, uint8_t* returnPtr) {
-		return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, instruction.firstType, instruction.first));
-	}
-
-	template <class T>
-	inline static T& second(Instruction& instruction, uint8_t* stackPtr, uint8_t* returnPtr) {
-		return *reinterpret_cast<T*>(getArgument(stackPtr, returnPtr, instruction.secondType, instruction.second));
+	inline static bool memequ(const void* lhs, const void* rhs, size_t size) {
+		return 0 == memcmp(lhs, rhs, size);
 	}
 
 	void FunctionImpl::call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
@@ -45,99 +36,110 @@ namespace Ketl {
 		stackPtr += sizeof(index);
 		for (index = 0u;;) {
 			auto& instruction = _instructions[index];
-			switch (instruction.code) {
+			switch (instruction.code()) {
 			case Instruction::Code::AddInt64: {
-				output<int64_t>(instruction, stackPtr, returnPtr) = first<int64_t>(instruction, stackPtr, returnPtr) + second<int64_t>(instruction, stackPtr, returnPtr);
+				argument<2, int64_t>(instruction, stackPtr) = argument<0, int64_t>(instruction, stackPtr) + argument<1, int64_t>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::MinusInt64: {
-				output<int64_t>(instruction, stackPtr, returnPtr) = first<int64_t>(instruction, stackPtr, returnPtr) - second<int64_t>(instruction, stackPtr, returnPtr);
+				argument<2, int64_t>(instruction, stackPtr) = argument<0, int64_t>(instruction, stackPtr) - argument<1, int64_t>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::MultyInt64: {
-				output<int64_t>(instruction, stackPtr, returnPtr) = first<int64_t>(instruction, stackPtr, returnPtr) * second<int64_t>(instruction, stackPtr, returnPtr);
+				argument<2, int64_t>(instruction, stackPtr) = argument<0, int64_t>(instruction, stackPtr) * argument<1, int64_t>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::DivideInt64: {
-				output<int64_t>(instruction, stackPtr, returnPtr) = first<int64_t>(instruction, stackPtr, returnPtr) / second<int64_t>(instruction, stackPtr, returnPtr);
+				argument<2, int64_t>(instruction, stackPtr) = argument<0, int64_t>(instruction, stackPtr) / argument<1, int64_t>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::AddFloat64: {
-				output<double>(instruction, stackPtr, returnPtr) = first<double>(instruction, stackPtr, returnPtr) + second<double>(instruction, stackPtr, returnPtr);
+				argument<2, double>(instruction, stackPtr) = argument<0, double>(instruction, stackPtr) + argument<1, double>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::MinusFloat64: {
-				output<double>(instruction, stackPtr, returnPtr) = first<double>(instruction, stackPtr, returnPtr) - second<double>(instruction, stackPtr, returnPtr);
+				argument<2, double>(instruction, stackPtr) = argument<0, double>(instruction, stackPtr) - argument<1, double>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::MultyFloat64: {
-				output<double>(instruction, stackPtr, returnPtr) = first<double>(instruction, stackPtr, returnPtr) * second<double>(instruction, stackPtr, returnPtr);
+				argument<2, double>(instruction, stackPtr) = argument<0, double>(instruction, stackPtr) * argument<1, double>(instruction, stackPtr);
 				break;
 			}
 			case Instruction::Code::DivideFloat64: {
-				output<double>(instruction, stackPtr, returnPtr) = first<double>(instruction, stackPtr, returnPtr) / second<double>(instruction, stackPtr, returnPtr);
+				argument<2, double>(instruction, stackPtr) = argument<0, double>(instruction, stackPtr) / argument<1, double>(instruction, stackPtr);
 				break;
 			}
-			case Instruction::Code::IsPrimitiveEqual: {
-				output<uint64_t>(instruction, stackPtr, returnPtr) = (first<uint64_t>(instruction, stackPtr, returnPtr) == second<uint64_t>(instruction, stackPtr, returnPtr));
+			case Instruction::Code::IsStructEqual: {
+				argument<3, uint64_t>(instruction, stackPtr) = memequ(
+					&argument<1, uint8_t>(instruction, stackPtr), 
+					&argument<2, uint8_t>(instruction, stackPtr),
+					argument<0, uint64_t>(instruction, stackPtr));
 				break;
 			}
-			case Instruction::Code::IsPrimitiveNonEqual: {
-				output<uint64_t>(instruction, stackPtr, returnPtr) = (first<uint64_t>(instruction, stackPtr, returnPtr) != second<uint64_t>(instruction, stackPtr, returnPtr));
+			case Instruction::Code::IsStructNonEqual: {
+				argument<3, uint64_t>(instruction, stackPtr) = !memequ(
+					&argument<1, uint8_t>(instruction, stackPtr),
+					&argument<2, uint8_t>(instruction, stackPtr),
+					argument<0, uint64_t>(instruction, stackPtr));
 				break;
 			}
-			case Instruction::Code::DefinePrimitive: {
-				first<Argument>(instruction, stackPtr, returnPtr) = second<Argument>(instruction, stackPtr, returnPtr);
-				break;
-			}
-			case Instruction::Code::AssignPrimitive: {
-				output<Argument>(instruction, stackPtr, returnPtr) = first<Argument>(instruction, stackPtr, returnPtr) = second<Argument>(instruction, stackPtr, returnPtr);
+			case Instruction::Code::Assign: {
+				memcpy(
+					&argument<2, uint8_t>(instruction, stackPtr), 
+					&argument<1, uint8_t>(instruction, stackPtr),
+					argument<0, uint64_t>(instruction, stackPtr));
 				break;
 			}
 			case Instruction::Code::AllocateFunctionStack: {
-				auto& function = *second<FunctionImpl*>(instruction, stackPtr, returnPtr);
-				first<uint8_t*>(instruction, stackPtr, returnPtr) = stack.allocate(function.stackSize());
+				auto& function = *argument<0, FunctionImpl*>(instruction, stackPtr);
+				argument<1, uint8_t*>(instruction, stackPtr) = stack.allocate(function.stackSize());
 				break;
 			}
 			case Instruction::Code::DefineFuncParameter: {
-				*reinterpret_cast<void**>(output<uint8_t*>(instruction, stackPtr, returnPtr) + sizeof(uint64_t) + instruction.first.stack) = &second<uint8_t>(instruction, stackPtr, returnPtr);
+				auto value = &argument<0, uint8_t>(instruction, stackPtr);
+				auto& stackStart = argument<1, uint8_t*>(instruction, stackPtr);
+				auto stackOffset = sizeof(uint64_t) + argument<2, uint64_t>(instruction, stackPtr);
+				*reinterpret_cast<void**>(stackStart + stackOffset) = value;
 				break;
 			}
 			case Instruction::Code::CallFunction: {
-				auto& pureFunction = *second<FunctionImpl*>(instruction, stackPtr, returnPtr);
-				auto& stackStart = output<uint8_t*>(instruction, stackPtr, returnPtr);
-				auto funcReturnPtr = &output<uint8_t>(instruction, stackPtr, returnPtr);
-				pureFunction.call(stack, first<uint8_t*>(instruction, stackPtr, returnPtr), funcReturnPtr);
+				auto& pureFunction = *argument<0, FunctionImpl*>(instruction, stackPtr);
+				auto& stackStart = argument<1, uint8_t*>(instruction, stackPtr);
+				auto funcReturnPtr = &argument<2, uint8_t>(instruction, stackPtr);
+				pureFunction.call(stack, stackStart, funcReturnPtr);
 				stack.deallocate(pureFunction.stackSize());
 				break;
 			}
 			case Instruction::Code::Jump: {
-				index += first<int64_t>(instruction, stackPtr, returnPtr);
+				index = argument<0, int64_t>(instruction, stackPtr);
 				continue;
 			}
 			case Instruction::Code::JumpIfZero: {
-				if (second<uint64_t>(instruction, stackPtr, returnPtr) == 0) {
-					index += first<int64_t>(instruction, stackPtr, returnPtr);
-					continue;
+				index += Instruction::CodeSizes[static_cast<uint8_t>(instruction.code())];
+				if (argument<1, uint64_t>(instruction, stackPtr) == 0) {
+					index = argument<0, int64_t>(instruction, stackPtr) ;
 				}
-				break;
+				continue;
 			}
 			case Instruction::Code::JumpIfNotZero: {
-				if (second<uint64_t>(instruction, stackPtr, returnPtr) != 0) {
-					index += first<int64_t>(instruction, stackPtr, returnPtr);
-					continue;
+				index += Instruction::getCodeSize(instruction.code());
+				if (argument<1, uint64_t>(instruction, stackPtr) != 0) {
+					index = argument<0, int64_t>(instruction, stackPtr);
 				}
-				break;
+				continue;
 			}
 			case Instruction::Code::Return: {
 				return;
 			}
-			case Instruction::Code::ReturnPrimitive: {
-				first<Argument>(instruction, stackPtr, returnPtr) = second<Argument>(instruction, stackPtr, returnPtr);
+			case Instruction::Code::ReturnValue: {
+				memcpy(
+					returnPtr,
+					&argument<1, uint8_t>(instruction, stackPtr),
+					argument<0, uint64_t>(instruction, stackPtr));
 				return;
 			}
 			}
-			++index;
+			index += Instruction::getCodeSize(instruction.code());
 		}
 	}
 }

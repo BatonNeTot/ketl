@@ -23,52 +23,11 @@ namespace Ketl {
 		return !_raisedAfterReturnError;
 	}
 
-	class FullInstruction : public RawInstruction {
-	public:
-		Instruction::Code code = Instruction::Code::None;
-		RawArgument* outputVar = nullptr;
-		RawArgument* firstVar = nullptr;
-		RawArgument* secondVar = nullptr;
-
-		void propagadeInstruction(Instruction* instructions) const override {
-			auto& instruction = instructions[0];
-
-			instruction.code = code;
-			if (outputVar) {
-				std::tie(instruction.outputType, instruction.output) = outputVar->getArgument();
-			}
-			else {
-				instruction.outputType = Argument::Type::None;
-			}
-			if (firstVar) {
-				std::tie(instruction.firstType, instruction.first) = firstVar->getArgument();
-			}
-			else {
-				instruction.firstType = Argument::Type::None;
-			}
-			if (secondVar) {
-				std::tie(instruction.secondType, instruction.second) = secondVar->getArgument();
-			}
-			else {
-				instruction.secondType = Argument::Type::None;
-			}
-		}
-		uint64_t countInstructions() const override { return 1; }
-
-	};
-
-	RawArgument* InstructionSequence::createFullInstruction(Instruction::Code code, RawArgument* first, RawArgument* second, const TypeObject& outputType) {
+	FullInstruction* InstructionSequence::createFullInstruction() {
 		auto fullInstruction = std::make_unique<FullInstruction>();
-
-		fullInstruction->code = code;
-		fullInstruction->firstVar = first;
-		fullInstruction->secondVar = second;
-
-		auto output = _context.createTempVar(outputType);
-		fullInstruction->outputVar = output;
-
+		auto fullInstructionPtr = fullInstruction.get();
 		_rawInstructions.emplace_back(std::move(fullInstruction));
-		return output;
+		return fullInstructionPtr;
 	}
 
 	class CallInstruction : public RawInstruction {
@@ -76,11 +35,11 @@ namespace Ketl {
 		RawArgument* caller;
 		std::vector<RawArgument*> arguments;
 
-		void propagadeInstruction(Instruction* instructions) const override {
+		void propagadeInstruction(InstructionIterator  instructions) const override {
 			__debugbreak();
 		}
 		uint64_t countInstructions() const override {
-			return arguments.size() + 2; // allocate; set all arguments; call
+			return arguments.size() + Instruction::getCodeSize(Instruction::Code::AllocateFunctionStack) + Instruction::getCodeSize(Instruction::Code::AllocateFunctionStack); // allocate; set all arguments; call
 		}
 	};
 
@@ -91,9 +50,10 @@ namespace Ketl {
 		if (expression) {
 			auto instruction = std::make_unique<FullInstruction>();
 
-			instruction->firstVar = var.argument;
-			instruction->secondVar = expression;
-			instruction->code = Instruction::Code::DefinePrimitive;
+			instruction->code = Instruction::Code::Assign;
+			instruction->arguments.emplace_back(_context.createLiteralVar(expression->getType()->sizeOf()).argument);
+			instruction->arguments.emplace_back(expression);
+			instruction->arguments.emplace_back(var.argument);
 
 			_rawInstructions.emplace_back(std::move(instruction));
 		}
@@ -110,8 +70,8 @@ namespace Ketl {
 		allocInstruction->code = Instruction::Code::AllocateFunctionStack;
 
 		auto stackVar = _context.createTempVar(*_context.context().getVariable("UInt64").as<TypeObject>());
-		allocInstruction->firstVar = stackVar;
-		allocInstruction->secondVar = functionVar;
+		allocInstruction->arguments.emplace_back(functionVar);
+		allocInstruction->arguments.emplace_back(stackVar);
 
 		_rawInstructions.emplace_back(std::move(allocInstruction));
 
@@ -129,9 +89,9 @@ namespace Ketl {
 			auto defineInstruction = std::make_unique<FullInstruction>();
 			defineInstruction->code = Instruction::Code::DefineFuncParameter;
 
-			defineInstruction->outputVar = stackVar;
-			defineInstruction->firstVar = _context.createFunctionArgumentVar(i, *argumentVar->getType());
-			defineInstruction->secondVar = argumentVar;
+			defineInstruction->arguments.emplace_back(argumentVar);
+			defineInstruction->arguments.emplace_back(stackVar);
+			defineInstruction->arguments.emplace_back(_context.createFunctionArgumentVar(i));
 
 			_rawInstructions.emplace_back(std::move(defineInstruction));
 		}
@@ -142,9 +102,11 @@ namespace Ketl {
 		// calling the function
 		auto callInstruction = std::make_unique<FullInstruction>();
 		callInstruction->code = Instruction::Code::CallFunction;
-		callInstruction->firstVar = stackVar;
-		callInstruction->secondVar = functionVar;
-		callInstruction->outputVar = outputVar;
+
+		callInstruction->arguments.emplace_back(functionVar);
+		callInstruction->arguments.emplace_back(stackVar);
+		callInstruction->arguments.emplace_back(outputVar);
+
 		_rawInstructions.emplace_back(std::move(callInstruction));
 
 		return outputVar;
@@ -156,42 +118,58 @@ namespace Ketl {
 		IfElseInstruction(SemanticAnalyzer& context)
 			: _conditionSeq(context), _trueBlockSeq(context), _falseBlockSeq(context) {}
 
-		void propagadeInstruction(Instruction* instructions) const override {
+		void propagadeInstruction(InstructionIterator instructions) const override {
 			_conditionSeq.propagadeInstruction(instructions);
 			auto conditionSize = _conditionSeq.countInstructions();
-			auto offset = conditionSize + 1;
-
-			std::tie(instructions[conditionSize].secondType, instructions[conditionSize].second) = _conditionVar->getArgument();
 
 			auto trueSize = _trueBlockSeq.countInstructions();
 			auto falseSize = _falseBlockSeq.countInstructions();
 
-			if (trueSize == 0) {
-				_falseBlockSeq.propagadeInstruction(instructions + offset);
+			instructions += conditionSize;
 
-				instructions[conditionSize].code = Instruction::Code::JumpIfNotZero;
-				instructions[conditionSize].first.integer = falseSize + 1; // plus if jump
-				instructions[conditionSize].firstType = Argument::Type::Literal;
+			if (trueSize == 0) {
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::JumpIfNotZero;
+				instructions->argument(1).integer = instructions.offset() + falseSize
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfNotZero); // plus if jump
+				instructions->argumentType<1>() = Argument::Type::Literal;
+
+				std::tie(instructions->argumentType<2>(), instructions->argument(2)) = _conditionVar->getArgument();
+
+				instructions += Instruction::getCodeSize(Instruction::Code::JumpIfNotZero);
+				_falseBlockSeq.propagadeInstruction(instructions);
 			}
 			else {
-				_trueBlockSeq.propagadeInstruction(instructions + offset);
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::JumpIfZero;
+
+				std::tie(instructions->argumentType<2>(), instructions->argument(2)) = _conditionVar->getArgument();
 
 				if (falseSize == 0) {
-					instructions[conditionSize].code = Instruction::Code::JumpIfZero;
-					instructions[conditionSize].first.integer = trueSize + 1; // plus if jump
-					instructions[conditionSize].firstType = Argument::Type::Literal;
+					instructions->argument(1).integer = instructions.offset() + trueSize
+						+ Instruction::getCodeSize(Instruction::Code::JumpIfZero);	// plus if jump
+					instructions->argumentType<1>() = Argument::Type::Literal;
+
+					instructions += Instruction::getCodeSize(Instruction::Code::JumpIfZero);
+					_trueBlockSeq.propagadeInstruction(instructions);
 				}
 				else {
-					instructions[conditionSize].code = Instruction::Code::JumpIfZero;
-					instructions[conditionSize].first.integer = trueSize + 2; // plus if jump and goto jump
-					instructions[conditionSize].firstType = Argument::Type::Literal;
+					instructions->argument(1).integer = instructions.offset() + trueSize
+						+ Instruction::getCodeSize(Instruction::Code::JumpIfZero)	// plus if jump 
+						+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+					instructions->argumentType<1>() = Argument::Type::Literal;
 
-					offset += trueSize;
-					instructions[offset].code = Instruction::Code::Jump;
-					instructions[offset].first.integer = falseSize + 1; // plus goto jump
-					instructions[offset].firstType = Argument::Type::Literal;
+					instructions += Instruction::getCodeSize(Instruction::Code::JumpIfZero);
+					_trueBlockSeq.propagadeInstruction(instructions);
 
-					_falseBlockSeq.propagadeInstruction(instructions + offset + 1);
+					instructions += trueSize;
+					instructions->argument(0).uinteger = 0;
+					instructions->code() = Instruction::Code::Jump;
+					instructions->argument(1).integer = instructions.offset() + falseSize
+						+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+					instructions->argumentType<1>() = Argument::Type::Literal;
+
+					_falseBlockSeq.propagadeInstruction(instructions + Instruction::getCodeSize(Instruction::Code::Jump));
 				}
 			}
 		}
@@ -201,10 +179,15 @@ namespace Ketl {
 			auto falseSize = _falseBlockSeq.countInstructions();
 			auto countBase = conditionSize
 				+ trueSize
-				+ falseSize
-				+ 1; // jump instruction
+				+ falseSize; // jump instruction
 			if (trueSize != 0 && falseSize != 0) {
-				++countBase; // goto instruction
+				countBase 
+					+= Instruction::getCodeSize(Instruction::Code::JumpIfZero)	// plus if jump 
+					+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+			}
+			else {
+				countBase
+					+= Instruction::getCodeSize(Instruction::Code::JumpIfZero);	// plus if jump 
 			}
 			return countBase;
 		}
@@ -229,7 +212,7 @@ namespace Ketl {
 		InstructionSequence _conditionSeq;
 		InstructionSequence _trueBlockSeq;
 		InstructionSequence _falseBlockSeq;
-		RawArgument* _conditionVar;
+		RawArgument* _conditionVar = nullptr;
 	};
 
 	void InstructionSequence::createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock) {
@@ -254,54 +237,73 @@ namespace Ketl {
 		WhileElseInstruction(SemanticAnalyzer& context)
 			: _conditionSeq(context), _loopBlockSeq(context), _elseBlockSeq(context) {}
 
-		void propagadeInstruction(Instruction* instructions) const override {
+		void propagadeInstruction(InstructionIterator instructions) const override {
 			_conditionSeq.propagadeInstruction(instructions);
 			auto conditionSize = _conditionSeq.countInstructions();
-			auto offset = conditionSize + 1;
-
-			std::tie(instructions[conditionSize].secondType, instructions[conditionSize].second) = _conditionVar->getArgument();
 
 			auto loopSize = _loopBlockSeq.countInstructions();
 			auto elseSize = _elseBlockSeq.countInstructions();
 
+			instructions += conditionSize;
+
 			if (elseSize == 0) {
-				_loopBlockSeq.propagadeInstruction(instructions + offset);
-				offset += loopSize;
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::JumpIfZero;
+				instructions->argument(1).integer = instructions.offset() + loopSize
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfZero)	// plus if jump
+					+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+				instructions->argumentType<1>() = Argument::Type::Literal;
 
-				instructions[conditionSize].code = Instruction::Code::JumpIfZero;
-				instructions[conditionSize].first.integer = loopSize + 2; // plus if jump and goto jump
-				instructions[conditionSize].firstType = Argument::Type::Literal;
+				std::tie(instructions->argumentType<2>(), instructions->argument(2)) = _conditionVar->getArgument();
 
-				auto backJump = -static_cast<int64_t>(loopSize + conditionSize + 1);
-				instructions[offset].code = Instruction::Code::Jump;
-				instructions[offset].first.integer = backJump;
-				instructions[offset].firstType = Argument::Type::Literal;
+				instructions += Instruction::getCodeSize(Instruction::Code::JumpIfZero);
+
+				_loopBlockSeq.propagadeInstruction(instructions);
+				instructions += loopSize;
+
+				auto backJump = -static_cast<int64_t>(loopSize + conditionSize
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfZero));	// plus if jump
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::Jump;
+				instructions->argument(1).integer = instructions.offset() + backJump;
+				instructions->argumentType<1>() = Argument::Type::Literal;
 			}
 			else {
-				_elseBlockSeq.propagadeInstruction(instructions + offset);
-				offset += elseSize;
-				auto elseJump = offset;
-				offset += 1; // else goto jump
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::JumpIfNotZero;
+				instructions->argument(1).integer = instructions.offset() + elseSize
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfNotZero)	// plus if jump
+					+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+				instructions->argumentType<1>() = Argument::Type::Literal;
 
-				instructions[conditionSize].code = Instruction::Code::JumpIfNotZero;
-				instructions[conditionSize].first.integer = elseSize + 2; // plus if jump and goto jump
-				instructions[conditionSize].firstType = Argument::Type::Literal;
+				std::tie(instructions->argumentType<2>(), instructions->argument(2)) = _conditionVar->getArgument();
 
-				_loopBlockSeq.propagadeInstruction(instructions + offset);
-				offset += loopSize;
+				instructions += Instruction::getCodeSize(Instruction::Code::JumpIfNotZero);
 
-				_conditionSeq.propagadeInstruction(instructions + offset); // duplicate conditional seq
-				offset += conditionSize;
+				_elseBlockSeq.propagadeInstruction(instructions);
+				instructions += elseSize;
+
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::Jump;
+				instructions->argument(1).integer = instructions.offset() + loopSize + conditionSize
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfNotZero)	// plus if jump
+					+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
+				instructions->argumentType<1>() = Argument::Type::Literal;
+
+				instructions += Instruction::getCodeSize(Instruction::Code::Jump); // else goto jump
+
+				_loopBlockSeq.propagadeInstruction(instructions);
+				instructions += loopSize;
+
+				_conditionSeq.propagadeInstruction(instructions); // duplicate conditional seq
+				instructions += conditionSize;
 
 				auto backJump = -static_cast<int64_t>(loopSize + conditionSize);
-				instructions[offset].code = Instruction::Code::JumpIfNotZero;
-				instructions[offset].first.integer = backJump;
-				instructions[offset].firstType = Argument::Type::Literal;
-				std::tie(instructions[offset].secondType, instructions[offset].second) = _conditionVar->getArgument();
-
-				instructions[elseJump].code = Instruction::Code::Jump;
-				instructions[elseJump].first.integer = loopSize + conditionSize + 2; // plus if jump and goto jump
-				instructions[elseJump].firstType = Argument::Type::Literal;
+				instructions->argument(0).uinteger = 0;
+				instructions->code() = Instruction::Code::JumpIfNotZero;
+				instructions->argument(1).integer = instructions.offset() + backJump;
+				instructions->argumentType<1>() = Argument::Type::Literal;
+				std::tie(instructions->argumentType<2>(), instructions->argument(2)) = _conditionVar->getArgument();
 			}
 		}
 		uint64_t countInstructions() const override {
@@ -310,10 +312,11 @@ namespace Ketl {
 			auto elseSize = _elseBlockSeq.countInstructions();
 			auto countBase = conditionSize
 				+ loopSize
-				+ 2; // if jump and goto jump
+				+ Instruction::getCodeSize(Instruction::Code::JumpIfZero)	// plus if jump
+				+ Instruction::getCodeSize(Instruction::Code::Jump);		// plus goto jump
 			if (elseSize != 0) {
 				countBase += conditionSize // separate condition block
-					+ 1 // additional if jump
+					+ Instruction::getCodeSize(Instruction::Code::JumpIfNotZero)	// plus if jump
 					+ elseSize;
 			}
 			return countBase;
@@ -339,7 +342,7 @@ namespace Ketl {
 		InstructionSequence _conditionSeq;
 		InstructionSequence _loopBlockSeq;
 		InstructionSequence _elseBlockSeq;
-		RawArgument* _conditionVar;
+		RawArgument* _conditionVar = nullptr;
 	};
 
 	void InstructionSequence::createWhileElseBranches(const IRNode& condition, const IRNode* loopBlock, const IRNode* elseBlock) {
@@ -368,7 +371,7 @@ namespace Ketl {
 		_returnExpression = std::move(expression);
 	}
 
-	void InstructionSequence::propagadeInstruction(Instruction* instructions) const {
+	void InstructionSequence::propagadeInstruction(InstructionIterator instructions) const {
 		uint64_t offset = 0u;
 		for (auto& rawInstruction : _rawInstructions) {
 			rawInstruction->propagadeInstruction(instructions + offset);
@@ -377,9 +380,9 @@ namespace Ketl {
 		
 		if (_hasReturnStatement) {
 			FullInstruction instruction;
-			instruction.firstVar = _context.createReturnVar(_returnExpression.getUVar().getVarAsItIs().argument);
-			instruction.secondVar = _returnExpression.getUVar().getVarAsItIs().argument;
-			instruction.code = Instruction::Code::ReturnPrimitive;
+			instruction.code = Instruction::Code::ReturnValue;
+			instruction.arguments.emplace_back(_context.createLiteralVar(_returnExpression.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
+			instruction.arguments.emplace_back(_returnExpression.getUVar().getVarAsItIs().argument);
 			instruction.propagadeInstruction(instructions + offset);
 		}
 		else if (_mainSequence) {
@@ -387,7 +390,6 @@ namespace Ketl {
 			instruction.code = Instruction::Code::Return;
 			instruction.propagadeInstruction(instructions + offset);
 		}
-
 	}
 
 	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
@@ -420,12 +422,33 @@ namespace Ketl {
 			return CompilerVar();
 		}
 
-		auto output = instructions.createFullInstruction(
-			primaryOperatorPair.first,
-			lhs.getUVar().getVarAsItIs().argument,
-			rhs.getUVar().getVarAsItIs().argument,
-			*context().getVariable("Int64").as<TypeObject>()
-		);
+		auto instruction = instructions.createFullInstruction();
+
+		instruction->code = primaryOperatorPair.first;
+
+		RawArgument* output;
+		switch (primaryOperatorPair.first) {
+			case Instruction::Code::IsStructEqual:
+			case Instruction::Code::IsStructNonEqual:
+				output = createTempVar(*context().getVariable("Int64").as<TypeObject>());
+				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
+				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(output);
+				break;
+			case Instruction::Code::Assign:
+				output = lhs.getUVar().getVarAsItIs().argument;
+				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
+				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(output);
+				break;
+			default:
+				output = createTempVar(*context().getVariable("Int64").as<TypeObject>());
+				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(output);
+				break;
+		}
 
 		return CompilerVar(output, false, {});
 	}
@@ -524,6 +547,36 @@ namespace Ketl {
 		return nullptr;
 	}
 
+	class UnsignedLiteralArgument : public RawArgument {
+	public:
+		UnsignedLiteralArgument(uint64_t value, SemanticAnalyzer& context)
+			: _value(value) {
+			_type = context.context().getVariable("Int64").as<TypeObject>();
+		}
+
+		std::pair<Argument::Type, Argument> getArgument() const override {
+			auto type = Argument::Type::Literal;
+			Argument argument;
+			argument.uinteger = _value;
+			return std::make_pair(type, argument);
+		}
+
+		const TypeObject* getType() const override {
+			return _type;
+		}
+
+	private:
+
+		const TypeObject* _type = nullptr;
+		std::uint64_t _value;
+		std::string_view _id;
+	};
+
+	CompilerVar SemanticAnalyzer::createLiteralVar(uint64_t value) {
+		auto ptr = vars.emplace_back(std::make_unique<UnsignedLiteralArgument>(value, *this)).get();
+		return CompilerVar(ptr, true, { true, false });
+	}
+
 	class LiteralArgument : public RawArgument {
 	public:
 		// TODO
@@ -552,37 +605,7 @@ namespace Ketl {
 
 	CompilerVar SemanticAnalyzer::createLiteralVar(const std::string_view& value) {
 		auto ptr = vars.emplace_back(std::make_unique<LiteralArgument>(value, *this)).get();
-
 		return CompilerVar(ptr, true, { true, false });
-	}
-	
-	class ReturnArgument : public RawArgument {
-	public:
-		ReturnArgument(RawArgument* value, SemanticAnalyzer& context)
-			: _value(value) {
-			_type = _value ? _value->getType() : context.context().getVariable("Void").as<TypeObject>();
-		}
-
-		std::pair<Argument::Type, Argument> getArgument() const override {
-			auto type = Argument::Type::Return;
-			Argument argument;
-			return std::make_pair(type, argument);
-		}
-
-		const TypeObject* getType() const override {
-			return _type;
-		}
-
-	private:
-
-		RawArgument* _value;
-		const TypeObject* _type;
-	};
-
-	RawArgument* SemanticAnalyzer::createReturnVar(RawArgument* expression) {
-		auto& ptr = vars.emplace_back(std::make_unique<ReturnArgument>(expression, *this));
-
-		return ptr.get();
 	}
 
 	class LiteralClassArgument : public RawArgument {
@@ -668,30 +691,8 @@ namespace Ketl {
 		return ptr;
 	}
 
-	class ParameterArgument : public RawArgument {
-	public:
-		ParameterArgument(uint64_t index, const TypeObject& type)
-			: _type(&type), _index(index) {}
-
-		std::pair<Argument::Type, Argument> getArgument() const override {
-			auto type = Argument::Type::FunctionParameter;
-			Argument argument;
-			argument.stack = _index * sizeof(void*);
-			return std::make_pair(type, argument);
-		}
-
-		const TypeObject* getType() const override {
-			return _type;
-		}
-
-	private:
-
-		const TypeObject* _type;
-		uint64_t _index;
-	};
-
-	RawArgument* SemanticAnalyzer::createFunctionArgumentVar(uint64_t index, const TypeObject& type) {
-		auto& ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, type));
+	RawArgument* SemanticAnalyzer::createFunctionArgumentVar(uint64_t index) {
+		auto& ptr = vars.emplace_back(std::make_unique<UnsignedLiteralArgument>(index * sizeof(void*), *this));
 
 		return ptr.get();
 	}
@@ -807,6 +808,28 @@ namespace Ketl {
 			return var;
 		}
 	}
+
+	class ParameterArgument : public RawArgument {
+	public:
+		ParameterArgument(uint64_t index, const TypeObject& type)
+			: _type(&type), _index(index) {}
+
+		std::pair<Argument::Type, Argument> getArgument() const override {
+			auto type = Argument::Type::FunctionParameter;
+			Argument argument;
+			argument.stack = _index * sizeof(void*);
+			return std::make_pair(type, argument);
+		}
+
+		const TypeObject* getType() const override {
+			return _type;
+		}
+
+	private:
+
+		const TypeObject* _type;
+		uint64_t _index;
+	};
 
 	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits) {
 		auto [varIt, success] = _localsByName.back().try_emplace(id);

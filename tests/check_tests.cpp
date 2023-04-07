@@ -26,4 +26,9 @@ void launchCheckTests() {
 	}
 
 	std::cout << "Tests passed: " << passed << "/" << getTests().size() << std::endl;
+
+	if (!_CrtCheckMemory()) {
+		std::cerr << "Memory corrupted!" << std::endl;
+		__debugbreak();
+	}
 }

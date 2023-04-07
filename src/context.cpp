@@ -83,14 +83,14 @@ namespace Ketl {
 		declarePrimitiveType<uint64_t>("UInt64");
 		declarePrimitiveType<double>("Float64");
 
-		registerPrimaryOperator(OperatorCode::Plus,		"Int64,Int64", Instruction::Code::AddInt64,				"Int64");
-		registerPrimaryOperator(OperatorCode::Minus,	"Int64,Int64", Instruction::Code::MinusInt64,			"Int64");
-		registerPrimaryOperator(OperatorCode::Multiply,	"Int64,Int64", Instruction::Code::MultyInt64,			"Int64");
-		registerPrimaryOperator(OperatorCode::Divide,	"Int64,Int64", Instruction::Code::DivideInt64,			"Int64");
+		registerPrimaryOperator(OperatorCode::Plus,		"Int64,Int64", Instruction::Code::AddInt64,			"Int64");
+		registerPrimaryOperator(OperatorCode::Minus,	"Int64,Int64", Instruction::Code::MinusInt64,		"Int64");
+		registerPrimaryOperator(OperatorCode::Multiply,	"Int64,Int64", Instruction::Code::MultyInt64,		"Int64");
+		registerPrimaryOperator(OperatorCode::Divide,	"Int64,Int64", Instruction::Code::DivideInt64,		"Int64");
 
-		registerPrimaryOperator(OperatorCode::Equal,	"Int64,Int64", Instruction::Code::IsPrimitiveEqual,		"Int64");
-		registerPrimaryOperator(OperatorCode::NonEqual,	"Int64,Int64", Instruction::Code::IsPrimitiveNonEqual,	"Int64");
+		registerPrimaryOperator(OperatorCode::Equal,	"Int64,Int64", Instruction::Code::IsStructEqual,	"Int64");
+		registerPrimaryOperator(OperatorCode::NonEqual,	"Int64,Int64", Instruction::Code::IsStructNonEqual,	"Int64");
 
-		registerPrimaryOperator(OperatorCode::Assign,	"Int64,Int64", Instruction::Code::AssignPrimitive,		"Int64");
+		registerPrimaryOperator(OperatorCode::Assign,	"Int64,Int64", Instruction::Code::Assign,			"Int64");
 	}
 }
