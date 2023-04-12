@@ -1,12 +1,11 @@
 ﻿/*🍲Ketl🍲*/
-#include "garbage_collector.h"
+#include "gc_allocator.h"
 
-#include "context.h"
-
+#include "default_allocator.h"
 
 namespace Ketl {
 
-	void GarbageCollector::fillLinks(const std::set<const void*>& source, std::set<const void*>& target) const {
+	void GCAllocator::fillLinks(const std::set<const void*>& source, std::set<const void*>& target) const {
 		auto itLinks = source.cbegin();
 		auto endLinks = source.cend();
 		auto itHeap = _objects.begin();
@@ -49,7 +48,7 @@ namespace Ketl {
 		}
 	}
 
-	void GarbageCollector::markStage() {
+	void GCAllocator::markStage() {
 		bool linkChoise = true;
 		std::set<const void*> links1;
 		std::set<const void*> links2;
@@ -75,7 +74,7 @@ namespace Ketl {
 		}
 	}
 
-	size_t GarbageCollector::swipeStage() {
+	size_t GCAllocator::swipeStage() {
 		size_t totalCleared = 0u;
 
 		for (auto mIt = _managedObject.begin(), end = _managedObject.end(); mIt != end;) {

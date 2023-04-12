@@ -1,22 +1,23 @@
 /*🍲Ketl🍲*/
-#ifndef garbage_collector_h
-#define garbage_collector_h
+#ifndef gc_allocator_h
+#define gc_allocator_h
 
 #include <map>
 #include <set>
 #include <vector>
+#include <list>
 #include <unordered_set>
 
 namespace Ketl {
 
 	class Allocator;
 
-	class GarbageCollector {
+	class GCAllocator {
 	public:
 
-		GarbageCollector(Allocator& alloc)
+		GCAllocator(Allocator& alloc)
 			: _alloc(alloc) {}
-		~GarbageCollector() {
+		~GCAllocator() {
 			_refRoots.clear();
 			collectGarbage();
 		}
@@ -146,4 +147,4 @@ namespace Ketl {
 	};
 }
 
-#endif /*garbage_collector_h*/
+#endif /*gc_allocator_h*/

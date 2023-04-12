@@ -930,7 +930,7 @@ namespace Ketl {
 		}
 	}
 
-	std::variant<FunctionImpl*, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
+	std::variant<FunctionObject*, std::string> SemanticAnalyzer::compile(const IRNode& block)&& {
 		InstructionSequence mainSequence(*this, true);
 
 		block.produceInstructions(mainSequence, *this);
@@ -941,7 +941,7 @@ namespace Ketl {
 		bakeLocalVars();
 
 		auto rawInstructionCount = mainSequence.countInstructions();
-		auto [functionPtr, functionRefs] = context().createObject<FunctionImpl>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
+		auto [functionPtr, functionRefs] = context().createObject<FunctionObject>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
 
 		bakeContext();
 		if (hasCompilationErrors()) {

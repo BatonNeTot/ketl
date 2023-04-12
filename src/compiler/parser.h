@@ -6,6 +6,8 @@
 #include "common.h"
 
 #include <variant>
+#include <memory>
+#include <unordered_map>
 
 namespace Ketl {
 
@@ -229,7 +231,7 @@ namespace Ketl {
 
 		Parser();
 
-		std::variant<std::unique_ptr<IRNode>, std::string> parseTree(const std::string& str);
+		std::variant<std::unique_ptr<IRNode>, std::string> parseTree(const std::string_view& str);
 
 	private:
 

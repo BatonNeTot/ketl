@@ -4,10 +4,7 @@
 
 #include "compile_tricks.h"
 
-#include "compiler/compiler.h"
 #include "ketl.h"
-#include "context.h"
-#include "type.h"
 
 #include <functional>
 

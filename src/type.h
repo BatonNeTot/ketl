@@ -2,11 +2,66 @@
 #ifndef type_h
 #define type_h
 
-#include "ketl.h"
+#include "function.h"
+#include "common.h"
+
+#include <vector>
 
 namespace Ketl {
 
-	class Context;
+	class TypeObject {
+	public:
+		TypeObject() = default;
+		virtual ~TypeObject() = default;
+
+		virtual std::string id() const = 0;
+
+		virtual uint64_t actualSizeOf() const = 0;
+
+		virtual bool isLight() const { return false; }
+
+		uint64_t sizeOf() const { return isLight() ? sizeof(void*) : actualSizeOf(); }
+
+		virtual const TypeObject* getReturnType() const { return nullptr; }
+
+		struct Parameter {
+			const TypeObject* type = nullptr;
+			VarTraits traits;
+		};
+
+		virtual const std::vector<Parameter>& getParameters() const {
+			static const std::vector<Parameter> empty;
+			return empty;
+		};
+
+		struct Field {
+			Field(const std::string_view& id_, const TypeObject* type_)
+				: type(type_), id(id_) {}
+
+			const TypeObject* type = nullptr;
+			uint64_t offset = 0u;
+			std::string id;
+		};
+
+		struct StaticField {
+			// TODO replace with TypedPtr?
+			const TypeObject* type = nullptr;
+			void* ptr;
+			std::string id;
+		};
+
+		virtual bool doesSupportOverload() const { return false; }
+
+		virtual const std::vector<TypedPtr>& getCallFunctions() const {
+			static std::vector<TypedPtr> empty;
+			return empty;
+		};
+
+		friend bool operator==(const TypeObject& lhs, const TypeObject& rhs) {
+			return lhs.id() == rhs.id();
+		}
+
+	};
 
 	class InterfaceTypeObject : public TypeObject {
 	public:
@@ -41,9 +96,11 @@ namespace Ketl {
 
 		bool doesSupportOverload() const override { return false; };
 
-	private:
+		void addInterface(InterfaceTypeObject* interface) {
+			_interfaces.emplace_back(interface);
+		}
 
-		friend Context;
+	private:
 
 		std::string _id;
 		uint64_t _size;
@@ -90,7 +147,7 @@ namespace Ketl {
 			return _id;
 		}
 
-		uint64_t actualSizeOf() const override { return sizeof(FunctionImpl); }
+		uint64_t actualSizeOf() const override { return sizeof(FunctionObject); }
 
 		bool isLight() const override { return true; }
 

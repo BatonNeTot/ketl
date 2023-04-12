@@ -273,7 +273,7 @@ namespace Ketl {
 		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr);
 		~SemanticAnalyzer() = default;
 
-		std::variant<FunctionImpl*, std::string> compile(const IRNode& block)&&;
+		std::variant<FunctionObject*, std::string> compile(const IRNode& block)&&;
 
 		void bakeLocalVars();
 		void bakeContext();

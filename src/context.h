@@ -2,9 +2,9 @@
 #ifndef context_h
 #define context_h
 
-#include "compiler/common.h"
+#include "common.h"
 #include "type.h"
-#include "garbage_collector.h"
+#include "memory/gc_allocator.h"
 
 #include <cinttypes>
 #include <string>
@@ -185,7 +185,7 @@ namespace Ketl {
 
 		std::unordered_map<OperatorCode, std::unordered_map<std::string_view, std::pair<Instruction::Code, std::string_view>>> _primaryOperators;
 
-		GarbageCollector _gc;
+		GCAllocator _gc;
 	};
 
 	template <typename ...Args>
@@ -193,7 +193,7 @@ namespace Ketl {
 		//std::vector<const TypeObject*> argTypes = { _context.typeOf<Args>()... };
 
 
-		auto function = *reinterpret_cast<FunctionImpl**>(_vars[0].rawData());
+		auto function = *reinterpret_cast<FunctionObject**>(_vars[0].rawData());
 
 		auto stackPtr = _context._globalStack.allocate(function->stackSize());
 		function->call(_context._globalStack, stackPtr, nullptr);

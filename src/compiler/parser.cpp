@@ -85,7 +85,7 @@ namespace Ketl {
 		return _creator(info);
 	}
 
-	std::variant<std::unique_ptr<IRNode>, std::string> Parser::parseTree(const std::string& str) {
+	std::variant<std::unique_ptr<IRNode>, std::string> Parser::parseTree(const std::string_view& str) {
 		Lexer lexer(str);
 
 		TokenList list;

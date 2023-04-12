@@ -7,10 +7,7 @@
 #include <cassert>
 #include <typeindex>
 
-#include "compiler/compiler.h"
 #include "ketl.h"
-#include "context.h"
-#include "type.h"
 
 #include "check_tests.h"
 #include "speed_tests.h"
@@ -19,14 +16,12 @@ int main(int argc, char** argv) {
 	launchCheckTests();
 	launchSpeedTests(10000000);
 
-	Ketl::Allocator allocator;
-	Ketl::Context context(allocator, 4096);
-	Ketl::Compiler compiler;
+	Ketl::VirtualMachine vm(4096);
 
 	int64_t sum = 0;
-	context.declareGlobal("sum", &sum);
+	vm.declareGlobal("sum", &sum);
 
-	auto compilationResult = compiler.compile(R"(
+	auto compilationResult = vm.compile(R"(
 	sum = 0;
 
 	while (sum != 3) {
@@ -34,7 +29,7 @@ int main(int argc, char** argv) {
 	} else {
 		sum = 7;
 	}
-)", context);
+)");
 
 	if (std::holds_alternative<std::string>(compilationResult)) {
 		std::cerr << std::get<std::string>(compilationResult) << std::endl;

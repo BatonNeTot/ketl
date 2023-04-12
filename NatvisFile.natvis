@@ -129,8 +129,8 @@
 			</CustomListItems>
 		</Expand>
 	</Type>
-	<Type Name="Ketl::FunctionImpl">
-		<DisplayString>Ketl::FunctionImpl</DisplayString>
+	<Type Name="Ketl::FunctionObject">
+		<DisplayString>Ketl::FunctionObject</DisplayString>
 		<Expand>
 			<Item Name="[stackSize]" ExcludeView="simple">_stackSize</Item>
 			<Item Condition="_instructions" Name="[count]" ExcludeView="simple">_instructionsCount</Item>

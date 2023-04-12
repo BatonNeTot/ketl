@@ -1,6 +1,6 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef ebnf_exp_lexer_h
-#define ebnf_exp_lexer_h
+#ifndef lexer_h
+#define lexer_h
 
 #include <string>
 
@@ -72,4 +72,4 @@ namespace Ketl {
 
 }
 
-#endif // !ebnf_exp_lexer_h
+#endif /*lexer_h*/

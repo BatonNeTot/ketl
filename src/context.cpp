@@ -3,25 +3,6 @@
 
 namespace Ketl {
 
-	void* TypedPtr::as(std::type_index typeIndex, Context& context) const {
-		// TODO
-		/*
-		auto typeVarIt = context._userTypes.find(typeIndex);
-		if (typeVarIt == context._userTypes.end()) {
-			return nullptr;
-		}
-		*/
-
-		// TODO BIG
-		// do correct convertation, etc. PrimitiveTypeObject* -> TypeObject*
-
-		if (_type && _type->isLight()) {
-			return *reinterpret_cast<void**>(_ptr);
-		}
-
-		return _ptr;
-	}
-
 	std::vector<TypedPtr> Context::_emptyVars;
 
 	void Context::declarePrimitiveType(const std::string& id, uint64_t size, std::type_index typeIndex) {
@@ -59,9 +40,9 @@ namespace Ketl {
 		*theTypeHolder = theTypePtr;
 		_userTypes.try_emplace(std::type_index(typeid(TypeObject)), theTypePtr);
 
-		classTypePtr->_interfaces.emplace_back(theTypePtr);
+		classTypePtr->addInterface(theTypePtr);
 		classTypeRefs->registerAbsLink(theTypePtr);
-		interfaceTypePtr->_interfaces.emplace_back(theTypePtr);
+		interfaceTypePtr->addInterface(theTypePtr);
 		interfaceTypeRefs->registerAbsLink(theTypePtr);
 
 		// struct Type
