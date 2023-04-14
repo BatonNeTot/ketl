@@ -2,7 +2,6 @@
 #include "ir_nodes.h"
 
 #include "bnf_nodes.h"
-#include "garbage_collector.h"
 
 namespace Ketl {
 

@@ -4,9 +4,16 @@
 static auto registerTests = []() {
 
 	registerSpeedTest("Function call", [](uint64_t N, double& ketlTime, double& luaTime) {
+		auto randValue = []() {
+			return (rand() >> 1) % 10;
+		};
+
 		Ketl::Allocator allocator;
 		Ketl::Context context(allocator, 4096);
 		Ketl::Compiler compiler;
+
+		int64_t value = 0u;
+		context.declareGlobal("value", &value);
 
 		auto compilationResult = compiler.compile(R"(
 			var testValue2 = 1 + 2;
@@ -15,7 +22,7 @@ static auto registerTests = []() {
 				return x + y;
 			}
 
-			var testValue = adder(testValue2, 9);
+			var testValue = adder(value, 9);
 		)", context);
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -27,6 +34,7 @@ static auto registerTests = []() {
 		{
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {
+				value = randValue();
 				command();
 			}
 			auto finish = std::chrono::high_resolution_clock::now();
@@ -43,13 +51,15 @@ static auto registerTests = []() {
 				return x + y
 			end
 
-			local testValue = test(testValue2, 9)
+			local testValue = test(value, 9)
 		)");
 
 
 		{
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {
+				lua_pushinteger(L, randValue());
+				lua_setglobal(L, "value");
 				lua_pushvalue(L, -1);
 				lua_call(L, 0, 0);
 			}
