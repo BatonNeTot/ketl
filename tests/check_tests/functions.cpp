@@ -4,18 +4,16 @@
 static auto registerTests = []() {
 
 	registerCheckTest("Creating function and using in C", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			var adder = () -> {
 				sum = 11;
 			};
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -25,7 +23,7 @@ static auto registerTests = []() {
 		auto& command = std::get<0>(compilationResult);
 		command();
 
-		auto adder = context.getVariable("adder");
+		auto adder = vm.getVariable("adder");
 		if (adder.empty()) {
 			return false;
 		}
@@ -36,20 +34,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Creating function and calling it", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			var adder = () -> {
 				sum = 11;
 			};
 
 			adder();
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -63,19 +59,17 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Creating function and calling it with separate compilation", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
 		{
-			auto compilationResult = compiler.compile(R"(
+			auto compilationResult = vm.compile(R"(
 			var adder = () -> {
 				sum = 11;
 			};
-		)", context);
+		)");
 
 			if (std::holds_alternative<std::string>(compilationResult)) {
 				std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -87,9 +81,9 @@ static auto registerTests = []() {
 		}
 
 		{
-			auto compilationResult = compiler.compile(R"(
+			auto compilationResult = vm.compile(R"(
 			adder();
-		)", context);
+		)");
 
 			if (std::holds_alternative<std::string>(compilationResult)) {
 				std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -104,20 +98,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Creating function with parameters and calling it", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			var adder = (Int64 x, Int64 y) -> {
 				sum = x + y;
 			};
 
 			adder(5, 13);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -131,20 +123,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Sugar creating function with parameters and calling it", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			Void adder(Int64 x, Int64 y) {
 				sum = x + y;
 			};
 
 			adder(5, 13);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -158,20 +148,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Calling function with return", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				return x + y;
 			};
 
 			sum = adder(5, 13);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -185,14 +173,12 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Creating two function with same name and calling one", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				var sum = x + y;
 				return sum;
@@ -203,7 +189,7 @@ static auto registerTests = []() {
 			};
 
 			sum = adder(5, 10);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -217,21 +203,19 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Pseudo-currying function (currying and immediately calling with necessary arguments)", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				var sum = x + y;
 				return sum;
 			};
 
 			sum = adder(5)(10);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -245,20 +229,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Dot operator calling function", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				return x + y;
 			};
 
 			sum = 5.adder(10);
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;

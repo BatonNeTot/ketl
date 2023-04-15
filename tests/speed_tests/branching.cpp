@@ -8,14 +8,12 @@ static auto registerTests = []() {
 			return (rand() >> 1) % 2;
 		};
 
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t value = 0u;
-		context.declareGlobal("value", &value);
+		vm.declareGlobal("value", &value);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			var testValue = 0;
 
 			if (value) {
@@ -23,7 +21,7 @@ static auto registerTests = []() {
 			} else {
 				testValue = 2;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;

@@ -18,11 +18,11 @@ namespace Ketl {
 	struct CompilerVar {
 		CompilerVar() = default;
 		CompilerVar(RawArgument* argument_, bool isCTK_, VarTraits traits_)
-			: isCTK(isCTK_), traits(traits_), argument(argument_) {}
+			: traits(traits_), isCTK(isCTK_), argument(argument_) {}
 
+		VarTraits traits;
 		// compile time known
 		bool isCTK = false;
-		VarTraits traits;
 		RawArgument* argument = nullptr;
 	};
 
@@ -190,8 +190,8 @@ namespace Ketl {
 	class InstructionSequence : public RawInstruction {
 	public:
 
-		InstructionSequence(SemanticAnalyzer& context, bool mainSequence = false)
-			: _context(context), _mainSequence(mainSequence) {}
+		InstructionSequence(SemanticAnalyzer& analyzer, bool mainSequence = false)
+			: _analyzer(analyzer), _mainSequence(mainSequence) {}
 
 		FullInstruction* createFullInstruction();
 		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
@@ -234,7 +234,7 @@ namespace Ketl {
 		bool _hasReturnStatement = false;
 		bool _raisedAfterReturnError = false;
 		UndeterminedDelegate _returnExpression;
-		SemanticAnalyzer& _context;
+		SemanticAnalyzer& _analyzer;
 		std::vector<std::unique_ptr<RawInstruction>> _rawInstructions;
 
 	};
@@ -263,14 +263,15 @@ namespace Ketl {
 	public:
 
 		virtual ~IRNode() = default;
-		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& context) const { return {}; }
+		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const { return {}; }
 	};
 
+	class VirtualMachine;
 	class StackArgument;
 	class SemanticAnalyzer {
 	public:
 
-		SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext = nullptr);
+		SemanticAnalyzer(VirtualMachine& vm, SemanticAnalyzer* parentAnalyzer = nullptr);
 		~SemanticAnalyzer() = default;
 
 		std::variant<FunctionObject*, std::string> compile(const IRNode& block)&&;
@@ -297,7 +298,6 @@ namespace Ketl {
 		UndeterminedVar getVar(const std::string_view& id);
 		CompilerVar createVar(const std::string_view& id, const TypeObject& type, VarTraits traits);
 
-		Variable evaluate(const IRNode& node);
 		const TypeObject* evaluateType(const IRNode& node);
 
 		void pushErrorMsg(const std::string& msg) {
@@ -307,8 +307,8 @@ namespace Ketl {
 		bool hasCompilationErrors() const { return !_compilationErrors.empty(); }
 		std::string compilationErrors() const;
 
-		Context& context() const {
-			return _context;
+		VirtualMachine& vm() const {
+			return _vm;
 		}
 
 		bool isLocalScope() const {
@@ -327,9 +327,7 @@ namespace Ketl {
 
 		class UndefinedArgument : public RawArgument {
 		public:
-			UndefinedArgument(Context& context) {
-				_type = context.getVariable("Void").as<TypeObject>();
-			}
+			UndefinedArgument(VirtualMachine& vm);
 
 		private:
 			std::pair<Argument::Type, Argument> getArgument() const override {
@@ -364,7 +362,7 @@ namespace Ketl {
 
 		std::vector<const void*> resultRefs;
 
-		Context& _context;
+		VirtualMachine& _vm;
 
 		std::vector<std::string> _compilationErrors;
 

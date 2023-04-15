@@ -18,6 +18,28 @@ namespace Ketl {
 			return _alloc;
 		}
 
+		StackAllocator& stack() {
+			return _stack;
+		}
+
+		uint8_t* allocateOnStack(uint64_t size) {
+			return _stack.allocate(size);
+		}
+
+		template <typename T>
+		inline void registerAbsRoot(const T* ptr) {
+			_heap.registerAbsRoot(ptr);
+		}
+
+		template <typename T>
+		inline void registerRefRoot(const T* const* pptr) {
+			_heap.registerRefRoot(pptr);
+		}
+
+		auto& registerMemory(void* ptr, size_t size, auto finalizer) {
+			return _heap.registerMemory(ptr, size, finalizer);
+		}
+
 	private:
 		Allocator _alloc;
 		StackAllocator _stack;

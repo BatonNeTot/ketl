@@ -67,7 +67,7 @@ namespace Ketl {
 	};
 
 	class TypeObject;
-	class Context;
+	class VirtualMachine;
 
 	class TypedPtr {
 	public:
@@ -76,7 +76,7 @@ namespace Ketl {
 		TypedPtr(void* ptr, const TypeObject& type)
 			: _ptr(ptr), _type(&type) {}
 
-		void* as(std::type_index typeIndex, Context& context) const;
+		void* as(std::type_index typeIndex, VirtualMachine& vm) const;
 
 		const TypeObject& type() const {
 			return *_type;

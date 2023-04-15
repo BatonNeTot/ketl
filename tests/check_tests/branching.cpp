@@ -4,14 +4,12 @@
 static auto registerTests = []() {
 
 	registerCheckTest("If else statement true", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 3;
 
 			if (sum == 3) {
@@ -19,7 +17,7 @@ static auto registerTests = []() {
 			} else {
 				sum = 7;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -33,14 +31,12 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("If else statement false", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 4;
 
 			if (sum == 3) {
@@ -48,7 +44,7 @@ static auto registerTests = []() {
 			} else {
 				sum = 7;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -62,20 +58,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Single if statement true", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 3;
 
 			if (sum == 3) {
 				sum = 5;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -89,20 +83,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Empty if statement false", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 3;
 
 			if (sum == 3) {} else {
 				sum = 5;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -116,20 +108,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Empty if statement true", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 4;
 
 			if (sum == 3) {} else {
 				sum = 5;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -143,14 +133,12 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Multiple if statement layers", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 0;
 			var first = 3;
 			var second = 4;
@@ -158,7 +146,7 @@ static auto registerTests = []() {
 			if (first == 3) 
 				if (second == 4)
 					sum = 4;
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -172,20 +160,18 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Simple while statement", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 0;
 
 			while (sum != 3) {
 				sum = sum + 1;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -199,16 +185,14 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("Simple while statement (no loop)", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 		int64_t test = 0;
-		context.declareGlobal("test", &test);
+		vm.declareGlobal("test", &test);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 3;
 			test = 0;
 
@@ -216,7 +200,7 @@ static auto registerTests = []() {
 				sum = sum + 1;
 				test = 1;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -230,16 +214,14 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("While else statement (else missed)", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 		int64_t test = 0;
-		context.declareGlobal("test", &test);
+		vm.declareGlobal("test", &test);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 0;
 			test = 0;
 
@@ -250,7 +232,7 @@ static auto registerTests = []() {
 				sum = 7;
 				test = 2;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
@@ -264,16 +246,14 @@ static auto registerTests = []() {
 		});
 
 	registerCheckTest("While else statement (else called)", []() {
-		Ketl::Allocator allocator;
-		Ketl::Context context(allocator, 4096);
-		Ketl::Compiler compiler;
+		Ketl::VirtualMachine vm(4096);
 
 		int64_t sum = 0;
-		context.declareGlobal("sum", &sum);
+		vm.declareGlobal("sum", &sum);
 		int64_t test = 0;
-		context.declareGlobal("test", &test);
+		vm.declareGlobal("test", &test);
 
-		auto compilationResult = compiler.compile(R"(
+		auto compilationResult = vm.compile(R"(
 			sum = 3;
 			test = 0;
 
@@ -284,7 +264,7 @@ static auto registerTests = []() {
 				sum = 7;
 				test = 2;
 			}
-		)", context);
+		)");
 
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;

@@ -2,17 +2,18 @@
 #include "compiler.h"
 
 #include "context.h"
+#include "ketl.h"
 
 namespace Ketl {
 
-	std::variant<Variable, std::string> Compiler::compile(const std::string_view& str, Context& context) {
+	std::variant<Variable, std::string> Compiler::compile(const std::string_view& str, VirtualMachine& vm) {
 		auto block = _parser.parseTree(str);
 
 		if (std::holds_alternative<std::string>(block)) {
 			return std::get<std::string>(block);
 		}
 
-		SemanticAnalyzer analyzer(context);
+		SemanticAnalyzer analyzer(vm);
 		auto function = std::move(analyzer).compile(*std::get<0>(block));
 		
 		if (std::holds_alternative<std::string>(function)) {
@@ -21,15 +22,15 @@ namespace Ketl {
 
 		std::vector<FunctionTypeObject::Parameter> parameters;
 
-		auto classType = context.getVariable("ClassType").as<TypeObject>();
-		auto voidType = context.getVariable("Void").as<TypeObject>();
-		auto [functionType, typeRefHolder] = context.createObject<FunctionTypeObject>(*voidType, std::move(parameters));
+		auto classType = vm.getVariable("ClassType").as<TypeObject>();
+		auto voidType = vm.getVariable("Void").as<TypeObject>();
+		auto [functionType, typeRefHolder] = vm.createObject<FunctionTypeObject>(*voidType, std::move(parameters));
 		typeRefHolder->registerAbsLink(classType);
 		typeRefHolder->registerAbsLink(voidType);
 
-		auto functionHolder = reinterpret_cast<FunctionObject**>(context.allocateOnHeap(functionType->sizeOf()));
+		auto functionHolder = reinterpret_cast<FunctionObject**>(vm.allocateOnHeap(functionType->sizeOf()));
 		*functionHolder = std::get<0>(function);
 
-		return Variable(context, TypedPtr(functionHolder, *functionType));
+		return Variable(vm, TypedPtr(functionHolder, *functionType));
 	}
 }

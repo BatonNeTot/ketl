@@ -5,7 +5,7 @@
 
 namespace Ketl {
 
-	void* TypedPtr::as(std::type_index typeIndex, Context& context) const {
+	void* TypedPtr::as(std::type_index typeIndex, VirtualMachine& vm) const {
 		// TODO
 		/*
 		auto typeVarIt = context._userTypes.find(typeIndex);

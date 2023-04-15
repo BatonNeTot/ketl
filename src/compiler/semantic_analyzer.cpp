@@ -2,6 +2,7 @@
 #include "semantic_analyzer.h"
 
 #include "context.h"
+#include "ketl.h"
 
 #include <sstream>
 
@@ -17,7 +18,7 @@ namespace Ketl {
 	bool InstructionSequence::verifyReturn() {
 		if (_hasReturnStatement && !_raisedAfterReturnError) {
 			_raisedAfterReturnError = true;
-			_context.pushErrorMsg("[WARNING] Statements after return");
+			_analyzer.pushErrorMsg("[WARNING] Statements after return");
 		}
 
 		return !_raisedAfterReturnError;
@@ -45,13 +46,13 @@ namespace Ketl {
 
 	CompilerVar InstructionSequence::createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression) {
 		// TODO get const and ref
-		auto var = _context.createVar(id, type, { false, false });
+		auto var = _analyzer.createVar(id, type, { false, false });
 
 		if (expression) {
 			auto instruction = std::make_unique<FullInstruction>();
 
 			instruction->code = Instruction::Code::Assign;
-			instruction->arguments.emplace_back(_context.createLiteralVar(expression->getType()->sizeOf()).argument);
+			instruction->arguments.emplace_back(_analyzer.createLiteralVar(expression->getType()->sizeOf()).argument);
 			instruction->arguments.emplace_back(expression);
 			instruction->arguments.emplace_back(var.argument);
 
@@ -69,7 +70,7 @@ namespace Ketl {
 		auto allocInstruction = std::make_unique<FullInstruction>();
 		allocInstruction->code = Instruction::Code::AllocateFunctionStack;
 
-		auto stackVar = _context.createTempVar(*_context.context().getVariable("UInt64").as<TypeObject>());
+		auto stackVar = _analyzer.createTempVar(*_analyzer.vm().getVariable("UInt64").as<TypeObject>());
 		allocInstruction->arguments.emplace_back(functionVar);
 		allocInstruction->arguments.emplace_back(stackVar);
 
@@ -91,13 +92,13 @@ namespace Ketl {
 
 			defineInstruction->arguments.emplace_back(argumentVar);
 			defineInstruction->arguments.emplace_back(stackVar);
-			defineInstruction->arguments.emplace_back(_context.createFunctionArgumentVar(i));
+			defineInstruction->arguments.emplace_back(_analyzer.createFunctionArgumentVar(i));
 
 			_rawInstructions.emplace_back(std::move(defineInstruction));
 		}
 
 		auto& returnType = *functionType->getReturnType();
-		auto outputVar = _context.createTempVar(returnType);
+		auto outputVar = _analyzer.createTempVar(returnType);
 
 		// calling the function
 		auto callInstruction = std::make_unique<FullInstruction>();
@@ -115,8 +116,8 @@ namespace Ketl {
 	class IfElseInstruction : public RawInstruction {
 	public:
 
-		IfElseInstruction(SemanticAnalyzer& context)
-			: _conditionSeq(context), _trueBlockSeq(context), _falseBlockSeq(context) {}
+		IfElseInstruction(SemanticAnalyzer& analyzer)
+			: _conditionSeq(analyzer), _trueBlockSeq(analyzer), _falseBlockSeq(analyzer) {}
 
 		void propagadeInstruction(InstructionIterator instructions) const override {
 			_conditionSeq.propagadeInstruction(instructions);
@@ -216,16 +217,16 @@ namespace Ketl {
 	};
 
 	void InstructionSequence::createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock) {
-		auto ifElseInstruction = std::make_unique<IfElseInstruction>(_context);
+		auto ifElseInstruction = std::make_unique<IfElseInstruction>(_analyzer);
 
-		auto conditionVar = condition.produceInstructions(ifElseInstruction->conditionSeq(), _context);
+		auto conditionVar = condition.produceInstructions(ifElseInstruction->conditionSeq(), _analyzer);
 		ifElseInstruction->setConditionVar(conditionVar.getUVar().getVarAsItIs().argument);
 
 		if (trueBlock) {
-			trueBlock->produceInstructions(ifElseInstruction->trueBlockSeq(), _context);
+			trueBlock->produceInstructions(ifElseInstruction->trueBlockSeq(), _analyzer);
 		}
 		if (falseBlock) {
-			falseBlock->produceInstructions(ifElseInstruction->falseBlockSeq(), _context);
+			falseBlock->produceInstructions(ifElseInstruction->falseBlockSeq(), _analyzer);
 		}
 
 		_rawInstructions.emplace_back(std::move(ifElseInstruction));
@@ -234,8 +235,8 @@ namespace Ketl {
 	class WhileElseInstruction : public RawInstruction {
 	public:
 
-		WhileElseInstruction(SemanticAnalyzer& context)
-			: _conditionSeq(context), _loopBlockSeq(context), _elseBlockSeq(context) {}
+		WhileElseInstruction(SemanticAnalyzer& analyzer)
+			: _conditionSeq(analyzer), _loopBlockSeq(analyzer), _elseBlockSeq(analyzer) {}
 
 		void propagadeInstruction(InstructionIterator instructions) const override {
 			_conditionSeq.propagadeInstruction(instructions);
@@ -346,16 +347,16 @@ namespace Ketl {
 	};
 
 	void InstructionSequence::createWhileElseBranches(const IRNode& condition, const IRNode* loopBlock, const IRNode* elseBlock) {
-		auto whileElseInstruction = std::make_unique<WhileElseInstruction>(_context);
+		auto whileElseInstruction = std::make_unique<WhileElseInstruction>(_analyzer);
 
-		auto conditionVar = condition.produceInstructions(whileElseInstruction->conditionSeq(), _context);
+		auto conditionVar = condition.produceInstructions(whileElseInstruction->conditionSeq(), _analyzer);
 		whileElseInstruction->setConditionVar(conditionVar.getUVar().getVarAsItIs().argument);
 
 		if (loopBlock) {
-			loopBlock->produceInstructions(whileElseInstruction->loopBlockSeq(), _context);
+			loopBlock->produceInstructions(whileElseInstruction->loopBlockSeq(), _analyzer);
 		}
 		if (elseBlock) {
-			elseBlock->produceInstructions(whileElseInstruction->elseBlockSeq(), _context);
+			elseBlock->produceInstructions(whileElseInstruction->elseBlockSeq(), _analyzer);
 		}
 
 		_rawInstructions.emplace_back(std::move(whileElseInstruction));
@@ -363,7 +364,7 @@ namespace Ketl {
 
 	void InstructionSequence::createReturnStatement(UndeterminedDelegate expression) {
 		if (_hasReturnStatement) {
-			_context.pushErrorMsg("[ERROR] Multiple return statements");
+			_analyzer.pushErrorMsg("[ERROR] Multiple return statements");
 			return;
 		}
 
@@ -381,7 +382,7 @@ namespace Ketl {
 		if (_hasReturnStatement) {
 			FullInstruction instruction;
 			instruction.code = Instruction::Code::ReturnValue;
-			instruction.arguments.emplace_back(_context.createLiteralVar(_returnExpression.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
+			instruction.arguments.emplace_back(_analyzer.createLiteralVar(_returnExpression.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
 			instruction.arguments.emplace_back(_returnExpression.getUVar().getVarAsItIs().argument);
 			instruction.propagadeInstruction(instructions + offset);
 		}
@@ -392,13 +393,17 @@ namespace Ketl {
 		}
 	}
 
-	SemanticAnalyzer::SemanticAnalyzer(Context& context, SemanticAnalyzer* parentContext)
-		: _context(context), _localScope(parentContext != nullptr)
-		, _undefinedArgument(context), _undefinedVar(&_undefinedArgument, false, {true, false}) {
+	SemanticAnalyzer::SemanticAnalyzer(VirtualMachine& vm, SemanticAnalyzer* parentAnalyzer)
+		: _vm(vm), _localScope(parentAnalyzer != nullptr)
+		, _undefinedArgument(vm), _undefinedVar(&_undefinedArgument, false, {true, false}) {
 		_rootLocal = &_localVars.emplace_back();
 		_currentLocal = _rootLocal;
 
 		_localsByName.emplace_back();
+	}
+
+	SemanticAnalyzer::UndefinedArgument::UndefinedArgument(VirtualMachine& vm) {
+		_type = vm.getVariable("Void").as<TypeObject>();
 	}
 
 	void SemanticAnalyzer::pushScope() {
@@ -415,7 +420,7 @@ namespace Ketl {
 	CompilerVar SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions) {
 		// TODO actual deducing
 		std::string argumentsNotation = std::string("Int64,Int64");
-		auto primaryOperatorPair = context().deducePrimaryOperator(code, argumentsNotation);
+		auto primaryOperatorPair = vm()._context.deducePrimaryOperator(code, argumentsNotation);
 
 		if (primaryOperatorPair.first == Instruction::Code::None) {
 
@@ -430,7 +435,7 @@ namespace Ketl {
 		switch (primaryOperatorPair.first) {
 			case Instruction::Code::IsStructEqual:
 			case Instruction::Code::IsStructNonEqual:
-				output = createTempVar(*context().getVariable("Int64").as<TypeObject>());
+				output = createTempVar(*vm().getVariable("Int64").as<TypeObject>());
 				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
 				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
@@ -443,7 +448,7 @@ namespace Ketl {
 				instruction->arguments.emplace_back(output);
 				break;
 			default:
-				output = createTempVar(*context().getVariable("Int64").as<TypeObject>());
+				output = createTempVar(*vm().getVariable("Int64").as<TypeObject>());
 				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(output);
@@ -549,9 +554,9 @@ namespace Ketl {
 
 	class UnsignedLiteralArgument : public RawArgument {
 	public:
-		UnsignedLiteralArgument(uint64_t value, SemanticAnalyzer& context)
+		UnsignedLiteralArgument(uint64_t value, SemanticAnalyzer& analyzer)
 			: _value(value) {
-			_type = context.context().getVariable("Int64").as<TypeObject>();
+			_type = analyzer.vm().getVariable("Int64").as<TypeObject>();
 		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
@@ -580,9 +585,9 @@ namespace Ketl {
 	class LiteralArgument : public RawArgument {
 	public:
 		// TODO
-		LiteralArgument(const std::string_view& value, SemanticAnalyzer& context)
+		LiteralArgument(const std::string_view& value, SemanticAnalyzer& analyzer)
 			: _value(value) {
-			_type = context.context().getVariable("Int64").as<TypeObject>();
+			_type = analyzer.vm().getVariable("Int64").as<TypeObject>();
 		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
@@ -758,7 +763,7 @@ namespace Ketl {
 			return globalIt->second;
 		}
 
-		auto globalVar = _context.getVariable(id);
+		auto globalVar = vm().getVariable(id);
 		if (!globalVar.empty()) {
 			UndeterminedVar uvar;
 			for (auto& var : globalVar._vars) {
@@ -790,7 +795,7 @@ namespace Ketl {
 			return var;
 		}
 		else {
-			if (!_context.getVariable(id).empty()) {
+			if (!vm().getVariable(id).empty()) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
 				return _undefinedVar;
 			}
@@ -854,20 +859,9 @@ namespace Ketl {
 		return ss.str();
 	}
 
-	Variable SemanticAnalyzer::evaluate(const IRNode& node) {
-		// TODO evalutaion right now is quite raw
-
-		// TODO
-		// So, we need to compile and run it, BUT we need to use context which we didn't bake yet
-		// what about we separate BAKE and COMPILE, so that we can compile without baking.
-		// which is kinda already the thing, because baking only adds names into global name space
-
-		return context().getVariable("Int64");
-	}
-
 	const TypeObject* SemanticAnalyzer::evaluateType(const IRNode& node) {
 		
-		return context().getVariable("Int64").as<TypeObject>();
+		return vm().getVariable("Int64").as<TypeObject>();
 	}
 
 	void SemanticAnalyzer::bakeLocalVars() {
@@ -920,7 +914,7 @@ namespace Ketl {
 			auto& variants = var.second.getVariants();
 			for (auto& variant : variants) {
 				auto& type = *variant.argument->getType();
-				void* ptr = _context.allocateGlobal(var.first, type);
+				void* ptr = _vm.allocateGlobal(var.first, type);
 				if (ptr == nullptr) {
 					std::string id(var.first);
 					pushErrorMsg("[ERROR] Variable " + id + " already exists");
@@ -941,7 +935,7 @@ namespace Ketl {
 		bakeLocalVars();
 
 		auto rawInstructionCount = mainSequence.countInstructions();
-		auto [functionPtr, functionRefs] = context().createObject<FunctionObject>(context()._alloc, false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
+		auto [functionPtr, functionRefs] = vm().createObject<FunctionObject>(vm()._memory.alloc(), false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
 
 		bakeContext();
 		if (hasCompilationErrors()) {
