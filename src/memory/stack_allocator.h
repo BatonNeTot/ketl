@@ -2,12 +2,11 @@
 #ifndef stack_allocator_h
 #define stack_allocator_h
 
-#include "default_allocator.h"
-
 #include <iostream>
 
 namespace Ketl {
 
+	template <typename Allocator>
 	class StackAllocator {
 	public:
 
@@ -42,6 +41,7 @@ namespace Ketl {
 			}
 			if (size > _blockSize) {
 				std::cerr << "Not enough space in blockSize" << std::endl;
+				__debugbreak();
 				return nullptr;
 			}
 
@@ -70,6 +70,7 @@ namespace Ketl {
 		void deallocate(ptrdiff_t offset) {
 			if (offset && _currentBlock == nullptr) {
 				std::cerr << "Tried deallocate more than allocated" << std::endl;
+				__debugbreak();
 				return;
 			}
 
@@ -81,6 +82,7 @@ namespace Ketl {
 
 				if (removedOffset == 0) {
 					std::cerr << "Tried deallocate more than allocated" << std::endl;
+					__debugbreak();
 					break;
 				}
 

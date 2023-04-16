@@ -18,7 +18,7 @@ namespace Ketl {
 			return _alloc;
 		}
 
-		StackAllocator& stack() {
+		StackAllocator<Allocator>& stack() {
 			return _stack;
 		}
 
@@ -32,18 +32,44 @@ namespace Ketl {
 		}
 
 		template <typename T>
+		inline void unregisterAbsRoot(const T* ptr) {
+			_heap.unregisterAbsRoot(ptr);
+		}
+
+		template <typename T>
 		inline void registerRefRoot(const T* const* pptr) {
 			_heap.registerRefRoot(pptr);
 		}
 
+		template <typename T>
+		inline void unregisterRefRoot(const T* const* pptr) {
+			_heap.unregisterRefRoot(pptr);
+		}
+
+		template <typename T1, typename T2>
+		inline void registerAbsLink(const T1* t1ptr, const T2* t2ptr) {
+			_heap.registerAbsLink(t1ptr, t2ptr);
+		}
+		template <typename T1, typename T2>
+		inline void registerRefLink(const T1* t1ptr, const T2* const* t2pptr) {
+			_heap.registerAbsLink(t1ptr, t2pptr);
+		}
+
+		auto& registerMemory(void* ptr, size_t size) {
+			return _heap.registerMemory(ptr, size);
+		}
 		auto& registerMemory(void* ptr, size_t size, auto finalizer) {
 			return _heap.registerMemory(ptr, size, finalizer);
 		}
 
+		size_t collectGarbage() {
+			return _heap.collectGarbage();
+		}
+
 	private:
 		Allocator _alloc;
-		StackAllocator _stack;
-		GCAllocator _heap;
+		StackAllocator<Allocator> _stack;
+		GCAllocator<Allocator> _heap;
 	};
 
 }

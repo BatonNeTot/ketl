@@ -31,6 +31,10 @@ namespace Ketl {
 		auto functionHolder = reinterpret_cast<FunctionObject**>(vm.allocateOnHeap(functionType->sizeOf()));
 		*functionHolder = std::get<0>(function);
 
-		return Variable(vm, TypedPtr(functionHolder, *functionType));
+		vm._memory.registerAbsLink(*functionHolder, functionType);
+
+		Variable functionVariable(vm, TypedPtr(functionHolder, *functionType));
+		vm.collectGarbage();
+		return functionVariable;
 	}
 }

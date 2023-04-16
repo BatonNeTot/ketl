@@ -935,7 +935,11 @@ namespace Ketl {
 		bakeLocalVars();
 
 		auto rawInstructionCount = mainSequence.countInstructions();
-		auto [functionPtr, functionRefs] = vm().createObject<FunctionObject>(vm()._memory.alloc(), false, _stackSize, static_cast<uint32_t>(rawInstructionCount));
+
+		auto intructions = vm().createArray<Instruction>(rawInstructionCount).first;
+
+		auto [functionPtr, functionRefs] = vm().createObject<FunctionObject>(false, _stackSize, intructions, static_cast<uint32_t>(rawInstructionCount));
+		functionRefs->registerAbsLink(intructions);
 
 		bakeContext();
 		if (hasCompilationErrors()) {

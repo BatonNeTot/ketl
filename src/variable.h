@@ -12,14 +12,12 @@ namespace Ketl {
 	class Variable {
 	public:
 
-		Variable(VirtualMachine& vm)
-			: _vm(vm) {}
-		Variable(VirtualMachine& vm, const TypedPtr& var)
-			: _vm(vm) {
-			_vars.emplace_back(var);
-		}
-		Variable(VirtualMachine& vm, std::vector<TypedPtr>&& vars)
-			: _vm(vm), _vars(std::move(vars)) {}
+		Variable(VirtualMachine& vm);
+		Variable(VirtualMachine& vm, const TypedPtr& var);
+		Variable(VirtualMachine& vm, std::vector<TypedPtr>&& vars);
+		Variable(const Variable& variable);
+		Variable(Variable&& variable);
+		~Variable();
 
 		template <typename ...Args>
 		Variable operator()(Args&& ...args) const;

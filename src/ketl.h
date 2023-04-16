@@ -53,6 +53,7 @@ namespace Ketl {
 			auto ptr = _memory.allocateOnStack(type.sizeOf());
 
 			vars.emplace_back(ptr, type);
+			_memory.registerAbsRoot(&type);
 			if (type.isLight()) {
 				_memory.registerRefRoot(reinterpret_cast<void**>(ptr));
 			}
@@ -72,11 +73,24 @@ namespace Ketl {
 
 		template <typename T, typename... Args>
 		inline auto createObject(Args&&... args) {
-			constexpr auto size = sizeof(T);
-			auto ptr = reinterpret_cast<T*>(_memory.alloc().allocate(size));
+			constexpr auto typeSize = sizeof(T);
+			auto ptr = reinterpret_cast<T*>(_memory.alloc().allocate(typeSize));
 			new(ptr) T(std::forward<Args>(args)...);
-			auto& links = _memory.registerMemory(ptr, size, &dtor<T>);
+			auto& links = _memory.registerMemory(ptr, typeSize, &dtor<T>);
 			return std::make_pair(ptr, &links);
+		}
+
+		template <typename T>
+		inline auto createArray(size_t size) {
+			constexpr auto typeSize = sizeof(T);
+			const auto totalSize = size * typeSize;
+			auto ptr = reinterpret_cast<T*>(_memory.alloc().allocate(totalSize));
+			auto& links = _memory.registerMemory(ptr, totalSize);
+			return std::make_pair(ptr, &links);
+		}
+
+		size_t collectGarbage() {
+			return _memory.collectGarbage();
 		}
 
 	private:

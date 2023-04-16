@@ -93,6 +93,7 @@ namespace Ketl {
 	private:
 
 		friend class Context;
+		friend class Variable;
 
 		void* _ptr = nullptr;
 		const TypeObject* _type = nullptr;

@@ -30,7 +30,7 @@ namespace Ketl {
 		return 0 == memcmp(lhs, rhs, size);
 	}
 
-	void FunctionObject::call(StackAllocator& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
+	void FunctionObject::call(StackAllocator<Allocator>& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {
 		uint64_t& index = *reinterpret_cast<uint64_t*>(stackPtr);
 		stackPtr += sizeof(index);
 		for (index = 0u;;) {
