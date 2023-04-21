@@ -5,7 +5,7 @@ static auto registerTests = []() {
 
 	registerSpeedTest("Random if statement", [](uint64_t N, double& ketlTime, double& luaTime) {
 		auto randValue = []() {
-			return (rand() >> 1) % 2;
+			return rand() % 2;
 		};
 
 		Ketl::VirtualMachine vm(4096);

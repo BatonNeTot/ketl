@@ -22,7 +22,7 @@ Ketl is a strong type script language. So, most of the checks are made before ru
 ** - Check can be enabled before compilation
 </sup>
 
-### Early tests shows, that ketl is around 1.2 times faster than LuaJIT in random operations!
+### Early tests shows, that ketl is around 1.2 times faster than LuaJIT in random operations! (sometimes)
 
 ## It's flexible (diabetes caution)
 

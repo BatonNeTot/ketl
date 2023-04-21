@@ -3,25 +3,28 @@
 
 static auto registerTests = []() {
 
-	registerSpeedTest("Function call", [](uint64_t N, double& ketlTime, double& luaTime) {
+	registerSpeedTest("Fibonacci", [](uint64_t N, double& ketlTime, double& luaTime) {
 		auto randValue = []() {
-			return rand() % 10;
+			return 10 + (rand() % 10);
 		};
 
 		Ketl::VirtualMachine vm(4096);
 
-		int64_t value = 0u;
-		vm.declareGlobal("value", &value);
+		int64_t index;
+		vm.declareGlobal("index", &index);
 
 		auto evaluationResult = vm.eval(R"(
 			return () -> {
-				var testValue2 = 1 + 2;
+				var first = 0;
+				var second = 1;
+				var counter = 0;
 
-				Int64 adder(in Int64 x, in Int64 y) {
-					return x + y;
+				while (counter != index) {
+					var third = first + second;
+					first = second;
+					second = third;
+					counter = counter + 1;
 				}
-
-				var testValue = adder(value, 9);
 			};
 		)");
 
@@ -34,7 +37,7 @@ static auto registerTests = []() {
 		{
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {
-				value = randValue();
+				index = randValue();
 				command();
 			}
 			auto finish = std::chrono::high_resolution_clock::now();
@@ -45,13 +48,14 @@ static auto registerTests = []() {
 		L = luaL_newstate();
 
 		luaL_loadstring(L, R"(
-			local testValue2 = 1 + 2
+			local first = 0
+			local second = 1
 
-			local function test(x, y)
-				return x + y
+			for i=1,(index - 1) do
+				local third = first + second
+				first = second
+				second = third
 			end
-
-			local testValue = test(value, 9)
 		)");
 
 
@@ -59,7 +63,7 @@ static auto registerTests = []() {
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {
 				lua_pushinteger(L, randValue());
-				lua_setglobal(L, "value");
+				lua_setglobal(L, "index");
 				lua_pushvalue(L, -1);
 				lua_call(L, 0, 0);
 			}

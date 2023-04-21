@@ -14,7 +14,9 @@
 
 int main(int argc, char** argv) {
 	launchCheckTests();
+#ifdef NDEBUG
 	launchSpeedTests(10000000);
+#endif
 
 	Ketl::VirtualMachine vm(4096);
 
