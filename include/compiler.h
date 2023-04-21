@@ -6,7 +6,6 @@
 #include "variable.h"
 
 #include "compiler/parser.h"
-#include "compiler/semantic_analyzer.h"
 
 #include <variant>
 
@@ -17,7 +16,9 @@ namespace Ketl {
 	class Compiler {
 	public:
 
-		std::variant<Variable, std::string> compile(const std::string_view& str, VirtualMachine& vm);
+		using Product = std::variant<Variable, std::string>;
+
+		Product eval(const std::string_view& str, VirtualMachine& vm);
 
 	private:
 		Parser _parser;

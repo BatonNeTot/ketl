@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
 	int64_t sum = 0;
 	vm.declareGlobal("sum", &sum);
 
-	auto compilationResult = vm.compile(R"(
+	auto compilationResult = vm.eval(R"(
 	sum = 0;
 
 	while (sum != 3) {
@@ -35,9 +35,6 @@ int main(int argc, char** argv) {
 		std::cerr << std::get<std::string>(compilationResult) << std::endl;
 		return -1;
 	}
-
-	auto& command = std::get<0>(compilationResult);
-	command();
 
 	assert(sum == 3);
 

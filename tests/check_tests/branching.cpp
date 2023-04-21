@@ -9,7 +9,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 3;
 
 			if (sum == 3) {
@@ -23,9 +23,6 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}
-
-		auto& command = std::get<0>(compilationResult);
-		command();
 
 		return sum == 5;
 		});
@@ -36,7 +33,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 4;
 
 			if (sum == 3) {
@@ -51,9 +48,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 7;
 		});
 
@@ -63,7 +57,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 3;
 
 			if (sum == 3) {
@@ -76,9 +70,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 5;
 		});
 
@@ -88,7 +79,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 3;
 
 			if (sum == 3) {} else {
@@ -101,9 +92,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 3;
 		});
 
@@ -113,7 +101,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 4;
 
 			if (sum == 3) {} else {
@@ -126,9 +114,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 5;
 		});
 
@@ -138,7 +123,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 0;
 			var first = 3;
 			var second = 4;
@@ -153,9 +138,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 4;
 		});
 
@@ -165,7 +147,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 0;
 
 			while (sum != 3) {
@@ -177,9 +159,6 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}
-
-		auto& command = std::get<0>(compilationResult);
-		command();
 
 		return sum == 3;
 		});
@@ -192,7 +171,7 @@ static auto registerTests = []() {
 		int64_t test = 0;
 		vm.declareGlobal("test", &test);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 3;
 			test = 0;
 
@@ -207,9 +186,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 3 && test == 0;
 		});
 
@@ -221,7 +197,7 @@ static auto registerTests = []() {
 		int64_t test = 0;
 		vm.declareGlobal("test", &test);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 0;
 			test = 0;
 
@@ -239,9 +215,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 3 && test == 1;
 		});
 
@@ -253,7 +226,7 @@ static auto registerTests = []() {
 		int64_t test = 0;
 		vm.declareGlobal("test", &test);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			sum = 3;
 			test = 0;
 
@@ -270,9 +243,6 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}
-
-		auto& command = std::get<0>(compilationResult);
-		command();
 
 		return sum == 7 && test == 2;
 		});

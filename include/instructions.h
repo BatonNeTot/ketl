@@ -77,7 +77,7 @@ namespace Ketl {
 			3,	//ReturnValue,
 		};
 
-		static inline uint8_t getCodeSize(Code code) {
+		static constexpr inline uint8_t getCodeSize(Code code) {
 			return Instruction::CodeSizes[static_cast<uint8_t>(code)];
 		}
 

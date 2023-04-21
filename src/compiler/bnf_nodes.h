@@ -2,7 +2,7 @@
 #ifndef compiler_bnf_nodes_h
 #define compiler_bnf_nodes_h
 
-#include "parser.h"
+#include "compiler/parser.h"
 
 #include <format>
 

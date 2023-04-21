@@ -2,9 +2,9 @@
 #ifndef compiler_semantic_analyzer_h
 #define compiler_semantic_analyzer_h
 
-#include "common.h"
-#include "parser.h"
+#include "compiler/parser.h"
 #include "context.h"
+#include "common.h"
 
 #include <stack>
 #include <map>
@@ -161,83 +161,13 @@ namespace Ketl {
 
 	class RawInstruction {
 	public:
-		virtual void propagadeInstruction(InstructionIterator instructions) const = 0;
+		virtual uint64_t propagadeInstruction(InstructionIterator instructions) const = 0;
 		virtual uint64_t countInstructions() const = 0;
-		virtual void fillReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const {};
+		virtual bool collectReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const { return false; }
+		virtual bool bakeReturnType(const TypeObject& type) { return true; }
 	};
 
-	class FullInstruction : public RawInstruction {
-	public:
-		Instruction::Code code = Instruction::Code::None;
-		std::list<RawArgument*> arguments;
-
-		void propagadeInstruction(InstructionIterator instructions) const override {
-			if (countInstructions() != arguments.size() + 1) {
-				__debugbreak();
-			}
-			instructions->argument(0).uinteger = 0;
-			instructions->code() = code;
-			auto counter = 0u;
-			for (const auto& argument : arguments) {
-				++counter;
-				std::tie(instructions->argumentType(counter), instructions->argument(counter)) = argument->getArgument();
-			}
-		}
-		uint64_t countInstructions() const override { return Instruction::getCodeSize(code); }
-
-	};
-
-	class InstructionSequence : public RawInstruction {
-	public:
-
-		InstructionSequence(SemanticAnalyzer& analyzer, bool mainSequence = false)
-			: _analyzer(analyzer), _mainSequence(mainSequence) {}
-
-		FullInstruction* createFullInstruction();
-		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
-
-		RawArgument* createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments);
-
-		void createIfElseBranches(const IRNode& condition, const IRNode* trueBlock, const IRNode* falseBlock);
-		void createWhileElseBranches(const IRNode& condition, const IRNode* loopBlock, const IRNode* elseBlock);
-
-		void createReturnStatement(UndeterminedDelegate expression);
-
-		void propagadeInstruction(InstructionIterator instructions) const override;
-
-		uint64_t countInstructions() const {
-			uint64_t sum = 0u;
-			for (const auto& rawInstruction : _rawInstructions) {
-				sum += rawInstruction->countInstructions();
-			}
-			if (!_returnExpression.getUVar().empty()) {
-				sum += Instruction::getCodeSize(Instruction::Code::ReturnValue);
-			}
-			else if (_mainSequence) {
-				sum += Instruction::getCodeSize(Instruction::Code::Return);
-			}
-			return sum;
-		}
-
-		void fillReturnStatements(std::list<UndeterminedDelegate>& returnInstructions) const override {
-			returnInstructions.emplace_back(_returnExpression);
-			for (const auto& rawInstruction : _rawInstructions) {
-				rawInstruction->fillReturnStatements(returnInstructions);
-			}
-		}
-
-	private:
-
-		bool verifyReturn();
-
-		bool _mainSequence = false;
-		bool _hasReturnStatement = false;
-		bool _raisedAfterReturnError = false;
-		UndeterminedDelegate _returnExpression;
-		SemanticAnalyzer& _analyzer;
-		std::vector<std::unique_ptr<RawInstruction>> _rawInstructions;
-
-	};
+	class InstructionSequence;
 
 	enum class TypeAccessModifier : uint8_t {
 		Public,
@@ -271,10 +201,11 @@ namespace Ketl {
 	class SemanticAnalyzer {
 	public:
 
-		SemanticAnalyzer(VirtualMachine& vm, SemanticAnalyzer* parentAnalyzer = nullptr);
+		SemanticAnalyzer(VirtualMachine& vm, SemanticAnalyzer* parentAnalyzer, bool global);
 		~SemanticAnalyzer() = default;
 
-		std::variant<FunctionObject*, std::string> compile(const IRNode& block)&&;
+		using CompilationProduct = std::variant<std::pair<FunctionObject*, const TypeObject*>, std::string>;
+		CompilationProduct compile(const IRNode& block, const TypeObject* returnType)&&;
 
 		void bakeLocalVars();
 		void bakeContext();
@@ -292,7 +223,7 @@ namespace Ketl {
 		RawArgument* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
 		CompilerVar deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions);
 		UndeterminedDelegate deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions);
-		const TypeObject* deduceCommonType(const std::vector<UndeterminedDelegate>& vars);
+		const TypeObject* deduceCommonType(const std::list<UndeterminedDelegate>& vars);
 
 
 		UndeterminedVar getVar(const std::string_view& id);

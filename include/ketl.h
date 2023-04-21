@@ -63,8 +63,8 @@ namespace Ketl {
 			return reinterpret_cast<T*>(ptr);
 		}
 
-		inline auto compile(const std::string_view& source) {
-			return _compiler.compile(source, *this);
+		inline Compiler::Product eval(const std::string_view& source) {
+			return _compiler.eval(source, *this);
 		}
 
 		inline Variable getVariable(const std::string_view& id) {
@@ -127,12 +127,24 @@ namespace Ketl {
 
 
 		auto function = *reinterpret_cast<FunctionObject**>(_vars[0].rawData());
+		auto* returnType = _vars[0].type().getReturnType();
 
-		auto stackPtr = _vm._memory.stack().allocate(function->stackSize());
-		function->call(_vm._memory.stack(), stackPtr, nullptr);
-		_vm._memory.stack().deallocate(function->stackSize());
+		if (!returnType || returnType->sizeOf() == 0) {
+			auto stackPtr = _vm._memory.stack().allocate(function->stackSize());
+			function->call(_vm._memory.stack(), stackPtr, nullptr);
+			_vm._memory.stack().deallocate(function->stackSize());
 
-		return Variable(_vm);
+			return Variable(_vm);
+		}
+		else {
+			auto returnHolder = reinterpret_cast<uint8_t*>(_vm.allocateOnHeap(returnType->sizeOf()));
+
+			auto stackPtr = _vm._memory.stack().allocate(function->stackSize());
+			function->call(_vm._memory.stack(), stackPtr, returnHolder);
+			_vm._memory.stack().deallocate(function->stackSize());
+
+			return Variable(_vm, TypedPtr(returnHolder, *returnType));
+		}
 	}
 }
 

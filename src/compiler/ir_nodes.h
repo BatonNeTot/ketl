@@ -2,7 +2,7 @@
 #ifndef compiler_ir_nodes_h
 #define compiler_ir_nodes_h
 
-#include "parser.h"
+#include "compiler/parser.h"
 
 #include "semantic_analyzer.h"
 

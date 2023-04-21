@@ -22,7 +22,7 @@ Ketl is a strong type script language. So, most of the checks are made before ru
 ** - Check can be enabled before compilation
 </sup>
 
-### Early tests shows, that ketl is 1.2 times faster than LuaJIT in random operations!
+### Early tests shows, that ketl is around 1.2 times faster than LuaJIT in random operations!
 
 ## It's flexible (diabetes caution)
 
@@ -37,4 +37,4 @@ Included debuger options help you maintain your code with:
 
 * Breakpoints through API
 * Changing your code or code state while in break
-* Tools to pack your client's state and send it to you for detailed debug 
+* Tools to dump your client's state and send it to you for detailed debug 

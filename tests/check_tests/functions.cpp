@@ -9,7 +9,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			var adder = () -> {
 				sum = 11;
 			};
@@ -19,9 +19,6 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}
-
-		auto& command = std::get<0>(compilationResult);
-		command();
 
 		auto adder = vm.getVariable("adder");
 		if (adder.empty()) {
@@ -39,7 +36,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			var adder = () -> {
 				sum = 11;
 			};
@@ -52,9 +49,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 11u;
 		});
 
@@ -65,7 +59,7 @@ static auto registerTests = []() {
 		vm.declareGlobal("sum", &sum);
 
 		{
-			auto compilationResult = vm.compile(R"(
+			auto compilationResult = vm.eval(R"(
 			var adder = () -> {
 				sum = 11;
 			};
@@ -75,13 +69,10 @@ static auto registerTests = []() {
 				std::cerr << std::get<std::string>(compilationResult) << std::endl;
 				return false;
 			}
-
-			auto& command = std::get<0>(compilationResult);
-			command();
 		}
 
 		{
-			auto compilationResult = vm.compile(R"(
+			auto compilationResult = vm.eval(R"(
 			adder();
 		)");
 
@@ -89,9 +80,6 @@ static auto registerTests = []() {
 				std::cerr << std::get<std::string>(compilationResult) << std::endl;
 				return false;
 			}
-
-			auto& command = std::get<0>(compilationResult);
-			command();
 		}
 
 		return sum == 11u;
@@ -103,7 +91,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			var adder = (Int64 x, Int64 y) -> {
 				sum = x + y;
 			};
@@ -116,9 +104,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 18u;
 		});
 
@@ -128,7 +113,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			Void adder(Int64 x, Int64 y) {
 				sum = x + y;
 			};
@@ -141,9 +126,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 18u;
 		});
 
@@ -153,7 +135,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				return x + y;
 			};
@@ -166,9 +148,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 18u;
 		});
 
@@ -178,7 +157,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				var sum = x + y;
 				return sum;
@@ -196,9 +175,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 15u;
 		});
 
@@ -208,7 +184,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				var sum = x + y;
 				return sum;
@@ -222,9 +198,6 @@ static auto registerTests = []() {
 			return false;
 		}
 
-		auto& command = std::get<0>(compilationResult);
-		command();
-
 		return sum == 15u;
 		});
 
@@ -234,7 +207,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		vm.declareGlobal("sum", &sum);
 
-		auto compilationResult = vm.compile(R"(
+		auto compilationResult = vm.eval(R"(
 			Int64 adder(Int64 x, Int64 y) {
 				return x + y;
 			};
@@ -246,9 +219,6 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}
-
-		auto& command = std::get<0>(compilationResult);
-		command();
 
 		return sum == 15u;
 		});

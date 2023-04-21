@@ -1,6 +1,7 @@
 ﻿/*🍲Ketl🍲*/
 #include "ir_nodes.h"
 
+#include "raw_instructions.h"
 #include "bnf_nodes.h"
 #include "ketl.h"
 
@@ -110,16 +111,12 @@ namespace Ketl {
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const override {
-			SemanticAnalyzer localAnalyzer(analyzer.vm(), &analyzer);
+			SemanticAnalyzer localAnalyzer(analyzer.vm(), &analyzer, false);
 
 			const TypeObject* returnType = nullptr; 
 			if (_outputType) {
 				returnType = analyzer.evaluateType(*_outputType);
 			}
-			else {
-				// TODO deduce from block
-				returnType = analyzer.vm().getVariable("Int64").as<TypeObject>();
-			} 
 			std::vector<FunctionTypeObject::Parameter> parameters;
 			
 			uint64_t counter = 0u;
@@ -129,11 +126,14 @@ namespace Ketl {
 				parameters.emplace_back(type, parameter.traits);
 			}
 
-			auto function = std::move(localAnalyzer).compile(*_block);
-			if (std::holds_alternative<std::string>(function)) {
-				analyzer.pushErrorMsg(std::get<std::string>(function));
+			auto compilationResult = std::move(localAnalyzer).compile(*_block, returnType);
+			if (std::holds_alternative<std::string>(compilationResult)) {
+				analyzer.pushErrorMsg(std::get<std::string>(compilationResult));
 				return analyzer._undefinedVar;
 			}
+
+			FunctionObject* function;
+			std::tie(function, returnType) = std::get<0>(compilationResult);
 			
 			auto classType = analyzer.vm().getVariable("ClassType").as<TypeObject>();
 			auto [functionType, typeRefHolder] = analyzer.vm().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
@@ -143,7 +143,7 @@ namespace Ketl {
 				typeRefHolder->registerAbsLink(type.type);
 			}
 
-			return analyzer.createLiteralClassVar(std::get<0>(function), *functionType);
+			return analyzer.createLiteralClassVar(function, *functionType);
 		};
 
 	private:

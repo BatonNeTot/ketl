@@ -1,5 +1,5 @@
 ﻿/*🍲Ketl🍲*/
-#include "parser.h"
+#include "compiler/parser.h"
 
 #include "semantic_analyzer.h"
 #include "bnf_nodes.h"

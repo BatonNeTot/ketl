@@ -13,22 +13,24 @@ static auto registerTests = []() {
 		int64_t value = 0u;
 		vm.declareGlobal("value", &value);
 
-		auto compilationResult = vm.compile(R"(
-			var testValue = 0;
+		auto evaluationResult = vm.eval(R"(
+			return () -> {
+				var testValue = 0;
 
-			if (value) {
-				testValue = 1;
-			} else {
-				testValue = 2;
-			}
+				if (value) {
+					testValue = 1;
+				} else {
+					testValue = 2;
+				}
+			};
 		)");
 
-		if (std::holds_alternative<std::string>(compilationResult)) {
-			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+		if (std::holds_alternative<std::string>(evaluationResult)) {
+			std::cerr << std::get<std::string>(evaluationResult) << std::endl;
 			return;
 		}
 
-		auto& command = std::get<0>(compilationResult);
+		auto& command = std::get<0>(evaluationResult);
 		{
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {

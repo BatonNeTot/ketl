@@ -2,7 +2,7 @@
 #ifndef compiler_parser_h
 #define compiler_parser_h
 
-#include "lexer.h"
+#include "compiler/lexer.h"
 #include "common.h"
 
 #include <variant>
