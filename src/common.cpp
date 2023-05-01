@@ -24,4 +24,35 @@ namespace Ketl {
 		return _ptr;
 	}
 
+	bool memequ(const void* lhs, const void* rhs, size_t size) {
+		return 0 == memcmp(lhs, rhs, size);
+	}
+
+	bool VarPureTraits::convertableTo(const VarPureTraits& other) const {
+		return !isConst || other.isConst;
+	}
+
+	bool VarPureTraits::sameTraits(const VarPureTraits& other) const {
+		return memequ(this, &other, sizeof(VarPureTraits));
+	}
+
+	bool operator==(const VarPureTraits& lhs, const VarPureTraits& rhs) {
+		return memequ(&lhs, &rhs, sizeof(VarPureTraits));
+	}
+
+	bool operator<(const VarTraits& lhs, const VarTraits& rhs) {
+		if (lhs.type != rhs.type) {
+			return lhs.type < rhs.type;
+		}
+		if (lhs.isConst == rhs.isConst) {
+			return lhs.isConst < rhs.isConst;
+			;
+		}
+		return lhs.isRef < rhs.isRef;
+	}
+
+	bool operator==(const VarTraits& lhs, const VarTraits& rhs) {
+		return memequ(&lhs, &rhs, sizeof(VarTraits));
+	}
+
 }

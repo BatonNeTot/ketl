@@ -17,10 +17,10 @@ namespace Ketl {
 
 	struct CompilerVar {
 		CompilerVar() = default;
-		CompilerVar(RawArgument* argument_, bool isCTK_, VarTraits traits_)
+		CompilerVar(RawArgument* argument_, bool isCTK_, VarPureTraits traits_)
 			: traits(traits_), isCTK(isCTK_), argument(argument_) {}
 
-		VarTraits traits;
+		VarPureTraits traits;
 		// compile time known
 		bool isCTK = false;
 		RawArgument* argument = nullptr;
@@ -109,6 +109,9 @@ namespace Ketl {
 		bool hasSavedArguments() const {
 			return !_arguments.empty();
 		}
+
+		std::vector<VarTraits> canBeCastedTo(const Context& context) const;
+		bool canBeCastedTo(const Context& context, VarTraits target) const;
 
 	private:
 		UndeterminedVar _uvar;
@@ -217,7 +220,7 @@ namespace Ketl {
 		CompilerVar createLiteralClassVar(void* ptr, const TypeObject& type);
 
 		RawArgument* createFunctionArgumentVar(uint64_t index);
-		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits);
+		CompilerVar createFunctionParameterVar(uint64_t index, const std::string_view& id, VarTraits&& traits);
 
 
 		RawArgument* deduceUnaryOperatorCall(OperatorCode code, const UndeterminedDelegate& var, InstructionSequence& instructions);
@@ -227,7 +230,7 @@ namespace Ketl {
 
 
 		UndeterminedVar getVar(const std::string_view& id);
-		CompilerVar createVar(const std::string_view& id, const TypeObject& type, VarTraits traits);
+		CompilerVar createVar(const std::string_view& id, VarTraits&& traits);
 
 		const TypeObject* evaluateType(const IRNode& node);
 
@@ -258,7 +261,7 @@ namespace Ketl {
 
 		class UndefinedArgument : public RawArgument {
 		public:
-			UndefinedArgument(VirtualMachine& vm);
+			UndefinedArgument(const TypeObject& voidType);
 
 		private:
 			std::pair<Argument::Type, Argument> getArgument() const override {

@@ -28,7 +28,7 @@ namespace Ketl {
 
 	CompilerVar InstructionSequence::createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression) {
 		// TODO get const and ref
-		auto var = _analyzer.createVar(id, type, { false, false });
+		auto var = _analyzer.createVar(id, {type, false, false });
 
 		if (expression) {
 			auto instruction = std::make_unique<FullInstruction>();
@@ -52,7 +52,7 @@ namespace Ketl {
 		auto allocInstruction = std::make_unique<FullInstruction>();
 		allocInstruction->code = Instruction::Code::AllocateFunctionStack;
 
-		auto stackVar = _analyzer.createTempVar(*_analyzer.vm().getVariable("UInt64").as<TypeObject>());
+		auto stackVar = _analyzer.createTempVar(*_analyzer.vm().typeOf<uint64_t>());
 		allocInstruction->arguments.emplace_back(functionVar);
 		allocInstruction->arguments.emplace_back(stackVar);
 
@@ -64,7 +64,7 @@ namespace Ketl {
 			auto& argumentVar = arguments[i];
 			auto& parameter = parameters[i];
 
-			auto isRef = parameter.traits.isRef;
+			auto isRef = parameter.isRef;
 			if (!isRef) {
 				// TODO create copy for the function call if needed, for now it's reference only
 			}

@@ -104,7 +104,7 @@ namespace Ketl {
 		struct Parameter {
 			std::unique_ptr<IRNode> type;
 			std::string_view id;
-			VarTraits traits;
+			VarPureTraits traits;
 		};
 
 		IRFunction(std::vector<Parameter>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
@@ -117,13 +117,13 @@ namespace Ketl {
 			if (_outputType) {
 				returnType = analyzer.evaluateType(*_outputType);
 			}
-			std::vector<FunctionTypeObject::Parameter> parameters;
+			std::vector<VarTraits> parameters;
 			
 			uint64_t counter = 0u;
 			for (auto& parameter : _parameters) {
 				auto type = analyzer.evaluateType(*parameter.type);
-				localAnalyzer.createFunctionParameterVar(counter++, parameter.id, *type, parameter.traits);
-				parameters.emplace_back(type, parameter.traits);
+				localAnalyzer.createFunctionParameterVar(counter++, parameter.id, { *type, parameter.traits });
+				parameters.emplace_back(*type, parameter.traits);
 			}
 
 			auto compilationResult = std::move(localAnalyzer).compile(*_block, returnType);
@@ -135,13 +135,7 @@ namespace Ketl {
 			FunctionObject* function;
 			std::tie(function, returnType) = std::get<0>(compilationResult);
 			
-			auto classType = analyzer.vm().getVariable("ClassType").as<TypeObject>();
-			auto [functionType, typeRefHolder] = analyzer.vm().createObject<FunctionTypeObject>(*returnType, std::move(parameters));
-			typeRefHolder->registerAbsLink(classType);
-			typeRefHolder->registerAbsLink(returnType);
-			for (const auto& type : functionType->getParameters()) {
-				typeRefHolder->registerAbsLink(type.type);
-			}
+			auto functionType = analyzer.vm().findOrCreateFunctionType(*returnType, std::move(parameters));
 
 			return analyzer.createLiteralClassVar(function, *functionType);
 		};
@@ -175,7 +169,7 @@ namespace Ketl {
 		auto parameterIdNode = parameterTypeNode->nextSibling;
 		auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
 
-		parameters.emplace_back(std::move(parameterType), parameterId, VarTraits{ isConst, isRef });
+		parameters.emplace_back(std::move(parameterType), parameterId, VarPureTraits{ isConst, isRef });
 	}
 
 	std::unique_ptr<IRNode> createLambda(const ProcessNode* info) {

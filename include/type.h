@@ -14,7 +14,7 @@ namespace Ketl {
 		TypeObject() = default;
 		virtual ~TypeObject() = default;
 
-		virtual std::string id() const = 0;
+		virtual const std::string& id() const = 0;
 
 		virtual uint64_t actualSizeOf() const = 0;
 
@@ -24,13 +24,8 @@ namespace Ketl {
 
 		virtual const TypeObject* getReturnType() const { return nullptr; }
 
-		struct Parameter {
-			const TypeObject* type = nullptr;
-			VarTraits traits;
-		};
-
-		virtual const std::vector<Parameter>& getParameters() const {
-			static const std::vector<Parameter> empty;
+		virtual const std::vector<VarTraits>& getParameters() const {
+			static const std::vector<VarTraits> empty;
 			return empty;
 		};
 
@@ -68,7 +63,7 @@ namespace Ketl {
 		InterfaceTypeObject(const std::string_view& id)
 			: _id(id) {}
 
-		std::string id() const override { return _id; }
+		const std::string& id() const override { return _id; }
 
 		uint64_t actualSizeOf() const override { return 0; }
 
@@ -88,7 +83,7 @@ namespace Ketl {
 		ClassTypeObject(const std::string_view& id, uint64_t size, std::vector<InterfaceTypeObject*>&& interfaces)
 			: _id(id), _size(size), _interfaces(std::move(interfaces)) {}
 
-		std::string id() const override { return _id; }
+		const std::string& id() const override { return _id; }
 
 		uint64_t actualSizeOf() const override { return _size; }
 
@@ -113,7 +108,7 @@ namespace Ketl {
 		PrimitiveTypeObject(const std::string_view& id, uint64_t size)
 			: _id(id), _size(size) {}
 
-		std::string id() const override { return _id; }
+		const std::string& id() const override { return _id; }
 
 		uint64_t actualSizeOf() const override { return _size; }
 
@@ -130,7 +125,7 @@ namespace Ketl {
 	class FunctionTypeObject : public TypeObject {
 	public:
 
-		FunctionTypeObject(const TypeObject& returnType, std::vector<Parameter>&& parameters)
+		FunctionTypeObject(const TypeObject& returnType, std::vector<VarTraits>&& parameters)
 			: _returnType(&returnType), _parameters(std::move(parameters)) {
 			_id = _returnType->id() + "(";
 			auto parameterIt = _parameters.begin(), parameterEnd = _parameters.end();
@@ -143,9 +138,7 @@ namespace Ketl {
 			_id += ")";
 		}
 
-		std::string id() const override { 
-			return _id;
-		}
+		const std::string& id() const override { return _id; }
 
 		uint64_t actualSizeOf() const override { return sizeof(FunctionObject); }
 
@@ -155,13 +148,13 @@ namespace Ketl {
 
 		const TypeObject* getReturnType() const override { return _returnType; }
 
-		const std::vector<Parameter>& getParameters() const override { return _parameters; };
+		const std::vector<VarTraits>& getParameters() const override { return _parameters; };
 
 	private:
 
 		std::string _id;
 		const TypeObject* _returnType;
-		std::vector<Parameter> _parameters;
+		std::vector<VarTraits> _parameters;
 	};
 
 	class StructTypeObject : public TypeObject {
@@ -182,13 +175,9 @@ namespace Ketl {
 			_size = currentOffset;
 		}
 
-		std::string id() const override {
-			return _id;
-		}
+		const std::string& id() const override { return _id; }
 
-		uint64_t actualSizeOf() const override { 
-			return _size; 
-		}
+		uint64_t actualSizeOf() const override { return _size; }
 
 	private:
 		std::string _id;

@@ -23,10 +23,9 @@ namespace Ketl {
 
 		auto& [function, returnType] = std::get<0>(compilationResult);
 
-		std::vector<FunctionTypeObject::Parameter> parameters;
+		std::vector<VarTraits> parameters;
 
-		auto [functionType, typeRefHolder] = vm.createObject<FunctionTypeObject>(*returnType, std::move(parameters));
-		typeRefHolder->registerAbsLink(returnType);
+		auto functionType = vm.findOrCreateFunctionType(*returnType, std::move(parameters));
 
 		auto functionHolder = reinterpret_cast<FunctionObject**>(vm.allocateOnHeap(functionType->sizeOf()));
 		*functionHolder = function;

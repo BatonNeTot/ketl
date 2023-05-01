@@ -3,6 +3,7 @@
 #define ketl_h
 
 #include "memory.h"
+#include "type_manager.h"
 #include "context.h"
 #include "compiler.h"
 
@@ -15,7 +16,7 @@ namespace Ketl {
 
 		template <typename T>
 		bool declareGlobal(const std::string_view& id, T* ptr) {
-			auto* type = _context.typeOf<T>();
+			auto* type = _types.typeOf<T>();
 			if (type == nullptr) {
 				return false;
 			}
@@ -35,6 +36,11 @@ namespace Ketl {
 				_memory.registerAbsRoot(ptr);
 			}
 			return true;
+		}
+
+		template <typename T>
+		const TypeObject* typeOf() const {
+			return _types.typeOf<T>();
 		}
 
 		template <typename T = void> 
@@ -73,20 +79,16 @@ namespace Ketl {
 
 		template <typename T, typename... Args>
 		inline auto createObject(Args&&... args) {
-			constexpr auto typeSize = sizeof(T);
-			auto ptr = reinterpret_cast<T*>(_memory.alloc().allocate(typeSize));
-			new(ptr) T(std::forward<Args>(args)...);
-			auto& links = _memory.registerMemory(ptr, typeSize, &dtor<T>);
-			return std::make_pair(ptr, &links);
+			return _memory.createObject<T>(std::forward<Args>(args)...);
 		}
 
 		template <typename T>
 		inline auto createArray(size_t size) {
-			constexpr auto typeSize = sizeof(T);
-			const auto totalSize = size * typeSize;
-			auto ptr = reinterpret_cast<T*>(_memory.alloc().allocate(totalSize));
-			auto& links = _memory.registerMemory(ptr, totalSize);
-			return std::make_pair(ptr, &links);
+			return _memory.createArray<T>(size);
+		}
+
+		inline const TypeObject* findOrCreateFunctionType(const TypeObject& returnType, std::vector<VarTraits>&& parameters) {
+			return _types.findOrCreateFunctionType(_memory, returnType, std::move(parameters));
 		}
 
 		size_t collectGarbage() {
@@ -94,11 +96,6 @@ namespace Ketl {
 		}
 
 	private:
-
-		template <typename T>
-		static void dtor(void* ptr) {
-			reinterpret_cast<T*>(ptr)->~T();
-		}
 
 		uint8_t* allocateOnHeap(uint64_t size) {
 			return _memory.alloc().allocate(size);
@@ -116,6 +113,7 @@ namespace Ketl {
 		friend class SemanticAnalyzer;
 
 		Ketl::MemoryManager _memory;
+		Ketl::TypeManager _types;
 		Ketl::Context _context;
 		Ketl::Compiler _compiler;
 	};

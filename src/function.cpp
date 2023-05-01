@@ -1,6 +1,8 @@
 ﻿/*🍲Ketl🍲*/
 #include "function.h"
 
+#include "common.h"
+
 namespace Ketl {
 
 	inline static uint8_t* getArgument(uint8_t* stackPtr, Argument::Type type, Argument& value) {
@@ -24,10 +26,6 @@ namespace Ketl {
 	template <unsigned N, class T>
 	inline static T& argument(Instruction& instruction, uint8_t* stackPtr) {
 		return *reinterpret_cast<T*>(getArgument(stackPtr, instruction.argumentType<N + 1>(), instruction.argument(N + 1)));
-	}
-
-	inline static bool memequ(const void* lhs, const void* rhs, size_t size) {
-		return 0 == memcmp(lhs, rhs, size);
 	}
 
 	void FunctionObject::call(StackAllocator<Allocator>& stack, uint8_t* stackPtr, uint8_t* returnPtr) const {

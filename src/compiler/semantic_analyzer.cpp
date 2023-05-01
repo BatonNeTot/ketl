@@ -19,15 +19,56 @@ namespace Ketl {
 
 	SemanticAnalyzer::SemanticAnalyzer(VirtualMachine& vm, SemanticAnalyzer* parentAnalyzer, bool global)
 		: _vm(vm), _localScope(!global)
-		, _undefinedArgument(vm), _undefinedVar(&_undefinedArgument, false, {true, false}) {
+		, _undefinedArgument(*vm._types.typeOf<void>()), _undefinedVar(&_undefinedArgument, false, {true, false}) {
 		_rootLocal = &_localVars.emplace_back();
 		_currentLocal = _rootLocal;
 
 		_localsByName.emplace_back();
 	}
 
-	SemanticAnalyzer::UndefinedArgument::UndefinedArgument(VirtualMachine& vm) {
-		_type = vm.getVariable("Void").as<TypeObject>();
+	SemanticAnalyzer::UndefinedArgument::UndefinedArgument(const TypeObject& voidType) {
+		_type = &voidType;
+	}
+
+	std::vector<VarTraits> UndeterminedDelegate::canBeCastedTo(const Context& context) const {
+		std::vector<VarTraits> casts;
+
+		for (auto& var : _uvar.getVariants()) {
+			auto type = var.argument->getType();
+
+			context.canBeCastedTo(*type, var.traits, casts);
+
+			auto returnType = type->getReturnType();
+			if (!returnType) {
+				continue;
+			}
+
+			auto& parameters = type->getParameters();
+			if (parameters.size() != _arguments.size()) {
+				continue;
+			}
+
+			auto i = 0u;
+			for (; i < _arguments.size(); ++i) {
+				auto& argument = _arguments[i];
+				auto& parameter = parameters[i];
+				if (!argument.canBeCastedTo(context, parameter)) {
+					break;
+				}
+			}
+
+			if (i >= _arguments.size()) {
+				casts.emplace_back(*returnType);
+			}
+		}
+
+
+		return casts;
+	}
+
+	bool UndeterminedDelegate::canBeCastedTo(const Context& context, VarTraits target) const {
+		__debugbreak();
+		return false;
 	}
 
 	void SemanticAnalyzer::pushScope() {
@@ -42,24 +83,64 @@ namespace Ketl {
 		return nullptr;
 	}
 	CompilerVar SemanticAnalyzer::deduceBinaryOperatorCall(OperatorCode code, const UndeterminedDelegate& lhs, const UndeterminedDelegate& rhs, InstructionSequence& instructions) {
-		// TODO actual deducing
-		std::string argumentsNotation = std::string("Int64,Int64");
-		auto primaryOperatorPair = vm()._context.deducePrimaryOperator(code, argumentsNotation);
+		std::vector<std::vector<VarTraits>> potentialArgs(2);
+		std::vector<VarTraits> args(2);
 
-		if (primaryOperatorPair.first == Instruction::Code::None) {
+		potentialArgs[0] = lhs.canBeCastedTo(vm()._context);
+		potentialArgs[1] = rhs.canBeCastedTo(vm()._context);
 
+		uint64_t variantsIndex = 0;
+		uint64_t totalVariantsCount = 1;
+
+		for (auto& potentialArg : potentialArgs) {
+			totalVariantsCount *= potentialArg.size();
+		}
+		std::multiset<Context::DeductionResult<Instruction::Code>> evaluatedSolutions;
+
+		while (variantsIndex < totalVariantsCount) {
+			uint64_t variantsIndexCalculation = variantsIndex;
+			for (uint64_t i = 0; i < potentialArgs.size(); ++i) {
+				auto& potentialArg = potentialArgs[i];
+				args[i] = potentialArg[variantsIndexCalculation % potentialArg.size()];
+				variantsIndexCalculation /= potentialArg.size();
+			}
+
+			evaluatedSolutions.emplace(vm()._context.deduceBuiltInOperator(code, args));
+			
+			++variantsIndex;
+		}
+
+		auto it = evaluatedSolutions.begin(), end = evaluatedSolutions.end();
+		while (true) {
+			if (it == end) {
+				return CompilerVar();
+			}
+
+			if (it->value != Instruction::Code::None) {
+				break;
+			}
+
+			++it;
+		}
+
+		auto almostWinner = it;
+		++it;
+		if (it != end && it->score == almostWinner->score) {
+			// TODO ambiguous call
 			return CompilerVar();
 		}
 
+		auto& result = *almostWinner;
+
 		auto instruction = instructions.createFullInstruction();
 
-		instruction->code = primaryOperatorPair.first;
+		instruction->code = result.value;
 
 		RawArgument* output;
-		switch (primaryOperatorPair.first) {
+		switch (instruction->code) {
 			case Instruction::Code::IsStructEqual:
 			case Instruction::Code::IsStructNonEqual:
-				output = createTempVar(*vm().getVariable("Int64").as<TypeObject>());
+				output = createTempVar(*result.resultType);
 				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
 				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
@@ -72,7 +153,7 @@ namespace Ketl {
 				instruction->arguments.emplace_back(output);
 				break;
 			default:
-				output = createTempVar(*vm().getVariable("Int64").as<TypeObject>());
+				output = createTempVar(*result.resultType);
 				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
 				instruction->arguments.emplace_back(output);
@@ -184,7 +265,7 @@ namespace Ketl {
 	public:
 		UnsignedLiteralArgument(uint64_t value, SemanticAnalyzer& analyzer)
 			: _value(value) {
-			_type = analyzer.vm().getVariable("Int64").as<TypeObject>();
+			_type = analyzer.vm().typeOf<int64_t>();
 		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
@@ -215,7 +296,7 @@ namespace Ketl {
 		// TODO
 		LiteralArgument(const std::string_view& value, SemanticAnalyzer& analyzer)
 			: _value(value) {
-			_type = analyzer.vm().getVariable("Int64").as<TypeObject>();
+			_type = analyzer.vm().typeOf<int64_t>();
 		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
@@ -407,16 +488,16 @@ namespace Ketl {
 		return _undefinedVar;
 	}
 
-	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, const TypeObject& type, VarTraits traits) {
+	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, VarTraits&& traits) {
 		if (isLocalScope()) {
 			auto& uvar = _localsByName.back()[id];
 
-			if (!uvar.canBeOverloadedWith(type)) {
+			if (!uvar.canBeOverloadedWith(*traits.type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in local scope");
 				return _undefinedVar;
 			}
 
-			auto tempVar = createTempVar(type);
+			auto tempVar = createTempVar(*traits.type);
 			CompilerVar var(tempVar, false, traits);
 			uvar.overload(var);
 
@@ -429,12 +510,12 @@ namespace Ketl {
 			}
 
 			auto& uvar = newGlobalVars[id];
-			if (!uvar.canBeOverloadedWith(type)) {
+			if (!uvar.canBeOverloadedWith(*traits.type)) {
 				pushErrorMsg("[ERROR] Variable '" + std::string(id) + "' already exists in global scope");
 				return _undefinedVar;
 			}
 
-			auto ptr = vars.emplace_back(std::make_unique<NewGlobalArgument>(type)).get();
+			auto ptr = vars.emplace_back(std::make_unique<NewGlobalArgument>(*traits.type)).get();
 			CompilerVar var(ptr, false, traits);
 			uvar.overload(var);
 
@@ -464,7 +545,7 @@ namespace Ketl {
 		uint64_t _index;
 	};
 
-	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, const TypeObject& type, VarTraits traits) {
+	CompilerVar SemanticAnalyzer::createFunctionParameterVar(uint64_t index, const std::string_view& id, VarTraits&& traits) {
 		auto [varIt, success] = _localsByName.back().try_emplace(id);
 		if (!success) {
 			pushErrorMsg("[ERROR] Parameter " + std::string(id) + " already exists");
@@ -472,7 +553,7 @@ namespace Ketl {
 		}
 
 		++_parametersCount;
-		auto ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, type)).get();
+		auto ptr = vars.emplace_back(std::make_unique<ParameterArgument>(index, *traits.type)).get();
 		CompilerVar var(ptr, false, traits);
 		varIt->second.overload(var);
 
@@ -489,7 +570,7 @@ namespace Ketl {
 
 	const TypeObject* SemanticAnalyzer::evaluateType(const IRNode& node) {
 		
-		return vm().getVariable("Int64").as<TypeObject>();
+		return vm().typeOf<int64_t>();
 	}
 
 	void SemanticAnalyzer::bakeLocalVars() {
@@ -573,7 +654,7 @@ namespace Ketl {
 		}
 
 		if (!returnType) {
-			returnType = vm().getVariable("Void").as<TypeObject>();
+			returnType = vm().typeOf<void>();
 			if (!returnExpressions.empty()) {
 				returnType = deduceCommonType(returnExpressions);
 

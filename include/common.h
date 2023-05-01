@@ -4,6 +4,7 @@
 
 #include <typeindex>
 #include <string_view>
+#include <map>
 
 namespace Ketl {
 
@@ -100,11 +101,74 @@ namespace Ketl {
 
 	};
 
-	struct VarTraits {
+	bool memequ(const void* lhs, const void* rhs, size_t size);
+
+	struct VarPureTraits {
 		bool isConst = false;
 		bool isRef = false;
+
+		VarPureTraits() = default;
+		VarPureTraits(bool isConst_, bool isRef_)
+			: isConst(isConst_), isRef(isRef_) {}
+
+		bool convertableTo(const VarPureTraits& other) const;
+
+		bool sameTraits(const VarPureTraits& other) const;
 	};
 
+	bool operator==(const VarPureTraits& lhs, const VarPureTraits& rhs);
+
+	struct VarTraits : public VarPureTraits {
+		const TypeObject* type = nullptr;
+
+		VarTraits() = default;
+		VarTraits(const TypeObject& type_)
+			: VarPureTraits(), type(&type_) {}
+		VarTraits(const TypeObject& type_, bool isConst_, bool isRef_)
+			: VarPureTraits(isConst_, isRef_), type(&type_) {}
+		VarTraits(const TypeObject& type_, const VarPureTraits& traits)
+			: VarPureTraits(traits), type(&type_) {}
+	};
+
+	bool operator<(const VarTraits& lhs, const VarTraits& rhs);
+	bool operator==(const VarTraits& lhs, const VarTraits& rhs);
+
+	template <typename K, typename V, V DEFAULT> 
+	struct MultiKeyMap {
+		std::map<K, MultiKeyMap> nodes;
+		V leaf = DEFAULT;
+	};
+
+	inline std::size_t CombineHash(std::size_t base) {
+		return base;
+	}
+
+	template <typename... Rest>
+	inline std::size_t CombineHash(std::size_t base, std::size_t first, Rest&&... rest) {
+		base ^= first + 0x9e3779b9 + (base << 6) + (base >> 2);
+		return CombineHash(base, std::forward<Rest>(rest)...);
+	}
+
+}
+
+namespace std {
+	template <>
+	struct hash<Ketl::VarPureTraits> {
+		std::size_t operator()(const Ketl::VarPureTraits& traits) const {
+			return traits.isConst * 2 + traits.isRef;
+		}
+	};
+}
+
+namespace std {
+	template <>
+	struct hash<Ketl::VarTraits> {
+		std::size_t operator()(const Ketl::VarTraits& traits) const {
+			return Ketl::CombineHash(
+				std::hash<const Ketl::TypeObject*>()(traits.type),
+				std::hash<Ketl::VarPureTraits>()(traits));
+		}
+	};
 }
 
 #endif /*common_h*/

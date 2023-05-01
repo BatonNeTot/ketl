@@ -62,6 +62,29 @@ namespace Ketl {
 			return _heap.registerMemory(ptr, size, finalizer);
 		}
 
+		template <typename T>
+		static void dtor(void* ptr) {
+			reinterpret_cast<T*>(ptr)->~T();
+		}
+
+		template <typename T, typename... Args>
+		auto createObject(Args&&... args) {
+			constexpr auto typeSize = sizeof(T);
+			auto ptr = reinterpret_cast<T*>(_alloc.allocate(typeSize));
+			new(ptr) T(std::forward<Args>(args)...);
+			auto& links = registerMemory(ptr, typeSize, &dtor<T>);
+			return std::make_pair(ptr, &links);
+		}
+
+		template <typename T>
+		auto createArray(size_t size) {
+			constexpr auto typeSize = sizeof(T);
+			const auto totalSize = size * typeSize;
+			auto ptr = reinterpret_cast<T*>(_alloc.allocate(totalSize));
+			auto& links = registerMemory(ptr, totalSize);
+			return std::make_pair(ptr, &links);
+		}
+
 		size_t collectGarbage() {
 			return _heap.collectGarbage();
 		}
