@@ -33,69 +33,118 @@ namespace Ketl {
 	std::vector<VarTraits> UndeterminedDelegate::canBeCastedTo(const Context& context) const {
 		std::vector<VarTraits> casts;
 
-		for (auto& var : _uvar.getVariants()) {
-			auto type = var.argument->getType();
+		switch (_type) {
+		case Type::NoCall: {
+			for (auto& var : _uvar.getVariants()) {
+				auto type = var.argument->getType();
 
-			context.canBeCastedTo(*type, var.traits, casts);
+				auto returnType = type->getReturnType();
+				if (returnType) {
+					casts.emplace_back(*returnType);
+				}
 
-			auto returnType = type->getReturnType();
-			if (!returnType) {
-				continue;
+				context.canBeCastedTo(*type, var.traits, casts);
+
+				// TODO operator call on object?
+				// try to find overloaded operator in context
 			}
+			break;
+		}
+		case Type::CallOperator: {
+			for (auto& var : _uvar.getVariants()) {
+				auto type = var.argument->getType();
 
-			auto& parameters = type->getParameters();
-			if (parameters.size() != _arguments.size()) {
-				continue;
-			}
+				auto returnType = type->getReturnType();
+				if (!returnType) {
+					// TODO operator call on object?
+					// try to find overloaded operator in context
+					continue;
+				}
 
-			auto i = 0u;
-			for (; i < _arguments.size(); ++i) {
-				auto& argument = _arguments[i];
-				auto& parameter = parameters[i];
-				if (!argument.canBeCastedTo(context, parameter)) {
-					break;
+				auto& parameters = type->getParameters();
+				if (parameters.size() != _arguments.size()) {
+					continue;
+				}
+
+				auto i = 0u;
+				for (; i < _arguments.size(); ++i) {
+					auto& argument = _arguments[i];
+					auto& parameter = parameters[i];
+					if (!argument.canBeCastedTo(context, parameter)) {
+						break;
+					}
+				}
+
+				if (i >= _arguments.size()) {
+					casts.emplace_back(*returnType);
 				}
 			}
-
-			if (i >= _arguments.size()) {
-				casts.emplace_back(*returnType);
-			}
+			break;
 		}
-
+		}
 
 		return casts;
 	}
 
+	// TODO redu upper in down function through visitor pattern to remove code duplication
 	bool UndeterminedDelegate::canBeCastedTo(const Context& context, VarTraits target) const {
-		for (auto& var : _uvar.getVariants()) {
-			auto type = var.argument->getType();
+		switch (_type) {
+		case Type::NoCall: {
+			for (auto& var : _uvar.getVariants()) {
+				auto type = var.argument->getType();
 
-			if (var.traits.convertableTo(target) && context.canBeCastedTo(*type, *target.type)) {
-				return true;
-			}
+				if (var.traits.convertableTo(target) && context.canBeCastedTo(*type, *target.type)) {
+					return true;
+				}
 
-			auto returnType = type->getReturnType();
-			if (!returnType) {
-				continue;
-			}
+				auto returnType = type->getReturnType();
+				if (!returnType) {
+					// TODO operator call on object?
+					// try to find overloaded operator in context
+					continue;
+				}
 
-			auto& parameters = type->getParameters();
-			if (parameters.size() != _arguments.size()) {
-				continue;
-			}
-
-			auto i = 0u;
-			for (; i < _arguments.size(); ++i) {
-				auto& argument = _arguments[i];
-				auto& parameter = parameters[i];
-				if (!argument.canBeCastedTo(context, parameter)) {
-					break;
+				if (returnType == target.type) {
+					return true;
 				}
 			}
+			break;
+		}
+		case Type::CallOperator: {
+			for (auto& var : _uvar.getVariants()) {
+				auto type = var.argument->getType();
 
-			if (i >= _arguments.size()) {
-				return true;
+				auto returnType = type->getReturnType();
+				if (!returnType) {
+					// TODO operator call on object?
+					// try to find overloaded operator in context
+					continue;
+				}
+
+				if (returnType != target.type) {
+					continue;
+				}
+
+				auto& parameters = type->getParameters();
+				if (parameters.size() != _arguments.size()) {
+					continue;
+				}
+
+				auto i = 0u;
+				for (; i < _arguments.size(); ++i) {
+					auto& argument = _arguments[i];
+					auto& parameter = parameters[i];
+					if (!argument.canBeCastedTo(context, parameter)) {
+						break;
+					}
+				}
+
+				if (i >= _arguments.size()) {
+					return true;
+				}
 			}
+			break;
+		}
 		}
 
 		return false;
@@ -586,19 +635,29 @@ namespace Ketl {
 	}
 
 	CompilerVar SemanticAnalyzer::castTo(const UndeterminedDelegate& source, VarTraits target, InstructionSequence& instructions) {
-		auto& arguments = source.getArguments();
-		if (arguments.empty()) {
-			// simple cast
+		switch (source.getType()) {
+		case UndeterminedDelegate::Type::NoCall: {
+			// simple cast or no parameter casting
 			for (const auto& var : source.getUVar().getVariants()) {
+				auto& type = *var.argument->getType();
+
+				auto returnType = type.getReturnType();
+				if (returnType == target.type) {
+					auto outputVar = instructions.createFunctionCall( var.argument, {} );
+					return CompilerVar(outputVar, false, {});
+				}
+
 				// TODO if not ref, we need to create copy
-				if (var.argument->getType() == target.type) {
+				if (&type == target.type) {
 					return var;
 				}
 
 				// TODO check and do actual casting
 			}
+			break;
 		}
-		else {
+		case UndeterminedDelegate::Type::CallOperator: {
+			auto& arguments = source.getArguments();
 			// creating delegate or calling the function
 			for (const auto& var : source.getUVar().getVariants()) {
 				// TODO create if delegate needed and create one instead of calling
@@ -625,6 +684,8 @@ namespace Ketl {
 
 				return CompilerVar(outputVar, false, {});
 			}
+			break;
+		}
 		}
 
 		// TODO we failed somehow, throw error
@@ -632,13 +693,14 @@ namespace Ketl {
 	}
 
 	void SemanticAnalyzer::forceCall(const UndeterminedDelegate& delegate, InstructionSequence& instructions) {
-		auto& arguments = delegate.getArguments();
-		if (arguments.empty()) {
+		if (delegate.getType() == UndeterminedDelegate::Type::NoCall) {
 			return;
 		}
 
+		auto& arguments = delegate.getArguments();
 		// creating delegate or calling the function
 		for (const auto& var : delegate.getUVar().getVariants()) {
+			// TODO create if delegate needed and create one instead of calling
 			auto& type = *var.argument->getType();
 			auto returnType = type.getReturnType();
 			if (!returnType) {
@@ -655,11 +717,10 @@ namespace Ketl {
 				callArguments[i] = castTo(arguments[i], parameters[i], instructions).argument;
 			}
 
-			auto outputVar = instructions.createFunctionCall(
+			instructions.createFunctionCall(
 				var.argument,
 				std::move(callArguments)
 			);
-
 			return;
 		}
 

@@ -72,6 +72,11 @@ namespace Ketl {
 	class UndeterminedDelegate {
 	public:
 
+		enum class Type : uint8_t {
+			NoCall,
+			CallOperator
+		};
+
 		UndeterminedDelegate() = default;
 
 		UndeterminedDelegate(const UndeterminedVar& uvar)
@@ -79,7 +84,7 @@ namespace Ketl {
 		UndeterminedDelegate(UndeterminedVar&& uvar)
 			: _uvar(std::move(uvar)) {}
 		UndeterminedDelegate(UndeterminedVar&& uvar, std::vector<UndeterminedDelegate>&& arguments)
-			: _uvar(std::move(uvar)), _arguments(std::move(arguments)) {}
+			: _uvar(std::move(uvar)), _arguments(std::move(arguments)), _type(Type::CallOperator) {}
 
 		UndeterminedDelegate(const CompilerVar& predeterminedVar)
 			: _uvar(predeterminedVar) {}
@@ -87,6 +92,10 @@ namespace Ketl {
 			: _uvar(std::move(predeterminedVar)) {}
 		UndeterminedDelegate(std::vector<CompilerVar>&& potentialVars)
 			: _uvar(std::move(potentialVars)) {}
+
+		Type getType() const {
+			return _type;
+		}
 
 		UndeterminedVar& getUVar() {
 			return _uvar;
@@ -115,7 +124,8 @@ namespace Ketl {
 
 	private:
 		UndeterminedVar _uvar;
-		std::vector<UndeterminedDelegate> _arguments;
+		std::vector<UndeterminedDelegate> _arguments; 
+		Type _type = Type::NoCall;
 	};
 
 	class InstructionIterator {

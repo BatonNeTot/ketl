@@ -201,6 +201,28 @@ static auto registerTests = []() {
 		return sum == 15u;
 		});
 
+	registerCheckTest("Calling function bracketless", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Int64 constant() {
+				return 7;
+			};
+
+			sum = constant;
+		)");
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		return sum == 7u;
+		});
+
 	registerCheckTest("Dot operator calling function", []() {
 		Ketl::VirtualMachine vm(4096);
 
