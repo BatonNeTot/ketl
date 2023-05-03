@@ -67,7 +67,37 @@ namespace Ketl {
 	}
 
 	bool UndeterminedDelegate::canBeCastedTo(const Context& context, VarTraits target) const {
-		__debugbreak();
+		for (auto& var : _uvar.getVariants()) {
+			auto type = var.argument->getType();
+
+			if (var.traits.convertableTo(target) && context.canBeCastedTo(*type, *target.type)) {
+				return true;
+			}
+
+			auto returnType = type->getReturnType();
+			if (!returnType) {
+				continue;
+			}
+
+			auto& parameters = type->getParameters();
+			if (parameters.size() != _arguments.size()) {
+				continue;
+			}
+
+			auto i = 0u;
+			for (; i < _arguments.size(); ++i) {
+				auto& argument = _arguments[i];
+				auto& parameter = parameters[i];
+				if (!argument.canBeCastedTo(context, parameter)) {
+					break;
+				}
+			}
+
+			if (i >= _arguments.size()) {
+				return true;
+			}
+		}
+
 		return false;
 	}
 
@@ -132,6 +162,9 @@ namespace Ketl {
 
 		auto& result = *almostWinner;
 
+		auto lhsVar = castTo(lhs, result.parameters[0], instructions);
+		auto rhsVar = castTo(rhs, result.parameters[1], instructions);
+
 		auto instruction = instructions.createFullInstruction();
 
 		instruction->code = result.value;
@@ -141,21 +174,21 @@ namespace Ketl {
 			case Instruction::Code::IsStructEqual:
 			case Instruction::Code::IsStructNonEqual:
 				output = createTempVar(*result.resultType);
-				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
-				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
-				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(createLiteralVar(lhsVar.argument->getType()->sizeOf()).argument);
+				instruction->arguments.emplace_back(lhsVar.argument);
+				instruction->arguments.emplace_back(rhsVar.argument);
 				instruction->arguments.emplace_back(output);
 				break;
 			case Instruction::Code::Assign:
-				output = lhs.getUVar().getVarAsItIs().argument;
-				instruction->arguments.emplace_back(createLiteralVar(lhs.getUVar().getVarAsItIs().argument->getType()->sizeOf()).argument);
-				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				output = lhsVar.argument;
+				instruction->arguments.emplace_back(createLiteralVar(lhsVar.argument->getType()->sizeOf()).argument);
+				instruction->arguments.emplace_back(rhsVar.argument);
 				instruction->arguments.emplace_back(output);
 				break;
 			default:
 				output = createTempVar(*result.resultType);
-				instruction->arguments.emplace_back(lhs.getUVar().getVarAsItIs().argument);
-				instruction->arguments.emplace_back(rhs.getUVar().getVarAsItIs().argument);
+				instruction->arguments.emplace_back(lhsVar.argument);
+				instruction->arguments.emplace_back(rhsVar.argument);
 				instruction->arguments.emplace_back(output);
 				break;
 		}
@@ -227,30 +260,9 @@ namespace Ketl {
 			}
 		}
 
-		if (bestVariantsCount == 0) {
-			// specifically a copy
-			auto newDelegateCaller = caller.getUVar();
-			return UndeterminedDelegate(std::move(newDelegateCaller), std::move(totalArguments));
-		}
-
-		if (bestVariantsCount > 1) {
-			pushErrorMsg("[ERROR] Coundn't decide call");
-			return _undefinedVar;
-		}
-
-		auto functionVar = deducedVariants.begin()->second;
-
-		std::vector<RawArgument*> callArguments(totalArguments.size());
-		for (auto i = 0u; i < totalArguments.size(); ++i) {
-			callArguments[i] = totalArguments[i].getUVar().getVarAsItIs().argument;
-		}
-
-		auto outputVar = instructions.createFunctionCall(
-			functionVar,
-			std::move(callArguments)
-		);
-
-		return CompilerVar(outputVar, false, {});
+		// specifically a copy
+		auto newDelegateCaller = caller.getUVar();
+		return UndeterminedDelegate(std::move(newDelegateCaller), std::move(totalArguments));
 	}
 	const TypeObject* SemanticAnalyzer::deduceCommonType(const std::list<UndeterminedDelegate>& vars) {
 		if (vars.size() == 1) {
@@ -569,8 +581,89 @@ namespace Ketl {
 	}
 
 	const TypeObject* SemanticAnalyzer::evaluateType(const IRNode& node) {
-		
+		// TODO
 		return vm().typeOf<int64_t>();
+	}
+
+	CompilerVar SemanticAnalyzer::castTo(const UndeterminedDelegate& source, VarTraits target, InstructionSequence& instructions) {
+		auto& arguments = source.getArguments();
+		if (arguments.empty()) {
+			// simple cast
+			for (const auto& var : source.getUVar().getVariants()) {
+				// TODO if not ref, we need to create copy
+				if (var.argument->getType() == target.type) {
+					return var;
+				}
+
+				// TODO check and do actual casting
+			}
+		}
+		else {
+			// creating delegate or calling the function
+			for (const auto& var : source.getUVar().getVariants()) {
+				// TODO create if delegate needed and create one instead of calling
+				auto& type = *var.argument->getType();
+				auto returnType = type.getReturnType();
+				if (!returnType) {
+					continue;
+				}
+
+				auto& parameters = type.getParameters();
+				if (parameters.size() != arguments.size()) {
+					continue;
+				}
+
+				std::vector<RawArgument*> callArguments(parameters.size());
+				for (auto i = 0u; i < parameters.size(); ++i) {
+					callArguments[i] = castTo(arguments[i], parameters[i], instructions).argument;
+				}
+
+				auto outputVar = instructions.createFunctionCall(
+					var.argument,
+					std::move(callArguments)
+				);
+
+				return CompilerVar(outputVar, false, {});
+			}
+		}
+
+		// TODO we failed somehow, throw error
+		return _undefinedVar;
+	}
+
+	void SemanticAnalyzer::forceCall(const UndeterminedDelegate& delegate, InstructionSequence& instructions) {
+		auto& arguments = delegate.getArguments();
+		if (arguments.empty()) {
+			return;
+		}
+
+		// creating delegate or calling the function
+		for (const auto& var : delegate.getUVar().getVariants()) {
+			auto& type = *var.argument->getType();
+			auto returnType = type.getReturnType();
+			if (!returnType) {
+				continue;
+			}
+
+			auto& parameters = type.getParameters();
+			if (parameters.size() != arguments.size()) {
+				continue;
+			}
+
+			std::vector<RawArgument*> callArguments(parameters.size());
+			for (auto i = 0u; i < parameters.size(); ++i) {
+				callArguments[i] = castTo(arguments[i], parameters[i], instructions).argument;
+			}
+
+			auto outputVar = instructions.createFunctionCall(
+				var.argument,
+				std::move(callArguments)
+			);
+
+			return;
+		}
+
+		pushErrorMsg("[ERROR] function call can't be resolved");
 	}
 
 	void SemanticAnalyzer::bakeLocalVars() {

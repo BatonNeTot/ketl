@@ -9,6 +9,8 @@
 
 namespace Ketl {
 
+	static const std::vector<VarTraits> emptyParameters;
+
 	class TypeObject {
 	public:
 		TypeObject() = default;
@@ -25,8 +27,7 @@ namespace Ketl {
 		virtual const TypeObject* getReturnType() const { return nullptr; }
 
 		virtual const std::vector<VarTraits>& getParameters() const {
-			static const std::vector<VarTraits> empty;
-			return empty;
+			return emptyParameters;
 		};
 
 		struct Field {

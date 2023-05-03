@@ -15,6 +15,7 @@ namespace Ketl {
 		if (!functionType) {
 			// didn't found
 			std::tie(functionType, std::ignore) = memory.createObject<FunctionTypeObject>(returnType, std::move(parameters));
+			memory.registerAbsRoot(functionType);
 		}
 
 		return functionType;

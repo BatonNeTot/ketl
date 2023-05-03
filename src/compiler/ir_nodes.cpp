@@ -15,7 +15,7 @@ namespace Ketl {
 
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const override {
 			for (const auto& command : _commands) {
-				command->produceInstructions(instructions, analyzer);
+				analyzer.forceCall(command->produceInstructions(instructions, analyzer), instructions);
 			}
 			return {};
 		}

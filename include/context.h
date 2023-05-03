@@ -37,6 +37,7 @@ namespace Ketl {
 		template <typename V>
 		struct DeductionResult {
 			const TypeObject* resultType;
+			const std::vector<VarTraits>& parameters;
 			uint64_t score; // lower - better
 			V value;
 

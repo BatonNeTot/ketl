@@ -29,13 +29,13 @@ namespace Ketl {
 	Context::DeductionResult<Instruction::Code> Context::deduceBuiltInOperator(OperatorCode op, const std::vector<VarTraits>& args) const {
 		auto operatorIt = _operatorsBuiltIn.find(op);
 		if (operatorIt == _operatorsBuiltIn.end()) {
-			return { nullptr, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
+			return { nullptr, emptyParameters, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
 		}
 
 		auto& functionsByParCount = operatorIt->second.functionsByParCount;
 		auto functionsIt = functionsByParCount.find(args.size());
 		if (functionsIt == functionsByParCount.end()) {
-			return { nullptr, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
+			return { nullptr, emptyParameters, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
 		}
 
 		auto& functions = functionsIt->second;
@@ -78,15 +78,15 @@ namespace Ketl {
 		}
 
 		if (!bestOperator) {
-			return { nullptr, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
+			return { nullptr, emptyParameters, std::numeric_limits<uint64_t>::max(), Instruction::Code::None };
 		}
 
-		return { bestOperator->outputType, bestScore, bestOperator->instructionCode };
+		return { bestOperator->outputType, bestOperator->parameters, bestScore, bestOperator->instructionCode };
 	}
 
 	Context::DeductionResult<const FunctionObject*> Context::deduceUserOperator(OperatorCode op, const std::vector<VarTraits>& args) const {
 		__debugbreak();
-		return { nullptr, std::numeric_limits<uint64_t>::max(), nullptr };
+		return { nullptr, emptyParameters, std::numeric_limits<uint64_t>::max(), nullptr };
 	}
 
 	Instruction::Code Context::findBuiltInCast(const TypeObject& target, const TypeObject& source) const {

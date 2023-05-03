@@ -123,9 +123,9 @@ namespace Ketl {
 	Variable Variable::operator()(Args&& ...args) const {
 		//std::vector<const TypeObject*> argTypes = { _context.typeOf<Args>()... };
 
-
-		auto function = *reinterpret_cast<FunctionObject**>(_vars[0].rawData());
-		auto* returnType = _vars[0].type().getReturnType();
+		auto& var = _vars[0];
+		auto function = *reinterpret_cast<FunctionObject**>(var.rawData());
+		auto* returnType = var.type().getReturnType();
 
 		if (!returnType || returnType->sizeOf() == 0) {
 			auto stackPtr = _vm._memory.stack().allocate(function->stackSize());

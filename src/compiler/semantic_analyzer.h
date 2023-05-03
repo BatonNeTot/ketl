@@ -228,6 +228,8 @@ namespace Ketl {
 		UndeterminedDelegate deduceFunctionCall(const UndeterminedDelegate& caller, const std::vector<UndeterminedDelegate>& arguments, InstructionSequence& instructions);
 		const TypeObject* deduceCommonType(const std::list<UndeterminedDelegate>& vars);
 
+		CompilerVar castTo(const UndeterminedDelegate& source, VarTraits target, InstructionSequence& instructions);
+		void forceCall(const UndeterminedDelegate& delegate, InstructionSequence& instructions);
 
 		UndeterminedVar getVar(const std::string_view& id);
 		CompilerVar createVar(const std::string_view& id, VarTraits&& traits);

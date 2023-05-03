@@ -29,7 +29,7 @@ namespace Ketl {
 	}
 
 	bool VarPureTraits::convertableTo(const VarPureTraits& other) const {
-		return !isConst || other.isConst;
+		return !other.isRef || !isConst || other.isConst;
 	}
 
 	bool VarPureTraits::sameTraits(const VarPureTraits& other) const {
