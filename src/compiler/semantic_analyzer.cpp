@@ -38,15 +38,18 @@ namespace Ketl {
 			for (auto& var : _uvar.getVariants()) {
 				auto type = var.argument->getType();
 
-				auto returnType = type->getReturnType();
-				if (returnType) {
-					casts.emplace_back(*returnType);
-				}
-
 				context.canBeCastedTo(*type, var.traits, casts);
 
-				// TODO operator call on object?
-				// try to find overloaded operator in context
+				auto returnType = type->getReturnType();
+				if (!returnType) {
+					// TODO operator call on object?
+					// try to find overloaded operator in context
+					continue;
+				}
+
+				if (type->getParameters().empty()) {
+					casts.emplace_back(*returnType);
+				}
 			}
 			break;
 		}
@@ -104,7 +107,7 @@ namespace Ketl {
 					continue;
 				}
 
-				if (returnType == target.type) {
+				if (type->getParameters().empty() && returnType == target.type) {
 					return true;
 				}
 			}
@@ -192,7 +195,8 @@ namespace Ketl {
 		auto it = evaluatedSolutions.begin(), end = evaluatedSolutions.end();
 		while (true) {
 			if (it == end) {
-				return CompilerVar();
+				pushErrorMsg("[ERROR] ambiguous call");
+				return _undefinedVar;
 			}
 
 			if (it->value != Instruction::Code::None) {
@@ -205,8 +209,8 @@ namespace Ketl {
 		auto almostWinner = it;
 		++it;
 		if (it != end && it->score == almostWinner->score) {
-			// TODO ambiguous call
-			return CompilerVar();
+			pushErrorMsg("[ERROR] ambiguous call");
+			return _undefinedVar;
 		}
 
 		auto& result = *almostWinner;
@@ -262,7 +266,7 @@ namespace Ketl {
 		for (const auto& argument : arguments) {
 			totalArguments.emplace_back(argument);
 		}
-
+		/*
 		std::map<uint64_t, RawArgument*> deducedVariants;
 
 		for (const auto& callerVar : variants) {
@@ -293,6 +297,11 @@ namespace Ketl {
 		}
 
 		auto bestVariantsIt = deducedVariants.begin();
+		if (bestVariantsIt == deducedVariants.end()) {
+			pushErrorMsg("[ERROR] No satisfying function");
+			return _undefinedVar;
+		}
+
 		auto bestVariantCost = bestVariantsIt->first;
 
 		if (bestVariantCost == std::numeric_limits<uint64_t>::max()) {
@@ -308,6 +317,7 @@ namespace Ketl {
 				++bestVariantsCount;
 			}
 		}
+		*/
 
 		// specifically a copy
 		auto newDelegateCaller = caller.getUVar();
@@ -550,6 +560,9 @@ namespace Ketl {
 	}
 
 	CompilerVar SemanticAnalyzer::createVar(const std::string_view& id, VarTraits&& traits) {
+		if (traits.type == nullptr) {
+			__debugbreak();
+		}
 		if (isLocalScope()) {
 			auto& uvar = _localsByName.back()[id];
 
@@ -690,6 +703,15 @@ namespace Ketl {
 
 		// TODO we failed somehow, throw error
 		return _undefinedVar;
+	}
+
+	const TypeObject* SemanticAnalyzer::autoCast(const UndeterminedDelegate& source) const {
+		auto casts = source.canBeCastedTo(vm()._context);
+		if (casts.empty()) {
+			return nullptr;
+		}
+
+		return casts[0].type;
 	}
 
 	void SemanticAnalyzer::forceCall(const UndeterminedDelegate& delegate, InstructionSequence& instructions) {

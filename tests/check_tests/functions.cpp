@@ -223,6 +223,70 @@ static auto registerTests = []() {
 		return sum == 7u;
 		});
 
+	registerCheckTest("Function call auto casting", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Int64 constant() {
+				return 7;
+			};
+
+			var mediator = constant();
+			sum = mediator;		 
+		)");
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		return sum == 7u;
+		});
+
+	registerCheckTest("Function call auto casting with error (proof of Int64 type)", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Int64 constant() {
+				return 7;
+			};
+
+			var mediator = constant();
+			sum = mediator();		 
+		)");
+
+		return std::holds_alternative<std::string>(compilationResult);
+		});
+
+	registerCheckTest("Bracketless function auto casting", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Int64 constant() {
+				return 7;
+			};
+
+			var mediator = constant; // be aware, constant still a function
+			sum = mediator();		 // so mediator will be function and can be called
+		)");
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		return sum == 7u;
+		});
+
 	registerCheckTest("Dot operator calling function", []() {
 		Ketl::VirtualMachine vm(4096);
 

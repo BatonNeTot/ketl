@@ -15,7 +15,7 @@ namespace Ketl {
 			: _analyzer(analyzer) {}
 
 		FullInstruction* createFullInstruction();
-		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression);
+		CompilerVar createDefine(const std::string_view& id, const TypeObject& type, const UndeterminedDelegate& expression);
 
 		RawArgument* createFunctionCall(RawArgument* caller, std::vector<RawArgument*>&& arguments);
 

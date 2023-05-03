@@ -239,6 +239,7 @@ namespace Ketl {
 		const TypeObject* deduceCommonType(const std::list<UndeterminedDelegate>& vars);
 
 		CompilerVar castTo(const UndeterminedDelegate& source, VarTraits target, InstructionSequence& instructions);
+		const TypeObject* autoCast(const UndeterminedDelegate& source) const;
 		void forceCall(const UndeterminedDelegate& delegate, InstructionSequence& instructions);
 
 		UndeterminedVar getVar(const std::string_view& id);

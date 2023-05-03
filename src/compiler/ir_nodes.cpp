@@ -63,10 +63,11 @@ namespace Ketl {
 				type = analyzer.evaluateType(*_type);
 			}
 			else {
-				type = expression.getUVar().getVarAsItIs().argument->getType();
+				type = analyzer.autoCast(expression);
+				// TODO nullptr check
 			}
 			
-			return instructions.createDefine(_id, *type, _expression ? expression.getUVar().getVarAsItIs().argument : nullptr);
+			return instructions.createDefine(_id, *type, expression);
 		};
 
 	private:
@@ -157,6 +158,7 @@ namespace Ketl {
 			}
 			else if (qualifier == "in") {
 				isRef = true;
+				isConst = true;
 			}
 			else if (qualifier == "out") {
 				isRef = true;

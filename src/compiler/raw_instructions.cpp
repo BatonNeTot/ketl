@@ -26,16 +26,17 @@ namespace Ketl {
 		return fullInstructionPtr;
 	}
 
-	CompilerVar InstructionSequence::createDefine(const std::string_view& id, const TypeObject& type, RawArgument* expression) {
+	CompilerVar InstructionSequence::createDefine(const std::string_view& id, const TypeObject& type, const UndeterminedDelegate& expression) {
 		// TODO get const and ref
 		auto var = _analyzer.createVar(id, {type, false, false });
-
-		if (expression) {
+		auto expressionVar = _analyzer.castTo(expression, { type }, *this);
+			
+		if (expressionVar.argument) {
 			auto instruction = std::make_unique<FullInstruction>();
 
 			instruction->code = Instruction::Code::Assign;
-			instruction->arguments.emplace_back(_analyzer.createLiteralVar(expression->getType()->sizeOf()).argument);
-			instruction->arguments.emplace_back(expression);
+			instruction->arguments.emplace_back(_analyzer.createLiteralVar(expressionVar.argument->getType()->sizeOf()).argument);
+			instruction->arguments.emplace_back(expressionVar.argument);
 			instruction->arguments.emplace_back(var.argument);
 
 			_rawInstructions.emplace_back(std::move(instruction));
