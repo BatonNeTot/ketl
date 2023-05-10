@@ -91,6 +91,50 @@ static auto registerTests = []() {
 		return sum == 18u;
 		});
 
+	registerCheckTest("Using function type with no parameters variable", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Void() adder = () -> {
+				sum = 7;
+			};
+
+			adder();
+		)");
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		return sum == 7u;
+		});
+
+	registerCheckTest("Using function type variable", []() {
+		Ketl::VirtualMachine vm(4096);
+
+		int64_t sum = 0;
+		vm.declareGlobal("sum", &sum);
+
+		auto compilationResult = vm.eval(R"(
+			Void(Int64, Int64) adder = (Int64 x, Int64 y) -> {
+				sum = x + y;
+			};
+
+			adder(5, 13);
+		)");
+
+		if (std::holds_alternative<std::string>(compilationResult)) {
+			std::cerr << std::get<std::string>(compilationResult) << std::endl;
+			return false;
+		}
+
+		return sum == 18u;
+		});
+
 	return false;
 	};
 

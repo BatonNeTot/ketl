@@ -8,6 +8,18 @@ namespace Ketl {
 
 	Parser::Parser() {
 
+		_nodes.try_emplace("type_arguments", std::make_unique<NodeConditional>(
+			std::make_unique<NodeConcat>(true,
+				std::make_unique<NodeId>(false, "type"),
+				std::make_unique<NodeRepeat>(
+					std::make_unique<NodeConcat>(true,
+						std::make_unique<NodeLiteral>(true, ","),
+						std::make_unique<NodeId>(false, "type")
+						)
+					)
+				)
+			));
+
 		// type
 		_nodes.try_emplace("type", std::make_unique<NodeConcat>(false,
 			std::make_unique<NodeOr>(
@@ -23,8 +35,11 @@ namespace Ketl {
 					)
 				),
 			std::make_unique<NodeConditional>(
-				std::make_unique<NodeLiteral>(false, "&&"),
-				std::make_unique<NodeLiteral>(false, "&")
+				std::make_unique<NodeConcat>(true,
+					std::make_unique<NodeLiteral>(true, "("),
+					std::make_unique<NodeId>(false, "type_arguments"),
+					std::make_unique<NodeLiteral>(true, ")")
+					)
 				)
 			));
 
@@ -132,7 +147,7 @@ namespace Ketl {
 
 		// define variable
 		_nodes.try_emplace("defineVariable", std::make_unique<NodeConcat>(true,
-			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeId>(false, "type"),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeLiteral>(true, ";")
 			));
@@ -140,8 +155,8 @@ namespace Ketl {
 		// define variable by assignment
 		_nodes.try_emplace("defineVariableAssignment", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeOr>(
-				std::make_unique<NodeLiteral>(&emptyTree, false, "var"),
-				std::make_unique<NodeId>(&createType, false, "type")
+				std::make_unique<NodeLiteral>(false, "var"),
+				std::make_unique<NodeId>(false, "type")
 				),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeLiteral>(true, "="),
@@ -161,7 +176,7 @@ namespace Ketl {
 		// function parameter
 		_nodes.try_emplace("functionParameter", std::make_unique<NodeConcat>(false,
 			std::make_unique<NodeId>(false, "functionParameterQualifiers"),
-			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeId>(false, "type"),
 			std::make_unique<NodeConditional>(
 				std::make_unique<NodeLeaf>(NodeLeaf::Type::Id)
 				)
@@ -186,7 +201,7 @@ namespace Ketl {
 
 		// lambda output type
 		_nodes.try_emplace("lambdaOutputType", std::make_unique<NodeConditional>(
-				std::make_unique<NodeId>(&createType, false, "type")
+				std::make_unique<NodeId>(false, "type")
 			));
 
 		// define lambda
@@ -202,8 +217,8 @@ namespace Ketl {
 		// define function
 		_nodes.try_emplace("defineFunction", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeOr>(
-				std::make_unique<NodeLiteral>(&emptyTree, false, "var"),
-				std::make_unique<NodeId>(&createType, false, "type")
+				std::make_unique<NodeLiteral>(false, "var"),
+				std::make_unique<NodeId>(false, "type")
 				),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeId>(false, "functionParameters"),
@@ -233,7 +248,7 @@ namespace Ketl {
 		// define fields
 		_nodes.try_emplace("defineFields", std::make_unique<NodeConcat>(true,
 			std::make_unique<NodeId>(false, "localAccessModifiers"),
-			std::make_unique<NodeId>(&createType, false, "type"),
+			std::make_unique<NodeId>(false, "type"),
 			std::make_unique<NodeLeaf>(NodeLeaf::Type::Id),
 			std::make_unique<NodeRepeat>(
 				std::make_unique<NodeConcat>(true,

@@ -7,6 +7,33 @@
 
 namespace Ketl {
 
+	static TypeFabric parseTypeFabric(const ProcessNode* info) {
+		auto type = info->firstChild;
+		if (type->firstChild == nullptr) {
+			auto idStr = type->node->value(type->iterator);
+			return { idStr };
+		}
+
+		// function type
+		auto id = type->firstChild;
+		std::vector<TypeFabric> function = { id->node->value(id->iterator) };
+
+		auto arguments = id->nextSibling;
+		for (auto it = arguments->firstChild; it != nullptr; it = it->nextSibling) {
+			function.emplace_back(parseTypeFabric(it));
+		}
+
+		return {std::move(function)};
+	}
+
+	static TypeFabric parseRootTypeFabric(const ProcessNode* info) {
+		if (info->node->value(info->iterator) == "var") {
+			return {};
+		}
+
+		return parseTypeFabric(info);
+	}
+
 	class IRBlock : public IRNode {
 	public:
 
@@ -48,7 +75,7 @@ namespace Ketl {
 	class IRDefineVariable : public IRNode {
 	public:
 
-		IRDefineVariable(std::string_view id, std::unique_ptr<IRNode>&& type, std::unique_ptr<IRNode>&& expression)
+		IRDefineVariable(std::string_view id, TypeFabric&& type, std::unique_ptr<IRNode>&& expression)
 			: _id(id), _type(std::move(type)), _expression(std::move(expression)) {}
 
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const override {
@@ -60,7 +87,7 @@ namespace Ketl {
 			const TypeObject* type = nullptr;
 
 			if (_type) {
-				type = analyzer.evaluateType(*_type);
+				type = _type.createType(analyzer);
 			}
 			else {
 				type = analyzer.autoCast(expression);
@@ -72,13 +99,13 @@ namespace Ketl {
 
 	private:
 		std::string_view _id;
-		std::unique_ptr<IRNode> _type;
+		TypeFabric _type;
 		std::unique_ptr<IRNode> _expression;
 	};
 
 	std::unique_ptr<IRNode> createDefineVariable(const ProcessNode* info) {
 		auto typeNode = info->firstChild;
-		auto type = typeNode->node->createIRTree(typeNode);
+		auto type = parseRootTypeFabric(typeNode);
 
 		auto idNode = typeNode->nextSibling;
 		auto id = idNode->node->value(idNode->iterator);
@@ -88,7 +115,7 @@ namespace Ketl {
 
 	std::unique_ptr<IRNode> createDefineVariableByAssignment(const ProcessNode* info) {
 		auto typeNode = info->firstChild;
-		auto type = typeNode->node->createIRTree(typeNode);
+		auto type = parseRootTypeFabric(typeNode);
 
 		auto idNode = typeNode->nextSibling;
 		auto id = idNode->node->value(idNode->iterator);
@@ -103,26 +130,26 @@ namespace Ketl {
 	public:
 
 		struct Parameter {
-			std::unique_ptr<IRNode> type;
+			TypeFabric type;
 			std::string_view id;
 			VarPureTraits traits;
 		};
 
-		IRFunction(std::vector<Parameter>&& parameters, std::unique_ptr<IRNode>&& outputType, std::unique_ptr<IRNode>&& block)
+		IRFunction(std::vector<Parameter>&& parameters, TypeFabric&& outputType, std::unique_ptr<IRNode>&& block)
 			: _parameters(std::move(parameters)), _outputType(std::move(outputType)), _block(std::move(block)) {}
 
 		UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const override {
 			SemanticAnalyzer localAnalyzer(analyzer.vm(), &analyzer, false);
 
-			const TypeObject* returnType = nullptr; 
+			const TypeObject* returnType = analyzer.vm().typeOf<void>();
 			if (_outputType) {
-				returnType = analyzer.evaluateType(*_outputType);
+				returnType = _outputType.createType(analyzer);
 			}
 			std::vector<VarTraits> parameters;
 			
 			uint64_t counter = 0u;
 			for (auto& parameter : _parameters) {
-				auto type = analyzer.evaluateType(*parameter.type);
+				auto type = parameter.type.createType(analyzer);
 				localAnalyzer.createFunctionParameterVar(counter++, parameter.id, { *type, parameter.traits });
 				parameters.emplace_back(*type, parameter.traits);
 			}
@@ -143,7 +170,7 @@ namespace Ketl {
 
 	private:
 		std::vector<Parameter> _parameters;
-		std::unique_ptr<IRNode> _outputType;
+		TypeFabric _outputType;
 		std::unique_ptr<IRNode> _block;
 	};
 
@@ -166,7 +193,7 @@ namespace Ketl {
 		}
 
 		auto parameterTypeNode = parameterQualifiers->nextSibling;
-		auto parameterType = parameterTypeNode->node->createIRTree(parameterTypeNode);
+		auto parameterType = parseRootTypeFabric(parameterTypeNode);
 
 		auto parameterIdNode = parameterTypeNode->nextSibling;
 		auto parameterId = parameterIdNode->node->value(parameterIdNode->iterator);
@@ -185,11 +212,11 @@ namespace Ketl {
 		}
 
 		auto outputTypeNodeHolder = parametersNode->nextSibling;
-		std::unique_ptr<IRNode> outputType;
+		TypeFabric outputType;
 
 		if (outputTypeNodeHolder->firstChild) {
 			auto outputTypeNode = outputTypeNodeHolder->firstChild;
-			outputType = outputTypeNode->node->createIRTree(outputTypeNode);
+			outputType = parseRootTypeFabric(outputTypeNode);
 		}
 
 		auto blockNode = outputTypeNodeHolder->nextSibling;
@@ -200,7 +227,7 @@ namespace Ketl {
 
 	std::unique_ptr<IRNode> createDefineFunction(const ProcessNode* info) {
 		auto outputTypeNode = info->firstChild;
-		auto outputType = outputTypeNode->node->createIRTree(outputTypeNode);
+		auto outputType = parseRootTypeFabric(outputTypeNode);
 
 		auto idNode = outputTypeNode->nextSibling;
 		auto id = idNode->node->value(idNode->iterator);
@@ -219,7 +246,7 @@ namespace Ketl {
 
 		auto function = std::make_unique<IRFunction>(std::move(parameters), std::move(outputType), std::move(block));
 
-		return std::make_unique<IRDefineVariable>(id, nullptr, std::move(function));
+		return std::make_unique<IRDefineVariable>(id, TypeFabric{}, std::move(function));
 	}
 
 	class IRStruct : public IRNode {
@@ -227,7 +254,7 @@ namespace Ketl {
 
 		struct Field {
 			TypeAccessModifier accessMofifier;
-			std::unique_ptr<IRNode> type;
+			TypeFabric type;
 			std::string_view id;
 		};
 
@@ -240,7 +267,7 @@ namespace Ketl {
 			const TypeObject* fieldType = nullptr;
 			for (auto& field : _fields) {
 				if (field.type) {
-					fieldType = analyzer.evaluateType(*field.type);
+					fieldType = field.type.createType(analyzer);
 				}
 				fields.emplace_back(field.id, fieldType);
 			}
@@ -277,7 +304,7 @@ namespace Ketl {
 			}
 
 			auto typeNode = qualifierNode->nextSibling;
-			auto type = typeNode->node->createIRTree(typeNode);
+			auto type = parseRootTypeFabric(typeNode);
 
 			for (auto fieldNode = typeNode->nextSibling; fieldNode != nullptr; fieldNode = fieldNode->nextSibling) {
 				auto fieldId = fieldNode->node->value(fieldNode->iterator);
@@ -285,7 +312,7 @@ namespace Ketl {
 			}
 		}
 
-		return std::make_unique<IRDefineVariable>(id, nullptr, std::make_unique<IRStruct>(id, std::move(fields)));
+		return std::make_unique<IRDefineVariable>(id, TypeFabric{}, std::make_unique<IRStruct>(id, std::move(fields)));
 	}
 
 
@@ -503,13 +530,6 @@ namespace Ketl {
 	std::unique_ptr<IRNode> createVariable(const ProcessNode* info) {
 		return std::make_unique<IRVariable>(info->node->value(info->iterator));
 	}
-
-
-	std::unique_ptr<IRNode> createType(const ProcessNode* info) {
-		auto idNode = info->firstChild;
-		return std::make_unique<IRVariable>(idNode->node->value(idNode->iterator));
-	}
-
 
 
 	class IRLiteral : public IRNode {

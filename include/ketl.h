@@ -43,6 +43,10 @@ namespace Ketl {
 			return _types.typeOf<T>();
 		}
 
+		const TypeObject* getType(const std::string_view& id) const {
+			return _types.getType(id);
+		}
+
 		template <typename T = void> 
 		T* allocateGlobal(const std::string_view& id, const TypeObject& type) {
 			if (!std::is_void_v<T> && !std::is_pointer_v<T> && type.isLight()) {

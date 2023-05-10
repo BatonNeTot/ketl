@@ -20,6 +20,8 @@ namespace Ketl {
 			return userIt->second;
 		}
 
+		const TypeObject* getType(const std::string_view& id) const;
+
 		const TypeObject* findOrCreateFunctionType(MemoryManager& memory, const TypeObject& returnType, std::vector<VarTraits>&& parameters);
 
 	private:

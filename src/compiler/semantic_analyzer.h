@@ -209,6 +209,32 @@ namespace Ketl {
 		virtual UndeterminedDelegate produceInstructions(InstructionSequence& instructions, SemanticAnalyzer& analyzer) const { return {}; }
 	};
 
+	class TypeFabric {
+	public:
+
+		enum class Type : uint8_t {
+			Regular,
+			Function
+		};
+
+		TypeFabric() = default;
+		TypeFabric(const std::string_view& id)
+			: _type(Type::Regular), _value(id) {}
+		TypeFabric(std::vector<TypeFabric>&& arguments)
+			: _type(Type::Function), _additionalArguments(std::move(arguments)) {}
+
+		const TypeObject* createType(SemanticAnalyzer& analyzer) const;
+
+		operator bool() const {
+			return Type::Function == _type || !_value.empty();
+		}
+
+	private:
+		Type _type = Type::Regular;
+		std::string _value;
+		std::vector<TypeFabric> _additionalArguments;
+	};
+
 	class VirtualMachine;
 	class StackArgument;
 	class SemanticAnalyzer {

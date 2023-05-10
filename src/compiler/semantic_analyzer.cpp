@@ -10,6 +10,25 @@
 
 namespace Ketl {
 
+	const TypeObject* TypeFabric::createType(SemanticAnalyzer& analyzer) const {
+		switch (_type)
+		{
+		case Ketl::TypeFabric::Type::Regular: {
+			return analyzer.vm().getType(_value);
+		}
+		case Ketl::TypeFabric::Type::Function: {
+			auto outputType = _additionalArguments[0].createType(analyzer);
+			std::vector<VarTraits> parameters(_additionalArguments.size() - 1);
+			for (auto i = 1u; i < _additionalArguments.size(); ++i) {
+				parameters[i - 1].type = _additionalArguments[i].createType(analyzer);
+			}
+			return analyzer.vm().findOrCreateFunctionType(*outputType, std::move(parameters));
+		}
+		default:
+			return nullptr;
+		}
+	}
+
 	bool UndeterminedVar::canBeOverloadedWith(const TypeObject& type) const {
 		if (_potentialVars.empty()) {
 			return true;
@@ -336,7 +355,7 @@ namespace Ketl {
 	public:
 		UnsignedLiteralArgument(uint64_t value, SemanticAnalyzer& analyzer)
 			: _value(value) {
-			_type = analyzer.vm().typeOf<int64_t>();
+			_type = analyzer.vm().typeOf<uint64_t>();
 		}
 
 		std::pair<Argument::Type, Argument> getArgument() const override {
