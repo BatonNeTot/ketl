@@ -7,4 +7,9 @@
 
 #define KETL_FOREVER while(true)
 
+#define KETL_FORWARD(name) \
+typedef struct name name
+
+#define KETL_DEFINE(name) struct name
+
 #endif /*common_h*/

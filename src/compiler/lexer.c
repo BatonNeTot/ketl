@@ -3,16 +3,11 @@
 
 #include "token.h"
 
-#include "assert.h"
-#include "common.h"
+#include "ketl/assert.h"
+#include "ketl/common.h"
 
+#include <inttypes.h>
 #include <stdlib.h>
-
-struct KETLLexer_t {
-	const char* source;
-	const char* sourceIt;
-	const char* sourceEnd;
-};
 
 #define KETL_CHECK_LEXER_MESSAGE "Lexer is null"
 
@@ -75,20 +70,20 @@ static inline bool isNextLineSymbol(char value) {
 }
 
 
-static inline void iterate(KETLLexer lexer) {
+static inline void iterate(KETLLexer* lexer) {
 	++lexer->sourceIt;
 }
 
-static inline char getChar(KETLLexer lexer) {
+static inline char getChar(const KETLLexer* lexer) {
 	return lexer->sourceIt < lexer->sourceEnd ? *(lexer->sourceIt) : 0;
 }
 
-static inline char getNextChar(KETLLexer_c lexer) {
+static inline char getNextChar(const KETLLexer* lexer) {
 	const char* pNext = lexer->sourceIt + 1;
 	return pNext < lexer->sourceEnd ? *(pNext) : 0;
 }
 
-static inline char getCharAndIterate(KETLLexer lexer) {
+static inline char getCharAndIterate(KETLLexer* lexer) {
 	if (lexer->sourceIt >= lexer->sourceEnd) {
 		lexer->sourceIt = lexer->sourceEnd;
 		return '\0';
@@ -98,7 +93,7 @@ static inline char getCharAndIterate(KETLLexer lexer) {
 }
 
 
-static inline void skipSingleLineComment(KETLLexer lexer) {
+static inline void skipSingleLineComment(KETLLexer* lexer) {
 	iterate(lexer);
 	iterate(lexer);
 
@@ -116,7 +111,7 @@ static inline void skipSingleLineComment(KETLLexer lexer) {
 	}
 }
 
-static inline void skipMultiLineComment(KETLLexer lexer) {
+static inline void skipMultiLineComment(KETLLexer* lexer) {
 	iterate(lexer);
 	iterate(lexer);
 
@@ -140,7 +135,7 @@ static inline void skipMultiLineComment(KETLLexer lexer) {
 	}
 }
 
-static inline void skipSpaceAndComments(KETLLexer lexer) {
+static inline void skipSpaceAndComments(KETLLexer* lexer) {
 	KETL_FOREVER{
 		char current = getChar(lexer);
 		if (current == '\0') {
@@ -168,8 +163,8 @@ static inline void skipSpaceAndComments(KETLLexer lexer) {
 }
 
 
-static KETLToken createToken(KETLLexer_c lexer, const char* startIt, KETLTokenType type) {
-	KETLToken token = malloc(sizeof(struct KETLToken_t));
+static KETLToken* createToken(const KETLLexer* lexer, const char* startIt, KETLTokenType type) {
+	KETLToken* token = malloc(sizeof(KETLToken));
 	if (KETL_CHECK_VOEM(token, "Can't allocate space for token")) {
 		return NULL;
 	}
@@ -188,8 +183,8 @@ static KETLToken createToken(KETLLexer_c lexer, const char* startIt, KETLTokenTy
 	return token;
 }
 
-static inline KETLToken createTokenAndSkip(KETLLexer lexer, const char* startIt, KETLTokenType type) {
-	KETLToken token = createToken(lexer, startIt, type);
+static inline KETLToken* createTokenAndSkip(KETLLexer* lexer, const char* startIt, KETLTokenType type) {
+	KETLToken* token = createToken(lexer, startIt, type);
 	if (!token) {
 		return NULL;
 	}
@@ -199,50 +194,33 @@ static inline KETLToken createTokenAndSkip(KETLLexer lexer, const char* startIt,
 	return token;
 }
 
-void ketlFreeToken(KETLToken token) {
-	free(token);
-}
-
-static inline bool hasNextChar(KETLLexer_c lexer) {
+static inline bool hasNextChar(const KETLLexer* lexer) {
 	return lexer->sourceIt < lexer->sourceEnd && *lexer->sourceIt != '\0';
 }
 
-KETLLexer ketlCreateLexer(const char* source, size_t length) {
-	KETLLexer lexer = malloc(sizeof(struct KETLLexer_t));
-	if (KETL_CHECK_VOEM(lexer, "Can't allocate space for lexer")) {
-		return NULL;
-	}
-
+void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length) {
 	lexer->source = source;
 	lexer->sourceIt = source;
 	lexer->sourceEnd = length == KETL_LEXER_SOURCE_NULL_TERMINATED ? (void*)(-1) : source + length;
 
 	skipSpaceAndComments(lexer);
-
-	return lexer;
-}
-
-void ketlFreeLexer(KETLLexer lexer) {
-	KETL_CHECK_LEXER;
-
-	free(lexer);
 }
 
 
-bool ketlHasNextToken(KETLLexer_c lexer) {
+bool ketlHasNextToken(const KETLLexer* lexer) {
 	KETL_CHECK_LEXER_VALUE(false);
 
 	return hasNextChar(lexer);
 }
 
-static inline KETLToken checkLeftoverSpecial(KETLLexer_c lexer, const char* startIt) {
+static inline KETLToken* checkLeftoverSpecial(const KETLLexer* lexer, const char* startIt) {
 	if (startIt < lexer->sourceIt) {
 		return createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
 	}
 	return NULL;
 }
 
-KETLToken ketlGetNextToken(KETLLexer lexer) {
+KETLToken* ketlGetNextToken(KETLLexer* lexer) {
 	KETL_CHECK_LEXER_VALUE(NULL);
 
 	const char* startIt = lexer->sourceIt;
@@ -254,7 +232,7 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		}
 
 		if (isSpace(current)) {
-			KETLToken token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
+			KETLToken* token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
 			iterate(lexer);
 			skipSpaceAndComments(lexer);
 			return token;
@@ -263,14 +241,14 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		if (isFirstSymbolComment(current)) {
 			char next = getNextChar(lexer);
 			if (isSecondSymbolSingleLineComment(next)) {
-				KETLToken token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
+				KETLToken* token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
 
 				skipSingleLineComment(lexer);
 				skipSpaceAndComments(lexer);
 				return token;
 			}
 			if (isSecondSymbolMultiLineComment(next)) {
-				KETLToken token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
+				KETLToken* token = createToken(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
 
 				skipMultiLineComment(lexer);
 				skipSpaceAndComments(lexer);
@@ -282,7 +260,7 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		}
 
 		if (isNumberDot(current) && isNumber(getNextChar(lexer))) {
-			KETLToken token = checkLeftoverSpecial(lexer, startIt);
+			KETLToken* token = checkLeftoverSpecial(lexer, startIt);
 			if (token) { return token; }
 			iterate(lexer);
 			do iterate(lexer); while (isNumber(getChar(lexer)));
@@ -290,7 +268,7 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		}
 
 		if (isNumber(current)) {
-			KETLToken token = checkLeftoverSpecial(lexer, startIt);
+			KETLToken* token = checkLeftoverSpecial(lexer, startIt);
 			if (token) { return token; }
 			iterate(lexer);
 			KETL_FOREVER {
@@ -309,7 +287,7 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		}
 
 		if (isStringQuote(current)) {
-			KETLToken token = checkLeftoverSpecial(lexer, startIt);
+			KETLToken* token = checkLeftoverSpecial(lexer, startIt);
 			if (token) { return token; }
 			iterate(lexer);
 			startIt = lexer->sourceIt;
@@ -330,7 +308,7 @@ KETLToken ketlGetNextToken(KETLLexer lexer) {
 		}
 
 		if (isStartingIdSymbol(current)) {
-			KETLToken token = checkLeftoverSpecial(lexer, startIt);
+			KETLToken* token = checkLeftoverSpecial(lexer, startIt);
 			if (token) { return token; }
 			do iterate(lexer); while (isIdSymbol(getChar(lexer)));
 			return createTokenAndSkip(lexer, startIt, KETL_TOKEN_TYPE_ID);

@@ -2,25 +2,27 @@
 #ifndef compiler_lexer_h
 #define compiler_lexer_h
 
-#include <inttypes.h>
+#include "ketl/common.h"
+
 #include <stdbool.h>
 #include <limits.h>
 
-typedef struct KETLLexer_t* KETLLexer;
-typedef const struct KETLLexer_t* KETLLexer_c;
-
-typedef struct KETLToken_t* KETLToken;
+KETL_FORWARD(KETLLexer);
+KETL_FORWARD(KETLToken);
+KETL_FORWARD(KETLTokenPool);
 
 #define KETL_LEXER_SOURCE_NULL_TERMINATED SIZE_MAX
 
-KETLLexer ketlCreateLexer(const char* source, size_t length);
+struct KETLLexer {
+	const char* source;
+	const char* sourceIt;
+	const char* sourceEnd;
+};
 
-void ketlFreeLexer(KETLLexer lexer);
+void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length);
 
-bool ketlHasNextToken(KETLLexer_c lexer);
+bool ketlHasNextToken(const KETLLexer* lexer);
 
-KETLToken ketlGetNextToken(KETLLexer lexer);
-
-void ketlFreeToken(KETLToken token);
+KETLToken* ketlGetNextToken(KETLLexer* lexer);
 
 #endif /*compiler_lexer_h*/
