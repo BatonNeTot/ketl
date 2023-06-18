@@ -40,7 +40,7 @@ LinkedListNodeBase* ketlNextNode(LinkedListNodeBase* node);
 
 LinkedListNodeBase* ketlPrevNode(LinkedListNodeBase* node);
 
-bool ketlIsEmpty(LinkedListBase* list, LinkedListNodeBase* node);
+bool ketlIsListEmpty(LinkedListBase* list, LinkedListNodeBase* node);
 
 #define KETL_
 

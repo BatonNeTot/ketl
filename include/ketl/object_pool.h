@@ -10,12 +10,20 @@
 KETL_FORWARD(KETLObjectPool);
 KETL_FORWARD(KETLObjectPoolBase);
 
+KETL_FORWARD(KETLObjectPoolIterator);
+
 struct KETLObjectPool {
 	size_t objectSize;
 	size_t poolSize;
 	KETLObjectPoolBase* firstPool;
 	KETLObjectPoolBase* lastPool;
-	uint32_t occupiedObjects;
+	size_t occupiedObjects;
+};
+
+struct KETLObjectPoolIterator {
+	KETLObjectPool* pool;
+	KETLObjectPoolBase* currentPool;
+	size_t nextObjectIndex;
 };
 
 void ketlInitObjectPool(KETLObjectPool* pool, size_t objectSize, size_t poolSize);
@@ -26,6 +34,10 @@ void* ketlGetFreeObjectFromPool(KETLObjectPool* pool);
 
 void ketlResetPool(KETLObjectPool* pool);
 
-#define KETL_
+void ketlInitPoolIterator(KETLObjectPoolIterator* iterator, KETLObjectPool* pool);
+
+bool ketlIteratorPoolHasNext(KETLObjectPoolIterator* iterator);
+
+void* ketlIteratorPoolGetNext(KETLObjectPoolIterator* iterator);
 
 #endif /*object_pool_h*/

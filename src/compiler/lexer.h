@@ -9,7 +9,7 @@
 
 KETL_FORWARD(KETLLexer);
 KETL_FORWARD(KETLToken);
-KETL_FORWARD(KETLTokenPool);
+KETL_FORWARD(KETLObjectPool);
 
 #define KETL_LEXER_SOURCE_NULL_TERMINATED SIZE_MAX
 
@@ -17,9 +17,10 @@ struct KETLLexer {
 	const char* source;
 	const char* sourceIt;
 	const char* sourceEnd;
+	KETLObjectPool* tokenPool;
 };
 
-void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length);
+void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length, KETLObjectPool* tokenPool);
 
 bool ketlHasNextToken(const KETLLexer* lexer);
 

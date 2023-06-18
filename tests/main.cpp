@@ -11,9 +11,14 @@ extern "C" {
 #include "ketl/object_pool.h"
 }
 
-int main(int argc, char** argv) {
+#include <crtdbg.h>
 
-	auto source = "let test = 0;";
+int main(int argc, char** argv) {
+	
+	auto source = "let test1 := 5 + 10; let test2 := test1 - 17;";
+
+	KETLObjectPool tokenPool;
+	ketlInitObjectPool(&tokenPool, sizeof(KETLToken), 16);
 
 	KETLObjectPool syntaxNodePool;
 	ketlInitObjectPool(&syntaxNodePool, sizeof(KETLSyntaxNode), 16);
@@ -24,18 +29,24 @@ int main(int argc, char** argv) {
 	KETLBnfNode* bnfScheme = ketlBuildBnfScheme(&bnfNodePool);
 
 	KETLLexer lexer;
-	ketlInitLexer(&lexer, source, KETL_LEXER_SOURCE_NULL_TERMINATED);
+	ketlInitLexer(&lexer, source, KETL_LEXER_SOURCE_NULL_TERMINATED, &tokenPool);
+
+	if (!ketlHasNextToken(&lexer)) {
+		return -1;
+	}
+	KETLToken* firstToken = ketlGetNextToken(&lexer);
+	KETLToken* token = firstToken;
 
 	while (ketlHasNextToken(&lexer)) {
-		auto token = ketlGetNextToken(&lexer);
-		std::cout << '"' << std::string_view(token->value, token->length) << '"' << std::endl;
-		ketlFreeToken(token);
+		token = token->next = ketlGetNextToken(&lexer);
 	}
+	token->next = nullptr;
 
-	auto* root = ketlSolveBnf(bnfScheme, &syntaxNodePool);
+	auto* root = ketlSolveBnf(firstToken, bnfScheme, &syntaxNodePool);
 
 	ketlDeinitObjectPool(&bnfNodePool);
 	ketlDeinitObjectPool(&syntaxNodePool);
+	ketlDeinitObjectPool(&tokenPool);
 
 	return 0;
 }

@@ -81,9 +81,9 @@ LinkedListNodeBase* ketlNextNode(LinkedListNodeBase* node) {
 }
 
 LinkedListNodeBase* ketlPrevNode(LinkedListNodeBase* node) {
-	return (node - 1)->next + 1;
+	return (node - 1)->prev + 1;
 }
 
-bool ketlIsEmpty(LinkedListBase* list, LinkedListNodeBase* node) {
+bool ketlIsListEmpty(LinkedListBase* list, LinkedListNodeBase* node) {
 	return list->end == (node - 1);
 }

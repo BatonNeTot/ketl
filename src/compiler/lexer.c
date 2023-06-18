@@ -5,6 +5,7 @@
 
 #include "ketl/assert.h"
 #include "ketl/common.h"
+#include "ketl/object_pool.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -164,7 +165,7 @@ static inline void skipSpaceAndComments(KETLLexer* lexer) {
 
 
 static KETLToken* createToken(const KETLLexer* lexer, const char* startIt, KETLTokenType type) {
-	KETLToken* token = malloc(sizeof(KETLToken));
+	KETLToken* token = ketlGetFreeObjectFromPool(lexer->tokenPool);
 	if (KETL_CHECK_VOEM(token, "Can't allocate space for token")) {
 		return NULL;
 	}
@@ -198,10 +199,11 @@ static inline bool hasNextChar(const KETLLexer* lexer) {
 	return lexer->sourceIt < lexer->sourceEnd && *lexer->sourceIt != '\0';
 }
 
-void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length) {
+void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length, KETLObjectPool* tokenPool) {
 	lexer->source = source;
 	lexer->sourceIt = source;
 	lexer->sourceEnd = length == KETL_LEXER_SOURCE_NULL_TERMINATED ? (void*)(-1) : source + length;
+	lexer->tokenPool = tokenPool;
 
 	skipSpaceAndComments(lexer);
 }

@@ -20,8 +20,7 @@ struct KETLToken {
 	const char* value;
 	uint16_t length;
 	KETLTokenType type;
+	KETLToken* next;
 };
-
-void ketlFreeToken(KETLToken* token);
 
 #endif /*compiler_token_h*/

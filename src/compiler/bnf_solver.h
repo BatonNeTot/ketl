@@ -10,11 +10,6 @@ KETL_FORWARD(KETLToken);
 KETL_FORWARD(KETLBnfNode);
 KETL_FORWARD(KETLObjectPool);
 
-KETLSyntaxNode* ketlSolveBnf(KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool);
-
-
-
-
-
+KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool);
 
 #endif /*compiler_bnf_solver_h*/
