@@ -258,12 +258,15 @@ static inline bool childRejected(SolverState* solverState) {
 	}
 }
 
-KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool) {
-	KETLStack syntaxStateStack;
-	ketlInitStack(&syntaxStateStack, sizeof(SolverState), 32);
+typedef struct ErrorInfo {
+	KETLToken* maxToken;
+	uint32_t maxTokenOffset;
+	KETLBnfNode* bnfNode;
+} ErrorInfo;
 
+static bool solveBnfImpl(KETLToken* firstToken, KETLBnfNode* scheme, KETLStack* syntaxStateStack, ErrorInfo* error) {
 	{
-		SolverState* initialSolver = ketlPushOnStack(&syntaxStateStack);
+		SolverState* initialSolver = ketlPushOnStack(syntaxStateStack);
 		initialSolver->bnfNode = scheme;
 		initialSolver->token = firstToken;
 		initialSolver->tokenOffset = 0;
@@ -276,47 +279,43 @@ KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObj
 
 	bool success = false;
 
-	KETLToken* maxToken = NULL;
-	uint32_t maxTokenOffset = 0;
-	KETLBnfNode* errorProcessNode = NULL;
+	while (!ketlIsStackEmpty(syntaxStateStack)) {
+		SolverState* current = ketlPeekStack(syntaxStateStack);
 
-	while (!ketlIsEmpty(&syntaxStateStack)) {
-		SolverState* current = ketlPeekStack(&syntaxStateStack);
-		
 		KETLToken* currentToken = current->token;
 		uint32_t currentTokenOffset = current->tokenOffset;
-		
+
 		if (!iterate(current, &currentToken, &currentTokenOffset)) {
-			if (maxToken == currentToken && maxTokenOffset == currentTokenOffset) {
-				errorProcessNode = current->bnfNode;
+			if (error->maxToken == currentToken && error->maxTokenOffset == currentTokenOffset) {
+				error->bnfNode = current->bnfNode;
 			}
-			else if (maxToken == NULL || currentToken == NULL ||
-				maxToken->positionInSource + maxTokenOffset
+			else if (error->maxToken == NULL || currentToken == NULL ||
+				error->maxToken->positionInSource + error->maxTokenOffset
 				< currentToken->positionInSource + currentTokenOffset) {
-				maxToken = currentToken;
-				maxTokenOffset = currentTokenOffset;
-				errorProcessNode = current->bnfNode;
+				error->maxToken = currentToken;
+				error->maxTokenOffset = currentTokenOffset;
+				error->bnfNode = current->bnfNode;
 			}
-			while (current) {
-				ketlPopStack(&syntaxStateStack);
+			KETL_FOREVER {
+				ketlPopStack(syntaxStateStack);
 				SolverState* parent = current->parent;
 				if (parent && childRejected(parent)) {
 					current = parent;
 					break;
 				}
-				current = ketlPeekStack(&syntaxStateStack);
-			}
-			if (current == NULL) {
-				break;
+				if (ketlIsStackEmpty(syntaxStateStack)) {
+					return (currentToken == NULL);
+				}
+				current = ketlPeekStack(syntaxStateStack);
 			}
 		}
 
 		KETLBnfNode* next;
-		while (current) {
+		KETL_FOREVER {
 			next = nextChild(current);
 
 			if (next != NULL) {
-				SolverState* pushed = ketlPushOnStack(&syntaxStateStack);
+				SolverState* pushed = ketlPushOnStack(syntaxStateStack);
 
 				pushed->bnfNode = next;
 				pushed->token = currentToken;
@@ -330,12 +329,26 @@ KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObj
 			}
 
 			current = current->parent;
-		}
-		if (current == NULL) {
-			success = (currentToken == NULL);
-			break;
+			if (current == NULL) {
+				return (currentToken == NULL);
+			}
 		}
 	}
+
+	return false;
+}
+
+KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool) {
+	KETLStack syntaxStateStack;
+	ketlInitStack(&syntaxStateStack, sizeof(SolverState), 32);
+
+	ErrorInfo error;
+
+	error.maxToken = NULL;
+	error.maxTokenOffset = 0;
+	error.bnfNode = NULL;
+
+	bool success = solveBnfImpl(firstToken, scheme, &syntaxStateStack, &error);
 
 	ketlDeinitStack(&syntaxStateStack);
 

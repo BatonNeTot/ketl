@@ -21,7 +21,7 @@ void ketlInitStack(KETLStack* stack, size_t objectSize, size_t poolSize);
 
 void ketlDeinitStack(KETLStack* stack);
 
-bool ketlIsEmpty(KETLStack* stack);
+bool ketlIsStackEmpty(KETLStack* stack);
 
 void* ketlPushOnStack(KETLStack* stack);
 

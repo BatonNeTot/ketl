@@ -33,7 +33,7 @@ void ketlDeinitStack(KETLStack* stack) {
 	}
 }
 
-bool ketlIsEmpty(KETLStack* stack) {
+bool ketlIsStackEmpty(KETLStack* stack) {
 	return stack->occupiedObjects == 0 && stack->currentPool->prev == NULL;
 }
 
