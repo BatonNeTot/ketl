@@ -58,7 +58,7 @@ void* ketlPushOnStack(KETLStack* stack) {
 }
 
 void ketlPopStack(KETLStack* stack) {
-	if (stack->occupiedObjects == 1) {
+	if (stack->occupiedObjects == 1 && stack->currentPool->prev) {
 		stack->currentPool = stack->currentPool->prev;
 		stack->occupiedObjects = stack->poolSize;
 	}
@@ -72,4 +72,35 @@ void ketlResetStack(KETLStack* stack) {
 	while (it->prev) it = it->prev;
 	stack->currentPool = it;
 	stack->occupiedObjects = 0;
+}
+
+void ketlInitStackIterator(KETLStackIterator* iterator, KETLStack* stack) {
+	iterator->stack = stack;
+	iterator->nextObjectIndex = 0;
+
+	KETLStackPoolBase* currentPool = stack->currentPool;
+	while (currentPool->prev) currentPool = currentPool->prev;
+	iterator->currentPool = currentPool;
+}
+
+bool ketlIteratorStackHasNext(KETLStackIterator* iterator) {
+	return iterator->currentPool != NULL && (iterator->currentPool != iterator->stack->currentPool || iterator->nextObjectIndex < iterator->stack->occupiedObjects);
+}
+
+void* ketlIteratorStackGetNext(KETLStackIterator* iterator) {
+	if (iterator->nextObjectIndex >= iterator->stack->poolSize) {
+		iterator->currentPool = iterator->currentPool->next;
+		iterator->nextObjectIndex = 0;
+	}
+	return ((char*)(iterator->currentPool + 1)) + iterator->stack->objectSize * iterator->nextObjectIndex++;
+}
+
+void ketlIteratorStackSkipNext(KETLStackIterator* iterator) {
+	if (iterator->nextObjectIndex >= iterator->stack->poolSize) {
+		iterator->currentPool = iterator->currentPool->next;
+		iterator->nextObjectIndex = 1;
+	}
+	else {
+		++iterator->nextObjectIndex;
+	}
 }

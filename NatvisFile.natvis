@@ -2,8 +2,8 @@
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 	<!--Compiler-->
 	<!--Lexer-->
-	<!--Parser-->
-	<!--ParserBnfNodes-->
+	<!--KETLBnfParserState-->
+	<!--BnfNodes-->
 	
 	<!--Ketl-->
 </AutoVisualizer>

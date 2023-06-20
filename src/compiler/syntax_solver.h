@@ -1,8 +1,10 @@
 ﻿//🍲ketl
-#ifndef compiler_bnf_solver_h
-#define compiler_bnf_solver_h
+#ifndef compiler_syntax_solver_h
+#define compiler_syntax_solver_h
 
 #include "ketl/common.h"
+
+#include <stdbool.h>
 
 KETL_FORWARD(KETLSyntaxNode);
 

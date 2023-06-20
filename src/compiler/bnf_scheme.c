@@ -6,210 +6,211 @@
 
 #include <string.h>
 
-#define CREATE_CHILD(node, childName) KETLBnfNode* childName = (node)->firstChild = ketlGetFreeObjectFromPool(bnfNodePool)
-#define CREATE_SIBLING(node) (node) = (node)->nextSibling = ketlGetFreeObjectFromPool(bnfNodePool)
+#define CURRENT_NODE __current
+
+#define SET_CURRENT(node) __current = (node)
+
+#define CREATE_ROOT(node) KETLBnfNode* node = CURRENT_NODE = ketlGetFreeObjectFromPool(bnfNodePool);\
+CURRENT_NODE->nextSibling = NULL
+#define CREATE_ROOT_OF(node, copy) KETLBnfNode* node = CURRENT_NODE = (copy);\
+CURRENT_NODE->nextSibling = NULL
+
+#define CREATE_CHILD() \
+KETLBnfNode* __temp = CURRENT_NODE;\
+KETLBnfNode* CURRENT_NODE = __temp->firstChild = ketlGetFreeObjectFromPool(bnfNodePool);\
+CURRENT_NODE->builder = KETL_SYNTAX_BUILDER_TYPE_NONE; do {
+
+#define CREATE_SIBLING() CURRENT_NODE = CURRENT_NODE->nextSibling = ketlGetFreeObjectFromPool(bnfNodePool);\
+CURRENT_NODE->builder = KETL_SYNTAX_BUILDER_TYPE_NONE
+
+#define CLOSE_CHILD() CURRENT_NODE->nextSibling = NULL; } while (0) 
+
+#define SET_TYPE(_type) CURRENT_NODE->type = (_type)
+
+#define SET_CONSTANT(_value) SET_TYPE(KETL_BNF_NODE_TYPE_CONSTANT);\
+CURRENT_NODE->value = (_value)
+
+#define SET_REF(_ref) SET_TYPE(KETL_BNF_NODE_TYPE_REF);\
+CURRENT_NODE->ref = (_ref)
 
 
 KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 	ketlResetPool(bnfNodePool);
+	KETLBnfNode* __current = NULL;
 
 	//// forward declarated some stuff
-	KETLBnfNode* command = ketlGetFreeObjectFromPool(bnfNodePool);
-	KETLBnfNode* expression = ketlGetFreeObjectFromPool(bnfNodePool);
-	KETLBnfNode* severalCommands = ketlGetFreeObjectFromPool(bnfNodePool);
+	CREATE_ROOT(command);
+	CREATE_ROOT(expression);
+	CREATE_ROOT(severalCommands);
 
 	//// expression
 	//// primary
-	KETLBnfNode* primary = ketlGetFreeObjectFromPool(bnfNodePool);
-	primary->nextSibling = NULL;
+	CREATE_ROOT(primary);
+	primary->builder = KETL_SYNTAX_BUILDER_TYPE_PRIMARY_EXPRESSION;
 	primary->type = KETL_BNF_NODE_TYPE_OR;
 	{
-		CREATE_CHILD(primary, orChild);
-		orChild->type = KETL_BNF_NODE_TYPE_ID;
+		CREATE_CHILD();
+		SET_TYPE(KETL_BNF_NODE_TYPE_ID);
 
-		CREATE_SIBLING(orChild);
-		orChild->type = KETL_BNF_NODE_TYPE_NUMBER;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_NUMBER);
 
-		CREATE_SIBLING(orChild);
-		orChild->type = KETL_BNF_NODE_TYPE_STRING;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_STRING);
 
-		CREATE_SIBLING(orChild);
-		orChild->type = KETL_BNF_NODE_TYPE_CONCAT;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 		{
-			CREATE_CHILD(orChild, concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = "(";
+			CREATE_CHILD();
+			SET_CONSTANT("(");
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_REF;
-			concatChild->ref = expression;
+			CREATE_SIBLING();
+			SET_REF(expression);
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = ")";
+			CREATE_SIBLING();
+			SET_CONSTANT(")");
 
-			concatChild->nextSibling = NULL;
+			CLOSE_CHILD();
 		}
 
-		orChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
 	//// precedenceExpression1
-	KETLBnfNode* precedenceExpression1 = ketlGetFreeObjectFromPool(bnfNodePool);
-	precedenceExpression1->nextSibling = NULL;
+	CREATE_ROOT(precedenceExpression1);
+	precedenceExpression1->builder = KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_1;
 	precedenceExpression1->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
-		CREATE_CHILD(precedenceExpression1, concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_REF;
-		concatChild->ref = primary;
+		CREATE_CHILD();
+		SET_REF(primary);
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_REPEAT;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
 		{
-			CREATE_CHILD(concatChild, repeatChild);
-			repeatChild->nextSibling;
-			repeatChild->type = KETL_BNF_NODE_TYPE_CONCAT;
+			CREATE_CHILD();
+			SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 			{
-				CREATE_CHILD(repeatChild, innerConcatChild);
-				innerConcatChild->type = KETL_BNF_NODE_TYPE_CONSTANT;
-				innerConcatChild->value = ".";
+				CREATE_CHILD();
+				SET_CONSTANT(".");
 
-				CREATE_SIBLING(innerConcatChild);
-				innerConcatChild->type = KETL_BNF_NODE_TYPE_REF;
-				innerConcatChild->ref = primary;
+				CREATE_SIBLING();
+				SET_REF(primary);
 
-				innerConcatChild->nextSibling = NULL;
+				CLOSE_CHILD();
 			}
-			repeatChild->nextSibling = NULL;
+
+			CLOSE_CHILD();
 		}
-		concatChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
 	//// precedenceExpression4
-	KETLBnfNode* precedenceExpression4 = expression;
-	precedenceExpression4->nextSibling = NULL;
+	CREATE_ROOT_OF(precedenceExpression4, expression);
+	precedenceExpression4->builder = KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4;
 	precedenceExpression4->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
-		CREATE_CHILD(precedenceExpression4, concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_REF;
-		concatChild->ref = precedenceExpression1;
+		CREATE_CHILD();
+		SET_REF(precedenceExpression1);
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_REPEAT;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
 		{
-			CREATE_CHILD(concatChild, repeatChild);
-			repeatChild->nextSibling;
-			repeatChild->type = KETL_BNF_NODE_TYPE_CONCAT;
+			CREATE_CHILD();
+			SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 			{
-				CREATE_CHILD(repeatChild, innerConcatChild);
-				innerConcatChild->type = KETL_BNF_NODE_TYPE_OR;
+				CREATE_CHILD();
+				SET_TYPE(KETL_BNF_NODE_TYPE_OR);
 				{
-					CREATE_CHILD(innerConcatChild, orChild);
-					orChild->type = KETL_BNF_NODE_TYPE_CONSTANT;
-					orChild->value = "+";
+					CREATE_CHILD();
+					SET_CONSTANT("+");
 
-					CREATE_SIBLING(orChild);
-					orChild->type = KETL_BNF_NODE_TYPE_CONSTANT;
-					orChild->value = "-";
+					CREATE_SIBLING();
+					SET_CONSTANT("-");
 
-					orChild->nextSibling = NULL;
+					CLOSE_CHILD();
 				}
 
-				CREATE_SIBLING(innerConcatChild);
-				innerConcatChild->type = KETL_BNF_NODE_TYPE_REF;
-				innerConcatChild->ref = precedenceExpression1;
+				CREATE_SIBLING();
+				SET_REF(precedenceExpression1);
 
-				innerConcatChild->nextSibling = NULL;
+				CLOSE_CHILD();
 			}
-			repeatChild->nextSibling = NULL;
+			CLOSE_CHILD();
 		}
-		concatChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
-	//// define_variable_assignment
-	KETLBnfNode* define_variable_assigment = ketlGetFreeObjectFromPool(bnfNodePool);
-	define_variable_assigment->nextSibling = NULL;
-	define_variable_assigment->type = KETL_BNF_NODE_TYPE_CONCAT;
+	//// defineVariableAssigment
+	CREATE_ROOT(defineVariableAssigment);
+	defineVariableAssigment->builder = KETL_SYNTAX_BUILDER_TYPE_DEFINE_WITH_ASSIGNMENT;
+	defineVariableAssigment->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
-		CREATE_CHILD(define_variable_assigment, concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		concatChild->value = "let";
+		CREATE_CHILD();
+		SET_CONSTANT("let");
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_ID;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_ID);
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		concatChild->value = ":=";
+		CREATE_SIBLING();
+		SET_CONSTANT(":=");
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_REF;
-		concatChild->ref = expression;
+		CREATE_SIBLING();
+		SET_REF(expression);
 
-		CREATE_SIBLING(concatChild);
-		concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		concatChild->value = ";";
+		CREATE_SIBLING();
+		SET_CONSTANT(";");
 
-		concatChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
-	//// if_else
-
-	KETLBnfNode* if_else = ketlGetFreeObjectFromPool(bnfNodePool);
-	if_else->nextSibling = NULL;
-	if_else->type = KETL_BNF_NODE_TYPE_CONCAT;
+	//// ifElse
+	CREATE_ROOT(ifElse);
+	ifElse->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
-		CREATE_CHILD(if_else, currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		currentChild->value = "if";
+		CREATE_CHILD();
+		SET_CONSTANT("if");
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		currentChild->value = "(";
+		CREATE_SIBLING();
+		SET_CONSTANT("(");
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_REF;
-		currentChild->ref = expression;
+		CREATE_SIBLING();
+		SET_REF(expression);
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-		currentChild->value = ")";
+		CREATE_SIBLING();
+		SET_CONSTANT(")");
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_REF;
-		currentChild->ref = command;
+		CREATE_SIBLING();
+		SET_REF(command);
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_OPTIONAL;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
 
 		{
-			CREATE_CHILD(currentChild, optional);
-			optional->nextSibling = NULL;
-			optional->type = KETL_BNF_NODE_TYPE_CONCAT;
+			CREATE_CHILD();
+			SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
+			{
+				CREATE_CHILD();
+				SET_CONSTANT("else");
 
-			CREATE_CHILD(optional, concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = "else";
+				CREATE_SIBLING();
+				SET_REF(command);
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_REF;
-			concatChild->ref = command;
+				CLOSE_CHILD();
+			}
 
-			concatChild->nextSibling = NULL;
+			CLOSE_CHILD();
 		}
 
-		currentChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
 	//// command
-	
-	command->nextSibling = NULL;
+	SET_CURRENT(command);
+	command->builder = KETL_SYNTAX_BUILDER_TYPE_COMMAND;
 	command->type = KETL_BNF_NODE_TYPE_OR;
-
 	{
-		CREATE_CHILD(command, currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_REF;
-		currentChild->ref = if_else;
+		CREATE_CHILD();
+		SET_REF(ifElse);
 
 		/*
 		CREATE_SIBLING(currentChild);
@@ -225,9 +226,8 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 		currentChild->ref = NULL; // TODO defineVariable
 		*/
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_REF;
-		currentChild->ref = define_variable_assigment;
+		CREATE_SIBLING();
+		SET_REF(defineVariableAssigment);
 
 		/*
 		CREATE_SIBLING(currentChild);
@@ -239,54 +239,51 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 		currentChild->ref = NULL; // TODO defineStruct
 		*/
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_CONCAT;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 		{
-			CREATE_CHILD(currentChild, concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_OPTIONAL;
-			concatChild->firstChild = ketlGetFreeObjectFromPool(bnfNodePool);
-			concatChild->firstChild->nextSibling = NULL;
-			concatChild->firstChild->type = KETL_BNF_NODE_TYPE_REF;
-			concatChild->firstChild->ref = expression;
+			CREATE_CHILD();
+			SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
+			{
+				CREATE_CHILD();
+				SET_REF(expression);
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = ";";
+				CLOSE_CHILD();
+			}
 
-			concatChild->nextSibling = NULL;
+			CREATE_SIBLING();
+			SET_CONSTANT(";");
+
+			CLOSE_CHILD();
 		}
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_CONCAT;
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 		{
-			CREATE_CHILD(currentChild, concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = "{";
+			CREATE_CHILD();
+			SET_CONSTANT("{");
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_REF;
-			concatChild->ref = severalCommands;
+			CREATE_SIBLING();
+			SET_REF(severalCommands);
 
-			CREATE_SIBLING(concatChild);
-			concatChild->type = KETL_BNF_NODE_TYPE_SERVICE_CONSTANT;
-			concatChild->value = "}";
+			CREATE_SIBLING();
+			SET_CONSTANT("}");
 
-			concatChild->nextSibling = NULL;
+			CLOSE_CHILD();
 		}
 
-		currentChild->nextSibling = NULL;
+		CLOSE_CHILD();
 	}
 
 	//// severalCommands
-
-	severalCommands->nextSibling = NULL;
+	SET_CURRENT(severalCommands);
+	severalCommands->builder = KETL_SYNTAX_BUILDER_TYPE_BLOCK;
 	severalCommands->type = KETL_BNF_NODE_TYPE_REPEAT;
-
 	{
-		CREATE_CHILD(severalCommands, severalCommands_child);
-		severalCommands_child->type = KETL_BNF_NODE_TYPE_REF;
-		severalCommands_child->ref = command;
-		severalCommands_child->nextSibling = NULL;
+		CREATE_CHILD();
+		SET_REF(command);
+
+		CLOSE_CHILD();
 	}
 
 	KETLObjectPoolIterator bnfIterator;
@@ -295,7 +292,6 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 		KETLBnfNode* current = ketlIteratorPoolGetNext(&bnfIterator);
 		switch (current->type) {
 		case KETL_BNF_NODE_TYPE_CONSTANT:
-		case KETL_BNF_NODE_TYPE_SERVICE_CONSTANT:
 			current->size = (uint32_t)strlen(current->value);
 			break;
 		case KETL_BNF_NODE_TYPE_CONCAT:

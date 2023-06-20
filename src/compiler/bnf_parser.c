@@ -1,87 +1,10 @@
 ﻿//🍲ketl
-#include "bnf_solver.h"
+#include "bnf_parser.h"
 
 #include "token.h"
-#include "syntax_node.h"
 #include "bnf_node.h"
 #include "ketl/object_pool.h"
 #include "ketl/stack.h"
-
-
-
-static inline KETLSyntaxNode* example(KETLObjectPool* syntaxNodePool) {
-	KETLSyntaxNode* define1 = ketlGetFreeObjectFromPool(syntaxNodePool);
-	define1->type = KETL_SYNTAX_NODE_TYPE_DEFINE_VAR;
-	define1->value = "test1";
-	define1->length = 5;
-
-	KETLSyntaxNode* plus = ketlGetFreeObjectFromPool(syntaxNodePool);
-	plus->type = KETL_SYNTAX_NODE_TYPE_OPERATOR;
-	plus->value = "+";
-	plus->length = 1;
-	plus->nextSibling = NULL;
-	define1->firstChild = plus;
-
-	KETLSyntaxNode* number1 = ketlGetFreeObjectFromPool(syntaxNodePool);
-	number1->type = KETL_SYNTAX_NODE_TYPE_NUMBER;
-	number1->value = "5";
-	number1->length = 1;
-	number1->firstChild = NULL;
-	plus->firstChild = number1;
-
-	KETLSyntaxNode* number2 = ketlGetFreeObjectFromPool(syntaxNodePool);
-	number2->type = KETL_SYNTAX_NODE_TYPE_NUMBER;
-	number2->value = "10";
-	number2->length = 2;
-	number2->firstChild = NULL;
-	number2->nextSibling = NULL;
-	number1->nextSibling = number2;
-
-	KETLSyntaxNode* define2 = ketlGetFreeObjectFromPool(syntaxNodePool);
-	define2->type = KETL_SYNTAX_NODE_TYPE_DEFINE_VAR;
-	define2->value = "test2";
-	define2->length = 5;
-	define2->nextSibling = NULL;
-	define1->nextSibling = define2;
-
-	KETLSyntaxNode* minus = ketlGetFreeObjectFromPool(syntaxNodePool);
-	minus->type = KETL_SYNTAX_NODE_TYPE_OPERATOR;
-	minus->value = "-";
-	minus->length = 1;
-	minus->nextSibling = NULL;
-	define2->firstChild = minus;
-
-	KETLSyntaxNode* id = ketlGetFreeObjectFromPool(syntaxNodePool);
-	id->type = KETL_SYNTAX_NODE_TYPE_ID;
-	id->value = "test1";
-	id->length = 5;
-	id->firstChild = NULL;
-	minus->firstChild = id;
-
-	KETLSyntaxNode* number3 = ketlGetFreeObjectFromPool(syntaxNodePool);
-	number3->type = KETL_SYNTAX_NODE_TYPE_NUMBER;
-	number3->value = "17";
-	number3->length = 2;
-	number3->firstChild = NULL;
-	number3->nextSibling = NULL;
-	id->nextSibling = number3;
-
-	return define1;
-}
-
-KETL_FORWARD(SolverState);
-
-struct SolverState {
-	KETLBnfNode* bnfNode;
-	uint32_t state;
-	uint32_t tokenOffset;
-	KETLToken* token;
-
-	SolverState* parent;
-	SolverState* firstChild;
-	SolverState* nextSibling;
-	SolverState* prevSibling;
-};
 
 static bool iterateIterator(KETLToken** pToken, uint32_t* pTokenOffset, const char* value, uint32_t valueLength) {
 	KETLToken* token = *pToken;
@@ -113,7 +36,7 @@ static bool iterateIterator(KETLToken** pToken, uint32_t* pTokenOffset, const ch
 	return true;
 }
 
-static inline bool iterate(SolverState* solverState, KETLToken** pToken, uint32_t* pTokenOffset) {
+static inline bool iterate(KETLBnfParserState* solverState, KETLToken** pToken, uint32_t* pTokenOffset) {
 	switch (solverState->bnfNode->type) {
 	case KETL_BNF_NODE_TYPE_ID: {
 		KETLToken* currentToken = *pToken;
@@ -145,8 +68,7 @@ static inline bool iterate(SolverState* solverState, KETLToken** pToken, uint32_
 			return false;
 		}
 	}
-	case KETL_BNF_NODE_TYPE_CONSTANT:
-	case KETL_BNF_NODE_TYPE_SERVICE_CONSTANT: {
+	case KETL_BNF_NODE_TYPE_CONSTANT:{
 		KETLToken* currentToken = *pToken;
 		if (currentToken == NULL) {
 			return false;
@@ -182,10 +104,9 @@ static inline bool iterate(SolverState* solverState, KETLToken** pToken, uint32_
 	}
 }
 
-static inline KETLBnfNode* nextChild(SolverState* solverState) {
+static inline KETLBnfNode* nextChild(KETLBnfParserState* solverState) {
 	switch (solverState->bnfNode->type) {
-	case KETL_BNF_NODE_TYPE_CONSTANT:
-	case KETL_BNF_NODE_TYPE_SERVICE_CONSTANT: {
+	case KETL_BNF_NODE_TYPE_CONSTANT:{
 		return NULL;
 	}
 	case KETL_BNF_NODE_TYPE_REF: {
@@ -235,7 +156,7 @@ static inline KETLBnfNode* nextChild(SolverState* solverState) {
 	}
 }
 
-static inline bool childRejected(SolverState* solverState) {
+static inline bool childRejected(KETLBnfParserState* solverState) {
 	switch (solverState->bnfNode->type) {
 	case KETL_BNF_NODE_TYPE_CONCAT: {
 		--solverState->state;
@@ -258,29 +179,9 @@ static inline bool childRejected(SolverState* solverState) {
 	}
 }
 
-typedef struct ErrorInfo {
-	KETLToken* maxToken;
-	uint32_t maxTokenOffset;
-	KETLBnfNode* bnfNode;
-} ErrorInfo;
-
-static bool solveBnfImpl(KETLToken* firstToken, KETLBnfNode* scheme, KETLStack* syntaxStateStack, ErrorInfo* error) {
-	{
-		SolverState* initialSolver = ketlPushOnStack(syntaxStateStack);
-		initialSolver->bnfNode = scheme;
-		initialSolver->token = firstToken;
-		initialSolver->tokenOffset = 0;
-
-		initialSolver->parent = NULL;
-		initialSolver->firstChild = NULL;
-		initialSolver->nextSibling = NULL;
-		initialSolver->prevSibling = NULL;
-	}
-
-	bool success = false;
-
+bool ketlParseBnf(KETLStack* syntaxStateStack, KETLBnfErrorInfo* error) {
 	while (!ketlIsStackEmpty(syntaxStateStack)) {
-		SolverState* current = ketlPeekStack(syntaxStateStack);
+		KETLBnfParserState* current = ketlPeekStack(syntaxStateStack);
 
 		KETLToken* currentToken = current->token;
 		uint32_t currentTokenOffset = current->tokenOffset;
@@ -298,7 +199,7 @@ static bool solveBnfImpl(KETLToken* firstToken, KETLBnfNode* scheme, KETLStack* 
 			}
 			KETL_FOREVER {
 				ketlPopStack(syntaxStateStack);
-				SolverState* parent = current->parent;
+				KETLBnfParserState* parent = current->parent;
 				if (parent && childRejected(parent)) {
 					current = parent;
 					break;
@@ -315,16 +216,13 @@ static bool solveBnfImpl(KETLToken* firstToken, KETLBnfNode* scheme, KETLStack* 
 			next = nextChild(current);
 
 			if (next != NULL) {
-				SolverState* pushed = ketlPushOnStack(syntaxStateStack);
+				KETLBnfParserState* pushed = ketlPushOnStack(syntaxStateStack);
 
 				pushed->bnfNode = next;
 				pushed->token = currentToken;
 				pushed->tokenOffset = currentTokenOffset;
 
 				pushed->parent = current;
-				pushed->firstChild = NULL;
-				pushed->nextSibling = NULL;
-				pushed->prevSibling = NULL;
 				break;
 			}
 
@@ -336,21 +234,4 @@ static bool solveBnfImpl(KETLToken* firstToken, KETLBnfNode* scheme, KETLStack* 
 	}
 
 	return false;
-}
-
-KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool) {
-	KETLStack syntaxStateStack;
-	ketlInitStack(&syntaxStateStack, sizeof(SolverState), 32);
-
-	ErrorInfo error;
-
-	error.maxToken = NULL;
-	error.maxTokenOffset = 0;
-	error.bnfNode = NULL;
-
-	bool success = solveBnfImpl(firstToken, scheme, &syntaxStateStack, &error);
-
-	ketlDeinitStack(&syntaxStateStack);
-
-	return example(syntaxNodePool); //NULL;
 }

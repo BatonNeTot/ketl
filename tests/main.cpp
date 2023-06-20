@@ -4,7 +4,7 @@
 extern "C" {
 #include "compiler/token.h"
 #include "compiler/lexer.h"
-#include "compiler/bnf_solver.h"
+#include "compiler/syntax_solver.h"
 #include "compiler/bnf_node.h"
 #include "compiler/bnf_scheme.h"
 #include "compiler/syntax_node.h"

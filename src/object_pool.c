@@ -57,7 +57,7 @@ void ketlInitPoolIterator(KETLObjectPoolIterator* iterator, KETLObjectPool* pool
 }
 
 bool ketlIteratorPoolHasNext(KETLObjectPoolIterator* iterator) {
-	return iterator->currentPool != NULL && (iterator->currentPool->next != NULL || iterator->nextObjectIndex < iterator->pool->occupiedObjects);
+	return iterator->currentPool != NULL && (iterator->currentPool != iterator->pool->lastPool || iterator->nextObjectIndex < iterator->pool->occupiedObjects);
 }
 
 void* ketlIteratorPoolGetNext(KETLObjectPoolIterator* iterator) {
