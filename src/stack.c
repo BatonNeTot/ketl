@@ -74,13 +74,17 @@ void ketlResetStack(KETLStack* stack) {
 	stack->occupiedObjects = 0;
 }
 
-void ketlInitStackIterator(KETLStackIterator* iterator, KETLStack* stack) {
-	iterator->stack = stack;
+inline void ketlResetStackIterator(KETLStackIterator* iterator) {
 	iterator->nextObjectIndex = 0;
 
-	KETLStackPoolBase* currentPool = stack->currentPool;
+	KETLStackPoolBase* currentPool = iterator->stack->currentPool;
 	while (currentPool->prev) currentPool = currentPool->prev;
 	iterator->currentPool = currentPool;
+}
+
+void ketlInitStackIterator(KETLStackIterator* iterator, KETLStack* stack) {
+	iterator->stack = stack;
+	ketlResetStackIterator(iterator);
 }
 
 bool ketlIteratorStackHasNext(KETLStackIterator* iterator) {

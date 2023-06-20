@@ -10,7 +10,7 @@
 
 #include <debugapi.h>
 
-KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator, KETLStack* bnfParentStack) {
+KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator) {
 	KETLBnfParserState* state = ketlIteratorStackGetNext(bnfStackIterator);
 
 	switch (state->bnfNode->builder) {
@@ -30,7 +30,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			}
 
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
-			KETLSyntaxNode* command = ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+			KETLSyntaxNode* command = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 			if (first == NULL) {
 				first = command;
 				last = command;
@@ -50,7 +50,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		state = ketlIteratorStackGetNext(bnfStackIterator);
 		switch (state->bnfNode->type) {
 		case KETL_BNF_NODE_TYPE_REF:
-			return ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+			return ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 		default:
 			__debugbreak();
 		}
@@ -90,7 +90,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_1: {
 		// LEFT TO RIGHT
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
-		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 		KETLBnfParserState* state = ketlIteratorStackGetNext(bnfStackIterator); // repeat
 		KETL_ITERATOR_STACK_PEEK(KETLBnfParserState*, next, *bnfStackIterator);
 
@@ -103,7 +103,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: {
 		// LEFT TO RIGHT
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
-		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 
 		KETLBnfParserState* repeat = ketlIteratorStackGetNext(bnfStackIterator); // repeat
 		KETL_FOREVER {
@@ -127,7 +127,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			node->firstChild = left;
 
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
-			KETLSyntaxNode* right = ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+			KETLSyntaxNode* right = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 
 			left->nextSibling = right;
 			right->nextSibling = NULL;
@@ -151,7 +151,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		ketlIteratorStackSkipNext(bnfStackIterator); // :=
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
 
-		KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator, bnfParentStack);
+		KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 		expression->nextSibling = NULL;
 
 		node->firstChild = expression;

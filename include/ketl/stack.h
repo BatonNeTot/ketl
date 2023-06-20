@@ -42,6 +42,8 @@ void ketlResetStack(KETLStack* stack);
 
 void ketlInitStackIterator(KETLStackIterator* iterator, KETLStack* stack);
 
+void ketlResetStackIterator(KETLStackIterator* iterator);
+
 bool ketlIteratorStackHasNext(KETLStackIterator* iterator);
 
 void* ketlIteratorStackGetNext(KETLStackIterator* iterator);

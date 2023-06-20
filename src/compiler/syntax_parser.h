@@ -5,10 +5,9 @@
 #include "ketl/common.h"
 
 KETL_FORWARD(KETLObjectPool);
-KETL_FORWARD(KETLStack);
 KETL_FORWARD(KETLStackIterator);
 KETL_FORWARD(KETLSyntaxNode);
 
-KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator, KETLStack* bnfParentStack);
+KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator);
 
 #endif /*compiler_syntax_parser_h*/

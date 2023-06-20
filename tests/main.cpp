@@ -6,9 +6,11 @@ extern "C" {
 #include "compiler/lexer.h"
 #include "compiler/syntax_solver.h"
 #include "compiler/bnf_node.h"
+#include "compiler/bnf_parser.h"
 #include "compiler/bnf_scheme.h"
 #include "compiler/syntax_node.h"
 #include "ketl/object_pool.h"
+#include "ketl/stack.h"
 }
 
 #include <crtdbg.h>
@@ -42,8 +44,11 @@ int main(int argc, char** argv) {
 	}
 	token->next = nullptr;
 
-	auto* root = ketlSolveBnf(firstToken, bnfScheme, &syntaxNodePool);
+	KETLStack bnfStateStack;
+	ketlInitStack(&bnfStateStack, sizeof(KETLBnfParserState), 32);
+	auto* root = ketlSolveBnf(firstToken, bnfScheme, &syntaxNodePool, &bnfStateStack);
 
+	ketlDeinitStack(&bnfStateStack);
 	ketlDeinitObjectPool(&bnfNodePool);
 	ketlDeinitObjectPool(&syntaxNodePool);
 	ketlDeinitObjectPool(&tokenPool);
