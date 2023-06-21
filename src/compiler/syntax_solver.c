@@ -5,8 +5,10 @@
 #include "syntax_parser.h"
 
 #include "token.h"
+#include "lexer.h"
 #include "syntax_node.h"
 #include "bnf_node.h"
+#include "bnf_scheme.h"
 #include "ketl/object_pool.h"
 #include "ketl/stack.h"
 
@@ -77,11 +79,40 @@ static void printBnfSolution(KETLStackIterator* iterator) {
 	ketlResetStackIterator(iterator);
 }
 
-KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObjectPool* syntaxNodePool, KETLStack* bnfStateStack) {
+void ketlInitSyntaxSolver(KETLSyntaxSolver* syntaxSolver) {
+	ketlInitObjectPool(&syntaxSolver->tokenPool, sizeof(KETLToken), 16);
+	ketlInitObjectPool(&syntaxSolver->bnfNodePool, sizeof(KETLBnfNode), 16);
+	ketlInitStack(&syntaxSolver->bnfStateStack, sizeof(KETLBnfParserState), 32);
+	syntaxSolver->bnfScheme = ketlBuildBnfScheme(&syntaxSolver->bnfNodePool);
+}
+
+void ketlDeinitSyntaxSolver(KETLSyntaxSolver* syntaxSolver) {
+	ketlDeinitStack(&syntaxSolver->bnfStateStack);
+	ketlDeinitObjectPool(&syntaxSolver->bnfNodePool);
+	ketlDeinitObjectPool(&syntaxSolver->tokenPool);
+}
+
+KETLSyntaxNode* ketlSolveSyntax(const char* source, size_t length, KETLSyntaxSolver* syntaxSolver, KETLObjectPool* syntaxNodePool) {
+	KETLStack* bnfStateStack = &syntaxSolver->bnfStateStack;
+	KETLObjectPool* tokenPool = &syntaxSolver->tokenPool;
+
+	KETLLexer lexer;
+	ketlInitLexer(&lexer, source, length, tokenPool);
+
+	if (!ketlHasNextToken(&lexer)) {
+		return NULL;
+	}
+	KETLToken* firstToken = ketlGetNextToken(&lexer);
+	KETLToken* token = firstToken;
+
+	while (ketlHasNextToken(&lexer)) {
+		token = token->next = ketlGetNextToken(&lexer);
+	}
+	token->next = NULL;
 
 	{
 		KETLBnfParserState* initialSolver = ketlPushOnStack(bnfStateStack);
-		initialSolver->bnfNode = scheme;
+		initialSolver->bnfNode = syntaxSolver->bnfScheme;
 		initialSolver->token = firstToken;
 		initialSolver->tokenOffset = 0;
 
@@ -104,5 +135,8 @@ KETLSyntaxNode* ketlSolveBnf(KETLToken* firstToken, KETLBnfNode* scheme, KETLObj
 
 	KETLSyntaxNode* rootSyntaxNode = ketlParseSyntax(syntaxNodePool, &iterator);
 
+	ketlResetStack(bnfStateStack);
+	ketlResetPool(tokenPool);
+	
 	return rootSyntaxNode;
 }

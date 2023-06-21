@@ -5,13 +5,10 @@
 #include "ketl/common.h"
 
 #include <stdbool.h>
-#include <limits.h>
 
 KETL_FORWARD(KETLLexer);
 KETL_FORWARD(KETLToken);
 KETL_FORWARD(KETLObjectPool);
-
-#define KETL_LEXER_SOURCE_NULL_TERMINATED SIZE_MAX
 
 struct KETLLexer {
 	const char* source;

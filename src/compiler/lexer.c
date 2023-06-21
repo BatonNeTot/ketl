@@ -202,7 +202,7 @@ static inline bool hasNextChar(const KETLLexer* lexer) {
 void ketlInitLexer(KETLLexer* lexer, const char* source, size_t length, KETLObjectPool* tokenPool) {
 	lexer->source = source;
 	lexer->sourceIt = source;
-	lexer->sourceEnd = length == KETL_LEXER_SOURCE_NULL_TERMINATED ? (void*)(-1) : source + length;
+	lexer->sourceEnd = length >= KETL_NULL_TERMINATED_LENGTH ? (void*)(-1) : source + length;
 	lexer->tokenPool = tokenPool;
 
 	skipSpaceAndComments(lexer);
