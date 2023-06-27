@@ -311,6 +311,3 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 
 	return severalCommands;
 }
-
-#undef CREATE_SIBLING
-#undef CREATE_CHILD

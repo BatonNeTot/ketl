@@ -2,7 +2,7 @@
 #ifndef compiler_syntax_parser_h
 #define compiler_syntax_parser_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 KETL_FORWARD(KETLObjectPool);
 KETL_FORWARD(KETLStackIterator);

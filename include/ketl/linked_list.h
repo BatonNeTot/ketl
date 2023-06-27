@@ -2,7 +2,7 @@
 #ifndef linked_list_h
 #define linked_list_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 #include <stdbool.h>

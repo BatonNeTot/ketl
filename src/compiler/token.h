@@ -2,7 +2,7 @@
 #ifndef compiler_token_h
 #define compiler_token_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 

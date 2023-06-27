@@ -10,6 +10,22 @@
 
 #include <debugapi.h>
 
+static KETLSyntaxNodeType decideOperatorSyntaxType(const char* value, uint32_t length) {
+	switch (length) {
+	case 1: {
+		switch (*value) {
+		case '+':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PLUS;
+		case '-':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS;
+		}
+		break;
+	}
+	default:
+		__debugbreak();
+	}
+}
+
 KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator) {
 	KETLBnfParserState* state = ketlIteratorStackGetNext(bnfStackIterator);
 
@@ -78,7 +94,6 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			node->positionInSource = state->token->positionInSource + state->tokenOffset;
 			node->value = state->token->value + state->tokenOffset;
 			node->length = state->token->length - state->tokenOffset;
-			node->firstChild = NULL;
 
 			return node;
 		}
@@ -120,10 +135,9 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 			KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
 
-			node->type = KETL_SYNTAX_NODE_TYPE_OPERATOR;
+			node->type = decideOperatorSyntaxType(op->token->value + op->tokenOffset, op->token->length - op->tokenOffset);
 			node->positionInSource = op->token->positionInSource + op->tokenOffset;
-			node->value = op->token->value + op->tokenOffset;
-			node->length = op->token->length - op->tokenOffset;
+			node->length = 2;
 			node->firstChild = left;
 
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
@@ -145,8 +159,16 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 		state = ketlIteratorStackGetNext(bnfStackIterator); // id
 
-		node->value = state->token->value + state->tokenOffset;
-		node->length = state->token->length - state->tokenOffset;
+		node->length = 2;
+
+		KETLSyntaxNode* idNode = ketlGetFreeObjectFromPool(syntaxNodePool);
+
+		idNode->type = KETL_SYNTAX_NODE_TYPE_ID;
+		idNode->positionInSource = state->token->positionInSource + state->tokenOffset;
+		idNode->length = state->token->length - state->tokenOffset;
+		idNode->value = state->token->value + state->tokenOffset;
+
+		node->firstChild = idNode;
 
 		ketlIteratorStackSkipNext(bnfStackIterator); // :=
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
@@ -154,7 +176,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 		expression->nextSibling = NULL;
 
-		node->firstChild = expression;
+		idNode->nextSibling = expression;
 
 		ketlIteratorStackSkipNext(bnfStackIterator); // ;
 		return node;

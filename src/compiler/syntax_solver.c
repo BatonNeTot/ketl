@@ -1,5 +1,5 @@
 ﻿//🍲ketl
-#include "syntax_solver.h"
+#include "ketl/compiler/syntax_solver.h"
 
 #include "bnf_parser.h"
 #include "syntax_parser.h"

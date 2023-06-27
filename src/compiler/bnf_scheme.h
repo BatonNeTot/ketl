@@ -2,7 +2,7 @@
 #ifndef compiler_bnf_scheme_h
 #define compiler_bnf_scheme_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 KETL_FORWARD(KETLBnfNode);
 KETL_FORWARD(KETLObjectPool);

@@ -2,7 +2,7 @@
 #ifndef compiler_syntax_solver_h
 #define compiler_syntax_solver_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 #include "ketl/object_pool.h"
 #include "ketl/stack.h"
 

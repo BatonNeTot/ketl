@@ -4,7 +4,7 @@
 #include "token.h"
 
 #include "ketl/assert.h"
-#include "ketl/common.h"
+#include "ketl/utils.h"
 #include "ketl/object_pool.h"
 
 #include <inttypes.h>
@@ -322,7 +322,3 @@ KETLToken* ketlGetNextToken(KETLLexer* lexer) {
 
 	return createTokenAndSkip(lexer, startIt, KETL_TOKEN_TYPE_SPECIAL);
 }
-
-#undef KETL_CHECK_LEXER
-#undef KETL_CHECK_LEXER_VALUE
-#undef KETL_CHECK_LEXER_MESSAGE

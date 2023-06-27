@@ -2,7 +2,7 @@
 #ifndef compiler_lexer_h
 #define compiler_lexer_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <stdbool.h>
 

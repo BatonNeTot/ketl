@@ -2,7 +2,7 @@
 #ifndef compiler_bnf_parser_h
 #define compiler_bnf_parser_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <stdbool.h>
 #include <inttypes.h>

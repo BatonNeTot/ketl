@@ -2,27 +2,74 @@
 #include <iostream>
 
 extern "C" {
-#include "compiler/syntax_solver.h"
-#include "compiler/syntax_node.h"
-#include "ketl/object_pool.h"
+#include "ketl/ketl.h"
+#include "ketl/compiler/syntax_solver.h"
+#include "compiler/ir_node.h"
+#include "compiler/ir_builder.h"
+#include "ketl/function.h"
 }
 
-#include <crtdbg.h>
+template <typename... Args>
+constexpr KETLInstruction CODE(KETLInstructionCode code, Args... args) {
+	KETLInstruction instruction;
+	instruction.code = code;
+	if constexpr (sizeof...(args) > 0) {
+		KETLInstructionArgumentType list[] = { static_cast<KETLInstructionArgumentType>(args)... };
+		for (auto i = 0; i < sizeof...(args); ++i) {
+			instruction.argumentTypes[i + 1] = list[0];
+		}
+	}
+	return instruction;
+}
+
+constexpr KETLInstruction GLOBAL(void* ptr) {
+	KETLInstruction instruction;
+	instruction.argument.globalPtr = ptr;
+	return instruction;
+}
+
+int a = 5;
+int b = 10;
+int c = 0;
+
+const KETLInstruction templateInstructions[] = {
+	CODE(KETL_INSTRUCTION_CODE_ADD_INT64, KETL_INSTRUCTION_ARGUMENT_TYPE_GLOBAL, KETL_INSTRUCTION_ARGUMENT_TYPE_GLOBAL, KETL_INSTRUCTION_ARGUMENT_TYPE_GLOBAL),
+	GLOBAL(&a),
+	GLOBAL(&b),
+	GLOBAL(&c),
+	CODE(KETL_INSTRUCTION_CODE_RETURN)
+};
 
 int main(int argc, char** argv) {
 	
 	auto source = "let test1 := 5 + 10; let test2 := test1 - 17;";
 
-	KETLSyntaxSolver syntaxSolver;
-	ketlInitSyntaxSolver(&syntaxSolver);
+	KETLFunction* function = reinterpret_cast<KETLFunction*>(malloc(sizeof(KETLFunction) + sizeof(templateInstructions)));
 
-	KETLObjectPool syntaxNodePool;
-	ketlInitObjectPool(&syntaxNodePool, sizeof(KETLSyntaxNode), 16);
+	KETLInstruction* instructions = reinterpret_cast<KETLInstruction*>(function + 1);
 
-	auto* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &syntaxSolver, &syntaxNodePool);
+	memcpy(instructions, templateInstructions, sizeof(templateInstructions));
 
-	ketlDeinitObjectPool(&syntaxNodePool);
-	ketlDeinitSyntaxSolver(&syntaxSolver);
+	uint64_t index;
+	ketlCallFunction(function, &index, NULL);
+
+	KETLState ketlState;
+
+	ketlInitState(&ketlState);
+
+	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.syntaxSolver, &ketlState.compiler.syntaxNodePool);
+
+	/*
+	KETLObjectPool irCommandPool;
+	KETLObjectPool irExpressionPool;
+
+	ketlInitObjectPool(&irCommandPool, sizeof(KETLIRCommand), 16);
+	ketlInitObjectPool(&irExpressionPool, sizeof(KETLIRExpression), 16);
+
+	auto irRoot = ketlBuildIR(root, &irCommandPool, &irExpressionPool);
+	*/
+
+	ketlDeinitState(&ketlState);
 
 	return 0;
 }

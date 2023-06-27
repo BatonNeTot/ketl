@@ -2,7 +2,7 @@
 #ifndef compiler_bnf_node_h
 #define compiler_bnf_node_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 

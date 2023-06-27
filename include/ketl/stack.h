@@ -2,7 +2,7 @@
 #ifndef stack_h
 #define stack_h
 
-#include "ketl/common.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
