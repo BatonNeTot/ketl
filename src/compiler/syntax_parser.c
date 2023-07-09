@@ -23,6 +23,7 @@ static KETLSyntaxNodeType decideOperatorSyntaxType(const char* value, uint32_t l
 	}
 	default:
 		__debugbreak();
+		return 0;
 	}
 }
 

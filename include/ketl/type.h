@@ -4,9 +4,7 @@
 
 #include "utils.h"
 
-KETL_FORWARD(KETLType);
-
-struct KETLType {
+KETL_DEFINE(KETLType) {
 	size_t size;
 };
 

@@ -2,32 +2,15 @@
 #ifndef compiler_ir_node_h
 #define compiler_ir_node_h
 
+#include "ketl/instructions.h"
 #include "ketl/utils.h"
 
-#include <inttypes.h>
+KETL_FORWARD(KETLIRValue);
 
-typedef uint8_t KETLIRExpressionType;
-
-KETL_FORWARD(KETLIRExpression);
-KETL_FORWARD(KETLType);
-
-struct KETLIRExpression {
-	KETLIRExpressionType type;
-	KETLType* valueType;
-	void* calculatedvValue;
-};
-
-typedef uint8_t KETLIRCommandType;
-
-#define KETL_IR_COMMAND_TYPE_DEFINE_VAR 0
-
-KETL_FORWARD(KETLIRCommand);
-
-struct KETLIRCommand {
-	KETLIRCommandType type;
-	KETLIRExpression* expression;
-	KETLIRCommand* next;
-	KETLIRCommand* additionalNext;
+KETL_DEFINE(KETLIRInstruction) {
+	KETLInstructionCode code;
+	KETLIRValue* arguments[7];
+	KETLIRInstruction* next;
 };
 
 #endif /*compiler_ir_node_h*/

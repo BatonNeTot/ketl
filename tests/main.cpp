@@ -42,7 +42,7 @@ const KETLInstruction templateInstructions[] = {
 
 int main(int argc, char** argv) {
 	
-	auto source = "let test1 := 5 + 10; let test2 := test1 - 17;";
+	auto source = "let test1 := 5 + 10; let test2 := 15 - 17;"; //"let test1 := 5 + 10; let test2 := test1 - 17;";
 
 	KETLFunction* function = reinterpret_cast<KETLFunction*>(malloc(sizeof(KETLFunction) + sizeof(templateInstructions)));
 
@@ -59,15 +59,11 @@ int main(int argc, char** argv) {
 
 	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.syntaxSolver, &ketlState.compiler.syntaxNodePool);
 
-	/*
-	KETLObjectPool irCommandPool;
-	KETLObjectPool irExpressionPool;
+	KETLObjectPool irInstructionPool;
 
-	ketlInitObjectPool(&irCommandPool, sizeof(KETLIRCommand), 16);
-	ketlInitObjectPool(&irExpressionPool, sizeof(KETLIRExpression), 16);
+	ketlInitObjectPool(&irInstructionPool, sizeof(KETLIRInstruction), 16);
 
-	auto irRoot = ketlBuildIR(root, &irCommandPool, &irExpressionPool);
-	*/
+	auto irRoot = ketlBuildIR(root, &irInstructionPool);
 
 	ketlDeinitState(&ketlState);
 

@@ -6,11 +6,10 @@
 
 #include <stdbool.h>
 
-KETL_FORWARD(KETLLexer);
 KETL_FORWARD(KETLToken);
 KETL_FORWARD(KETLObjectPool);
 
-struct KETLLexer {
+KETL_DEFINE(KETLLexer) {
 	const char* source;
 	const char* sourceIt;
 	const char* sourceEnd;

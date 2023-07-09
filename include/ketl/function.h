@@ -7,9 +7,7 @@
 
 #include <inttypes.h>
 
-KETL_FORWARD(KETLFunction);
-
-struct KETLFunction {
+KETL_DEFINE(KETLFunction) {
 	uint64_t stackSize;
 	uint64_t instructionsCount;
 };

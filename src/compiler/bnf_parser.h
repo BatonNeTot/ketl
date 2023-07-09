@@ -10,10 +10,8 @@
 KETL_FORWARD(KETLStack);
 KETL_FORWARD(KETLToken);
 KETL_FORWARD(KETLBnfNode);
-KETL_FORWARD(KETLBnfParserState);
-KETL_FORWARD(KETLBnfErrorInfo);
 
-struct KETLBnfParserState {
+KETL_DEFINE(KETLBnfParserState) {
 	KETLBnfNode* bnfNode;
 	uint32_t state;
 	uint32_t tokenOffset;
@@ -21,7 +19,7 @@ struct KETLBnfParserState {
 	KETLBnfParserState* parent;
 };
 
-struct KETLBnfErrorInfo {
+KETL_DEFINE(KETLBnfErrorInfo) {
 	KETLToken* maxToken;
 	uint32_t maxTokenOffset;
 	KETLBnfNode* bnfNode;

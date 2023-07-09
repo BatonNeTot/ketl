@@ -6,9 +6,7 @@
 
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLCompiler);
-
-struct KETLCompiler {
+KETL_DEFINE(KETLCompiler) {
 	KETLSyntaxSolver syntaxSolver;
 	KETLObjectPool syntaxNodePool;
 };

@@ -28,9 +28,7 @@ typedef uint8_t KETLSyntaxBuilderType;
 #define KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4 5
 #define KETL_SYNTAX_BUILDER_TYPE_DEFINE_WITH_ASSIGNMENT 6
 
-KETL_FORWARD(KETLBnfNode);
-
-struct KETLBnfNode {
+KETL_DEFINE(KETLBnfNode) {
 	uint32_t size;
 	KETLBnfNodeType type;
 	KETLSyntaxBuilderType builder;

@@ -7,19 +7,16 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-KETL_FORWARD(KETLStack);
 KETL_FORWARD(KETLStackPoolBase);
 
-KETL_FORWARD(KETLStackIterator);
-
-struct KETLStack {
+KETL_DEFINE(KETLStack) {
 	size_t objectSize;
 	size_t poolSize;
 	KETLStackPoolBase* currentPool;
 	size_t occupiedObjects;
 };
 
-struct KETLStackIterator {
+KETL_DEFINE(KETLStackIterator) {
 	KETLStack* stack;
 	KETLStackPoolBase* currentPool;
 	size_t nextObjectIndex;

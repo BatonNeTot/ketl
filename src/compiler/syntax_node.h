@@ -8,7 +8,7 @@
 
 typedef uint8_t KETLSyntaxNodeType;
 
-#define KETL_SYNTAX_NODE_TYPE_SYMPLE_EXPRESSION 0
+#define KETL_SYNTAX_NODE_TYPE_SIMPLE_EXPRESSION 0
 #define KETL_SYNTAX_NODE_TYPE_DEFINE_VAR 1
 #define KETL_SYNTAX_NODE_TYPE_DEFINE_VAR_OF_TYPE 2
 
@@ -19,9 +19,7 @@ typedef uint8_t KETLSyntaxNodeType;
 #define KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PLUS 6
 #define KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS 7
 
-KETL_FORWARD(KETLSyntaxNode);
-
-struct KETLSyntaxNode {
+KETL_DEFINE(KETLSyntaxNode) {
 	ptrdiff_t positionInSource;
 	uint32_t length;
 	KETLSyntaxNodeType type;

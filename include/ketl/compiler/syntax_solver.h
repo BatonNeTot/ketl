@@ -11,9 +11,7 @@ KETL_FORWARD(KETLSyntaxNode);
 KETL_FORWARD(KETLToken);
 KETL_FORWARD(KETLBnfNode);
 
-KETL_FORWARD(KETLSyntaxSolver);
-
-struct KETLSyntaxSolver {
+KETL_DEFINE(KETLSyntaxSolver) {
 	KETLObjectPool tokenPool;
 	KETLObjectPool bnfNodePool;
 	KETLStack bnfStateStack;

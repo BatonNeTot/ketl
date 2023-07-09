@@ -7,20 +7,16 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-KETL_FORWARD(LinkedListNodeBase);
-KETL_FORWARD(LinkedListPoolBase);
-KETL_FORWARD(LinkedListBase);
-
-struct LinkedListNodeBase {
+KETL_DEFINE(LinkedListNodeBase) {
 	LinkedListNodeBase* next;
 	LinkedListNodeBase* prev;
 };
 
-struct LinkedListPoolBase {
+KETL_DEFINE(LinkedListPoolBase) {
 	LinkedListPoolBase* next;
 };
 
-struct LinkedListBase {
+KETL_DEFINE(LinkedListBase) {
 	LinkedListPoolBase* pool;
 	LinkedListNodeBase* free;
 	LinkedListNodeBase* end;

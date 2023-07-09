@@ -7,12 +7,9 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-KETL_FORWARD(KETLObjectPool);
 KETL_FORWARD(KETLObjectPoolBase);
 
-KETL_FORWARD(KETLObjectPoolIterator);
-
-struct KETLObjectPool {
+KETL_DEFINE(KETLObjectPool) {
 	size_t objectSize;
 	size_t poolSize;
 	KETLObjectPoolBase* firstPool;
@@ -20,7 +17,7 @@ struct KETLObjectPool {
 	size_t occupiedObjects;
 };
 
-struct KETLObjectPoolIterator {
+KETL_DEFINE(KETLObjectPoolIterator) {
 	KETLObjectPool* pool;
 	KETLObjectPoolBase* currentPool;
 	size_t nextObjectIndex;

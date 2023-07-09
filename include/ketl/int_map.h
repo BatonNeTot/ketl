@@ -9,11 +9,9 @@
 
 typedef uint64_t KETLIntMapKey;
 
-KETL_FORWARD(KETLIntMap);
-
 KETL_FORWARD(KETLIntMapBucketBase);
 
-struct KETLIntMap {
+KETL_DEFINE(KETLIntMap) {
 	KETLObjectPool bucketPool;
 	KETLIntMapBucketBase** buckets;
 	uint64_t size;

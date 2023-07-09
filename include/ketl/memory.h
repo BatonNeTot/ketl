@@ -10,9 +10,7 @@ typedef void* (*KETLAllocatorAlloc)(size_t size, void* userInfo);
 typedef void* (*KETLAllocatorRealloc)(void* ptr, size_t size, void* userInfo);
 typedef void (*KETLAllocatorFree)(void* ptr, void* userInfo);
 
-KETL_FORWARD(KETLAllocator);
-
-struct KETLAllocator {
+KETL_DEFINE(KETLAllocator) {
 	KETLAllocatorAlloc alloc;
 	KETLAllocatorRealloc realloc;
 	KETLAllocatorFree free;

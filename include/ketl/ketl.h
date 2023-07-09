@@ -6,9 +6,7 @@
 
 #include "utils.h"
 
-KETL_FORWARD(KETLState);
-
-struct KETLState {
+KETL_DEFINE(KETLState) {
 	KETLCompiler compiler;
 };
 

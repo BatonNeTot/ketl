@@ -4,10 +4,10 @@
 
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLIRCommand);
+KETL_FORWARD(KETLIRInstruction);
 KETL_FORWARD(KETLSyntaxNode);
 KETL_FORWARD(KETLObjectPool);
 
-KETLIRCommand* ketlBuildIR(KETLSyntaxNode* syntaxNodeRoot, KETLObjectPool* irCommandPool, KETLObjectPool* irExpressionPool);
+KETLIRInstruction* ketlBuildIR(KETLSyntaxNode* syntaxNodeRoot, KETLObjectPool* irInstructionPool);
 
 #endif /*compiler_ir_builder_h*/

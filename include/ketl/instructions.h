@@ -6,9 +6,7 @@
 
 #include <inttypes.h>
 
-KETL_FORWARD(KETLInstructionArgument);
-
-struct KETLInstructionArgument {
+KETL_DEFINE(KETLInstructionArgument) {
 	union {
 		void* globalPtr;
 		uint64_t stack;
@@ -42,9 +40,7 @@ typedef uint8_t KETLInstructionCode;
 #define KETL_INSTRUCTION_CODE_RETURN 6
 
 
-KETL_FORWARD(KETLInstruction);
-
-struct KETLInstruction {
+KETL_DEFINE(KETLInstruction) {
 	union {
 		KETLInstructionCode code;
 		KETLInstructionArgumentType argumentTypes[8]; // zero one reserved
