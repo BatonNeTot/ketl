@@ -2,6 +2,12 @@
 
 project ("Ketl")
 
+if(MSVC)
+    add_compile_options(/we4013 /we4047 /we4133 /we4715 /we4716)
+else()
+    add_compile_options(-Wall -Wextra -pedantic -Werror)
+endif()
+
 # Include sub-projects.
 add_subdirectory ("src")
 
@@ -18,12 +24,6 @@ set_target_properties(ketl
 )
 
 target_compile_definitions(ketl PRIVATE _AMD64_)
-
-#if(MSVC)
-#    string(REGEX REPLACE "/W[1-3]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-#else()
-#    add_compile_options(-Wall -Wextra -pedantic -Werror)
-#endif()
 
 target_include_directories(ketl PUBLIC "include")
 target_include_directories(ketl PRIVATE "src")

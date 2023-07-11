@@ -48,4 +48,8 @@ KETL_DEFINE(KETLInstruction) {
 	};
 };
 
+extern uint8_t KETL_CODE_SIZES[];
+
+#define KETL_CODE_SIZE(x) (KETL_CODE_SIZES[x])
+
 #endif /*instructions_h*/

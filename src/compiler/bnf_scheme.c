@@ -105,7 +105,7 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 	}
 
 	//// precedenceExpression4
-	CREATE_ROOT_OF(precedenceExpression4, expression);
+	CREATE_ROOT(precedenceExpression4);
 	precedenceExpression4->builder = KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4;
 	precedenceExpression4->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
@@ -132,6 +132,39 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 
 				CREATE_SIBLING();
 				SET_REF(precedenceExpression1);
+
+				CLOSE_CHILD();
+			}
+			CLOSE_CHILD();
+		}
+		CLOSE_CHILD();
+	}
+
+	//// precedenceExpression4
+	CREATE_ROOT_OF(precedenceExpression6, expression);
+	precedenceExpression6->builder = KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_6;
+	precedenceExpression6->type = KETL_BNF_NODE_TYPE_CONCAT;
+	{
+		CREATE_CHILD();
+		SET_REF(precedenceExpression4);
+
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+		{
+			CREATE_CHILD();
+			SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
+			{
+				CREATE_CHILD();
+				SET_TYPE(KETL_BNF_NODE_TYPE_OR);
+				{
+					CREATE_CHILD();
+					SET_CONSTANT(":=");
+
+					CLOSE_CHILD();
+				}
+
+				CREATE_SIBLING();
+				SET_REF(precedenceExpression4);
 
 				CLOSE_CHILD();
 			}

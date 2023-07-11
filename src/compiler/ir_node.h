@@ -5,7 +5,16 @@
 #include "ketl/instructions.h"
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLIRValue);
+KETL_FORWARD(KETLType);
+
+KETL_DEFINE(KETLIRValue) {
+	KETLType* type;
+	KETLInstructionArgument argument;
+	KETLInstructionArgumentType argType;
+	KETLIRValue* parent;
+	KETLIRValue* nextSibling;
+	KETLIRValue* firstChild;
+};
 
 KETL_DEFINE(KETLIRInstruction) {
 	KETLInstructionCode code;

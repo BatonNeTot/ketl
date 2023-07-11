@@ -6,6 +6,7 @@ extern "C" {
 #include "ketl/compiler/syntax_solver.h"
 #include "compiler/ir_node.h"
 #include "compiler/ir_builder.h"
+#include "compiler/ir_compiler.h"
 #include "ketl/function.h"
 }
 
@@ -42,7 +43,7 @@ const KETLInstruction templateInstructions[] = {
 
 int main(int argc, char** argv) {
 	
-	auto source = "let test1 := 5 + 10; let test2 := 15 - 17;"; //"let test1 := 5 + 10; let test2 := test1 - 17;";
+	auto source = "{let test1 := 5 + 10; let test2 := test1 := test1 - 8; } let test3 := test2 - test1 + 1;";
 
 	KETLFunction* function = reinterpret_cast<KETLFunction*>(malloc(sizeof(KETLFunction) + sizeof(templateInstructions)));
 
@@ -63,8 +64,19 @@ int main(int argc, char** argv) {
 
 	ketlInitObjectPool(&irInstructionPool, sizeof(KETLIRInstruction), 16);
 
-	auto irRoot = ketlBuildIR(root, &irInstructionPool);
+	KETLIRBuilder irBuilder;
 
+	ketlInitIRBuilder(&irBuilder);
+
+	KETLIRState irState;
+
+	ketlBuildIR(&irBuilder, &irState, root);
+
+	// TODO optimization on ir
+
+	KETLFunction* compiledFunction = ketlCompileIR(&irState);
+
+	ketlDeinitIRBuilder(&irBuilder);
 	ketlDeinitState(&ketlState);
 
 	return 0;

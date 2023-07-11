@@ -21,10 +21,27 @@ static KETLSyntaxNodeType decideOperatorSyntaxType(const char* value, uint32_t l
 		}
 		break;
 	}
-	default:
-		__debugbreak();
-		return 0;
+	case 2: {
+		switch (*value) {
+		case ':':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN;
+		}
+		break;
 	}
+	}
+	__debugbreak();
+	return 0;
+}
+
+static uint32_t calculateNodeLength(KETLSyntaxNode* node) {
+	uint32_t length = 0;
+
+	while (node) {
+		++length;
+		node = node->nextSibling;
+	}
+
+	return length;
 }
 
 KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterator* bnfStackIterator) {
@@ -48,6 +65,11 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
 			KETLSyntaxNode* command = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+
+			if (command == NULL) {
+				continue;
+			}
+
 			if (first == NULL) {
 				first = command;
 				last = command;
@@ -68,6 +90,36 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		switch (state->bnfNode->type) {
 		case KETL_BNF_NODE_TYPE_REF:
 			return ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+		case KETL_BNF_NODE_TYPE_CONCAT:
+			state = ketlIteratorStackGetNext(bnfStackIterator); // '{' or optional
+			if (state->bnfNode->type == KETL_BNF_NODE_TYPE_OPTIONAL) {
+				// expression
+				KETL_ITERATOR_STACK_PEEK(KETLBnfParserState*, next, *bnfStackIterator);
+
+				KETLSyntaxNode* node = NULL;
+				if (next->parent == state) {
+					ketlIteratorStackSkipNext(bnfStackIterator); // ref
+					node = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+				}
+
+				ketlIteratorStackSkipNext(bnfStackIterator); // ;
+				return node;
+			}
+			else {
+				// block
+				ketlIteratorStackSkipNext(bnfStackIterator); // ref
+				KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
+
+				node->type = KETL_SYNTAX_NODE_TYPE_BLOCK;
+				node->positionInSource = state->token->positionInSource + state->tokenOffset;
+				node->value = state->token->value + state->tokenOffset;
+				node->firstChild = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+				node->length = calculateNodeLength(node->firstChild);
+
+				ketlIteratorStackSkipNext(bnfStackIterator); // }
+
+				return node;
+			}
 		default:
 			__debugbreak();
 		}
@@ -84,7 +136,6 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			node->positionInSource = state->token->positionInSource + state->tokenOffset;
 			node->value = state->token->value + state->tokenOffset;
 			node->length = state->token->length - state->tokenOffset;
-			node->firstChild = NULL;
 
 			return node;
 		}
@@ -132,7 +183,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			ketlIteratorStackSkipNext(bnfStackIterator); // concat
 			ketlIteratorStackSkipNext(bnfStackIterator); // or
 
-			KETLBnfParserState* op = ketlIteratorStackGetNext(bnfStackIterator); // repeat
+			KETLBnfParserState* op = ketlIteratorStackGetNext(bnfStackIterator);
 
 			KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
 
@@ -148,6 +199,48 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			right->nextSibling = NULL;
 
 			left = node;
+		}
+	}
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_6: {
+		// RIGHT TO LEFT
+		ketlIteratorStackSkipNext(bnfStackIterator); // ref
+		KETLSyntaxNode* root = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+		KETLSyntaxNode* left = NULL;
+
+		KETLBnfParserState* repeat = ketlIteratorStackGetNext(bnfStackIterator); // repeat
+		KETL_FOREVER{
+			KETL_ITERATOR_STACK_PEEK(KETLBnfParserState*, next, *bnfStackIterator);
+
+			if (next->parent != repeat) {
+				return root;
+			}
+
+			ketlIteratorStackSkipNext(bnfStackIterator); // concat
+			ketlIteratorStackSkipNext(bnfStackIterator); // or
+
+			KETLBnfParserState* op = ketlIteratorStackGetNext(bnfStackIterator);
+
+			KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
+
+			node->type = decideOperatorSyntaxType(op->token->value + op->tokenOffset, op->token->length - op->tokenOffset);
+			node->positionInSource = op->token->positionInSource + op->tokenOffset;
+			node->length = 2;
+			if (left != NULL) {
+				node->firstChild = left->nextSibling;
+				left->nextSibling = node;
+				left = node->firstChild;
+				node->nextSibling = NULL;
+			}
+			else {
+				node->firstChild = left = root;
+				root = node;
+			}
+
+			ketlIteratorStackSkipNext(bnfStackIterator); // ref
+			KETLSyntaxNode* right = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+
+			left->nextSibling = right;
+			right->nextSibling = NULL;
 		}
 	}
 	case KETL_SYNTAX_BUILDER_TYPE_DEFINE_WITH_ASSIGNMENT: {

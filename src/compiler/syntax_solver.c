@@ -127,6 +127,9 @@ KETLSyntaxNode* ketlSolveSyntax(const char* source, size_t length, KETLSyntaxSol
 	}
 
 	bool success = ketlParseBnf(bnfStateStack, &error);
+	if (!success) {
+		return NULL;
+	}
 
 	KETLStackIterator iterator;
 	ketlInitStackIterator(&iterator, bnfStateStack);
