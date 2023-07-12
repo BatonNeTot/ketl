@@ -3,12 +3,14 @@
 #define compiler_compiler_h
 
 #include "syntax_solver.h"
+#include "compiler/ir_builder.h"
 
 #include "ketl/utils.h"
 
 KETL_DEFINE(KETLCompiler) {
-	KETLSyntaxSolver syntaxSolver;
 	KETLObjectPool syntaxNodePool;
+	KETLSyntaxSolver syntaxSolver;
+	KETLIRBuilder irBuilder;
 };
 
 void ketlInitCompiler(KETLCompiler* compiler);

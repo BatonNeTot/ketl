@@ -21,6 +21,8 @@ typedef uint8_t KETLSyntaxNodeType;
 #define KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS 8
 #define KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN 9
 
+#define KETL_SYNTAX_NODE_TYPE_RETURN 10
+
 KETL_DEFINE(KETLSyntaxNode) {
 	ptrdiff_t positionInSource;
 	uint32_t length;

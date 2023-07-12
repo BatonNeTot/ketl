@@ -236,6 +236,29 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 
 		CLOSE_CHILD();
 	}
+	
+	//// returnNode
+	CREATE_ROOT(returnNode);
+	returnNode->builder = KETL_SYNTAX_BUILDER_TYPE_RETURN;
+	returnNode->type = KETL_BNF_NODE_TYPE_CONCAT;
+	{
+		CREATE_CHILD();
+		SET_CONSTANT("return");
+
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
+		{
+			CREATE_CHILD();
+			SET_REF(expression);
+
+			CLOSE_CHILD();
+		}
+
+		CREATE_SIBLING();
+		SET_CONSTANT(";");
+
+		CLOSE_CHILD();
+	}
 
 	//// command
 	SET_CURRENT(command);
@@ -249,11 +272,12 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 		CREATE_SIBLING(currentChild);
 		currentChild->type = KETL_BNF_NODE_TYPE_REF;
 		currentChild->ref = NULL; // TODO whileElse
+		*/
 
-		CREATE_SIBLING(currentChild);
-		currentChild->type = KETL_BNF_NODE_TYPE_REF;
-		currentChild->ref = NULL; // TODO return
+		CREATE_SIBLING();
+		SET_REF(returnNode);
 
+		/*
 		CREATE_SIBLING(currentChild);
 		currentChild->type = KETL_BNF_NODE_TYPE_REF;
 		currentChild->ref = NULL; // TODO defineVariable

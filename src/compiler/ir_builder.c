@@ -194,6 +194,23 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 
 		return wrapInDelegate(irBuilder, instruction->arguments[0]);
 	}
+	case  KETL_SYNTAX_NODE_TYPE_RETURN: {
+
+		KETLSyntaxNode* expressionNode = it->firstChild;
+		if (expressionNode) {
+			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+
+			KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
+			instruction->code = KETL_INSTRUCTION_CODE_RETURN_8_BYTES; // TODO deside from type
+			instruction->arguments[0] = expression->caller->value; // TODO actual convertion from udelegate to correct type
+		}
+		else {
+			KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
+			instruction->code = KETL_INSTRUCTION_CODE_RETURN;
+		}
+
+		return NULL;
+	}
 	default:
 		__debugbreak();
 	}
@@ -281,6 +298,11 @@ static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyn
 }
 
 void ketlBuildIR(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
+	ketlResetPool(&irBuilder->irInstructionPool);
+	ketlResetPool(&irBuilder->udelegatePool);
+	ketlResetPool(&irBuilder->uvaluePool);
+	ketlResetPool(&irBuilder->valuePool);
+
 	irState->first = NULL;
 	irState->last = NULL;
 
@@ -288,5 +310,7 @@ void ketlBuildIR(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode*
 	irState->currentStack = NULL;
 
 	buildIRBlock(irBuilder, irState, syntaxNodeRoot);
-	irState->last->next = NULL;
+	if (irState->last) {
+		irState->last->next = NULL;
+	}
 }

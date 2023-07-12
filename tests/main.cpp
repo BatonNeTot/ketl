@@ -5,7 +5,6 @@ extern "C" {
 #include "ketl/ketl.h"
 #include "ketl/compiler/syntax_solver.h"
 #include "compiler/ir_node.h"
-#include "compiler/ir_builder.h"
 #include "compiler/ir_compiler.h"
 #include "ketl/function.h"
 }
@@ -43,8 +42,9 @@ const KETLInstruction templateInstructions[] = {
 
 int main(int argc, char** argv) {
 	
-	auto source = "{let test1 := 5 + 10; let test2 := test1 := test1 - 8; } let test3 := test2 - test1 + 1;";
+	auto source = "return 1 + 2;";
 
+	/*
 	KETLFunction* function = reinterpret_cast<KETLFunction*>(malloc(sizeof(KETLFunction) + sizeof(templateInstructions)));
 
 	KETLInstruction* instructions = reinterpret_cast<KETLInstruction*>(function + 1);
@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
 
 	uint64_t index;
 	ketlCallFunction(function, &index, NULL);
+	*/
 
 	KETLState ketlState;
 
@@ -60,23 +61,18 @@ int main(int argc, char** argv) {
 
 	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.syntaxSolver, &ketlState.compiler.syntaxNodePool);
 
-	KETLObjectPool irInstructionPool;
-
-	ketlInitObjectPool(&irInstructionPool, sizeof(KETLIRInstruction), 16);
-
-	KETLIRBuilder irBuilder;
-
-	ketlInitIRBuilder(&irBuilder);
-
 	KETLIRState irState;
 
-	ketlBuildIR(&irBuilder, &irState, root);
+	ketlBuildIR(&ketlState.compiler.irBuilder, &irState, root);
 
 	// TODO optimization on ir
 
-	KETLFunction* compiledFunction = ketlCompileIR(&irState);
+	KETLFunction* function = ketlCompileIR(&irState);
 
-	ketlDeinitIRBuilder(&irBuilder);
+	uint64_t result = 0;
+	uint8_t* stack = new uint8_t[function->stackSize + sizeof(uint64_t)];
+	ketlCallFunction(function, stack, &result);
+
 	ketlDeinitState(&ketlState);
 
 	return 0;

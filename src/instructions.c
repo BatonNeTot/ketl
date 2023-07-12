@@ -9,4 +9,5 @@ uint8_t KETL_CODE_SIZES[] = {
 		4,	//DivideInt64,
 		3,	//Assign8bytes,
 		1,	//Return,
+		2,	//Return8bytes,
 };

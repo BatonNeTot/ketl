@@ -4,11 +4,13 @@
 #include "syntax_node.h"
 
 void ketlInitCompiler(KETLCompiler* compiler) {
-	ketlInitSyntaxSolver(&compiler->syntaxSolver);
 	ketlInitObjectPool(&compiler->syntaxNodePool, sizeof(KETLSyntaxNode), 16);
+	ketlInitSyntaxSolver(&compiler->syntaxSolver);
+	ketlInitIRBuilder(&compiler->irBuilder);
 }
 
 void ketlDeinitCompiler(KETLCompiler* compiler) {
-	ketlDeinitObjectPool(&compiler->syntaxNodePool);
+	ketlDeinitIRBuilder(&compiler->irBuilder);
 	ketlDeinitSyntaxSolver(&compiler->syntaxSolver);
+	ketlDeinitObjectPool(&compiler->syntaxNodePool);
 }

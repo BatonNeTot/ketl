@@ -275,6 +275,30 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		ketlIteratorStackSkipNext(bnfStackIterator); // ;
 		return node;
 	}
+	case KETL_SYNTAX_BUILDER_TYPE_RETURN: {
+		KETLBnfParserState* returnState = ketlIteratorStackGetNext(bnfStackIterator); // return
+		KETLBnfParserState* optional = ketlIteratorStackGetNext(bnfStackIterator); // optional
+				
+		KETL_ITERATOR_STACK_PEEK(KETLBnfParserState*, next, *bnfStackIterator); // expression
+
+		KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
+		if (next->parent == optional) {
+			ketlIteratorStackSkipNext(bnfStackIterator); // ref
+			node->firstChild = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+			node->length = 1;
+		}
+		else {
+			node->firstChild = NULL;
+			node->length = 0;
+		}
+
+		node->type = KETL_SYNTAX_NODE_TYPE_RETURN;
+		node->positionInSource = returnState->token->positionInSource + returnState->tokenOffset;
+
+		ketlIteratorStackSkipNext(bnfStackIterator); // ;
+
+		return node;
+	}
 	case KETL_SYNTAX_BUILDER_TYPE_NONE:
 	default:
 		__debugbreak();

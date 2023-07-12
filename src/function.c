@@ -54,6 +54,10 @@ void ketlCallFunction(KETLFunction* function, void* _stackPtr, void* returnPtr) 
 		case KETL_INSTRUCTION_CODE_RETURN: {
 			return;
 		}
+		case KETL_INSTRUCTION_CODE_RETURN_8_BYTES: {
+			*((uint64_t*)returnPtr) = ARGUMENT(0, uint64_t);
+			return;
+		}
 		}
 		*pIndex = index += KETL_CODE_SIZE(instruction.code);
 	}
