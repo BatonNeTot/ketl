@@ -15,6 +15,7 @@ static inline KETLStackPoolBase* createPoolBase(KETLStack* stack) {
 }
 
 void ketlInitStack(KETLStack* stack, size_t objectSize, size_t poolSize) {
+	// TODO align by adjusting poolSize
 	stack->objectSize = objectSize;
 	stack->poolSize = poolSize;
 

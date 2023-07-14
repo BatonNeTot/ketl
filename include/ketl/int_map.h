@@ -5,8 +5,6 @@
 #include "ketl/object_pool.h"
 #include "ketl/utils.h"
 
-#include <inttypes.h>
-
 typedef uint64_t KETLIntMapKey;
 
 KETL_FORWARD(KETLIntMapBucketBase);
@@ -22,6 +20,6 @@ void ketlInitIntMap(KETLIntMap* map, size_t objectSize, size_t poolSize);
 
 void ketlDeinitIntMap(KETLIntMap* map);
 
-void* ketlIntMapPut(KETLIntMap* map, KETLIntMapKey key);
+bool ketlIntMapGet(KETLIntMap* map, KETLIntMapKey key, void* value);
 
 #endif /*int_map_h*/

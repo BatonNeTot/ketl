@@ -297,7 +297,7 @@ static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyn
 	}
 }
 
-void ketlBuildIR(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
+void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
 	ketlResetPool(&irBuilder->irInstructionPool);
 	ketlResetPool(&irBuilder->udelegatePool);
 	ketlResetPool(&irBuilder->uvaluePool);
@@ -313,4 +313,6 @@ void ketlBuildIR(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode*
 	if (irState->last) {
 		irState->last->next = NULL;
 	}
+
+	// TODO check and cast return states
 }

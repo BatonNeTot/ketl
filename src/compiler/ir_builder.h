@@ -10,6 +10,7 @@ KETL_FORWARD(KETLIRState);
 KETL_FORWARD(KETLIRInstruction);
 KETL_FORWARD(KETLIRValue);
 KETL_FORWARD(KETLSyntaxNode);
+KETL_FORWARD(KETLType);
 
 KETL_DEFINE(KETLIRBuilder) {
 	KETLObjectPool irInstructionPool;
@@ -40,6 +41,6 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-void ketlBuildIR(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
+void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
 
 #endif /*compiler_ir_builder_h*/

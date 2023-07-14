@@ -29,8 +29,6 @@ void ketlDeinitObjectPool(KETLObjectPool* pool);
 
 void* ketlGetFreeObjectFromPool(KETLObjectPool* pool);
 
-void* ketlGetNFreeObjectsFromPool(KETLObjectPool* pool, uint64_t count);
-
 void ketlResetPool(KETLObjectPool* pool);
 
 void ketlInitPoolIterator(KETLObjectPoolIterator* iterator, KETLObjectPool* pool);

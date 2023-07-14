@@ -14,10 +14,11 @@ static inline KETLObjectPoolBase* createObjectPoolBase(KETLObjectPool* pool) {
 }
 
 void ketlInitObjectPool(KETLObjectPool* pool, size_t objectSize, size_t poolSize) {
+	// TODO align by adjusting poolSize
 	pool->objectSize = objectSize;
 	pool->poolSize = poolSize;
 
-	pool->firstPool = pool->lastPool = NULL;
+	pool->firstPool = pool->lastPool = createObjectPoolBase(pool);
 	pool->occupiedObjects = 0;
 }
 
@@ -31,9 +32,6 @@ void ketlDeinitObjectPool(KETLObjectPool* pool) {
 }
 
 void* ketlGetFreeObjectFromPool(KETLObjectPool* pool) {
-	if (pool->firstPool == NULL) {
-		pool->firstPool = pool->lastPool = createObjectPoolBase(pool);
-	}
 	if (pool->occupiedObjects >= pool->poolSize) {
 		if (pool->lastPool->next) {
 			pool->lastPool = pool->lastPool->next;
@@ -46,6 +44,26 @@ void* ketlGetFreeObjectFromPool(KETLObjectPool* pool) {
 		pool->occupiedObjects = 0;
 	}
 	return ((char*)(pool->lastPool + 1)) + pool->objectSize * pool->occupiedObjects++;
+}
+
+void* ketlGetNFreeObjectsFromPool(KETLObjectPool* pool, uint64_t count) {
+	if (count == 0 || count > pool->poolSize) {
+		return NULL;
+	}
+	if (pool->occupiedObjects + count > pool->poolSize) {
+		if (pool->lastPool->next) {
+			pool->lastPool = pool->lastPool->next;
+		}
+		else {
+			KETLObjectPoolBase* poolBase = createObjectPoolBase(pool);
+			pool->lastPool->next = poolBase;
+			pool->lastPool = poolBase;
+		}
+		pool->occupiedObjects = 0;
+	}
+	void* value = ((char*)(pool->lastPool + 1)) + pool->objectSize * pool->occupiedObjects;
+	pool->occupiedObjects += count;
+	return value;
 }
 
 void ketlResetPool(KETLObjectPool* pool) {
