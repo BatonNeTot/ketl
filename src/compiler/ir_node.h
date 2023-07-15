@@ -8,6 +8,7 @@
 KETL_FORWARD(KETLType);
 
 KETL_DEFINE(KETLIRValue) {
+	const char* name;
 	KETLType* type;
 	KETLInstructionArgument argument;
 	KETLInstructionArgumentType argType;

@@ -105,21 +105,21 @@ static const uint64_t primeCapacities[] =
 
 static const uint64_t TOTAL_PRIME_CAPACITIES = sizeof(primeCapacities) / sizeof(primeCapacities[0]);
 
-struct KETLAtomicStringsBucketBase {
+struct KETLAtomicStringsBucket {
 	const char* key;
 	uint64_t hash;
-	KETLAtomicStringsBucketBase* next;
+	KETLAtomicStringsBucket* next;
 };
 
 void ketlInitAtomicStrings(KETLAtomicStrings* strings, size_t poolSize) {
 	// TODO align
 	ketlInitObjectPool(&strings->stringPool, sizeof(char), 256);
-	ketlInitObjectPool(&strings->bucketPool, sizeof(KETLAtomicStringsBucketBase), poolSize);
+	ketlInitObjectPool(&strings->bucketPool, sizeof(KETLAtomicStringsBucket), poolSize);
 	strings->capacityIndex = 0;
 	uint64_t capacity = primeCapacities[0];
 	strings->size = 0;
-	uint64_t arraySize = sizeof(KETLAtomicStringsBucketBase*) * capacity;
-	KETLAtomicStringsBucketBase** buckets = strings->buckets = malloc(arraySize);
+	uint64_t arraySize = sizeof(KETLAtomicStringsBucket*) * capacity;
+	KETLAtomicStringsBucket** buckets = strings->buckets = malloc(arraySize);
 	// TODO use custom memset
 	memset(buckets, 0, arraySize);
 }
@@ -159,14 +159,14 @@ const char* ketlAtomicStringsGet(KETLAtomicStrings* map, const char* key, uint64
 	}
 
 	uint64_t capacity = primeCapacities[map->capacityIndex];
-	KETLAtomicStringsBucketBase** buckets = map->buckets;
+	KETLAtomicStringsBucket** buckets = map->buckets;
 	uint64_t hash = ketlHashString(key, length);
 	if (hash == 0) {
 		return NULL;
 	}
 
 	uint64_t index = hash % capacity;
-	KETLAtomicStringsBucketBase* bucket = buckets[index];
+	KETLAtomicStringsBucket* bucket = buckets[index];
 
 	while (bucket) {
 		if (bucket->hash == hash && isStrEqual(bucket->key, key, length)) {
@@ -179,14 +179,14 @@ const char* ketlAtomicStringsGet(KETLAtomicStrings* map, const char* key, uint64
 	uint64_t size = ++map->size;
 	if (size > capacity) {
 		uint64_t newCapacity = primeCapacities[++map->capacityIndex];
-		uint64_t arraySize = sizeof(KETLAtomicStringsBucketBase*) * newCapacity;
-		KETLAtomicStringsBucketBase** newBuckets = map->buckets = malloc(arraySize);
+		uint64_t arraySize = sizeof(KETLAtomicStringsBucket*) * newCapacity;
+		KETLAtomicStringsBucket** newBuckets = map->buckets = malloc(arraySize);
 		// TODO use custom memset
 		memset(newBuckets, 0, arraySize);
 		for (uint64_t i = 0; i < capacity; ++i) {
 			bucket = buckets[i];
 			while (bucket) {
-				KETLAtomicStringsBucketBase* next = bucket->next;
+				KETLAtomicStringsBucket* next = bucket->next;
 				uint64_t newIndex = bucket->hash % newCapacity;
 				bucket->next = newBuckets[newIndex];
 				newBuckets[newIndex] = bucket;

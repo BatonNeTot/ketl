@@ -20,6 +20,24 @@ void ketlInitIntMap(KETLIntMap* map, size_t objectSize, size_t poolSize);
 
 void ketlDeinitIntMap(KETLIntMap* map);
 
-bool ketlIntMapGet(KETLIntMap* map, KETLIntMapKey key, void* value);
+bool ketlIntMapGetOrCreate(KETLIntMap* map, KETLIntMapKey key, void* ppValue);
+
+void ketlIntMapReset(KETLIntMap* map);
+
+KETL_DEFINE(KETLIntMapIterator) {
+	KETLIntMap* map;
+	uint64_t currentIndex;
+	KETLIntMapBucketBase* currentBucket;
+};
+
+void ketlInitIntMapIterator(KETLIntMapIterator* iterator, KETLIntMap* map);
+
+bool ketlIntMapIteratorHasNext(KETLIntMapIterator* iterator);
+
+void ketlIntMapIteratorGet(KETLIntMapIterator* iterator, KETLIntMapKey* pKey, void* ppValue);
+
+void ketlIntMapIteratorNext(KETLIntMapIterator* iterator);
+
+void ketlIntMapIteratorRemove(KETLIntMapIterator* iterator);
 
 #endif /*int_map_h*/

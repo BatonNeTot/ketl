@@ -5,12 +5,12 @@
 #include "ketl/int_map.h"
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLAtomicStringsBucketBase);
+KETL_FORWARD(KETLAtomicStringsBucket);
 
 KETL_DEFINE(KETLAtomicStrings) {
 	KETLObjectPool bucketPool;
 	KETLObjectPool stringPool;
-	KETLAtomicStringsBucketBase** buckets;
+	KETLAtomicStringsBucket** buckets;
 	uint64_t size;
 	uint64_t capacityIndex;
 };

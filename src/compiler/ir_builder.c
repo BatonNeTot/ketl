@@ -5,10 +5,12 @@
 #include "ir_node.h"
 
 #include "ketl/object_pool.h"
+#include "ketl/atomic_strings.h"
 #include "ketl/assert.h"
 
 KETL_DEFINE(IRUndefinedValue) {
 	KETLIRValue* value;
+	uint64_t scopeIndex;
 	IRUndefinedValue* next;
 };
 
@@ -25,6 +27,7 @@ KETL_DEFINE(IRUndefinedDelegate) {
 };
 
 void ketlInitIRBuilder(KETLIRBuilder* irBuilder) {
+	ketlInitIntMap(&irBuilder->variables, sizeof(IRUndefinedValue*), 16);
 	ketlInitObjectPool(&irBuilder->valuePool, sizeof(KETLIRValue), 16);
 	ketlInitObjectPool(&irBuilder->uvaluePool, sizeof(IRUndefinedValue), 16);
 	ketlInitObjectPool(&irBuilder->udelegatePool, sizeof(IRUndefinedDelegate), 16);
@@ -36,13 +39,10 @@ void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder) {
 	ketlDeinitObjectPool(&irBuilder->udelegatePool);
 	ketlDeinitObjectPool(&irBuilder->uvaluePool);
 	ketlDeinitObjectPool(&irBuilder->valuePool);
+	ketlDeinitIntMap(&irBuilder->variables);
 }
 
-static inline IRUndefinedDelegate* wrapInDelegate(KETLIRBuilder* irBuilder, KETLIRValue* value) {
-	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&irBuilder->uvaluePool);
-	uvalue->value = value;
-	uvalue->next = NULL;
-
+static inline IRUndefinedDelegate* wrapInDelegateUValue(KETLIRBuilder* irBuilder, IRUndefinedValue* uvalue) {
 	IRUndefinedDelegate* udelegate = ketlGetFreeObjectFromPool(&irBuilder->udelegatePool);
 	udelegate->caller = uvalue;
 	udelegate->arguments = NULL;
@@ -50,6 +50,18 @@ static inline IRUndefinedDelegate* wrapInDelegate(KETLIRBuilder* irBuilder, KETL
 	udelegate->type = DELEGATE_TYPE_NONE;
 
 	return udelegate;
+}
+
+static inline IRUndefinedValue* wrapInUValueValue(KETLIRBuilder* irBuilder, KETLIRValue* value) {
+	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&irBuilder->uvaluePool);
+	uvalue->value = value;
+	uvalue->next = NULL;
+
+	return uvalue;
+}
+
+static inline IRUndefinedDelegate* wrapInDelegateValue(KETLIRBuilder* irBuilder, KETLIRValue* value) {
+	return wrapInDelegateUValue(irBuilder, wrapInUValueValue(irBuilder, value));
 }
 
 static inline KETLIRInstruction* createInstruction(KETLIRBuilder* irBuilder, KETLIRState* irState) {
@@ -65,6 +77,7 @@ static inline KETLIRInstruction* createInstruction(KETLIRBuilder* irBuilder, KET
 
 static inline KETLIRValue* createTempVariable(KETLIRBuilder* irBuilder, KETLIRState* irState) {
 	KETLIRValue* stackValue = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
+	stackValue->name = NULL;
 	stackValue->argType = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
 	stackValue->argument.stack = 0;
 	stackValue->firstChild = NULL;
@@ -104,7 +117,7 @@ static inline KETLIRValue* createLocalVariable(KETLIRBuilder* irBuilder, KETLIRS
 		return stackValue;
 	}
 }
-static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
+static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot, KETLAtomicStrings* strings) {
 	KETLSyntaxNode* it = syntaxNodeRoot;
 	switch (it->type) {
 	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR: {
@@ -117,7 +130,28 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		// TODO deal with namespaces
 
 		KETLSyntaxNode* expressionNode = idNode->nextSibling;
-		IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+		IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode, strings);
+
+		const char* name = ketlAtomicStringsGet(strings, idNode->value, idNode->length);
+		variable->name = name;
+
+		uint64_t scopeIndex = irState->scopeIndex;
+
+		IRUndefinedValue** pCurrent;
+		if (ketlIntMapGetOrCreate(&irBuilder->variables, (KETLIntMapKey)name, &pCurrent)) {
+			*pCurrent = NULL;
+		}
+		else {
+			// TODO check if the type is function, then we can overload
+			if ((*pCurrent)->scopeIndex == scopeIndex) {
+				// TODO error
+				__debugbreak();
+			}
+		}
+		IRUndefinedValue* uvalue = wrapInUValueValue(irBuilder, variable);
+		uvalue->scopeIndex = scopeIndex;
+		uvalue->next = *pCurrent;
+		*pCurrent = uvalue;
 
 		// TODO set type from syntax node or from expression
 		variable->type = NULL; // TODO
@@ -129,17 +163,20 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		instruction->arguments[0] = variable;
 		instruction->arguments[1] = expression->caller->value; // TODO actual convertion from udelegate to correct type
 
-		return wrapInDelegate(irBuilder, variable);
+		return wrapInDelegateValue(irBuilder, variable);
 	}
 	case KETL_SYNTAX_NODE_TYPE_ID: {
-		KETLIRValue* value = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
-
-		// TODO deal with namespaces
-
-		return wrapInDelegate(irBuilder, value);
+		const char* uniqName = ketlAtomicStringsGet(strings, it->value, it->length);
+		IRUndefinedValue** ppValue;
+		if (ketlIntMapGetOrCreate(&irBuilder->variables, (KETLIntMapKey)uniqName, &ppValue)) {
+			// TODO error
+			__debugbreak();
+		}
+		return wrapInDelegateUValue(irBuilder, *ppValue);
 	}
 	case KETL_SYNTAX_NODE_TYPE_NUMBER: {
 		KETLIRValue* value = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
+		value->name = NULL;
 		value->type = NULL; // TODO
 		value->argType = KETL_INSTRUCTION_ARGUMENT_TYPE_LITERAL;
 		value->argument.integer = ketlStrToI32(it->value, it->length);
@@ -147,7 +184,7 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		value->firstChild = NULL;
 		value->nextSibling = NULL;
 
-		return wrapInDelegate(irBuilder, value);
+		return wrapInDelegateValue(irBuilder, value);
 	}
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PLUS:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS: {
@@ -155,9 +192,9 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		result->type = NULL; // TODO
 
 		KETLSyntaxNode* lhsNode = it->firstChild;
-		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, irState, lhsNode);
+		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, irState, lhsNode, strings);
 		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
-		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, irState, rhsNode);
+		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, irState, rhsNode, strings);
 
 		KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
 			
@@ -177,13 +214,13 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 
 		instruction->arguments[0] = result;
 
-		return wrapInDelegate(irBuilder, result);
+		return wrapInDelegateValue(irBuilder, result);
 	}
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN: {
 		KETLSyntaxNode* lhsNode = it->firstChild;
-		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, irState, lhsNode);
+		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, irState, lhsNode, strings);
 		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
-		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, irState, rhsNode);
+		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, irState, rhsNode, strings);
 
 		KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
 
@@ -192,13 +229,13 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		instruction->arguments[0] = lhs->caller->value; // TODO actual convertion from udelegate to correct type
 		instruction->arguments[1] = rhs->caller->value; // TODO actual convertion from udelegate to correct type
 
-		return wrapInDelegate(irBuilder, instruction->arguments[0]);
+		return wrapInDelegateValue(irBuilder, instruction->arguments[0]);
 	}
 	case  KETL_SYNTAX_NODE_TYPE_RETURN: {
 
 		KETLSyntaxNode* expressionNode = it->firstChild;
 		if (expressionNode) {
-			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode, strings);
 
 			KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
 			instruction->code = KETL_INSTRUCTION_CODE_RETURN_8_BYTES; // TODO deside from type
@@ -251,14 +288,14 @@ do {\
 	}\
 } while(0)\
 
-static void buildIRSingleCommand(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode) {
+static void buildIRSingleCommand(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode, KETLAtomicStrings* strings) {
 	KETLIRValue* currentStack = irState->currentStack;
 	KETLIRValue* stackRoot = irState->stackRoot;
 
 	irState->tempVariables = NULL;
 	irState->localVariables = NULL;
 
-	buildIRFromSyntaxNode(irBuilder, irState, syntaxNode);
+	buildIRFromSyntaxNode(irBuilder, irState, syntaxNode, strings);
 
 	{
 		// set local variable
@@ -282,22 +319,49 @@ static void buildIRSingleCommand(KETLIRBuilder* irBuilder, KETLIRState* irState,
 	irState->stackRoot = stackRoot;
 }
 
-static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode) {
+static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode, KETLAtomicStrings* strings) {
 	for (KETLSyntaxNode* it = syntaxNode; it; it = it->nextSibling) {
 		if (it->type != KETL_SYNTAX_NODE_TYPE_BLOCK) {
-			buildIRSingleCommand(irBuilder, irState, it);
+			buildIRSingleCommand(irBuilder, irState, it, strings);
 		}
 		else {
-			// TODO prepare scope
 			KETLIRValue* savedStack = irState->currentStack;
-			buildIRBlock(irBuilder, irState, it->firstChild);
-			// TODO clear scope
+			uint64_t scopeIndex = irState->scopeIndex++;
+
+			buildIRBlock(irBuilder, irState, it->firstChild, strings);
+
+			irState->scopeIndex = scopeIndex;
 			irState->currentStack = savedStack;
+
+			KETLIntMapIterator iterator;
+			ketlInitIntMapIterator(&iterator, &irBuilder->variables);
+
+			while (ketlIntMapIteratorHasNext(&iterator)) {
+				const char* name;
+				IRUndefinedValue** pCurrent;
+				ketlIntMapIteratorGet(&iterator, (KETLIntMapKey*)&name, &pCurrent);
+				IRUndefinedValue* current = *pCurrent;
+				KETL_FOREVER {
+					if (current == NULL) {
+						ketlIntMapIteratorRemove(&iterator);
+						break;
+					}
+
+					if (current->scopeIndex <= scopeIndex) {
+						*pCurrent = current;
+						ketlIntMapIteratorNext(&iterator);
+						break;
+					}
+
+					current = current->next;
+				}
+			}
 		}
 	}
 }
 
-void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
+void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot, KETLAtomicStrings* strings) {
+	ketlIntMapReset(&irBuilder->variables);
 	ketlResetPool(&irBuilder->irInstructionPool);
 	ketlResetPool(&irBuilder->udelegatePool);
 	ketlResetPool(&irBuilder->uvaluePool);
@@ -309,7 +373,9 @@ void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* ir
 	irState->stackRoot = NULL;
 	irState->currentStack = NULL;
 
-	buildIRBlock(irBuilder, irState, syntaxNodeRoot);
+	irState->scopeIndex = 0;
+
+	buildIRBlock(irBuilder, irState, syntaxNodeRoot, strings);
 	if (irState->last) {
 		irState->last->next = NULL;
 	}

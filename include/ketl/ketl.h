@@ -3,10 +3,12 @@
 #define ketl_h
 
 #include "compiler/compiler.h"
+#include "atomic_strings.h"
 
 #include "utils.h"
 
 KETL_DEFINE(KETLState) {
+	KETLAtomicStrings strings;
 	KETLCompiler compiler;
 };
 
