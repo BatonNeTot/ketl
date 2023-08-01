@@ -20,7 +20,9 @@ inline static void* getArgument(uint8_t* stackPtr, KETLInstructionArgumentType t
 }
 
 #define ARGUMENT(number, type)\
-(*(type*)(getArgument(stackPtr, instruction.argumentTypes[(number) + 1], &(pInstruction + (number) + 1)->argument)))
+(*(type*)(getArgument(stackPtr, \
+instruction.argumentTypes[(number) + KETL_INSTRUCTION_RESERVED_ARGUMENTS_COUNT], \
+&(pInstruction + (number) + 1)->argument)))
 
 
 void ketlCallFunction(KETLFunction* function, void* _stackPtr, void* returnPtr) {
@@ -31,22 +33,83 @@ void ketlCallFunction(KETLFunction* function, void* _stackPtr, void* returnPtr) 
 		KETLInstruction* pInstruction = ((KETLInstruction*)(function + 1)) + index;
 		KETLInstruction instruction = *pInstruction;
 		switch (instruction.code) {
-		case KETL_INSTRUCTION_CODE_ADD_INT64: {
+
+		case KETL_INSTRUCTION_CODE_ADD_INT8:
+			ARGUMENT(0, int8_t) = ARGUMENT(1, int8_t) + ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_ADD_INT16:
+			ARGUMENT(0, int16_t) = ARGUMENT(1, int16_t) + ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_ADD_INT32:
+			ARGUMENT(0, int32_t) = ARGUMENT(1, int32_t) + ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_ADD_INT64:
 			ARGUMENT(0, int64_t) = ARGUMENT(1, int64_t) + ARGUMENT(2, int64_t);
 			break;
-		}
-		case KETL_INSTRUCTION_CODE_SUB_INT64: {
+		case KETL_INSTRUCTION_CODE_ADD_FLOAT32:
+			ARGUMENT(0, float) = ARGUMENT(1, float) + ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_ADD_FLOAT64:
+			ARGUMENT(0, double) = ARGUMENT(1, double) + ARGUMENT(2, double);
+			break;
+
+		case KETL_INSTRUCTION_CODE_SUB_INT8:
+			ARGUMENT(0, int8_t) = ARGUMENT(1, int8_t) - ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_SUB_INT16:
+			ARGUMENT(0, int16_t) = ARGUMENT(1, int16_t) - ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_SUB_INT32:
+			ARGUMENT(0, int32_t) = ARGUMENT(1, int32_t) - ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_SUB_INT64:
 			ARGUMENT(0, int64_t) = ARGUMENT(1, int64_t) - ARGUMENT(2, int64_t);
 			break;
-		}
-		case KETL_INSTRUCTION_CODE_MULTY_INT64: {
+		case KETL_INSTRUCTION_CODE_SUB_FLOAT32:
+			ARGUMENT(0, float) = ARGUMENT(1, float) - ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_SUB_FLOAT64:
+			ARGUMENT(0, double) = ARGUMENT(1, double) - ARGUMENT(2, double);
+			break;
+
+		case KETL_INSTRUCTION_CODE_MULTY_INT8:
+			ARGUMENT(0, int8_t) = ARGUMENT(1, int8_t) * ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_MULTY_INT16:
+			ARGUMENT(0, int16_t) = ARGUMENT(1, int16_t) * ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_MULTY_INT32:
+			ARGUMENT(0, int32_t) = ARGUMENT(1, int32_t) * ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_MULTY_INT64:
 			ARGUMENT(0, int64_t) = ARGUMENT(1, int64_t) * ARGUMENT(2, int64_t);
 			break;
-		}
-		case KETL_INSTRUCTION_CODE_DIV_INT64: {
+		case KETL_INSTRUCTION_CODE_MULTY_FLOAT32:
+			ARGUMENT(0, float) = ARGUMENT(1, float) * ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_MULTY_FLOAT64:
+			ARGUMENT(0, double) = ARGUMENT(1, double) * ARGUMENT(2, double);
+			break;
+
+		case KETL_INSTRUCTION_CODE_DIV_INT8:
+			ARGUMENT(0, int8_t) = ARGUMENT(1, int8_t) / ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_DIV_INT16:
+			ARGUMENT(0, int16_t) = ARGUMENT(1, int16_t) / ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_DIV_INT32:
+			ARGUMENT(0, int32_t) = ARGUMENT(1, int32_t) / ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_DIV_INT64:
 			ARGUMENT(0, int64_t) = ARGUMENT(1, int64_t) / ARGUMENT(2, int64_t);
 			break;
-		}
+		case KETL_INSTRUCTION_CODE_DIV_FLOAT32:
+			ARGUMENT(0, float) = ARGUMENT(1, float) / ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_DIV_FLOAT64:
+			ARGUMENT(0, double) = ARGUMENT(1, double) / ARGUMENT(2, double);
+			break;
+
 		case KETL_INSTRUCTION_CODE_ASSIGN_8_BYTES: {
 			ARGUMENT(0, uint64_t) = ARGUMENT(1, uint64_t);
 			break;

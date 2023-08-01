@@ -4,6 +4,7 @@
 
 #include <limits.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
 #define KETL_STR_VALUE_IMPL(x) #x
 #define KETL_STR_VALUE(x) KETL_STR_VALUE_IMPL(x)
@@ -17,6 +18,6 @@ typedef struct name name
 
 #define KETL_NULL_TERMINATED_LENGTH SIZE_MAX
 
-int32_t ketlStrToI32(const char* str, size_t length);
+int64_t ketlStrToI64(const char* str, size_t length);
 
 #endif /*utils_h*/

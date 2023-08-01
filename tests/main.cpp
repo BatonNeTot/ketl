@@ -14,7 +14,7 @@ extern "C" {
 // TODO rethink iterators using int map iterator as an example
 
 int main(int argc, char** argv) {	
-	auto source = "{let test := 1; return test;}";
+	auto source = "{return 10 * 15;}";
 
 	KETLState ketlState;
 
@@ -24,13 +24,13 @@ int main(int argc, char** argv) {
 
 	KETLIRState irState;
 
-	ketlBuildIR(nullptr, &ketlState.compiler.irBuilder, &irState, root, &ketlState.strings);
+	ketlBuildIR(nullptr, &ketlState.compiler.irBuilder, &irState, root);
 
 	// TODO optimization on ir
 
 	KETLFunction* function = ketlCompileIR(&irState);
 
-	uint64_t result = 0;
+	int64_t result = 0;
 	uint8_t* stack = new uint8_t[function->stackSize + sizeof(uint64_t)];
 	ketlCallFunction(function, stack, &result);
 

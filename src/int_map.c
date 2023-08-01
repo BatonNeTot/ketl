@@ -40,6 +40,22 @@ void ketlDeinitIntMap(KETLIntMap* map) {
 	free(map->buckets);
 }
 
+void* ketlIntMapGet(KETLIntMap* map, KETLIntMapKey key) {
+	uint64_t capacity = primeCapacities[map->capacityIndex];
+	KETLIntMapBucketBase** buckets = map->buckets;
+	uint64_t index = key % capacity;
+	KETLIntMapBucketBase* bucket = buckets[index];
+
+	while (bucket) {
+		if (bucket->key == key) {
+			return bucket + 1;
+		}
+
+		bucket = bucket->next;
+	}
+	return NULL;
+}
+
 bool ketlIntMapGetOrCreate(KETLIntMap* map, KETLIntMapKey key, void* ppValue) {
 	uint64_t capacity = primeCapacities[map->capacityIndex];
 	KETLIntMapBucketBase** buckets = map->buckets;

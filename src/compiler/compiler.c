@@ -3,10 +3,10 @@
 
 #include "syntax_node.h"
 
-void ketlInitCompiler(KETLCompiler* compiler) {
+void ketlInitCompiler(KETLCompiler* compiler, KETLState* state) {
 	ketlInitObjectPool(&compiler->syntaxNodePool, sizeof(KETLSyntaxNode), 16);
 	ketlInitSyntaxSolver(&compiler->syntaxSolver);
-	ketlInitIRBuilder(&compiler->irBuilder);
+	ketlInitIRBuilder(&compiler->irBuilder, state);
 }
 
 void ketlDeinitCompiler(KETLCompiler* compiler) {

@@ -4,10 +4,12 @@
 #include "compiler/ir_node.h"
 #include "compiler/ir_builder.h"
 #include "ketl/function.h"
+#include "ketl/type.h"
 
 #include <stdlib.h>
 
 static inline uint64_t bakeStackUsage(KETLIRState* irState) {
+	// TODO align
 	uint64_t currentStackOffset = 0;
 	uint64_t maxStackOffset = 0;
 
@@ -19,8 +21,7 @@ static inline uint64_t bakeStackUsage(KETLIRState* irState) {
 	KETL_FOREVER {
 		it->argument.stack = currentStackOffset;
 
-		// TODO get size from type
-		uint64_t size = 8;
+		uint64_t size = getStackTypeSize(it->traits, it->type);
 		currentStackOffset += size;
 		if (maxStackOffset < currentStackOffset) {
 			maxStackOffset = currentStackOffset;
@@ -36,8 +37,7 @@ static inline uint64_t bakeStackUsage(KETLIRState* irState) {
 					return maxStackOffset;
 				}
 				it = it->parent;
-				// TODO get size from type
-				size = 8;
+				size = getStackTypeSize(it->traits, it->type);
 				currentStackOffset -= size;
 			}
 			it = it->nextSibling;
@@ -79,7 +79,7 @@ KETLFunction* ketlCompileIR(KETLIRState* irState) {
 
 			for (uint64_t i = 1; i < instructionSize; ++i) {
 				instructions[instructionIndex + i].argument = irInstruction.arguments[i - 1]->argument;
-				instruction.argumentTypes[i] = irInstruction.arguments[i - 1]->argType;
+				instruction.argumentTypes[i + (KETL_INSTRUCTION_RESERVED_ARGUMENTS_COUNT - 1)] = irInstruction.arguments[i - 1]->argType;
 			}
 
 			instructions[instructionIndex] = instruction;

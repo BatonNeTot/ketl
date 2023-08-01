@@ -13,6 +13,7 @@ KETL_FORWARD(KETLIRValue);
 KETL_FORWARD(KETLSyntaxNode);
 KETL_FORWARD(KETLAtomicStrings);
 KETL_FORWARD(KETLType);
+KETL_FORWARD(KETLState);
 
 KETL_DEFINE(KETLIRBuilder) {
 	KETLIntMap variables;
@@ -20,6 +21,10 @@ KETL_DEFINE(KETLIRBuilder) {
 	KETLObjectPool udelegatePool;
 	KETLObjectPool uvaluePool;
 	KETLObjectPool valuePool;
+
+	KETLObjectPool castingPool;
+
+	KETLState* state;
 };
 
 KETL_DEFINE(KETLIRState) {
@@ -41,10 +46,10 @@ KETL_DEFINE(KETLIRState) {
 	// TODO namespace
 };
 
-void ketlInitIRBuilder(KETLIRBuilder* irBuilder);
+void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot, KETLAtomicStrings* strings);
+void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
 
 #endif /*compiler_ir_builder_h*/

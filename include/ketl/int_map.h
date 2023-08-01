@@ -20,6 +20,8 @@ void ketlInitIntMap(KETLIntMap* map, size_t objectSize, size_t poolSize);
 
 void ketlDeinitIntMap(KETLIntMap* map);
 
+void* ketlIntMapGet(KETLIntMap* map, KETLIntMapKey key);
+
 bool ketlIntMapGetOrCreate(KETLIntMap* map, KETLIntMapKey key, void* ppValue);
 
 void ketlIntMapReset(KETLIntMap* map);

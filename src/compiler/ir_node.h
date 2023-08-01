@@ -3,6 +3,7 @@
 #define compiler_ir_node_h
 
 #include "ketl/instructions.h"
+#include "ketl/type.h"
 #include "ketl/utils.h"
 
 KETL_FORWARD(KETLType);
@@ -10,6 +11,7 @@ KETL_FORWARD(KETLType);
 KETL_DEFINE(KETLIRValue) {
 	const char* name;
 	KETLType* type;
+	KETLVariableTraits traits;
 	KETLInstructionArgument argument;
 	KETLInstructionArgumentType argType;
 	KETLIRValue* parent;

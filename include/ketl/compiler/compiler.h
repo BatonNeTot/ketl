@@ -7,13 +7,15 @@
 
 #include "ketl/utils.h"
 
+KETL_FORWARD(KETLState);
+
 KETL_DEFINE(KETLCompiler) {
 	KETLObjectPool syntaxNodePool;
 	KETLSyntaxSolver syntaxSolver;
 	KETLIRBuilder irBuilder;
 };
 
-void ketlInitCompiler(KETLCompiler* compiler);
+void ketlInitCompiler(KETLCompiler* compiler, KETLState* state);
 
 void ketlDeinitCompiler(KETLCompiler* compiler);
 

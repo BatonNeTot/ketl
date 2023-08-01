@@ -18,6 +18,10 @@ static KETLSyntaxNodeType decideOperatorSyntaxType(const char* value, uint32_t l
 			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PLUS;
 		case '-':
 			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS;
+		case '*':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PROD;
+		case '/':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_DIV;
 		}
 		break;
 	}
@@ -167,7 +171,21 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 		return left;
 	}
-	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: {
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_2: {
+		// LEFT TO RIGHT
+		ketlIteratorStackSkipNext(bnfStackIterator); // ref
+		KETLSyntaxNode* caller = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+		KETLBnfParserState* state = ketlIteratorStackGetNext(bnfStackIterator); // repeat
+		KETL_ITERATOR_STACK_PEEK(KETLBnfParserState*, next, *bnfStackIterator);
+
+		if (next->parent == state) {
+			__debugbreak();
+		}
+
+		return caller;
+	}
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: 
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_5: {
 		// LEFT TO RIGHT
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
 		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
