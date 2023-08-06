@@ -102,12 +102,12 @@ void ketlInitState(KETLState* state) {
 	ketlInitIntMap(&state->binaryOperators, sizeof(KETLBinaryOperator*), 4);
 	ketlInitIntMap(&state->castOperators, sizeof(KETLCastOperator*), 4);
 
-	state->primitives[0] = createPrimitive(state, "Int8", sizeof(int8_t));
-	state->primitives[1] = createPrimitive(state, "Int16", sizeof(int16_t));
-	state->primitives[2] = createPrimitive(state, "Int32", sizeof(int32_t));
-	state->primitives[3] = createPrimitive(state, "Int64", sizeof(int64_t));
-	state->primitives[4] = createPrimitive(state, "Float32", sizeof(float));
-	state->primitives[5] = createPrimitive(state, "Float64", sizeof(double));
+	state->primitives[0] = createPrimitive(state, "i8", sizeof(int8_t));
+	state->primitives[1] = createPrimitive(state, "i16", sizeof(int16_t));
+	state->primitives[2] = createPrimitive(state, "i32", sizeof(int32_t));
+	state->primitives[3] = createPrimitive(state, "i64", sizeof(int64_t));
+	state->primitives[4] = createPrimitive(state, "f32", sizeof(float));
+	state->primitives[5] = createPrimitive(state, "f64", sizeof(double));
 
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT8, state->primitives[0]);
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT16, state->primitives[1]);

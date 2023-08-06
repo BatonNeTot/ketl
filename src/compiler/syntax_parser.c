@@ -130,6 +130,20 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		__debugbreak();
 		break;
 	}
+	case KETL_SYNTAX_BUILDER_TYPE_TYPE:
+		state = ketlIteratorStackGetNext(bnfStackIterator); // id or cocncat
+		if (state->bnfNode->type == KETL_BNF_NODE_TYPE_ID) {
+			KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
+
+			node->type = KETL_SYNTAX_NODE_TYPE_ID;
+			node->positionInSource = state->token->positionInSource + state->tokenOffset;
+			node->value = state->token->value + state->tokenOffset;
+			node->length = state->token->length - state->tokenOffset;
+
+			return node;
+		}
+		__debugbreak();
+		break;
 	case KETL_SYNTAX_BUILDER_TYPE_PRIMARY_EXPRESSION:
 		state = ketlIteratorStackGetNext(bnfStackIterator);
 		switch (state->bnfNode->type) {
@@ -263,15 +277,26 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 	}
 	case KETL_SYNTAX_BUILDER_TYPE_DEFINE_WITH_ASSIGNMENT: {
 		KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
-		node->type = KETL_SYNTAX_NODE_TYPE_DEFINE_VAR;
 
-		state = ketlIteratorStackGetNext(bnfStackIterator); // let
-
+		ketlIteratorStackSkipNext(bnfStackIterator); // or
+		state = ketlIteratorStackGetNext(bnfStackIterator); // var or type
 		node->positionInSource = state->token->positionInSource + state->tokenOffset;
+
+		KETLSyntaxNode* typeNode = NULL;
+
+		if (state->bnfNode->type == KETL_BNF_NODE_TYPE_CONSTANT) {
+			node->length = 2;
+			node->type = KETL_SYNTAX_NODE_TYPE_DEFINE_VAR;
+		}
+		else {
+			node->length = 3;
+			typeNode = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+			node->firstChild = typeNode;
+			node->type = KETL_SYNTAX_NODE_TYPE_DEFINE_VAR_OF_TYPE;
+		}
 
 		state = ketlIteratorStackGetNext(bnfStackIterator); // id
 
-		node->length = 2;
 
 		KETLSyntaxNode* idNode = ketlGetFreeObjectFromPool(syntaxNodePool);
 
@@ -280,7 +305,12 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		idNode->length = state->token->length - state->tokenOffset;
 		idNode->value = state->token->value + state->tokenOffset;
 
-		node->firstChild = idNode;
+		if (typeNode) {
+			typeNode->nextSibling = idNode;
+		}
+		else {
+			node->firstChild = idNode;
+		}
 
 		ketlIteratorStackSkipNext(bnfStackIterator); // :=
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref

@@ -202,6 +202,31 @@ static inline convertLiteralSize(KETLIRValue* value, KETLType* targetType) {
 	value->type = targetType;
 }
 
+static void convertValues(KETLIRBuilder* irBuilder, KETLIRState* irState, CastingOption* castingOption) {
+	if (castingOption->value->traits.type == KETL_TRAIT_TYPE_LITERAL) {
+		convertLiteralSize(castingOption->value, 
+			castingOption->operator ? castingOption->operator->outputType : castingOption->value->type);
+	}
+	else {
+		if (castingOption == NULL || castingOption->operator == NULL) {
+			return;
+		}
+
+		KETLIRValue* result = createTempVariable(irBuilder, irState);
+
+		KETLCastOperator casting = *castingOption->operator;
+		KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
+		instruction->code = casting.code;
+		instruction->arguments[1] = castingOption->value;
+
+		instruction->arguments[0] = result;
+		result->type = casting.outputType;
+		result->traits = casting.outputTraits;
+
+		castingOption->value = result;
+	}
+}
+
 KETL_DEFINE(TypeCastingTargetList) {
 	CastingOption* begin;
 	CastingOption* last;
@@ -218,7 +243,7 @@ static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, K
 	if (castOperators != NULL) {
 		KETLCastOperator* it = *castOperators;
 		for (; it; it = it->next) {
-			if (!implicit && it->implicit) {
+			if (implicit && !it->implicit) {
 				continue;
 			}
 
@@ -284,23 +309,28 @@ static CastingOption* possibleCastingForDelegate(KETLIRBuilder* irBuilder, IRUnd
 	return targets;
 }
 
-static KETLBinaryOperator* deduceInstructionCode2(KETLIRBuilder* irBuilder, KETLSyntaxNodeType syntaxOperator, IRUndefinedDelegate* lhs, IRUndefinedDelegate* rhs) {
+KETL_DEFINE(BinaryOperatorDeduction) {
+	KETLBinaryOperator* operator;
+	CastingOption* lhsCasting;
+	CastingOption* rhsCasting;
+};
+
+static BinaryOperatorDeduction deduceInstructionCode2(KETLIRBuilder* irBuilder, KETLSyntaxNodeType syntaxOperator, IRUndefinedDelegate* lhs, IRUndefinedDelegate* rhs) {
+	BinaryOperatorDeduction result;
+	result.operator = NULL;
+	result.lhsCasting = NULL;
+	result.rhsCasting = NULL;
+
 	KETLOperatorCode operatorCode = syntaxOperator - KETL_SYNTAX_NODE_TYPE_OPERATOR_OFFSET;
 	KETLState* state = irBuilder->state;
 	
 	KETLBinaryOperator** pOperatorResult = ketlIntMapGet(&state->binaryOperators, operatorCode); 
 	if (pOperatorResult == NULL) {
-		return NULL;
+		return result;
 	}
 	KETLBinaryOperator* operatorResult = *pOperatorResult;
 
-	ketlResetPool(&irBuilder->castingPool);
-
 	uint64_t bestScore = UINT64_MAX;
-	KETLBinaryOperator* bestScoreOperator = NULL;
-
-	CastingOption* bestLhsCasting = NULL;
-	CastingOption* bestRhsCasting = NULL;
 
 	uint64_t currentScore;
 
@@ -329,25 +359,128 @@ static KETLBinaryOperator* deduceInstructionCode2(KETLIRBuilder* irBuilder, KETL
 
 				if (currentScore < bestScore) {
 					bestScore = currentScore;
-					bestScoreOperator = it;
-					bestLhsCasting = lhsIt;
-					bestRhsCasting = rhsIt;
+					result.operator = it;
+					result.lhsCasting = lhsIt;
+					result.rhsCasting = rhsIt;
 				}
 				else if (currentScore == bestScore) {
-					bestScoreOperator = NULL;
+					result.operator = NULL;
 				}
 			}
 		}
 	}
 
-	if (bestScoreOperator == NULL) {
+	return result;
+}
+
+static CastingOption* castDelegateToVariable(KETLIRBuilder* irBuilder, IRUndefinedDelegate* udelegate, KETLType* type) {
+	CastingOption* options = possibleCastingForDelegate(irBuilder, udelegate);
+	CastingOption* it = options;
+
+	for (; it; it = it->next) {
+		KETLType* castingType = it->operator ? it->operator->outputType : it->value->type;
+		if (castingType == type) {
+			return it;
+		}
+	}
+
+	return NULL;
+}
+
+static CastingOption* getBestCastingOptionForDelegate(KETLIRBuilder* irBuilder, IRUndefinedDelegate* udelegate) {
+	CastingOption* options = possibleCastingForDelegate(irBuilder, udelegate);
+	CastingOption* it = options;
+	CastingOption* best = NULL;
+	uint64_t bestScore = UINT64_MAX;
+
+	for (; it; it = it->next) {
+		if (it->score == 0) {
+			// TODO temporary fix
+			return it;
+		}
+		if (it->score < bestScore) {
+			bestScore = it->score;
+			best = it;
+		}
+		else if (it->score == bestScore) {
+			best = NULL;
+		}
+	}
+
+	return best;
+}
+
+static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
+
+static KETLIRValue* createVariableDefinition(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* idNode, KETLType* type) {
+	if (KETL_CHECK_VOE(idNode->type == KETL_SYNTAX_NODE_TYPE_ID)) {
 		return NULL;
 	}
 
-	convertLiteralSize(bestLhsCasting->value, bestLhsCasting->operator ? bestLhsCasting->operator->outputType : bestLhsCasting->value->type);
-	convertLiteralSize(bestRhsCasting->value, bestRhsCasting->operator ? bestRhsCasting->operator->outputType : bestRhsCasting->value->type);
+	KETLIRValue* variable = createLocalVariable(irBuilder, irState);
 
-	return bestScoreOperator;
+	KETLSyntaxNode* expressionNode = idNode->nextSibling;
+	IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+
+	const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, idNode->value, idNode->length);
+	variable->name = name;
+
+	uint64_t scopeIndex = irState->scopeIndex;
+
+	IRUndefinedValue** pCurrent;
+	if (ketlIntMapGetOrCreate(&irBuilder->variables, (KETLIntMapKey)name, &pCurrent)) {
+		*pCurrent = NULL;
+	}
+	else {
+		// TODO check if the type is function, then we can overload
+		if ((*pCurrent)->scopeIndex == scopeIndex) {
+			// TODO error
+			__debugbreak();
+		}
+	}
+	IRUndefinedValue* uvalue = wrapInUValueValue(irBuilder, variable);
+	uvalue->scopeIndex = scopeIndex;
+	uvalue->next = *pCurrent;
+	*pCurrent = uvalue;
+
+	if (expression == NULL) {
+		// TODO error
+		__debugbreak();
+	}
+
+	// TODO set traits properly from syntax node
+	variable->traits.isConst = false;
+	variable->traits.isNullable = false;
+	variable->traits.type = KETL_TRAIT_TYPE_LVALUE;
+
+	CastingOption* expressionCasting;
+
+	ketlResetPool(&irBuilder->castingPool);
+	if (type == NULL) {
+		expressionCasting = getBestCastingOptionForDelegate(irBuilder, expression);
+	}
+	else {
+		expressionCasting = castDelegateToVariable(irBuilder, expression, type);
+	}
+
+	if (expressionCasting == NULL) {
+		// TODO error
+		__debugbreak();
+	}
+
+	convertValues(irBuilder, irState, expressionCasting);
+
+	KETLIRValue* expressionValue = expressionCasting->value;
+	variable->type = expressionValue->type;
+
+	KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
+
+	instruction->code = KETL_INSTRUCTION_CODE_ASSIGN_8_BYTES; // TODO choose from type
+
+	instruction->arguments[0] = variable;
+	instruction->arguments[1] = expressionValue;
+
+	return variable;
 }
 
 static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
@@ -355,46 +488,28 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 	switch (it->type) {
 	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR: {
 		KETLSyntaxNode* idNode = it->firstChild;
-		if (KETL_CHECK_VOE(idNode->type == KETL_SYNTAX_NODE_TYPE_ID)) {
+		KETLIRValue* variable = createVariableDefinition(irBuilder, irState, idNode, NULL);
+
+		if (variable == NULL) {
 			return NULL;
 		}
-			
-		KETLIRValue* variable = createLocalVariable(irBuilder, irState);
 
-		KETLSyntaxNode* expressionNode = idNode->nextSibling;
-		IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+		return wrapInDelegateValue(irBuilder, variable);
+	}
+	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR_OF_TYPE: {
+		KETLSyntaxNode* typeNode = it->firstChild;
 
-		const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, idNode->value, idNode->length);
-		variable->name = name;
+		KETLState* state = irBuilder->state;
+		const char* typeName = ketlAtomicStringsGet(&state->strings, typeNode->value, typeNode->length);
 
-		uint64_t scopeIndex = irState->scopeIndex;
+		KETLType* type = ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName);
 
-		IRUndefinedValue** pCurrent;
-		if (ketlIntMapGetOrCreate(&irBuilder->variables, (KETLIntMapKey)name, &pCurrent)) {
-			*pCurrent = NULL;
+		KETLSyntaxNode* idNode = typeNode->nextSibling;
+		KETLIRValue* variable = createVariableDefinition(irBuilder, irState, idNode, type);
+
+		if (variable == NULL) {
+			return NULL;
 		}
-		else {
-			// TODO check if the type is function, then we can overload
-			if ((*pCurrent)->scopeIndex == scopeIndex) {
-				// TODO error
-				__debugbreak();
-			}
-		}
-		IRUndefinedValue* uvalue = wrapInUValueValue(irBuilder, variable);
-		uvalue->scopeIndex = scopeIndex;
-		uvalue->next = *pCurrent;
-		*pCurrent = uvalue;
-
-		// TODO set type from syntax node if exist
-		variable->type = expression->caller->value->type;
-		variable->traits = expression->caller->value->traits;
-
-		KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
-
-		instruction->code = KETL_INSTRUCTION_CODE_ASSIGN_8_BYTES; // TODO choose from type
-
-		instruction->arguments[0] = variable;
-		instruction->arguments[1] = expression->caller->value; // TODO actual convertion from udelegate to correct type
 
 		return wrapInDelegateValue(irBuilder, variable);
 	}
@@ -436,18 +551,22 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, irState, lhsNode);
 		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
 		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, irState, rhsNode);
-			
-		KETLBinaryOperator* pDeduction = deduceInstructionCode2(irBuilder, it->type, lhs, rhs);
-		if (pDeduction == NULL) {
+
+		ketlResetPool(&irBuilder->castingPool);
+		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(irBuilder, it->type, lhs, rhs);
+		if (deductionStruct.operator == NULL) {
 			// TODO error
 			__debugbreak();
 		}
 
-		KETLBinaryOperator deduction = *pDeduction;
+		convertValues(irBuilder, irState, deductionStruct.lhsCasting);
+		convertValues(irBuilder, irState, deductionStruct.rhsCasting);
+
+		KETLBinaryOperator deduction = *deductionStruct.operator;
 		KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
 		instruction->code = deduction.code;
-		instruction->arguments[1] = lhs->caller->value; // TODO actual convertion from udelegate to correct type
-		instruction->arguments[2] = rhs->caller->value; // TODO actual convertion from udelegate to correct type
+		instruction->arguments[1] = deductionStruct.lhsCasting->value;
+		instruction->arguments[2] = deductionStruct.rhsCasting->value;
 
 		instruction->arguments[0] = result;
 		result->type = deduction.outputType;

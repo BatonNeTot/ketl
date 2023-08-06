@@ -12,9 +12,14 @@ extern "C" {
 }
 
 // TODO rethink iterators using int map iterator as an example
+// TODO rethink getOrCreate in int map
 
 int main(int argc, char** argv) {	
-	auto source = "{return 10 * 15;}";
+	auto source = R"({
+	var test1 := 10;
+	i32 test2 := 15;
+	return test1 * test2;
+})";
 
 	KETLState ketlState;
 

@@ -43,6 +43,55 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 	CREATE_ROOT(expression);
 	CREATE_ROOT(severalCommands);
 
+	CREATE_ROOT(type);
+	type->builder = KETL_SYNTAX_BUILDER_TYPE_TYPE;
+	type->type = KETL_BNF_NODE_TYPE_OR;
+	{
+		CREATE_CHILD();
+		SET_TYPE(KETL_BNF_NODE_TYPE_ID);
+
+		CREATE_SIBLING();
+		SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
+		{
+			CREATE_CHILD();
+			SET_CONSTANT("("); 
+			
+			CREATE_SIBLING();
+			SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
+			{
+				CREATE_CHILD();
+				SET_REF(type);
+
+				CREATE_SIBLING();
+				SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+				{
+					CREATE_CHILD();
+					SET_CONSTANT(",");
+
+					CREATE_SIBLING();
+					SET_REF(type);
+
+					CLOSE_CHILD();
+				}
+
+				CLOSE_CHILD();
+			}
+
+			CREATE_SIBLING();
+			SET_CONSTANT(")");
+
+			CREATE_SIBLING();
+			SET_CONSTANT("->");
+
+			CREATE_SIBLING();
+			SET_REF(type);
+
+			CLOSE_CHILD();
+		}
+
+		CLOSE_CHILD();
+	}
+
 	//// expression
 	//// primary
 	CREATE_ROOT(primary);
@@ -264,7 +313,16 @@ KETLBnfNode* ketlBuildBnfScheme(KETLObjectPool* bnfNodePool) {
 	defineVariableAssigment->type = KETL_BNF_NODE_TYPE_CONCAT;
 	{
 		CREATE_CHILD();
-		SET_CONSTANT("let");
+		SET_TYPE(KETL_BNF_NODE_TYPE_OR);
+		{
+			CREATE_CHILD();
+			SET_CONSTANT("var");
+
+			CREATE_SIBLING();
+			SET_REF(type);
+
+			CLOSE_CHILD();
+		}
 
 		CREATE_SIBLING();
 		SET_TYPE(KETL_BNF_NODE_TYPE_ID);
