@@ -18,6 +18,10 @@ int main(int argc, char** argv) {
 	auto source = R"({
 	var test1 := 10;
 	i32 test2 := 15;
+	if (test1 == test2) {
+		var test3 := test2 - test1;
+		return test3;
+	}
 	return test1 * test2;
 })";
 

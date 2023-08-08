@@ -217,6 +217,7 @@ void ketlCallFunction(KETLFunction* function, void* _stackPtr, void* returnPtr) 
 			*((uint64_t*)returnPtr) = ARGUMENT(0, uint64_t);
 			return;
 		}
+		KETL_NODEFAULT();
 		}
 		*pIndex = index += KETL_CODE_SIZE(instruction.code);
 	}

@@ -27,6 +27,10 @@ static KETLSyntaxNodeType decideOperatorSyntaxType(const char* value, uint32_t l
 	}
 	case 2: {
 		switch (*value) {
+		case '=':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_EQUAL;
+		case '!':
+			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_UNEQUAL;
 		case ':':
 			return KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN;
 		}
@@ -198,8 +202,8 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 		return caller;
 	}
-	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: 
-	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_5: {
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_3: 
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: {
 		// LEFT TO RIGHT
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
 		KETLSyntaxNode* left = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
@@ -233,6 +237,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			left = node;
 		}
 	}
+	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_5:
 	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_6: {
 		// RIGHT TO LEFT
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
@@ -321,6 +326,46 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		idNode->nextSibling = expression;
 
 		ketlIteratorStackSkipNext(bnfStackIterator); // ;
+		return node;
+	}
+	case KETL_SYNTAX_BUILDER_TYPE_IF_ELSE: {
+		ketlIteratorStackSkipNext(bnfStackIterator); // if
+		ketlIteratorStackSkipNext(bnfStackIterator); // (
+		ketlIteratorStackSkipNext(bnfStackIterator); // ref
+
+		KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+
+		ketlIteratorStackSkipNext(bnfStackIterator); // )
+		ketlIteratorStackSkipNext(bnfStackIterator); // ref
+
+		KETLSyntaxNode* trueBlock = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+		KETLSyntaxNode* falseBlock = NULL;
+
+		KETLBnfParserState* optional = ketlIteratorStackGetNext(bnfStackIterator);
+
+		KETLStackIterator tmpIterator = *bnfStackIterator;
+		KETLBnfParserState* next = ketlIteratorStackGetNext(&tmpIterator); // concat
+		if (next->parent == optional) {
+			*bnfStackIterator = tmpIterator;
+			ketlIteratorStackSkipNext(bnfStackIterator); // else
+			ketlIteratorStackSkipNext(bnfStackIterator); // ref
+			falseBlock = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+		}
+		
+		KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
+
+		node->firstChild = expression;
+		expression->nextSibling = trueBlock;
+		trueBlock->nextSibling = falseBlock;
+
+		node->type = KETL_SYNTAX_NODE_TYPE_IF_ELSE;
+		node->positionInSource = state->token->positionInSource + state->tokenOffset;
+
+		node->length = 2;
+		if (falseBlock != NULL) {
+			node->length = 3;
+		}
+
 		return node;
 	}
 	case KETL_SYNTAX_BUILDER_TYPE_RETURN: {

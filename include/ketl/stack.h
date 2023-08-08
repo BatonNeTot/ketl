@@ -47,6 +47,7 @@ void* ketlIteratorStackGetNext(KETLStackIterator* iterator);
 
 void ketlIteratorStackSkipNext(KETLStackIterator* iterator);
 
+// TODO remove it
 #define KETL_ITERATOR_STACK_PEEK(variableType, variableName, iterator)\
 variableType variableName = NULL;\
 do { \

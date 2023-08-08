@@ -102,68 +102,68 @@ void ketlInitState(KETLState* state) {
 	ketlInitIntMap(&state->binaryOperators, sizeof(KETLBinaryOperator*), 4);
 	ketlInitIntMap(&state->castOperators, sizeof(KETLCastOperator*), 4);
 
-	state->primitives[0] = createPrimitive(state, "i8", sizeof(int8_t));
-	state->primitives[1] = createPrimitive(state, "i16", sizeof(int16_t));
-	state->primitives[2] = createPrimitive(state, "i32", sizeof(int32_t));
-	state->primitives[3] = createPrimitive(state, "i64", sizeof(int64_t));
-	state->primitives[4] = createPrimitive(state, "f32", sizeof(float));
-	state->primitives[5] = createPrimitive(state, "f64", sizeof(double));
+	state->primitives.i8_t = createPrimitive(state, "i8", sizeof(int8_t));
+	state->primitives.i16_t = createPrimitive(state, "i16", sizeof(int16_t));
+	state->primitives.i32_t = createPrimitive(state, "i32", sizeof(int32_t));
+	state->primitives.i64_t = createPrimitive(state, "i64", sizeof(int64_t));
+	state->primitives.f32_t = createPrimitive(state, "f32", sizeof(float));
+	state->primitives.f64_t = createPrimitive(state, "f64", sizeof(double));
 
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT8, state->primitives[0]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT16, state->primitives[1]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT32, state->primitives[2]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT64, state->primitives[3]);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT8, state->primitives.i8_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT16, state->primitives.i16_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT32, state->primitives.i32_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_INSTRUCTION_CODE_ADD_INT64, state->primitives.i64_t);
 
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT8, state->primitives[0]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT16, state->primitives[1]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT32, state->primitives[2]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT64, state->primitives[3]);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT8, state->primitives.i8_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT16, state->primitives.i16_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT32, state->primitives.i32_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_MINUS, KETL_INSTRUCTION_CODE_SUB_INT64, state->primitives.i64_t);
 
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT8, state->primitives[0]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT16, state->primitives[1]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT32, state->primitives[2]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT64, state->primitives[3]);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT8, state->primitives.i8_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT16, state->primitives.i16_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT32, state->primitives.i32_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PROD, KETL_INSTRUCTION_CODE_MULTY_INT64, state->primitives.i64_t);
 
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT8, state->primitives[0]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT16, state->primitives[1]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT32, state->primitives[2]);
-	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT64, state->primitives[3]);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT8, state->primitives.i8_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT16, state->primitives.i16_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT32, state->primitives.i32_t);
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT64, state->primitives.i64_t);
 
-	registerCastOperator(state, state->primitives[0], state->primitives[3], KETL_INSTRUCTION_CODE_CAST_INT8_INT64, true);
-	registerCastOperator(state, state->primitives[0], state->primitives[2], KETL_INSTRUCTION_CODE_CAST_INT8_INT32, true);
-	registerCastOperator(state, state->primitives[0], state->primitives[1], KETL_INSTRUCTION_CODE_CAST_INT8_INT16, true);
-	registerCastOperator(state, state->primitives[0], state->primitives[5], KETL_INSTRUCTION_CODE_CAST_INT8_FLOAT64, true);
-	registerCastOperator(state, state->primitives[0], state->primitives[4], KETL_INSTRUCTION_CODE_CAST_INT8_FLOAT32, true);
+	registerCastOperator(state, state->primitives.i8_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_INT8_INT64, true);
+	registerCastOperator(state, state->primitives.i8_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_INT8_INT32, true);
+	registerCastOperator(state, state->primitives.i8_t, state->primitives.i16_t, KETL_INSTRUCTION_CODE_CAST_INT8_INT16, true);
+	registerCastOperator(state, state->primitives.i8_t, state->primitives.f64_t, KETL_INSTRUCTION_CODE_CAST_INT8_FLOAT64, true);
+	registerCastOperator(state, state->primitives.i8_t, state->primitives.f32_t, KETL_INSTRUCTION_CODE_CAST_INT8_FLOAT32, true);
 
-	registerCastOperator(state, state->primitives[1], state->primitives[3], KETL_INSTRUCTION_CODE_CAST_INT16_INT64, true);
-	registerCastOperator(state, state->primitives[1], state->primitives[2], KETL_INSTRUCTION_CODE_CAST_INT16_INT32, true);
-	registerCastOperator(state, state->primitives[1], state->primitives[0], KETL_INSTRUCTION_CODE_CAST_INT16_INT8, false);
-	registerCastOperator(state, state->primitives[1], state->primitives[5], KETL_INSTRUCTION_CODE_CAST_INT16_FLOAT64, true);
-	registerCastOperator(state, state->primitives[1], state->primitives[4], KETL_INSTRUCTION_CODE_CAST_INT16_FLOAT32, true);
+	registerCastOperator(state, state->primitives.i16_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_INT16_INT64, true);
+	registerCastOperator(state, state->primitives.i16_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_INT16_INT32, true);
+	registerCastOperator(state, state->primitives.i16_t, state->primitives.i8_t, KETL_INSTRUCTION_CODE_CAST_INT16_INT8, false);
+	registerCastOperator(state, state->primitives.i16_t, state->primitives.f64_t, KETL_INSTRUCTION_CODE_CAST_INT16_FLOAT64, true);
+	registerCastOperator(state, state->primitives.i16_t, state->primitives.f32_t, KETL_INSTRUCTION_CODE_CAST_INT16_FLOAT32, true);
 
-	registerCastOperator(state, state->primitives[2], state->primitives[3], KETL_INSTRUCTION_CODE_CAST_INT32_INT64, true);
-	registerCastOperator(state, state->primitives[2], state->primitives[1], KETL_INSTRUCTION_CODE_CAST_INT32_INT16, false);
-	registerCastOperator(state, state->primitives[2], state->primitives[0], KETL_INSTRUCTION_CODE_CAST_INT32_INT8, false);
-	registerCastOperator(state, state->primitives[2], state->primitives[5], KETL_INSTRUCTION_CODE_CAST_INT32_FLOAT64, true);
-	registerCastOperator(state, state->primitives[2], state->primitives[4], KETL_INSTRUCTION_CODE_CAST_INT32_FLOAT32, false);
+	registerCastOperator(state, state->primitives.i32_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_INT32_INT64, true);
+	registerCastOperator(state, state->primitives.i32_t, state->primitives.i16_t, KETL_INSTRUCTION_CODE_CAST_INT32_INT16, false);
+	registerCastOperator(state, state->primitives.i32_t, state->primitives.i8_t, KETL_INSTRUCTION_CODE_CAST_INT32_INT8, false);
+	registerCastOperator(state, state->primitives.i32_t, state->primitives.f64_t, KETL_INSTRUCTION_CODE_CAST_INT32_FLOAT64, true);
+	registerCastOperator(state, state->primitives.i32_t, state->primitives.f32_t, KETL_INSTRUCTION_CODE_CAST_INT32_FLOAT32, false);
 
-	registerCastOperator(state, state->primitives[3], state->primitives[2], KETL_INSTRUCTION_CODE_CAST_INT64_INT32, false);
-	registerCastOperator(state, state->primitives[3], state->primitives[1], KETL_INSTRUCTION_CODE_CAST_INT64_INT16, false);
-	registerCastOperator(state, state->primitives[3], state->primitives[0], KETL_INSTRUCTION_CODE_CAST_INT64_INT8, false);
-	registerCastOperator(state, state->primitives[3], state->primitives[5], KETL_INSTRUCTION_CODE_CAST_INT64_FLOAT64, false);
-	registerCastOperator(state, state->primitives[3], state->primitives[4], KETL_INSTRUCTION_CODE_CAST_INT64_FLOAT32, false);
+	registerCastOperator(state, state->primitives.i64_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_INT64_INT32, false);
+	registerCastOperator(state, state->primitives.i64_t, state->primitives.i16_t, KETL_INSTRUCTION_CODE_CAST_INT64_INT16, false);
+	registerCastOperator(state, state->primitives.i64_t, state->primitives.i8_t, KETL_INSTRUCTION_CODE_CAST_INT64_INT8, false);
+	registerCastOperator(state, state->primitives.i64_t, state->primitives.f64_t, KETL_INSTRUCTION_CODE_CAST_INT64_FLOAT64, false);
+	registerCastOperator(state, state->primitives.i64_t, state->primitives.f32_t, KETL_INSTRUCTION_CODE_CAST_INT64_FLOAT32, false);
 
-	registerCastOperator(state, state->primitives[4], state->primitives[5], KETL_INSTRUCTION_CODE_CAST_FLOAT32_FLOAT64, true);
-	registerCastOperator(state, state->primitives[4], state->primitives[3], KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT64, false);
-	registerCastOperator(state, state->primitives[4], state->primitives[2], KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT32, false);
-	registerCastOperator(state, state->primitives[4], state->primitives[1], KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT16, false);
-	registerCastOperator(state, state->primitives[4], state->primitives[0], KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT8, false);
+	registerCastOperator(state, state->primitives.f32_t, state->primitives.f64_t, KETL_INSTRUCTION_CODE_CAST_FLOAT32_FLOAT64, true);
+	registerCastOperator(state, state->primitives.f32_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT64, false);
+	registerCastOperator(state, state->primitives.f32_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT32, false);
+	registerCastOperator(state, state->primitives.f32_t, state->primitives.i16_t, KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT16, false);
+	registerCastOperator(state, state->primitives.f32_t, state->primitives.i8_t, KETL_INSTRUCTION_CODE_CAST_FLOAT32_INT8, false);
 
-	registerCastOperator(state, state->primitives[5], state->primitives[4], KETL_INSTRUCTION_CODE_CAST_FLOAT64_FLOAT32, false);
-	registerCastOperator(state, state->primitives[5], state->primitives[3], KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT64, false);
-	registerCastOperator(state, state->primitives[5], state->primitives[2], KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT32, false);
-	registerCastOperator(state, state->primitives[5], state->primitives[1], KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT16, false);
-	registerCastOperator(state, state->primitives[5], state->primitives[0], KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT8, false);
+	registerCastOperator(state, state->primitives.f64_t, state->primitives.f32_t, KETL_INSTRUCTION_CODE_CAST_FLOAT64_FLOAT32, false);
+	registerCastOperator(state, state->primitives.f64_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT64, false);
+	registerCastOperator(state, state->primitives.f64_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT32, false);
+	registerCastOperator(state, state->primitives.f64_t, state->primitives.i16_t, KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT16, false);
+	registerCastOperator(state, state->primitives.f64_t, state->primitives.i8_t, KETL_INSTRUCTION_CODE_CAST_FLOAT64_INT8, false);
 }
 
 void ketlDeinitState(KETLState* state) {

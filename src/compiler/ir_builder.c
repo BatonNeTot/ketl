@@ -132,19 +132,19 @@ static inline Literal parseLiteral(KETLIRBuilder* irBuilder, const char* value, 
 	Literal literal;
 	int64_t intValue = ketlStrToI64(value, length);
 	if (INT8_MIN <= intValue && intValue <= INT8_MAX) {
-		literal.type = irBuilder->state->primitives[0];
+		literal.type = irBuilder->state->primitives.i8_t;
 		literal.argument.int8 = (int8_t)intValue;
 	}
 	else if (INT16_MIN <= intValue && intValue <= INT16_MAX) {
-		literal.type = irBuilder->state->primitives[1];
+		literal.type = irBuilder->state->primitives.i16_t;
 		literal.argument.int16 = (int16_t)intValue;
 	}
 	else if (INT32_MIN <= intValue && intValue <= INT32_MAX) {
-		literal.type = irBuilder->state->primitives[2];
+		literal.type = irBuilder->state->primitives.i32_t;
 		literal.argument.int32 = (int32_t)intValue;
 	}
 	else if (INT64_MIN <= intValue && intValue <= INT16_MAX) {
-		literal.type = irBuilder->state->primitives[3];
+		literal.type = irBuilder->state->primitives.i64_t;
 		literal.argument.int64 = intValue;
 	}
 	return literal;
@@ -411,6 +411,7 @@ static CastingOption* getBestCastingOptionForDelegate(KETLIRBuilder* irBuilder, 
 }
 
 static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
+static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode);
 
 static KETLIRValue* createVariableDefinition(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* idNode, KETLType* type) {
 	if (KETL_CHECK_VOE(idNode->type == KETL_SYNTAX_NODE_TYPE_ID)) {
@@ -544,7 +545,9 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PLUS:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_MINUS:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PROD:
-	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_DIV: {
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_DIV:
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_EQUAL:
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_UNEQUAL: {
 		KETLIRValue* result = createTempVariable(irBuilder, irState);
 
 		KETLSyntaxNode* lhsNode = it->firstChild;
@@ -589,8 +592,24 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 
 		return wrapInDelegateValue(irBuilder, instruction->arguments[0]);
 	}
-	case  KETL_SYNTAX_NODE_TYPE_RETURN: {
+	case KETL_SYNTAX_NODE_TYPE_IF_ELSE: {
+		KETLSyntaxNode* expressionNode = it->firstChild;
+		//IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
+		KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
+		// builds all instructions
+		buildIRBlock(irBuilder, irState, trueBlockNode);
 
+		if (trueBlockNode->nextSibling != NULL) {
+			KETLSyntaxNode* falseBlockNode = expressionNode->nextSibling;
+			// builds all instructions
+			//buildIRBlock(irBuilder, irState, falseBlockNode);
+			__debugbreak();
+		}
+
+		__debugbreak();
+		return NULL;
+	}
+	case KETL_SYNTAX_NODE_TYPE_RETURN: {
 		KETLSyntaxNode* expressionNode = it->firstChild;
 		if (expressionNode) {
 			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);

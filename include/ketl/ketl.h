@@ -52,7 +52,19 @@ KETL_DEFINE(KETLState) {
 	KETLAtomicStrings strings;
 	KETLCompiler compiler;
 	KETLNamespace globalNamespace;
-	KETLType* primitives[6];
+	struct {
+		KETLType* bool_t;
+		KETLType* i8_t;
+		KETLType* i16_t;
+		KETLType* i32_t;
+		KETLType* i64_t;
+		KETLType* u8_t;
+		KETLType* u16_t;
+		KETLType* u32_t;
+		KETLType* u64_t;
+		KETLType* f32_t;
+		KETLType* f64_t;
+	} primitives;
 
 	KETLObjectPool unaryOperatorsPool;
 	KETLObjectPool binaryOperatorsPool;
