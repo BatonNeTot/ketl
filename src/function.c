@@ -1,8 +1,8 @@
 ﻿//🍲ketl
 #include "ketl/function.h"
 
-inline static void* getArgument(uint8_t* stackPtr, KETLInstructionArgumentType type, KETLInstructionArgument* value) {
-	switch (type) {
+inline static void* getArgument(uint8_t* stackPtr, KETLInstructionArgumentTraits traits, KETLInstructionArgument* value) {
+	switch (traits.type) {
 	case KETL_INSTRUCTION_ARGUMENT_TYPE_GLOBAL: {
 		return value->globalPtr;
 	}
@@ -21,7 +21,7 @@ inline static void* getArgument(uint8_t* stackPtr, KETLInstructionArgumentType t
 
 #define ARGUMENT(number, type)\
 (*(type*)(getArgument(stackPtr, \
-instruction.argumentTypes[(number) + KETL_INSTRUCTION_RESERVED_ARGUMENTS_COUNT], \
+instruction.argumentTraits[(number) + KETL_INSTRUCTION_RESERVED_ARGUMENT_TRAITS_COUNT], \
 &(pInstruction + (number) + 1)->argument)))
 
 
@@ -206,8 +206,64 @@ void ketlCallFunction(KETLFunction* function, void* _stackPtr, void* returnPtr) 
 			ARGUMENT(0, double) = ARGUMENT(1, double) / ARGUMENT(2, double);
 			break;
 
+		case KETL_INSTRUCTION_CODE_EQUAL_INT8:
+			ARGUMENT(0, bool) = ARGUMENT(1, int8_t) == ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_EQUAL_INT16:
+			ARGUMENT(0, bool) = ARGUMENT(1, int16_t) == ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_EQUAL_INT32:
+			ARGUMENT(0, bool) = ARGUMENT(1, int32_t) == ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_EQUAL_INT64:
+			ARGUMENT(0, bool) = ARGUMENT(1, int64_t) == ARGUMENT(2, int64_t);
+			break;
+		case KETL_INSTRUCTION_CODE_EQUAL_FLOAT32:
+			ARGUMENT(0, bool) = ARGUMENT(1, float) == ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_EQUAL_FLOAT64:
+			ARGUMENT(0, bool) = ARGUMENT(1, double) == ARGUMENT(2, double);
+			break;
+
+		case KETL_INSTRUCTION_CODE_UNEQUAL_INT8:
+			ARGUMENT(0, bool) = ARGUMENT(1, int8_t) != ARGUMENT(2, int8_t);
+			break;
+		case KETL_INSTRUCTION_CODE_UNEQUAL_INT16:
+			ARGUMENT(0, bool) = ARGUMENT(1, int16_t) != ARGUMENT(2, int16_t);
+			break;
+		case KETL_INSTRUCTION_CODE_UNEQUAL_INT32:
+			ARGUMENT(0, bool) = ARGUMENT(1, int32_t) != ARGUMENT(2, int32_t);
+			break;
+		case KETL_INSTRUCTION_CODE_UNEQUAL_INT64:
+			ARGUMENT(0, bool) = ARGUMENT(1, int64_t) != ARGUMENT(2, int64_t);
+			break;
+		case KETL_INSTRUCTION_CODE_UNEQUAL_FLOAT32:
+			ARGUMENT(0, bool) = ARGUMENT(1, float) != ARGUMENT(2, float);
+			break;
+		case KETL_INSTRUCTION_CODE_UNEQUAL_FLOAT64:
+			ARGUMENT(0, bool) = ARGUMENT(1, double) != ARGUMENT(2, double);
+			break;
+
 		case KETL_INSTRUCTION_CODE_ASSIGN_8_BYTES: {
 			ARGUMENT(0, uint64_t) = ARGUMENT(1, uint64_t);
+			break;
+		}
+		case KETL_INSTRUCTION_CODE_JUMP: {
+			*pIndex = index += ARGUMENT(0, uint64_t);
+			continue;
+		}
+		case KETL_INSTRUCTION_CODE_JUMP_IF_TRUE: {
+			if (ARGUMENT(1, bool)) {
+				*pIndex = index += ARGUMENT(0, uint64_t);
+				continue;
+			}
+			break;
+		}
+		case KETL_INSTRUCTION_CODE_JUMP_IF_FALSE: {
+			if (!ARGUMENT(1, bool)) {
+				*pIndex = index += ARGUMENT(0, uint64_t);
+				continue;
+			}
 			break;
 		}
 		case KETL_INSTRUCTION_CODE_RETURN: {

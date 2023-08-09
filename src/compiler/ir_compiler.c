@@ -45,11 +45,12 @@ static inline uint64_t bakeStackUsage(KETLIRState* irState) {
 	}
 }
 
-static inline uint64_t calculateInstructionCount(KETLIRState* irState) {
+static inline uint64_t calculateInstructionSizes(KETLIRState* irState) {
 	uint64_t instructionCount = 0;
 
 	KETLIRInstruction* it = irState->first;
 	while (it) {
+		it->instructionOffset = instructionCount;
 		instructionCount += KETL_CODE_SIZE(it->code);
 		it = it->next;
 	}
@@ -57,9 +58,21 @@ static inline uint64_t calculateInstructionCount(KETLIRState* irState) {
 	return instructionCount;
 }
 
+static inline void bakeJumps(KETLIRState* irState) {
+	KETLIRInstruction* it = irState->first;
+	while (it) {
+		if (it->code >= KETL_INSTRUCTION_CODE_JUMP && it->code <= KETL_INSTRUCTION_CODE_JUMP_IF_FALSE) {
+			KETLIRValue* value = it->arguments[0];
+			value->argument.uint64 = ((KETLIRInstruction*)value->argument.globalPtr)->instructionOffset - it->instructionOffset;
+		}
+		it = it->next;
+	}
+}
+
 KETLFunction* ketlCompileIR(KETLIRState* irState) {
 	uint64_t maxStackOffset = bakeStackUsage(irState);
-	uint64_t instructionCount = calculateInstructionCount(irState);
+	uint64_t instructionCount = calculateInstructionSizes(irState);
+	bakeJumps(irState);
 
 	KETLFunction* function = malloc(sizeof(KETLFunction) + sizeof(KETLInstruction) * instructionCount);
 	function->stackSize = maxStackOffset;
@@ -70,8 +83,12 @@ KETLFunction* ketlCompileIR(KETLIRState* irState) {
 	uint64_t instructionIndex = 0;
 	{
 		KETLIRInstruction* it = irState->first;
-		while (it) {
+		for (; it; it = it->next) {
 			KETLIRInstruction irInstruction = *it;
+			if (irInstruction.code == KETL_INSTRUCTION_CODE_NONE) {
+				continue;
+			}
+
 			uint64_t instructionSize = KETL_CODE_SIZE(irInstruction.code);
 
 			KETLInstruction instruction;
@@ -79,13 +96,11 @@ KETLFunction* ketlCompileIR(KETLIRState* irState) {
 
 			for (uint64_t i = 1; i < instructionSize; ++i) {
 				instructions[instructionIndex + i].argument = irInstruction.arguments[i - 1]->argument;
-				instruction.argumentTypes[i + (KETL_INSTRUCTION_RESERVED_ARGUMENTS_COUNT - 1)] = irInstruction.arguments[i - 1]->argType;
+				instruction.argumentTraits[i + (KETL_INSTRUCTION_RESERVED_ARGUMENT_TRAITS_COUNT - 1)] = irInstruction.arguments[i - 1]->argTraits;
 			}
 
 			instructions[instructionIndex] = instruction;
 			instructionIndex += instructionSize;
-
-			it = it->next;
 		}
 	}
 

@@ -83,7 +83,7 @@ static inline KETLIRInstruction* createInstruction(KETLIRBuilder* irBuilder, KET
 static inline KETLIRValue* createTempVariable(KETLIRBuilder* irBuilder, KETLIRState* irState) {
 	KETLIRValue* stackValue = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
 	stackValue->name = NULL;
-	stackValue->argType = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
+	stackValue->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
 	stackValue->argument.stack = 0;
 	stackValue->firstChild = NULL;
 	stackValue->nextSibling = NULL;
@@ -104,7 +104,7 @@ static inline KETLIRValue* createTempVariable(KETLIRBuilder* irBuilder, KETLIRSt
 
 static inline KETLIRValue* createLocalVariable(KETLIRBuilder* irBuilder, KETLIRState* irState) {
 	KETLIRValue* stackValue = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
-	stackValue->argType = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
+	stackValue->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
 	stackValue->argument.stack = 0;
 	stackValue->firstChild = NULL;
 	stackValue->nextSibling = NULL;
@@ -484,6 +484,12 @@ static KETLIRValue* createVariableDefinition(KETLIRBuilder* irBuilder, KETLIRSta
 	return variable;
 }
 
+static KETLIRValue* createJumpLiteral(KETLIRBuilder* irBuilder) {
+	KETLIRValue* value = ketlGetFreeObjectFromPool(&irBuilder->valuePool);
+	value->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_LITERAL;
+	return value;
+}
+
 static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot) {
 	KETLSyntaxNode* it = syntaxNodeRoot;
 	switch (it->type) {
@@ -534,7 +540,7 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		value->traits.isNullable = false;
 		value->traits.isConst = true;
 		value->traits.type = KETL_TRAIT_TYPE_LITERAL;
-		value->argType = KETL_INSTRUCTION_ARGUMENT_TYPE_LITERAL;
+		value->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_LITERAL;
 		value->argument = literal.argument;
 		value->parent = NULL;
 		value->firstChild = NULL;
@@ -592,23 +598,6 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 
 		return wrapInDelegateValue(irBuilder, instruction->arguments[0]);
 	}
-	case KETL_SYNTAX_NODE_TYPE_IF_ELSE: {
-		KETLSyntaxNode* expressionNode = it->firstChild;
-		//IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
-		KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
-		// builds all instructions
-		buildIRBlock(irBuilder, irState, trueBlockNode);
-
-		if (trueBlockNode->nextSibling != NULL) {
-			KETLSyntaxNode* falseBlockNode = expressionNode->nextSibling;
-			// builds all instructions
-			//buildIRBlock(irBuilder, irState, falseBlockNode);
-			__debugbreak();
-		}
-
-		__debugbreak();
-		return NULL;
-	}
 	case KETL_SYNTAX_NODE_TYPE_RETURN: {
 		KETLSyntaxNode* expressionNode = it->firstChild;
 		if (expressionNode) {
@@ -625,7 +614,7 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 
 		return NULL;
 	}
-	default:
+	KETL_NODEFAULT();
 		__debugbreak();
 	}
 	return NULL;
@@ -665,15 +654,7 @@ do {\
 	}\
 } while(0)\
 
-static void buildIRSingleCommand(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode) {
-	KETLIRValue* currentStack = irState->currentStack;
-	KETLIRValue* stackRoot = irState->stackRoot;
-
-	irState->tempVariables = NULL;
-	irState->localVariables = NULL;
-
-	buildIRFromSyntaxNode(irBuilder, irState, syntaxNode);
-
+static inline void restoreLocalSopeContext(KETLIRState* irState, KETLIRValue* currentStack, KETLIRValue* stackRoot) {
 	{
 		// set local variable
 		KETLIRValue* firstLocalVariable = irState->localVariables;
@@ -696,43 +677,117 @@ static void buildIRSingleCommand(KETLIRBuilder* irBuilder, KETLIRState* irState,
 	irState->stackRoot = stackRoot;
 }
 
+static inline void restoreScopeContext(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLIRValue* savedStack, uint64_t scopeIndex) {
+	irState->scopeIndex = scopeIndex;
+	irState->currentStack = savedStack;
+
+	KETLIntMapIterator iterator;
+	ketlInitIntMapIterator(&iterator, &irBuilder->variables);
+
+	while (ketlIntMapIteratorHasNext(&iterator)) {
+		const char* name;
+		IRUndefinedValue** pCurrent;
+		ketlIntMapIteratorGet(&iterator, (KETLIntMapKey*)&name, &pCurrent);
+		IRUndefinedValue* current = *pCurrent;
+		KETL_FOREVER{
+			if (current == NULL) {
+				ketlIntMapIteratorRemove(&iterator);
+				break;
+			}
+
+			if (current->scopeIndex <= scopeIndex) {
+				*pCurrent = current;
+				ketlIntMapIteratorNext(&iterator);
+				break;
+			}
+
+			current = current->next;
+		}
+	}
+}
+
 static void buildIRBlock(KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNode) {
 	for (KETLSyntaxNode* it = syntaxNode; it; it = it->nextSibling) {
-		if (it->type != KETL_SYNTAX_NODE_TYPE_BLOCK) {
-			buildIRSingleCommand(irBuilder, irState, it);
-		}
-		else {
+		switch (it->type) {
+		case KETL_SYNTAX_NODE_TYPE_BLOCK: {
+
 			KETLIRValue* savedStack = irState->currentStack;
 			uint64_t scopeIndex = irState->scopeIndex++;
 
 			buildIRBlock(irBuilder, irState, it->firstChild);
 
-			irState->scopeIndex = scopeIndex;
-			irState->currentStack = savedStack;
+			restoreScopeContext(irBuilder, irState, savedStack, scopeIndex);
+			break;
+		}
+		case KETL_SYNTAX_NODE_TYPE_IF_ELSE: {
+			KETLIRValue* savedStack = irState->currentStack;
+			uint64_t scopeIndex = irState->scopeIndex++;
 
-			KETLIntMapIterator iterator;
-			ketlInitIntMapIterator(&iterator, &irBuilder->variables);
+			KETLIRValue* currentStack = irState->currentStack;
+			KETLIRValue* stackRoot = irState->stackRoot;
 
-			while (ketlIntMapIteratorHasNext(&iterator)) {
-				const char* name;
-				IRUndefinedValue** pCurrent;
-				ketlIntMapIteratorGet(&iterator, (KETLIntMapKey*)&name, &pCurrent);
-				IRUndefinedValue* current = *pCurrent;
-				KETL_FOREVER {
-					if (current == NULL) {
-						ketlIntMapIteratorRemove(&iterator);
-						break;
-					}
+			irState->tempVariables = NULL;
+			irState->localVariables = NULL;
 
-					if (current->scopeIndex <= scopeIndex) {
-						*pCurrent = current;
-						ketlIntMapIteratorNext(&iterator);
-						break;
-					}
+			KETLSyntaxNode* expressionNode = it->firstChild;
+			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
 
-					current = current->next;
-				}
+			CastingOption* expressionCasting = castDelegateToVariable(irBuilder, expression, irBuilder->state->primitives.bool_t);
+			if (expressionCasting == NULL) {
+				// TODO error
+				__debugbreak();
 			}
+			convertValues(irBuilder, irState, expressionCasting);
+
+			restoreLocalSopeContext(irState, currentStack, stackRoot);
+
+			KETLIRInstruction* ifJumpInstruction = createInstruction(irBuilder, irState);
+			ifJumpInstruction->code = KETL_INSTRUCTION_CODE_JUMP_IF_FALSE;
+			ifJumpInstruction->arguments[0] = createJumpLiteral(irBuilder);
+			ifJumpInstruction->arguments[1] = expressionCasting->value;
+
+			KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
+			// builds all instructions
+			buildIRBlock(irBuilder, irState, trueBlockNode);
+
+			if (trueBlockNode->nextSibling != NULL) {
+				KETLIRInstruction* jumpInstruction = createInstruction(irBuilder, irState);
+				jumpInstruction->code = KETL_INSTRUCTION_CODE_JUMP;
+				jumpInstruction->arguments[0] = createJumpLiteral(irBuilder);
+
+				KETLIRInstruction* labelAfterTrueBlockInstruction = createInstruction(irBuilder, irState);
+				labelAfterTrueBlockInstruction->code = KETL_INSTRUCTION_CODE_NONE;
+				ifJumpInstruction->arguments[0]->argument.globalPtr = labelAfterTrueBlockInstruction;
+
+				KETLSyntaxNode* falseBlockNode = trueBlockNode->nextSibling;
+				// builds all instructions
+				buildIRBlock(irBuilder, irState, falseBlockNode);
+
+				KETLIRInstruction* labelAfterFalseBlockInstruction = createInstruction(irBuilder, irState);
+				labelAfterFalseBlockInstruction->code = KETL_INSTRUCTION_CODE_NONE;
+				jumpInstruction->arguments[0]->argument.globalPtr = labelAfterFalseBlockInstruction;
+			}
+			else {
+				KETLIRInstruction* labelAfterTrueBlockInstruction = createInstruction(irBuilder, irState);
+				labelAfterTrueBlockInstruction->code = KETL_INSTRUCTION_CODE_NONE;
+				ifJumpInstruction->arguments[0]->argument.globalPtr = labelAfterTrueBlockInstruction;
+
+			}
+
+			restoreScopeContext(irBuilder, irState, savedStack, scopeIndex);
+			break;
+		}
+		default: {
+			KETLIRValue* currentStack = irState->currentStack;
+			KETLIRValue* stackRoot = irState->stackRoot;
+
+			irState->tempVariables = NULL;
+			irState->localVariables = NULL;
+
+			buildIRFromSyntaxNode(irBuilder, irState, it);
+
+			restoreLocalSopeContext(irState, currentStack, stackRoot);
+		}
 		}
 	}
 }

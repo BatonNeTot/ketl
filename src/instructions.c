@@ -2,7 +2,7 @@
 #include "ketl/instructions.h"
 
 uint8_t KETL_CODE_SIZES[] = {
-		1,	//None,
+		0,	//None,
 		3,  //Cast, 30
 		3,
 		3,
@@ -57,7 +57,22 @@ uint8_t KETL_CODE_SIZES[] = {
 		4,	
 		4,	
 		4,	
+		4,	//Equal, 6
+		4,	
+		4,	
+		4,	
+		4,	
+		4,
+		4,	//Unequal, 6
+		4,
+		4,
+		4,
+		4,
+		4,
 		3,	//Assign8bytes,
+		2,	//Jump,
+		3,	//JumpIfEqualZero,
+		3,	//JumpIfNotEqualZero,
 		1,	//Return,
 		2,	//Return8bytes,
 };

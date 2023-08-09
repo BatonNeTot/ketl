@@ -13,7 +13,7 @@ KETL_DEFINE(KETLIRValue) {
 	KETLType* type;
 	KETLVariableTraits traits;
 	KETLInstructionArgument argument;
-	KETLInstructionArgumentType argType;
+	KETLInstructionArgumentTraits argTraits;
 	KETLIRValue* parent;
 	KETLIRValue* nextSibling;
 	KETLIRValue* firstChild;
@@ -21,7 +21,8 @@ KETL_DEFINE(KETLIRValue) {
 
 KETL_DEFINE(KETLIRInstruction) {
 	KETLInstructionCode code;
-	KETLIRValue* arguments[7];
+	KETLIRValue* arguments[KETL_INSTRUCTION_MAX_ARGUMENTS_COUNT];
+	uint64_t instructionOffset;
 	KETLIRInstruction* next;
 };
 

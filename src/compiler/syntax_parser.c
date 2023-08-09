@@ -335,6 +335,8 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 
 		KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
 
+		// TODO insert jump instruction
+
 		ketlIteratorStackSkipNext(bnfStackIterator); // )
 		ketlIteratorStackSkipNext(bnfStackIterator); // ref
 
@@ -350,6 +352,7 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 			ketlIteratorStackSkipNext(bnfStackIterator); // else
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
 			falseBlock = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+			falseBlock->nextSibling = NULL;
 		}
 		
 		KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
@@ -377,7 +380,9 @@ KETLSyntaxNode* ketlParseSyntax(KETLObjectPool* syntaxNodePool, KETLStackIterato
 		KETLSyntaxNode* node = ketlGetFreeObjectFromPool(syntaxNodePool);
 		if (next->parent == optional) {
 			ketlIteratorStackSkipNext(bnfStackIterator); // ref
-			node->firstChild = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+			KETLSyntaxNode* expression = ketlParseSyntax(syntaxNodePool, bnfStackIterator);
+			expression->nextSibling = NULL;
+			node->firstChild = expression;
 			node->length = 1;
 		}
 		else {

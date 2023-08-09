@@ -61,6 +61,36 @@ static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode o
 	*pOperator = newOperator;
 }
 
+static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCode operatorCode, KETLInstructionCode instructionCode, KETLType* type) {
+	KETLBinaryOperator** pOperator;
+	if (ketlIntMapGetOrCreate(&state->binaryOperators, operatorCode, &pOperator)) {
+		*pOperator = NULL;
+	}
+
+	KETLBinaryOperator operator;
+	KETLVariableTraits traits;
+
+	traits.type = KETL_TRAIT_TYPE_REF_IN;
+	traits.isNullable = false;
+	traits.isConst = true;
+
+	operator.code = instructionCode;
+
+	operator.lhsTraits = traits;
+	operator.rhsTraits = traits;
+	operator.outputTraits = traits;
+	operator.outputTraits.type = KETL_TRAIT_TYPE_RVALUE;
+
+	operator.lhsType = type;
+	operator.rhsType = type;
+	operator.outputType = state->primitives.bool_t;
+
+	operator.next = *pOperator;
+	KETLBinaryOperator* newOperator = ketlGetFreeObjectFromPool(&state->binaryOperatorsPool);
+	*newOperator = operator;
+	*pOperator = newOperator;
+}
+
 static void registerCastOperator(KETLState* state, KETLType* sourceType, KETLType* targetType, KETLInstructionCode instructionCode, bool implicit) {
 	KETLCastOperator** pOperator;
 	if (ketlIntMapGetOrCreate(&state->castOperators, (KETLIntMapKey)sourceType, &pOperator)) {
@@ -102,6 +132,7 @@ void ketlInitState(KETLState* state) {
 	ketlInitIntMap(&state->binaryOperators, sizeof(KETLBinaryOperator*), 4);
 	ketlInitIntMap(&state->castOperators, sizeof(KETLCastOperator*), 4);
 
+	state->primitives.bool_t = createPrimitive(state, "bool", sizeof(bool));
 	state->primitives.i8_t = createPrimitive(state, "i8", sizeof(int8_t));
 	state->primitives.i16_t = createPrimitive(state, "i16", sizeof(int16_t));
 	state->primitives.i32_t = createPrimitive(state, "i32", sizeof(int32_t));
@@ -128,6 +159,16 @@ void ketlInitState(KETLState* state) {
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT16, state->primitives.i16_t);
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT32, state->primitives.i32_t);
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_DIV, KETL_INSTRUCTION_CODE_DIV_INT64, state->primitives.i64_t);
+
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_EQUAL, KETL_INSTRUCTION_CODE_EQUAL_INT8, state->primitives.i8_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_EQUAL, KETL_INSTRUCTION_CODE_EQUAL_INT16, state->primitives.i16_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_EQUAL, KETL_INSTRUCTION_CODE_EQUAL_INT32, state->primitives.i32_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_EQUAL, KETL_INSTRUCTION_CODE_EQUAL_INT64, state->primitives.i64_t);
+
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_INSTRUCTION_CODE_UNEQUAL_INT8, state->primitives.i8_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_INSTRUCTION_CODE_UNEQUAL_INT16, state->primitives.i16_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_INSTRUCTION_CODE_UNEQUAL_INT32, state->primitives.i32_t);
+	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_INSTRUCTION_CODE_UNEQUAL_INT64, state->primitives.i64_t);
 
 	registerCastOperator(state, state->primitives.i8_t, state->primitives.i64_t, KETL_INSTRUCTION_CODE_CAST_INT8_INT64, true);
 	registerCastOperator(state, state->primitives.i8_t, state->primitives.i32_t, KETL_INSTRUCTION_CODE_CAST_INT8_INT32, true);

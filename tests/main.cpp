@@ -21,8 +21,9 @@ int main(int argc, char** argv) {
 	if (test1 == test2) {
 		var test3 := test2 - test1;
 		return test3;
+	} else {
+		return test1 * test2;
 	}
-	return test1 * test2;
 })";
 
 	KETLState ketlState;
@@ -47,10 +48,3 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
-/*
-std::string test(bool test) {
-	if (test) {
-		return "";
-	}
-}
-*/
