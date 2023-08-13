@@ -1,4 +1,4 @@
-# <img src="logo.png?" width="100"/> ketl
+# <img src="https://github.com/BatonNeTot/ketl_core/blob/main/logo.png?" width="100"/> ketl
 <sup> 
 Disclaimer!
 The project is at a very early stage, less than 5% completed

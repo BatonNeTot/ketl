@@ -3,13 +3,13 @@
 #define ketl_h
 
 #include "compiler/compiler.h"
-#include "atomic_strings.h"
-#include "object_pool.h"
-#include "int_map.h"
+#include "ketl/atomic_strings.h"
+#include "ketl/object_pool.h"
+#include "ketl/int_map.h"
 #include "type.h"
 #include "instructions.h"
-#include "operators.h"
-#include "utils.h"
+#include "ketl/operators.h"
+#include "ketl/utils.h"
 
 KETL_FORWARD(KETLType);
 

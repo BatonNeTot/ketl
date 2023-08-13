@@ -2,7 +2,7 @@
 #ifndef instructions_h
 #define instructions_h
 
-#include "utils.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 

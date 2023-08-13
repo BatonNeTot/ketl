@@ -2,7 +2,7 @@
 #include "ketl/ketl.h"
 
 #include "ketl/instructions.h"
-#include "compiler/syntax_node.h"
+#include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
 
 static void initNamespace(KETLNamespace* namespace) {

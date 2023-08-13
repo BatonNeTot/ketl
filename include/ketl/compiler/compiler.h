@@ -2,16 +2,15 @@
 #ifndef compiler_compiler_h
 #define compiler_compiler_h
 
-#include "syntax_solver.h"
 #include "compiler/ir_builder.h"
+#include "ketl/compiler/bytecode_compiler.h"
 
 #include "ketl/utils.h"
 
 KETL_FORWARD(KETLState);
 
 KETL_DEFINE(KETLCompiler) {
-	KETLObjectPool syntaxNodePool;
-	KETLSyntaxSolver syntaxSolver;
+	KETLBytecodeCompiler bytecodeCompiler;
 	KETLIRBuilder irBuilder;
 };
 

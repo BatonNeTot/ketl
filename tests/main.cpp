@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
 	auto source = R"({
 	var test1 := 10;
 	i32 test2 := 15;
-	if (test1 == test2) {
+	if (test1 != test2) {
 		var test3 := test2 - test1;
 		return test3;
 	} else {
@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
 
 	ketlInitState(&ketlState);
 
-	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.syntaxSolver, &ketlState.compiler.syntaxNodePool);
+	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.bytecodeCompiler.syntaxSolver, &ketlState.compiler.bytecodeCompiler.syntaxNodePool);
 
 	KETLIRState irState;
 

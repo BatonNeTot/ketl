@@ -3,7 +3,7 @@
 #define function_h
 
 #include "instructions.h"
-#include "utils.h"
+#include "ketl/utils.h"
 
 #include <inttypes.h>
 

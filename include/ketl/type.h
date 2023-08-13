@@ -2,8 +2,8 @@
 #ifndef type_h
 #define type_h
 
-#include "int_map.h"
-#include "utils.h"
+#include "ketl/int_map.h"
+#include "ketl/utils.h"
 
 typedef uint8_t KETLTypeKind;
 

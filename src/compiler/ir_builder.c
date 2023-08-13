@@ -1,8 +1,8 @@
 ﻿//🍲ketl
 #include "ir_builder.h"
 
-#include "syntax_node.h"
 #include "ir_node.h"
+#include "ketl/compiler/syntax_node.h"
 
 #include "ketl/object_pool.h"
 #include "ketl/atomic_strings.h"
