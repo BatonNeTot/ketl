@@ -1,7 +1,7 @@
 /.cache
-/.vscode
-/.cmide
+/.ace
 /bin
 /build
 /lib
 /compile_commands.json
+/tags

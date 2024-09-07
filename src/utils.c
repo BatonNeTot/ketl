@@ -1,7 +1,7 @@
 ﻿//🫖ketl
 #include "ketl/utils.h"
 
-double ketlStrToF64(const char* str, size_t length) {
+double ketl_str_to_f64(const char* str, size_t length) {
 	// TODO
 	uint64_t wholePart = 0;
 

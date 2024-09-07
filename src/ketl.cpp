@@ -1,12 +1,12 @@
-#include "ketl/ketl.hpp"
+//#include "ketl/ketl.hpp"
 
 #include <iostream>
-#include <vector>
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    
+   
+    /*
     KETL::State ketlState;
 
     std::string line;
@@ -16,6 +16,7 @@ int main(int argc, char **argv) {
         std::getline(std::cin, line);
         ketlState.eval(line);
     }
+    */
 
     return 0;
 }

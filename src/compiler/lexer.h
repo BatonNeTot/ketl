@@ -1,27 +1,19 @@
-﻿//🫖ketl
-#ifndef ketl_compiler_lexer_h
-#define ketl_compiler_lexer_h
-
 #include "ketl/utils.h"
 
-KETL_FORWARD(ketl_token);
-KETL_FORWARD(ketl_object_pool);
+typedef uint8_t ketl_token_type;
 
-KETL_DEFINE(ketl_lexer) {
-	const char* source;
-	const char* sourceIt;
-	const char* sourceEnd;
-	ketl_object_pool* tokenPool;
+
+
+KETL_DEFINE(ketl_token) {
+    uint32_t code;
 };
 
-void ketl_lexer_init(ketl_lexer* lexer, const char* source, size_t length, ketl_object_pool* tokenPool);
+const ketl_token* ketl_lexer_build_tokens(const char* source, uint64_t length, uint32_t* count);
 
-bool ketl_lexer_has_next_token(const ketl_lexer* lexer);
+ketl_token ketl_lexer_token_create_token();
 
-ketl_token* ketl_lexer_get_next_token(ketl_lexer* lexer);
+inline uint32_t ketl_lexer_get_token_length(const char* source, ketl_token token) {
+    (void)source;
+    (void)token;
 
-inline size_t ketl_lexer_current_position(ketl_lexer* lexer) {
-	return lexer->sourceIt - lexer->source;
 }
-
-#endif // ketl_compiler_lexer_h
