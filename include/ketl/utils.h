@@ -89,7 +89,8 @@
     #define KETL_NODEFAULT() default: KETL_DEBUGBREAK(); //TODO assert
 #endif
 
-#define KETL_NULL_TERMINATED_LENGTH SIZE_MAX
+#define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
+#define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)
 
 int64_t ketl_str_to_i64(const char* str, size_t length);
 

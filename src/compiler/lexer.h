@@ -1,19 +1,13 @@
+//🫖ketl
+#ifndef ketl_compiler_lexer_h
+#define ketl_compiler_lexer_h
+
 #include "ketl/utils.h"
-
-typedef uint8_t ketl_token_type;
-
+#include "token.h"
 
 
-KETL_DEFINE(ketl_token) {
-    uint32_t code;
-};
+#define KETL_LEXER_INITIAL_TOKEN_CAPACITY 4
 
-const ketl_token* ketl_lexer_build_tokens(const char* source, uint64_t length, uint32_t* count);
+const ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount);
 
-ketl_token ketl_lexer_token_create_token();
-
-inline uint32_t ketl_lexer_get_token_length(const char* source, ketl_token token) {
-    (void)source;
-    (void)token;
-
-}
+#endif // ketl_compiler_lexer_h

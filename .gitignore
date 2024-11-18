@@ -1,7 +1,8 @@
-/.cache
-/.ace
 /bin
 /build
 /lib
-/compile_commands.json
-/tags
+/out
+
+/.cache
+*.bak
+CMakePresets.json

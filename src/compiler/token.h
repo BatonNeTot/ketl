@@ -1,0 +1,115 @@
+//🫖ketl
+#ifndef ketl_compiler_token_h
+#define ketl_compiler_token_h
+
+#include "ketl/utils.h"
+
+typedef uint8_t ketl_token_type;
+
+#define	KETL_TOKEN_TYPE_ID 							0
+#define	KETL_TOKEN_TYPE_LITERAL_INTEGER 			1
+#define	KETL_TOKEN_TYPE_LITERAL_STRING 				2
+#define	KETL_TOKEN_TYPE_LITERAL_CHAR 				3
+
+#define	KETL_TOKEN_TYPE_PARENTHESES_LEFT 			4 
+#define	KETL_TOKEN_TYPE_PARENTHESES_RIGHT 			5
+#define	KETL_TOKEN_TYPE_CURLY_LEFT 					6 
+#define	KETL_TOKEN_TYPE_CURLY_RIGHT 				7
+#define	KETL_TOKEN_TYPE_SQUARE_LEFT 				8 
+#define	KETL_TOKEN_TYPE_SQUARE_RIGHT 				9 
+#define	KETL_TOKEN_TYPE_DOT 						10
+#define	KETL_TOKEN_TYPE_COMMA 						13
+#define	KETL_TOKEN_TYPE_TERNARY_FIRST 				14
+#define	KETL_TOKEN_TYPE_TERNARY_SECOND 				15
+#define	KETL_TOKEN_TYPE_TERMINATION_CHARACTER 		16
+
+#define	KETL_TOKEN_TYPE_LOGICAL_NOT 				17
+#define	KETL_TOKEN_TYPE_LOGICAL_AND					18
+#define	KETL_TOKEN_TYPE_LOGICAL_OR 					19
+#define	KETL_TOKEN_TYPE_LESS 						20
+#define	KETL_TOKEN_TYPE_LESS_OR_EQUAL 				21
+#define	KETL_TOKEN_TYPE_GREATER 					22
+#define	KETL_TOKEN_TYPE_GREATER_OR_EQUAL 			23
+#define	KETL_TOKEN_TYPE_EQUAL 						24
+#define	KETL_TOKEN_TYPE_NOT_EQUAL 					25
+
+#define	KETL_TOKEN_TYPE_BITWISE_NOT 				26
+#define	KETL_TOKEN_TYPE_BITWISE_AND 				27
+#define	KETL_TOKEN_TYPE_BITWISE_OR 					28
+#define	KETL_TOKEN_TYPE_BITWISE_XOR 				29
+#define	KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT 			30
+#define	KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT			31
+
+#define	KETL_TOKEN_TYPE_INCREMENT					32
+#define	KETL_TOKEN_TYPE_DECREMENT					33
+#define	KETL_TOKEN_TYPE_PLUS 						34
+#define	KETL_TOKEN_TYPE_MINUS 						35
+#define	KETL_TOKEN_TYPE_MULTIPLY 					36
+#define	KETL_TOKEN_TYPE_DIVIDE 						37
+#define	KETL_TOKEN_TYPE_REMAINDER 					38
+
+#define	KETL_TOKEN_TYPE_ASSIGN 						39
+#define	KETL_TOKEN_TYPE_ASSIGN_PLUS 				40
+#define	KETL_TOKEN_TYPE_ASSIGN_MINUS 				41
+#define	KETL_TOKEN_TYPE_ASSIGN_MULTIPLY 			42
+#define	KETL_TOKEN_TYPE_ASSIGN_DIVIDE				43
+#define	KETL_TOKEN_TYPE_ASSIGN_REMAINDER 			44
+#define	KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT 	45
+#define	KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT 	46
+#define	KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND 			47
+#define	KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR 			48
+#define	KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR 			49
+
+#define	KETL_TOKEN_TYPE_MACRO_DEFINE 				50
+#define	KETL_TOKEN_TYPE_MACRO_INCLUDE 				51
+
+#define	KETL_TOKEN_TYPE_AUTO 						52
+#define	KETL_TOKEN_TYPE_BOOL						53
+#define	KETL_TOKEN_TYPE_BREAK 						54
+#define	KETL_TOKEN_TYPE_CASE 						55
+#define	KETL_TOKEN_TYPE_CHAR 						56
+#define	KETL_TOKEN_TYPE_CONST 						57
+#define	KETL_TOKEN_TYPE_CONTINUE					58
+#define	KETL_TOKEN_TYPE_DEFAULT						59
+#define	KETL_TOKEN_TYPE_DO							60
+#define	KETL_TOKEN_TYPE_DOUBLE 						61
+#define	KETL_TOKEN_TYPE_ELSE 						62
+#define	KETL_TOKEN_TYPE_ENUM 						63
+#define	KETL_TOKEN_TYPE_EXTERN						64
+#define	KETL_TOKEN_TYPE_FALSE 						65
+#define	KETL_TOKEN_TYPE_FLOAT 						66
+#define	KETL_TOKEN_TYPE_FOR							67
+#define	KETL_TOKEN_TYPE_GOTO						68
+#define	KETL_TOKEN_TYPE_IF							69
+#define	KETL_TOKEN_TYPE_INLINE						70
+#define	KETL_TOKEN_TYPE_INT 						71
+#define	KETL_TOKEN_TYPE_LONG 						72
+#define	KETL_TOKEN_TYPE_REGISTER					73
+#define	KETL_TOKEN_TYPE_RETURN						74
+#define	KETL_TOKEN_TYPE_SHORT 						75
+#define	KETL_TOKEN_TYPE_SIGNED						76
+#define	KETL_TOKEN_TYPE_SIZEOF						77
+#define	KETL_TOKEN_TYPE_STATIC						78
+#define	KETL_TOKEN_TYPE_STRUCT						79
+#define	KETL_TOKEN_TYPE_SWITCH						80
+#define	KETL_TOKEN_TYPE_TRUE 						81
+#define	KETL_TOKEN_TYPE_TYPEDEF						82
+#define	KETL_TOKEN_TYPE_UNION						83
+#define	KETL_TOKEN_TYPE_UNSIGNED					84
+#define	KETL_TOKEN_TYPE_VOID						85
+#define	KETL_TOKEN_TYPE_VOLATILE					86
+#define	KETL_TOKEN_TYPE_WHILE						87
+
+#define	KETL_TOKEN_TYPE_TOTAL					    88
+
+KETL_DEFINE(ketl_token) {
+    ketl_token_type type;
+    uint8_t length;
+    uint16_t prevOffset;
+};
+
+inline uint8_t ketl_token_get_length(ketl_token token) {
+    return token.length + 1;
+}
+
+#endif // ketl_compiler_token_h
