@@ -217,12 +217,12 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
 static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSymbol) {
     switch (nextSymbol) {  
     case '(': {
-        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESES_LEFT, 1);
+        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, 1);
         pContext->offset += 1;
         return true;
     } 
 	case ')': {
-        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESES_RIGHT, 1);
+        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, 1);
         pContext->offset += 1;
         return true;
     } 
@@ -485,7 +485,7 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
     }
 }
 
-const ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount) {
+ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount) {
     ketl_lexer_context context = {
         .pSource = pSource,
         .length = length,

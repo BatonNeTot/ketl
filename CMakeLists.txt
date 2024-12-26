@@ -2,11 +2,35 @@
 
 project ("ketljit")
 
-#set(CMAKE_C_COMPILER "clang-cl")
-#set(CMAKE_CXX_COMPILER "clang-cl")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_TARGET "ketljit")
+
+###############################
+
+get_filename_component(PROJECT_GEN_OUTPUT_DIR "src/generated" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
+get_filename_component(PROJECT_GEN_LEXER_OUTPUT "compiler/token.h" REALPATH BASE_DIR ${PROJECT_GEN_OUTPUT_DIR})
+get_filename_component(PROJECT_GEN_LEXER_TEMPLATE "pygen/token_template.h" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+get_filename_component(PROJECT_GEN_LEXER_GENERATOR "pygen/lexgen.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+add_custom_command(
+    COMMAND python ${PROJECT_GEN_LEXER_GENERATOR} ${PROJECT_GEN_LEXER_TEMPLATE} ${PROJECT_GEN_LEXER_OUTPUT}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT ${PROJECT_GEN_LEXER_OUTPUT}
+    DEPENDS ${PROJECT_GEN_LEXER_GENERATOR} ${PROJECT_GEN_LEXER_TEMPLATE})
+
+get_filename_component(PROJECT_GEN_PARSER_OUTPUT "compiler/parser.c" REALPATH BASE_DIR ${PROJECT_GEN_OUTPUT_DIR})
+get_filename_component(PROJECT_GEN_PARSER_TEMPLATE "pygen/parser_template.c" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+get_filename_component(PROJECT_GEN_PARSER_GENERATOR "pygen/lalr.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+add_custom_command(
+    COMMAND python ${PROJECT_GEN_PARSER_GENERATOR} ${PROJECT_GEN_PARSER_TEMPLATE} ${PROJECT_GEN_PARSER_OUTPUT}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT ${PROJECT_GEN_PARSER_OUTPUT}
+    DEPENDS ${PROJECT_GEN_PARSER_GENERATOR} ${PROJECT_GEN_PARSER_TEMPLATE})
+
+set(PROJECT_GEN_OUTPUT ${PROJECT_GEN_LEXER_OUTPUT} ${PROJECT_GEN_PARSER_OUTPUT})
+
+###############################
 
 if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
@@ -18,7 +42,7 @@ add_subdirectory ("src")
 
 file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h)
 
-add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS})
+add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_GEN_OUTPUT} ${PROJECT_HEADERS})
 set_property(TARGET ${PROJECT_TARGET} PROPERTY C_STANDARD 11)
 
 set_target_properties(${PROJECT_TARGET}
@@ -31,9 +55,7 @@ set_target_properties(${PROJECT_TARGET}
 target_compile_definitions(${PROJECT_TARGET} PRIVATE _AMD64_)
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")
-target_include_directories(${PROJECT_TARGET} PRIVATE "src")
-
-###############################
+target_include_directories(${PROJECT_TARGET} PRIVATE "src" ${PROJECT_GEN_OUTPUT_DIR})
 
 set(PROJECT_EXE_TARGET "${PROJECT_TARGET}_exe")
 

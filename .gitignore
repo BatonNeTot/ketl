@@ -5,4 +5,7 @@
 
 /.cache
 *.bak
+*/__pycache__/*
 CMakePresets.json
+
+/src/generated

@@ -1,6 +1,6 @@
 ﻿//🫖ketl
-#ifndef ketl_assert_h
-#define ketl_assert_h
+#ifndef ketl_asserts_h
+#define ketl_asserts_h
 
 #include "logging.h"
 
@@ -22,4 +22,4 @@
 
 #endif // NDEBUG
 
-#endif // ketl_assert_h
+#endif // ketl_asserts_h

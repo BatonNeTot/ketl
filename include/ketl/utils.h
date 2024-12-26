@@ -67,15 +67,13 @@
 #define __KETL_STR_VALUE(x) #x
 #define KETL_STR_VALUE(x) __KETL_STR_VALUE(x)
 
-#define __KETL_CONCAT(a, b) a ## b
-#define KETL_CONCAT(a, b) __KETL_CONCAT(a, b)
+#define __KETL_CONCAT(a,b,c,d,e,f,g,i,j,k,l,m,n,o,p,...) a##b##c##d##e##f##g##i##j##k##l##m##n##o##p
+#define KETL_CONCAT(...) __KETL_CONCAT(__VA_ARGS__,,,,,,,,,,,,,,,,,)
 
 #define KETL_FOREVER while(1)
 
 #define KETL_STRUCT_PREFIX _ketl_struct_
-
 #define KETL_FORWARD(name) typedef struct KETL_CONCAT(KETL_STRUCT_PREFIX, name) name
-
 #define KETL_DEFINE(name) KETL_FORWARD(name); struct KETL_CONCAT(KETL_STRUCT_PREFIX, name)
 
 #ifdef NDEBUG
@@ -91,6 +89,8 @@
 
 #define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
 #define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)
+
+#define KETL_ALIGN(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
 
 int64_t ketl_str_to_i64(const char* str, size_t length);
 
