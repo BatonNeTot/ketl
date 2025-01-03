@@ -655,8 +655,10 @@ if __name__ == '__main__':
 			Prod('block', [ Term('CURLY_LEFT'), Nonterm("statements"), Term("CURLY_RIGHT") ]),
 
 			Prod('statement', [ Nonterm('expr'), Term("TERMINATION_CHARACTER") ]),
+			Prod('statement', [ Term('RETURN'), Term("TERMINATION_CHARACTER") ],
+				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_RETURN, 0, 0, 0, 0);"),
 			Prod('statement', [ Term('RETURN'), Nonterm('expr'), Term("TERMINATION_CHARACTER") ],
-				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_RETURN, 0, 0, STACK_TOP(2).result, 0);"),
+				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_RETURN_VALUE, STACK_TOP(2).result, 0, 0, 0);"),
 
 			Prod('expr', [ Nonterm('expr'), Term("PLUS"), Nonterm('expr') ],	
 				operatorPrecedence=1,	

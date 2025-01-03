@@ -8,6 +8,7 @@ typedef uint8_t ketl_ir_type;
 
 enum __KETL_IR_TYPE {
     KETL_IR_TYPE_RETURN,
+    KETL_IR_TYPE_RETURN_VALUE,
 
     KETL_IR_TYPE_ASSIGN,
     KETL_IR_TYPE_PLUS,

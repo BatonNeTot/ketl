@@ -103,10 +103,10 @@ static uint16_t push_top_literal(ketl_parser_context* pContext) {
     return push_symbol(pContext, pBuffer, topNode.token.length + 2);
 }
 
-static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg1, uint16_t arg2, uint16_t arg3, uint16_t result) {
+static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg0, uint16_t arg1, uint16_t arg2, uint16_t result) {
     ketl_vector_ir_node_push_back_copy(&pContext->nodes, (ketl_ir_node){
         .type = type,
-        .args = { arg1, arg2, arg3 },
+        .args = { arg0, arg1, arg2 },
     });
     return result;
 }
@@ -114,16 +114,16 @@ static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type
 static uint16_t push_node_with_temp_var(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg1, uint16_t arg2) {
     char pBuffer[64] = {'~'};
     uint16_t length = sprintf_s(pBuffer + 1, sizeof(pBuffer) / sizeof(*pBuffer) - 1, "%d", pContext->tempVarIndex++);
-    uint16_t arg3 = push_symbol(pContext, pBuffer, length + 2);
+    uint16_t arg0 = push_symbol(pContext, pBuffer, length + 2);
     ketl_vector_ir_node_push_back_copy(&pContext->nodes, (ketl_ir_node){
         .type = type,
-        .args = { arg1, arg2, arg3 },
+        .args = { arg0, arg1, arg2 },
     });
-    return arg3;
+    return arg0;
 }
 
 #define PUSH_TOP_LITERAL()  (push_top_literal(pContext))
-#define PUSH_NODE_AND_RETURN(type, arg1, arg2, arg3, result) (push_node_with_temp_var(pContext, (type), (arg1), (arg2), (arg3), (result)))
+#define PUSH_NODE_AND_RETURN(type, arg0, arg1, arg2, result) (push_node_and_return(pContext, (type), (arg0), (arg1), (arg2), (result)))
 #define PUSH_NODE_WTIH_TEMP_VAR(type, arg1, arg2) (push_node_with_temp_var(pContext, (type), (arg1), (arg2)))
 
 #ifndef NDEBUG

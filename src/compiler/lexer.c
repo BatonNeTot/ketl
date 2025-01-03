@@ -1,5 +1,8 @@
 //🫖ketl
 #include "lexer.h"
+
+#include "str.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -209,7 +212,21 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
 
     uint32_t idLength = pContext->offset - idStartOffset;
     pContext->offset = idStartOffset;
-    ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
+
+    char firstSymbol = ketl_lexer_get_symbol(pContext);
+    switch (firstSymbol) {
+        case 'r': {
+            if (ketl_str_is_equal_n("return", pContext->pSource + pContext->offset, idLength)) {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_RETURN, idLength);
+            } else {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
+            }
+            break;
+        }
+        default: {
+            ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
+        }
+    }
     pContext->offset += idLength;
     return true;
 }

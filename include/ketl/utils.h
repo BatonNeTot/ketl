@@ -64,6 +64,9 @@
     #define KETL_DEBUGBREAK() do { __asm__ volatile("int $0x03"); int nothing = 0; (void)nothing; } while(0)
 #endif
 
+#define KETL_HASH_DEFAULT(a) ((uint64_t)(a))
+#define KETL_EQUAL_DEFAULT(a, b) ((a) == (b))
+
 #define __KETL_STR_VALUE(x) #x
 #define KETL_STR_VALUE(x) __KETL_STR_VALUE(x)
 
