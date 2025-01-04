@@ -3,9 +3,9 @@
 
 KETL_NAMED_VECTOR_DEFINITION(opcodes, uint8_t)
 
-static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
+static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
     if (pOpStruct->size == KETL_SIZE_16B) {
-        ketl_vector_opcodes_push_back_copy(pOpcodes, 0x66); // set 16-bit operand size
+        opcodes_push_back_copy(pOpcodes, 0x66); // set 16-bit operand size
     }
 
     REXByte rex = {
@@ -17,7 +17,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         // set 64-bit operand size
         rex.w = 1;
         rexOffset = pOpcodes->size;
-        ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     } else if (pOpStruct->size == KETL_SIZE_8B &&
         (
             (
@@ -35,7 +35,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         )) {
         // for accessing spl, bpl, sil and dil rex be inserted
         rexOffset = pOpcodes->size;
-        ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     } else if (
         (
             (pOpStruct->firstArgType == KETL_ARG_REG ||
@@ -49,7 +49,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         // for accessing r8-r15 registers
         // additional flags must be set, but they will be desided later
         rexOffset = pOpcodes->size;
-        ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     }
     
     switch (pOpStruct->firstArgType) {
@@ -60,9 +60,9 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         case KETL_ARG_RSP_MEM_DISP:
         case KETL_ARG_RBP_MEM_DISP:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0x8a);
+                opcodes_push_back_copy(pOpcodes, 0x8a);
             } else {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0x8b);
+                opcodes_push_back_copy(pOpcodes, 0x8b);
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
@@ -82,7 +82,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->firstArg,
                     .rm = pOpStruct->secondArg
                 };
-                ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
             } else {
                 if (pOpStruct->secondArgType == KETL_ARG_REG_MEM) {
                     // [reg]
@@ -91,7 +91,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .reg = pOpStruct->firstArg,
                         .rm = pOpStruct->secondArg
                     };
-                    ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                 } else {
                     // [SIB]
                     MODRMByte modrm = {
@@ -99,7 +99,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .reg = pOpStruct->firstArg,
                         .rm = KETL_REG_SP
                     };
-                    ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                     // [RSP + disp32] or [RBP + disp32]
                     SIBByte sib = {
                         .scale =  SIB_SCALE_1,
@@ -107,17 +107,17 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .base = pOpStruct->secondArgType == KETL_ARG_RSP_MEM_DISP
                             ? KETL_REG_SP : KETL_REG_BP
                     };
-                    ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
+                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
                     uint32_t secondArg = pOpStruct->secondArg;
-                    ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                    opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 }
             }
             return;
         case KETL_ARG_IMM:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xb0 + pOpStruct->firstArg);
+                opcodes_push_back_copy(pOpcodes, 0xb0 + pOpStruct->firstArg);
             } else {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xb8 + pOpStruct->firstArg);
+                opcodes_push_back_copy(pOpcodes, 0xb8 + pOpStruct->firstArg);
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
@@ -126,31 +126,31 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
             switch (pOpStruct->size) {
             case KETL_SIZE_8B: {
                 uint8_t secondArg = pOpStruct->secondArg;
-                ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             }
             case KETL_SIZE_16B: {
                 uint16_t secondArg = pOpStruct->secondArg;
-                ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             }
             case KETL_SIZE_32B: {
                 uint32_t secondArg = pOpStruct->secondArg;
-                ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             }
             case KETL_SIZE_64B: {
                 uint64_t secondArg = pOpStruct->secondArg;
-                ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             }
             return;
             KETL_NODEFAULT()
             }
         case KETL_ARG_IMM_MEM:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xa0);
+                opcodes_push_back_copy(pOpcodes, 0xa0);
             } else {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xa1);
+                opcodes_push_back_copy(pOpcodes, 0xa1);
             }
             uint64_t secondArg = pOpStruct->secondArg;
-            ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+            opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             if (pOpStruct->firstArg != KETL_REG_AX) {
                 pOpStruct->secondArgType = KETL_ARG_REG;
                 pOpStruct->secondArg = KETL_REG_AX;
@@ -165,9 +165,9 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         switch (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0x88);
+                opcodes_push_back_copy(pOpcodes, 0x88);
             } else {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0x89);
+                opcodes_push_back_copy(pOpcodes, 0x89);
             }
             if (pOpStruct->firstArgType == KETL_ARG_REG_MEM &&
                 pOpStruct->firstArg >= KETL_REG_R8) {
@@ -187,7 +187,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->secondArg,
                     .rm = pOpStruct->firstArg
                 };
-                ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
             } else {
                 // [SIB]
                 MODRMByte modrm = {
@@ -195,7 +195,7 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->secondArg,
                     .rm = KETL_REG_SP
                 };
-                ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                 // [RSP + disp32] or [RBP + disp32]
                 SIBByte sib = {
                     .scale =  SIB_SCALE_1,
@@ -203,9 +203,9 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .base = pOpStruct->firstArgType == KETL_ARG_RSP_MEM_DISP
                         ? KETL_REG_SP : KETL_REG_BP
                 };
-                ketl_vector_opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
+                opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
                 uint32_t firstArg = pOpStruct->firstArg;
-                ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
+                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             }
             return;
         KETL_NODEFAULT()
@@ -214,12 +214,12 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         switch (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xa2);
+                opcodes_push_back_copy(pOpcodes, 0xa2);
             } else {
-                ketl_vector_opcodes_push_back_copy(pOpcodes, 0xa3);
+                opcodes_push_back_copy(pOpcodes, 0xa3);
             }
             uint64_t firstArg = pOpStruct->firstArg;
-            ketl_vector_opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
+            opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             if (pOpStruct->secondArg != KETL_REG_AX) {
                 pOpStruct->firstArgType = KETL_ARG_REG;
                 pOpStruct->firstArg = KETL_REG_AX;
@@ -232,95 +232,9 @@ static void push_mov(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
     }
 }
 
-void push_opcode(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct) {
+void push_opcode(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
     switch (pOpStruct->opCode) {
     case KETL_OP_MOV:
         push_mov(pOpcodes, pOpStruct);
     }
 }
-
-/*
-uint64_t push_load_argument_into_reg(ketl_vector_opcodes* pOpcodes, ketl_ir_argument* argument, uint8_t sizeMacro, uint8_t regMacro) {
-    uint64_t size = 0;
-    switch (argument->type) {
-    case KETL_IR_ARGUMENT_TYPE_STACK: 
-#if KETL_OS_WINDOWS
-        EXEC_OPCODE_REG_RSP_DISP(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
-#else
-        EXEC_OPCODE_REG_RBP_DISP(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
-#endif
-        return;
-    case KETL_IR_ARGUMENT_TYPE_POINTER: 
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_REFERENCE: 
-        EXEC_OPCODE_REG_IMM_MEM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT8:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int8);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT16:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int16);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT32:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int32);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT64:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int32);
-        return;
-    KETL_NODEFAULT()
-    }
-    return 0;
-}
-
-uint64_t push_load_reg_into_argument(ketl_vector_opcodes* pOpcodes, ketl_ir_argument* argument, uint8_t sizeMacro, uint8_t regMacro) {
-    uint8_t size = 0;
-    switch (argument->type) {
-    case KETL_IR_ARGUMENT_TYPE_STACK: 
-#if KETL_OS_WINDOWS
-        EXEC_OPCODE_RSP_DISP_REG(pOpcodes, size, sizeMacro, KETL_OP_MOV, (int32_t)argument->stack, regMacro);
-#else
-        EXEC_OPCODE_RBP_DISP_REG(pOpcodes, size, sizeMacro, KETL_OP_MOV, (int32_t)argument->stack, regMacro);
-#endif
-        return;
-    case KETL_IR_ARGUMENT_TYPE_REFERENCE: 
-        EXEC_OPCODE_IMM_MEM_REG(pOpcodes, size, sizeMacro, KETL_OP_MOV, (uint64_t)argument->pointer, regMacro);
-        return;
-    KETL_NODEFAULT()
-    }
-    return 0;
-}
-
-uint64_t push_load_const8_into_reg(ketl_vector_opcodes* pOpcodes, ketl_ir_argument* argument, uint8_t sizeMacro, uint8_t regMacro) {
-    uint64_t size = 0;
-    switch (argument->type) {
-    case KETL_IR_ARGUMENT_TYPE_STACK: 
-#if KETL_OS_WINDOWS
-        EXEC_OPCODE_REG_RSP_DISP(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
-#else
-        EXEC_OPCODE_REG_RBP_DISP(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
-#endif
-        return;
-    case KETL_IR_ARGUMENT_TYPE_POINTER: 
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_REFERENCE: 
-        EXEC_OPCODE_REG_IMM_MEM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT8:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int8);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT16:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int16);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT32:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int32);
-        return;
-    case KETL_IR_ARGUMENT_TYPE_INT64:
-        EXEC_OPCODE_REG_IMM(pOpcodes, size, sizeMacro, KETL_OP_MOV, regMacro, argument->int32);
-        return;
-    KETL_NODEFAULT()
-    }
-    return 0;
-}
-*/

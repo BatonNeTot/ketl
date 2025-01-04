@@ -180,6 +180,6 @@ KETL_NAMED_VECTOR_DECLARATION(opcodes, uint8_t)
         PUSH_OPCODE_RBP_DISP_REG(pOpcodes, sizeMacro, KETL_OP_MOV, stackOffset, regMacro);
 #endif
 
-void push_opcode(ketl_vector_opcodes* pOpcodes, x86_op_struct* pOpStruct);
+void push_opcode(opcodes* pOpcodes, x86_op_struct* pOpStruct);
 
 #endif // ketl_compiler_assembler_x86_h

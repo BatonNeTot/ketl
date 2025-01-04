@@ -61,7 +61,7 @@ inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 
 #endif
 
-KETL_NAMED_VECTOR_DEFINITION(executable_memory_page, ketl_executable_memory_page)
+KETL_VECTOR_DEFINITION(ketl_executable_memory_page)
 
 static uint32_t ketl_get_static_page_size() {
 	static uint32_t pageSize = 0;
@@ -87,24 +87,24 @@ void ketl_executable_memory_init(ketl_executable_memory* exeMemory) {
 	*exeMemory = (ketl_executable_memory) {
 		.currentOffset = 0,
 	};
-	ketl_vector_executable_memory_page_init(&exeMemory->pages, 1);
-	exeMemory->pages.pData[0].pPage = NULL;
+	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1);
+	exeMemory->vPages.pData[0].pPage = NULL;
 }
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory) {
-	ketl_vector_executable_memory_page pages = exeMemory->pages;
-	for (uint32_t i = 0u; i < pages.size; ++i) {
-		ketl_executable_memory_page page = pages.pData[i];
+	ketl_executable_memory_page_vector vPages = exeMemory->vPages;
+	for (uint32_t i = 0u; i < vPages.size; ++i) {
+		ketl_executable_memory_page page = vPages.pData[i];
 		ketl_deallocate_exe_memory(page.pPage, page.pageSize);
 	}
 
-	ketl_vector_executable_memory_page_destroy(&pages);
+	ketl_executable_memory_page_vector_destroy(&vPages);
 }
 
 uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, const uint8_t* opcodes, uint64_t length) {
-	uint32_t currentPageIndex = exeMemory->pages.size;
+	uint32_t currentPageIndex = exeMemory->vPages.size;
 	uint32_t currentOffset = exeMemory->currentOffset;
-	ketl_executable_memory_page currentPage = exeMemory->pages.pData[currentPageIndex];
+	ketl_executable_memory_page currentPage = exeMemory->vPages.pData[currentPageIndex];
 	if (currentPage.pPage == NULL || currentOffset + length > currentPage.pageSize) {
 		uint32_t pageSize = ketl_get_static_page_size();
 		uint32_t requestedPageCount = (uint32_t)((length + (pageSize - 1)) >> ketl_get_static_page_size_log());
@@ -112,7 +112,7 @@ uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, cons
 		currentPage.pageSize = pageSize * requestedPageCount;
 		currentPage.pPage = ketl_allocate_exe_memory(currentPage.pPage, currentPage.pageSize);
 		
-		ketl_vector_executable_memory_page_push_back_ref(&exeMemory->pages, &currentPage);
+		ketl_executable_memory_page_vector_push_back_ref(&exeMemory->vPages, &currentPage);
 		currentOffset = 0;
 	} else {
 		ketl_unprotect_exe_memory(currentPage.pPage, currentPage.pageSize);

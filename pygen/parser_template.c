@@ -33,26 +33,26 @@ KETL_DEFINE(ketl_parse_node) {
     };
 };
 
-KETL_NAMED_VECTOR_DECLARATION(parse_node, ketl_parse_node)
-KETL_NAMED_VECTOR_DEFINITION(parse_node, ketl_parse_node)
+KETL_VECTOR_DECLARATION(ketl_parse_node)
+KETL_VECTOR_DEFINITION(ketl_parse_node)
 
-KETL_NAMED_VECTOR_DECLARATION(ir_node, ketl_ir_node)
-KETL_NAMED_VECTOR_DEFINITION(ir_node, ketl_ir_node)
+KETL_VECTOR_DECLARATION(ketl_ir_node)
+KETL_VECTOR_DEFINITION(ketl_ir_node)
 
 KETL_NAMED_VECTOR_DECLARATION(symbols, char)
 KETL_NAMED_VECTOR_DEFINITION(symbols, char)
 
-KETL_NAMED_HASH_MAP_DECLARATION(symbols, const char*, uint16_t)
-KETL_NAMED_HASH_MAP_DEFINITION(symbols, const char*, uint16_t, ketl_str_hash, ketl_str_is_equal)
+KETL_NAMED_HASH_MAP_DECLARATION(symbols_map, const char*, uint16_t)
+KETL_NAMED_HASH_MAP_DEFINITION(symbols_map, const char*, uint16_t, ketl_str_hash, ketl_str_is_equal)
 
 KETL_DEFINE(ketl_parser_context) {
     const char* pSource;
     uint32_t offset;
     uint16_t tempVarIndex;
-    ketl_vector_parse_node stack;
-    ketl_vector_ir_node nodes;
-    ketl_vector_symbols symbols;
-    ketl_hash_map_symbols symbolsMap;
+    ketl_parse_node_vector vStack;
+    ketl_ir_node_vector vNodes;
+    symbols vSymbols;
+    symbols_map mSymbolsMap;
 };
 
 uint16_t actionsTable[] = {
@@ -71,7 +71,7 @@ uint8_t prodLengthsArray[] = {
     $prodLengthsArrayBody
 };
 
-#define STACK_TOP(index) (pContext->stack.pData[pContext->stack.size - (index)])
+#define STACK_TOP(index) (pContext->vStack.pData[pContext->vStack.size - (index)])
 #define NODE_TOKEN_SOURCE(ketl_parse_node) (pContext->pSource + (ketl_parse_node).offset)
 #define PARSE_UINT_NODE(ketl_parse_node) strtoul(NODE_TOKEN_SOURCE(ketl_parse_node), NULL, 10)
 
@@ -79,18 +79,18 @@ uint8_t prodLengthsArray[] = {
 #define NONTERMS_COUNT $nontermCount
 
 static uint16_t push_symbol(ketl_parser_context* pContext, const char* pSymbol, uint16_t length) {
-    ketl_hash_map_symbols* pSymbolsMap = &pContext->symbolsMap;
-    ketl_hash_map_symbols_bucket* pSymbolBucket = ketl_hash_map_symbols_push_copy(pSymbolsMap, pSymbol, 0);
+    symbols_map* pmSymbolsMap = &pContext->mSymbolsMap;
+    symbols_map_bucket* pSymbolBucket = symbols_map_push_copy(pmSymbolsMap, pSymbol, 0);
     if (pSymbolBucket->key == pSymbol) {
-        char* pCheckData = pContext->symbols.pData;
-        const char* pAtomicSymbol = ketl_vector_symbols_push_back_ref_n(&pContext->symbols, pSymbol, length);
-        if (pCheckData != pContext->symbols.pData) {
-            pCheckData = pContext->symbols.pData;
-            KETL_NAMED_HASH_MAP_FOREACH(symbols, const char*, uint16_t, pSymbolsMap, 
+        char* pCheckData = pContext->vSymbols.pData;
+        const char* pAtomicSymbol = symbols_push_back_ref_n(&pContext->vSymbols, pSymbol, length);
+        if (pCheckData != pContext->vSymbols.pData) {
+            pCheckData = pContext->vSymbols.pData;
+            KETL_NAMED_HASH_MAP_FOREACH(symbols_map, const char*, uint16_t, pmSymbolsMap, 
             __pBucket->key = pCheckData + __pBucket->value;);
         }
         pSymbolBucket->key = pAtomicSymbol;
-        pSymbolBucket->value = pAtomicSymbol - pContext->symbols.pData;
+        pSymbolBucket->value = pAtomicSymbol - pContext->vSymbols.pData;
     }
     return pSymbolBucket->value;
 }
@@ -104,7 +104,7 @@ static uint16_t push_top_literal(ketl_parser_context* pContext) {
 }
 
 static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg0, uint16_t arg1, uint16_t arg2, uint16_t result) {
-    ketl_vector_ir_node_push_back_copy(&pContext->nodes, (ketl_ir_node){
+    ketl_ir_node_vector_push_back_copy(&pContext->vNodes, (ketl_ir_node){
         .type = type,
         .args = { arg0, arg1, arg2 },
     });
@@ -115,7 +115,7 @@ static uint16_t push_node_with_temp_var(ketl_parser_context* pContext, ketl_ir_t
     char pBuffer[64] = {'~'};
     uint16_t length = sprintf_s(pBuffer + 1, sizeof(pBuffer) / sizeof(*pBuffer) - 1, "%d", pContext->tempVarIndex++);
     uint16_t arg0 = push_symbol(pContext, pBuffer, length + 2);
-    ketl_vector_ir_node_push_back_copy(&pContext->nodes, (ketl_ir_node){
+    ketl_ir_node_vector_push_back_copy(&pContext->vNodes, (ketl_ir_node){
         .type = type,
         .args = { arg0, arg1, arg2 },
     });
@@ -152,13 +152,13 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
 
         switch ((action & ACTION_MASK_TYPE) >> ACTION_SHIFT_TYPE) {
             case ACTION_TYPE_SHIFT: {
-                ketl_vector_parse_node_push_back_copy(&pContext->stack, (ketl_parse_node){.state = (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE, 
+                ketl_parse_node_vector_push_back_copy(&pContext->vStack, (ketl_parse_node){.state = (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE, 
                     .token = token,
                     .offset = pContext->offset,
                     });
 #ifdef DRAW_STACK_INFO
                 printf("pushing %d\n", (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE);
-                DRAW_STACK(pContext->stack);
+                DRAW_STACK(pContext->vStack);
 #endif
                 return false;
             }
@@ -172,17 +172,17 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
                 switch (prodIndex) {
                     $productionActionsSwitch
                 }
-                ketl_vector_parse_node_resize(&pContext->stack, pContext->stack.size - prodLengthsArray[prodIndex]);
+                ketl_parse_node_vector_resize(&pContext->vStack, pContext->vStack.size - prodLengthsArray[prodIndex]);
                 uint64_t stateAfterReduction = STACK_TOP(1).state;
                 uint64_t gotoState = gotoTable[stateAfterReduction * NONTERMS_COUNT + prodNonterm];
 #ifdef DRAW_STACK_INFO
-                DRAW_STACK(pContext->stack);
+                DRAW_STACK(pContext->vStack);
 				printf("from state %lld and nonterm %d\n", stateAfterReduction, prodNonterm);
                 printf("pushing %lld\n", gotoState);
 #endif
-                ketl_vector_parse_node_push_back_copy(&pContext->stack, (ketl_parse_node){.state=gotoState, .result=result});
+                ketl_parse_node_vector_push_back_copy(&pContext->vStack, (ketl_parse_node){.state=gotoState, .result=result});
 #ifdef DRAW_STACK_INFO
-                DRAW_STACK(pContext->stack);
+                DRAW_STACK(pContext->vStack);
 #endif
                 if (gotoState == (uint64_t)-1) {
                     printf("uknown goto by nonterm {productionInfo.nonterm} of length {productionInfo.length}!\n");
@@ -191,7 +191,7 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
             }
             case ACTION_TYPE_ERROR: {
                 printf("can't process %d!\n", token.type);
-                DRAW_STACK(pContext->stack);
+                DRAW_STACK(pContext->vStack);
                 return true;
             }
             case ACTION_TYPE_ACCEPT: {
@@ -212,11 +212,11 @@ ketl_ir ketl_parser_parser(const char* pSource, uint32_t length) {
     
     if (pTokens) {
         ketl_parser_context context = {.pSource = pSource, .offset = 0, .tempVarIndex = 0};
-        ketl_vector_parse_node_init(&context.stack, 4);
-        ketl_vector_parse_node_push_back_copy(&context.stack, (ketl_parse_node){.state=0, .result=0});
-        ketl_vector_ir_node_init(&context.nodes, count);
-        ketl_vector_symbols_init(&context.symbols, 4);
-        ketl_hash_map_symbols_init(&context.symbolsMap);
+        ketl_parse_node_vector_init(&context.vStack, 4);
+        ketl_parse_node_vector_push_back_copy(&context.vStack, (ketl_parse_node){.state=0, .result=0});
+        ketl_ir_node_vector_init(&context.vNodes, count);
+        symbols_init(&context.vSymbols, 4);
+        symbols_map_init(&context.mSymbolsMap);
 
         for (uint32_t i = 0u; i < count; ++i) {
             const ketl_token token = pTokens[i];
@@ -239,30 +239,30 @@ ketl_ir ketl_parser_parser(const char* pSource, uint32_t length) {
             });
 
 #ifdef DRAW_STACK_INFO
-        printf("total stack: %d\n", context.stack.capacity);
-        printf("last stack: %d\n", context.stack.size);
-        printf("result: %d\n", context.stack.pData[context.stack.size - (1)].result);
-        DRAW_STACK(context.stack);
-        for (uint32_t i = 0u; i < context.symbols.size; ++i) {
+        printf("total stack: %d\n", context.vStack.capacity);
+        printf("last stack: %d\n", context.vStack.size);
+        printf("result: %d\n", context.vStack.pData[context.vStack.size - (1)].result);
+        DRAW_STACK(context.vStack);
+        for (uint32_t i = 0u; i < context.vSymbols.size; ++i) {
             if (i != 0 && (i & 15) == 0) {
                 printf("\n");
             }
-            char character = context.symbols.pData[i];
+            char character = context.vSymbols.pData[i];
             printf("%c", character == '\0' ? '*' : character);
         }
         printf("\n");
 #endif
-        if (context.stack.size != 2 || context.stack.pData[1].state != 1) {
+        if (context.vStack.size != 2 || context.vStack.pData[1].state != 1) {
             // Error!
             // TODO mark for error
             assert(false);
         }
 
-        ketl_vector_parse_node_destroy(&context.stack);
+        ketl_parse_node_vector_destroy(&context.vStack);
 
-        ir.pNodes = context.nodes.pData;
-        ir.nodesCount = context.nodes.size;
-        ir.pSymbols = context.symbols.pData;
+        ir.pNodes = context.vNodes.pData;
+        ir.nodesCount = context.vNodes.size;
+        ir.pSymbols = context.vSymbols.pData;
         return ir;
     }
 

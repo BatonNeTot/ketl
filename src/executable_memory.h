@@ -10,10 +10,10 @@ KETL_DEFINE(ketl_executable_memory_page) {
 	uint32_t pageSize;
 };
 
-KETL_NAMED_VECTOR_DECLARATION(executable_memory_page, ketl_executable_memory_page)
+KETL_VECTOR_DECLARATION(ketl_executable_memory_page)
 
 KETL_DEFINE(ketl_executable_memory) {
-	ketl_vector_executable_memory_page pages;
+	ketl_executable_memory_page_vector vPages;
 	uint32_t currentOffset;
 };
 
