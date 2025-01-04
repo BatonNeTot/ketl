@@ -5,6 +5,7 @@
 
 #include "containers/vector.h"
 #include "containers/hash_map.h"
+#include "memory_impl.h"
 #include "str.h"
 
 #include <stdio.h>
@@ -204,19 +205,19 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
     }
 }
 
-ketl_ir ketl_parser_parser(const char* pSource, uint32_t length) {
+ketl_ir ketl_parser_parser(const char* pSource, uint32_t length, ketl_allocator* pAllocator) {
     ketl_ir ir = {.pNodes = NULL, .pSymbols = NULL, .nodesCount = 0};
 
     uint32_t count = 0;
-    const ketl_token* pTokens = ketl_lexer_build_tokens(pSource, length, &count);
+    ketl_token* pTokens = ketl_lexer_build_tokens(pSource, length, &count, pAllocator);
     
     if (pTokens) {
         ketl_parser_context context = {.pSource = pSource, .offset = 0, .tempVarIndex = 0};
-        ketl_parse_node_vector_init(&context.vStack, 4);
+        ketl_parse_node_vector_init(&context.vStack, 4, pAllocator);
         ketl_parse_node_vector_push_back_copy(&context.vStack, (ketl_parse_node){.state=0, .result=0});
-        ketl_ir_node_vector_init(&context.vNodes, count);
-        symbols_init(&context.vSymbols, 4);
-        symbols_map_init(&context.mSymbolsMap);
+        ketl_ir_node_vector_init(&context.vNodes, count, pAllocator);
+        symbols_init(&context.vSymbols, 4, pAllocator);
+        symbols_map_init(&context.mSymbolsMap, pAllocator);
 
         for (uint32_t i = 0u; i < count; ++i) {
             const ketl_token token = pTokens[i];
@@ -259,6 +260,9 @@ ketl_ir ketl_parser_parser(const char* pSource, uint32_t length) {
         }
 
         ketl_parse_node_vector_destroy(&context.vStack);
+        symbols_map_destroy(&context.mSymbolsMap);
+
+        ketl_free(pAllocator, pTokens);
 
         ir.pNodes = context.vNodes.pData;
         ir.nodesCount = context.vNodes.size;

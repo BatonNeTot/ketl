@@ -15,6 +15,6 @@ KETL_DEFINE(ketl_allocator) {
 	void* userInfo;
 };
 
-extern const ketl_allocator ketl_default_allocator;
+extern ketl_allocator ketl_default_allocator;
 
 #endif // ketl_memory_h

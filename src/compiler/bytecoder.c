@@ -61,13 +61,13 @@ ketl_bytecode create_bytecode_struct(bytecoder_context* pContext) {
     };
 }
 
-ketl_bytecode ketl_bytecode_compile(ketl_ir ir) {
+ketl_bytecode ketl_bytecode_compile(ketl_ir ir, ketl_allocator* pAllocator) {
     bytecoder_context context = {
         .pSymbols = ir.pSymbols,
         .usedStack = 0,
     };
-    instructions_init(&context.vInstructions, 16);
-    variables_init(&context.mVariables);
+    instructions_init(&context.vInstructions, 16, pAllocator);
+    variables_init(&context.mVariables, pAllocator);
     
     ketl_bytecode_stack_offset stackReserveDummy = 0;
     instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_STACK_RESERVE);

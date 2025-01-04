@@ -83,11 +83,11 @@ static uint32_t ketl_get_static_page_size_log() {
 	return pageSizeLog;
 }
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory) {
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory, ketl_allocator* pAllocator) {
 	*exeMemory = (ketl_executable_memory) {
 		.currentOffset = 0,
 	};
-	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1);
+	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1, pAllocator);
 	exeMemory->vPages.pData[0].pPage = NULL;
 }
 

@@ -3,6 +3,8 @@
 #define ketl_executable_memory_h
 
 #include "containers/vector.h"
+
+#include "ketl/memory.h"
 #include "ketl/utils.h"
 
 KETL_DEFINE(ketl_executable_memory_page) {
@@ -17,7 +19,7 @@ KETL_DEFINE(ketl_executable_memory) {
 	uint32_t currentOffset;
 };
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory);
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory, ketl_allocator* pAllocator);
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory);
 

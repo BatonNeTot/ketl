@@ -1,9 +1,9 @@
 //🫖ketl
 #include "lexer.h"
 
+#include "memory_impl.h"
 #include "str.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 static inline bool ketl_lexer_is_space(char symbol) {
@@ -19,6 +19,7 @@ static inline bool ketl_lexer_is_alpha(char symbol) {
 }
 
 KETL_DEFINE(ketl_lexer_context) {
+    ketl_allocator* pAllocator;
     const char* pSource;
     uint32_t length;
     uint32_t offset;
@@ -32,7 +33,7 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
     uint32_t count = pContext->count;
     if (count < pContext->capacity) {
         uint32_t newCapacity = pContext->capacity = (uint32_t)(pContext->capacity * 1.5f);
-        pContext->pTokens = realloc(pContext->pTokens, sizeof(ketl_token) * newCapacity);
+        pContext->pTokens = ketl_realloc(pContext->pAllocator, pContext->pTokens, sizeof(ketl_token) * newCapacity);
     }
     uint32_t offset = pContext->offset;
     uint32_t prevOffset = offset - pContext->lastTokenEnd;
@@ -502,14 +503,15 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
     }
 }
 
-ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount) {
+ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount, ketl_allocator* pAllocator) {
     ketl_lexer_context context = {
+        .pAllocator = pAllocator,
         .pSource = pSource,
         .length = length,
         .offset = 0,
         .count = 0,
         .capacity = KETL_LEXER_INITIAL_TOKEN_CAPACITY,
-        .pTokens = malloc(sizeof(ketl_token) * KETL_LEXER_INITIAL_TOKEN_CAPACITY),
+        .pTokens = ketl_alloc(pAllocator, sizeof(ketl_token) * KETL_LEXER_INITIAL_TOKEN_CAPACITY),
         .lastTokenEnd = 0
     };
 

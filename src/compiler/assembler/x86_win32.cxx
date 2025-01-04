@@ -3,9 +3,9 @@
 
 #include "x86.h"
 
-uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize) {
+uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, ketl_allocator* pAllocator) {
     opcodes opcodes;
-    opcodes_init(&opcodes, bytecode.instructionsCount);
+    opcodes_init(&opcodes, bytecode.instructionsCount, pAllocator);
 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
             i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
