@@ -81,7 +81,7 @@ uint8_t prodLengthsArray[] = {
 
 static uint16_t push_symbol(ketl_parser_context* pContext, const char* pSymbol, uint16_t length) {
     symbols_map* pmSymbolsMap = &pContext->mSymbolsMap;
-    symbols_map_bucket* pSymbolBucket = symbols_map_push_copy(pmSymbolsMap, pSymbol, 0);
+    symbols_map_bucket* pSymbolBucket = symbols_map_get_or_insert_copy(pmSymbolsMap, pSymbol, 0);
     if (pSymbolBucket->key == pSymbol) {
         char* pCheckData = pContext->vSymbols.pData;
         const char* pAtomicSymbol = symbols_push_back_ref_n(&pContext->vSymbols, pSymbol, length);
@@ -99,7 +99,7 @@ static uint16_t push_symbol(ketl_parser_context* pContext, const char* pSymbol, 
 static uint16_t push_top_literal(ketl_parser_context* pContext) {
     char pBuffer[64] = {'#'};
     ketl_parse_node topNode = STACK_TOP(1);
-    memcpy(pBuffer + 1, NODE_TOKEN_SOURCE(topNode), topNode.token.length);
+    ketl_memcpy(pBuffer + 1, NODE_TOKEN_SOURCE(topNode), topNode.token.length);
     *(pBuffer + 1 + topNode.token.length) = '\0'; 
     return push_symbol(pContext, pBuffer, topNode.token.length + 2);
 }
@@ -114,7 +114,7 @@ static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type
 
 static uint16_t push_node_with_temp_var(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg1, uint16_t arg2) {
     char pBuffer[64] = {'~'};
-    uint16_t length = sprintf_s(pBuffer + 1, sizeof(pBuffer) / sizeof(*pBuffer) - 1, "%d", pContext->tempVarIndex++);
+    uint16_t length = snprintf(pBuffer + 1, sizeof(pBuffer) / sizeof(*pBuffer) - 1, "%d", pContext->tempVarIndex++);
     uint16_t arg0 = push_symbol(pContext, pBuffer, length + 2);
     ketl_ir_node_vector_push_back_copy(&pContext->vNodes, (ketl_ir_node){
         .type = type,
@@ -205,7 +205,7 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
     }
 }
 
-ketl_ir ketl_parser_parser(const char* pSource, uint32_t length, ketl_allocator* pAllocator) {
+ketl_ir ketl_parser_parser(const char* pSource, uint32_t length, const ketl_allocator* pAllocator) {
     ketl_ir ir = {.pNodes = NULL, .pSymbols = NULL, .nodesCount = 0};
 
     uint32_t count = 0;
@@ -259,8 +259,8 @@ ketl_ir ketl_parser_parser(const char* pSource, uint32_t length, ketl_allocator*
             assert(false);
         }
 
-        ketl_parse_node_vector_destroy(&context.vStack);
-        symbols_map_destroy(&context.mSymbolsMap);
+        ketl_parse_node_vector_deinit(&context.vStack);
+        symbols_map_deinit(&context.mSymbolsMap);
 
         ketl_free(pAllocator, pTokens);
 

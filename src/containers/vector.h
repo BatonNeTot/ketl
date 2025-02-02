@@ -9,13 +9,13 @@
 #define KETL_VECTOR_DECLARATION(type) KETL_NAMED_VECTOR_DECLARATION(KETL_CONCAT(type,_vector), type)
 #define KETL_NAMED_VECTOR_DECLARATION(name, type)\
 KETL_DEFINE(name) {\
-    ketl_allocator* pAllocator;\
+    const ketl_allocator* pAllocator;\
 	type* pData;\
 	uint32_t size;\
 	uint32_t capacity;\
 };\
-void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, ketl_allocator* pAllocator);\
-void KETL_CONCAT(name,_destroy)(name* pVector);\
+void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
+void KETL_CONCAT(name,_deinit)(name* pVector);\
 void KETL_CONCAT(name,_resize)(name* pVector, uint32_t newSize);\
 void KETL_CONCAT(name,_reserve)(name* pVector, uint32_t newCapacity);\
 type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value);\
@@ -24,14 +24,14 @@ type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, const type* pValues, uin
 
 #define KETL_VECTOR_DEFINITION(type) KETL_NAMED_VECTOR_DEFINITION(KETL_CONCAT(type,_vector), type)
 #define KETL_NAMED_VECTOR_DEFINITION(name, type)\
-void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, ketl_allocator* pAllocator){\
+void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator){\
     *pVector = (name){\
         .pAllocator = pAllocator,\
         .pData = ketl_alloc(pAllocator, sizeof(type) * initialCapacity),\
         .size = 0,\
         .capacity = initialCapacity};\
 }\
-void KETL_CONCAT(name,_destroy)(name* pVector){\
+void KETL_CONCAT(name,_deinit)(name* pVector){\
     ketl_free(pVector->pAllocator, pVector->pData);\
 }\
 void KETL_CONCAT(name,_resize)(name* pVector, uint32_t newSize){\

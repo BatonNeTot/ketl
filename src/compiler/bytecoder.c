@@ -5,6 +5,8 @@
 #include "containers/vector.h"
 #include "containers/hash_map.h"
 
+#include <stdlib.h>
+
 KETL_NAMED_VECTOR_DECLARATION(instructions, uint8_t)
 KETL_NAMED_VECTOR_DEFINITION(instructions, uint8_t)
 
@@ -33,7 +35,7 @@ static ketl_bytecode_stack_offset get_arg_stack_offset(bytecoder_context* pConte
         }
         default: {
             ketl_bytecode_stack_offset stackOffset = pContext->usedStack;
-            variables_bucket* bucket = variables_push_copy(&pContext->mVariables, symbol, stackOffset);
+            variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, symbol, stackOffset);
             if (bucket->value == stackOffset) {
                 pContext->usedStack = stackOffset + sizeof(int64_t);
             } else {
@@ -53,7 +55,7 @@ void add_footer(bytecoder_context* pContext, uint32_t stackReserveBackpatchOffse
 }
 
 ketl_bytecode create_bytecode_struct(bytecoder_context* pContext) {
-    variables_destroy(&pContext->mVariables);
+    variables_deinit(&pContext->mVariables);
 
     return (ketl_bytecode){
         .pInstructions = pContext->vInstructions.pData,
@@ -61,7 +63,7 @@ ketl_bytecode create_bytecode_struct(bytecoder_context* pContext) {
     };
 }
 
-ketl_bytecode ketl_bytecode_compile(ketl_ir ir, ketl_allocator* pAllocator) {
+ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator) {
     bytecoder_context context = {
         .pSymbols = ir.pSymbols,
         .usedStack = 0,

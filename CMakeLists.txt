@@ -36,6 +36,10 @@ if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
     add_compile_options(-Wall -Wextra -Werror -Wno-implicit-fallthrough) # -pedantic is not possible due to error: ISO C forbids conversion of object pointer to function pointer type
+
+    if(CMAKE_BUILD_TYPE MATCHES "Debug")
+        add_compile_options(-fsanitize=address)
+    endif()
 endif()
 
 add_subdirectory ("src")
@@ -53,6 +57,10 @@ set_target_properties(${PROJECT_TARGET}
 )
 
 target_compile_definitions(${PROJECT_TARGET} PRIVATE _AMD64_)
+
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_link_options(${PROJECT_TARGET} BEFORE PUBLIC -fsanitize=address)
+endif()
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")
 target_include_directories(${PROJECT_TARGET} PRIVATE "src" ${PROJECT_GEN_OUTPUT_DIR})
@@ -74,6 +82,10 @@ set_target_properties(${PROJECT_EXE_TARGET}
 )
 
 target_compile_definitions(${PROJECT_EXE_TARGET} PRIVATE _AMD64_)
+
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_link_options(${PROJECT_EXE_TARGET} BEFORE PUBLIC -fsanitize=address)
+endif()
 
 target_link_directories(${PROJECT_EXE_TARGET} PRIVATE "lib")
 target_link_libraries(${PROJECT_EXE_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES})
@@ -102,6 +114,10 @@ set_target_properties(${PROJECT_TEST_TARGET}
 )
 
 target_compile_definitions(${PROJECT_TEST_TARGET} PRIVATE _AMD64_)
+
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_link_options(${PROJECT_TEST_TARGET} BEFORE PUBLIC -fsanitize=address)
+endif()
 
 target_link_directories(${PROJECT_TEST_TARGET} PRIVATE "lib")
 target_link_libraries(${PROJECT_TEST_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES} luajit)

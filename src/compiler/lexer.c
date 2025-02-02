@@ -19,7 +19,7 @@ static inline bool ketl_lexer_is_alpha(char symbol) {
 }
 
 KETL_DEFINE(ketl_lexer_context) {
-    ketl_allocator* pAllocator;
+    const ketl_allocator* pAllocator;
     const char* pSource;
     uint32_t length;
     uint32_t offset;
@@ -503,7 +503,7 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
     }
 }
 
-ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount, ketl_allocator* pAllocator) {
+ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount, const ketl_allocator* pAllocator) {
     ketl_lexer_context context = {
         .pAllocator = pAllocator,
         .pSource = pSource,

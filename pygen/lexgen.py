@@ -1,6 +1,8 @@
 import sys
 from string import Template
 from enum import Enum
+import os
+from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR 
 
 Tokens = Enum('Tokens', [
 	'ID',
@@ -115,5 +117,8 @@ if __name__ == '__main__':
 
 	templateSrc = Template(templateSrc).substitute(templatingMapping)
 
+	if os.path.isfile(outputFilename):
+		os.chmod(outputFilename, S_IWUSR|S_IREAD)
 	with open(outputFilename, 'w') as outputFile:
 		outputFile.write(templateSrc)
+	os.chmod(outputFilename, S_IREAD|S_IRGRP|S_IROTH)

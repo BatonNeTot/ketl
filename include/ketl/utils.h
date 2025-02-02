@@ -67,6 +67,11 @@
 #define KETL_HASH_DEFAULT(a) ((uint64_t)(a))
 #define KETL_EQUAL_DEFAULT(a, b) ((a) == (b))
 
+#define KETL_LESS_DEFAULT(a, b) ((a) < (b))
+
+#define KETL_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define KETL_MIN(a, b) ((a) < (b) ? (a) : (b))
+
 #define __KETL_STR_VALUE(x) #x
 #define KETL_STR_VALUE(x) __KETL_STR_VALUE(x)
 

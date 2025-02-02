@@ -5,11 +5,11 @@
 #include "ketl/memory.h"
 
 
-void* ketl_alloc(ketl_allocator* allocator, size_t size);
+void* ketl_alloc(const ketl_allocator* allocator, size_t size);
 
-void* ketl_realloc(ketl_allocator* allocator, void* ptr, size_t size);
+void* ketl_realloc(const ketl_allocator* allocator, void* ptr, size_t size);
 
-void ketl_free(ketl_allocator* allocator, void* ptr);
+void ketl_free(const ketl_allocator* allocator, void* ptr);
 
 void ketl_memset(void* dest, unsigned char val, size_t size);
 

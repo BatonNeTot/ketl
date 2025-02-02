@@ -13,9 +13,9 @@ uint32_t ketl_assembler_format(uint8_t* pOpcodes, uint32_t opcodesSize, char* bu
     uint32_t printedCount = 0u;
     for (uint64_t i = 0; i < opcodesSize; ++i) {
         if (i != 0 && (i & 15) == 0) {
-            printedCount += sprintf_s(buffer + printedCount, bufferSize - printedCount, "\n");
+            printedCount += snprintf(buffer + printedCount, bufferSize - printedCount, "\n");
         }
-        printedCount += sprintf_s(buffer + printedCount, bufferSize - printedCount, "%.2X ", pOpcodes[i]);
+        printedCount += snprintf(buffer + printedCount, bufferSize - printedCount, "%.2X ", pOpcodes[i]);
     }
     return printedCount;
 }

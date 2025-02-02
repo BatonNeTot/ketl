@@ -1,5 +1,8 @@
 #include "ketl/ketl.h"
 
+#include "gc_memory.h"
+
 KETL_DEFINE(ketl_state) {
-    uint64_t test;
+    const ketl_allocator* pAllocator;
+    ketl_gc gc;
 };

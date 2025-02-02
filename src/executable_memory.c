@@ -83,7 +83,7 @@ static uint32_t ketl_get_static_page_size_log() {
 	return pageSizeLog;
 }
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory, ketl_allocator* pAllocator) {
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* pAllocator) {
 	*exeMemory = (ketl_executable_memory) {
 		.currentOffset = 0,
 	};
@@ -98,7 +98,7 @@ void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory) {
 		ketl_deallocate_exe_memory(page.pPage, page.pageSize);
 	}
 
-	ketl_executable_memory_page_vector_destroy(&vPages);
+	ketl_executable_memory_page_vector_deinit(&vPages);
 }
 
 uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, const uint8_t* opcodes, uint64_t length) {
