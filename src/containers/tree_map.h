@@ -29,13 +29,15 @@ KETL_DEFINE(name) {\
 void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
 void KETL_CONCAT(name,_deinit)(name* pMap);\
 KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
+KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
+KETL_CONCAT(name,_node)* KETL_CONCAT(name,_erase)(name* pMap, kType key);\
 
 #define KETL_TREE_MAP_DEFINITION(kType, vType, kLess) KETL_NAMED_TREE_MAP_DEFINITION(KETL_CONCAT(kType,_,vType,_tree_map), kType, vType, kLess)
 #define KETL_NAMED_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
 void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator) {\
     const uint32_t arraySize = sizeof(KETL_CONCAT(name,_node)) * initialCapacity;\
     \
-    KETL_CONCAT(name,_node)* pNodes = reinterpret_cast<KETL_CONCAT(name,_node)*>(ketl_alloc(pAllocator, arraySize));\
+    KETL_CONCAT(name,_node)* pNodes = ketl_alloc(pAllocator, arraySize);\
     \
     *pMap = (name){\
         .pAllocator = pAllocator,\
@@ -120,7 +122,7 @@ static uint32_t KETL_CONCAT(__,name,_balance)(KETL_CONCAT(name,_node)* pNodes, u
 \
     return nodeOffset;\
 }\
-static uint32_t KETL_CONCAT(__,name,_get_or_insert_copy_impl)(name* pMap, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
+static uint32_t KETL_CONCAT(__,name,_get_or_insert_impl)(name* pMap, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
     KETL_CONCAT(name,_node)* pNodes = pMap->pNodes;\
     if (nodeOffset == (uint32_t)(-1)) {\
         if (pMap->freeNodeOffset == (uint32_t)(-1)) {\
@@ -141,9 +143,9 @@ static uint32_t KETL_CONCAT(__,name,_get_or_insert_copy_impl)(name* pMap, uint32
 \
     KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = KETL_CONCAT(__,name,_get_or_insert_copy_impl)(pMap, pNode->leftOffset, key, pFoundOffset);\
+        pNode->leftOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->leftOffset, key, pFoundOffset);\
     } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = KETL_CONCAT(__,name,_get_or_insert_copy_impl)(pMap, pNode->rightOffset, key, pFoundOffset);\
+        pNode->rightOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->rightOffset, key, pFoundOffset);\
     } else {\
         return *pFoundOffset = nodeOffset;\
     }\
@@ -155,11 +157,23 @@ static uint32_t KETL_CONCAT(__,name,_get_or_insert_copy_impl)(name* pMap, uint32
 KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value) {\
     uint32_t freeNodeOffset = pMap->freeNodeOffset;\
     uint32_t foundOffset;\
-    pMap->rootOffset = KETL_CONCAT(__,name,_get_or_insert_copy_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+    pMap->rootOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
 \
     KETL_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
     if (freeNodeOffset == foundOffset) {\
         pFoundNode->value = value;\
+    }\
+    \
+    return pFoundNode;\
+}\
+KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue) {\
+    uint32_t freeNodeOffset = pMap->freeNodeOffset;\
+    uint32_t foundOffset;\
+    pMap->rootOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+\
+    KETL_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
+    if (freeNodeOffset == foundOffset) {\
+        pFoundNode->value = *pValue;\
     }\
     \
     return pFoundNode;\

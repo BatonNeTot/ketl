@@ -17,7 +17,7 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
         .pAllocator = pAllocator
     };
 
-    ketl_gc_init(&pState->gc);
+    ketl_gc_init(&pState->gc, pAllocator);
 
     return pState;
 }

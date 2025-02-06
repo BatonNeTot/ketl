@@ -4,6 +4,6 @@
 
 #include "ketl/utils.h"
 
-
+KETL_FORWARD(ketl_type);
 
 #endif // ketl_type_h

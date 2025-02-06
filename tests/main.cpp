@@ -4,8 +4,7 @@
 extern "C" {
 #include "containers/tree_map.h"
 
-KETL_TREE_MAP_DECLARATION(int, int)
-KETL_TREE_MAP_DEFINITION(int, int, KETL_LESS_DEFAULT)
+#include "gc_memory.h"
 }
 
 #include <iostream>

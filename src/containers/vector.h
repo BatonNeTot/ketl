@@ -16,11 +16,12 @@ KETL_DEFINE(name) {\
 };\
 void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
 void KETL_CONCAT(name,_deinit)(name* pVector);\
+void KETL_CONCAT(name,_clear)(name* pVector);\
 void KETL_CONCAT(name,_resize)(name* pVector, uint32_t newSize);\
 void KETL_CONCAT(name,_reserve)(name* pVector, uint32_t newCapacity);\
 type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value);\
-type* KETL_CONCAT(name,_push_back_ref)(name* pVector, const type* pValue);\
-type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, const type* pValues, uint32_t size);\
+type* KETL_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue);\
+type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size);\
 
 #define KETL_VECTOR_DEFINITION(type) KETL_NAMED_VECTOR_DEFINITION(KETL_CONCAT(type,_vector), type)
 #define KETL_NAMED_VECTOR_DEFINITION(name, type)\
@@ -34,6 +35,9 @@ void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl
 void KETL_CONCAT(name,_deinit)(name* pVector){\
     ketl_free(pVector->pAllocator, pVector->pData);\
 }\
+void KETL_CONCAT(name,_clear)(name* pVector){\
+    pVector->size = 0;\
+}\
 void KETL_CONCAT(name,_resize)(name* pVector, uint32_t newSize){\
     pVector->size = newSize;\
     KETL_CONCAT(name,_reserve)(pVector, newSize);\
@@ -43,7 +47,10 @@ void KETL_CONCAT(name,_reserve)(name* pVector, uint32_t newCapacity){\
     while (newCapacity > currentCapacity) {\
         currentCapacity = (uint32_t)(currentCapacity << 1);\
     }\
-    pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * currentCapacity);\
+    if (currentCapacity != pVector->capacity) {\
+        pVector->capacity = currentCapacity;\
+        pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * currentCapacity);\
+    }\
 }\
 type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value){\
     type* pData = pVector->pData;\
@@ -57,7 +64,7 @@ type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value){\
     *pData = value;\
     return pData;\
 }\
-type* KETL_CONCAT(name,_push_back_ref)(name* pVector, const type* pValue){\
+type* KETL_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue){\
     type* pData = pVector->pData;\
     uint32_t index = pVector->size++;\
     uint32_t capacity = pVector->capacity;\
@@ -69,7 +76,7 @@ type* KETL_CONCAT(name,_push_back_ref)(name* pVector, const type* pValue){\
     *pData = *pValue;\
     return pData;\
 }\
-type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, const type* pValues, uint32_t size){\
+type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size){\
     if (size == 0) {\
         return NULL;\
     }\
