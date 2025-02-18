@@ -13,6 +13,7 @@
 KETL_DEFINE(ketl_gc_info) {
     ketl_type* pType;
     bool flagUsage;
+    bool freeAfterUse;
 };
 
 KETL_NAMED_VECTOR_DECLARATION(objects, void*)
@@ -30,7 +31,12 @@ void ketl_gc_init(ketl_gc* pGc, const ketl_allocator *pAllocator);
 
 void ketl_gc_deinit(ketl_gc* pGc);
 
-void ketl_gc_reg_root(ketl_gc* pGc, void* pObject, ketl_type* pType);
+#define KETL_GC_ROOT            0x01
+#define KETL_GC_FREE_AFTER_USE  0x02
+
+void* ketl_gc_create(ketl_gc* pGc, ketl_type* pType, uint8_t flags);
+
+void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* pType, uint8_t flags);
 
 void ketl_gc_collect(ketl_gc* pGc);
 

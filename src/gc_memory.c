@@ -1,6 +1,8 @@
 //🫖ketl
 #include "gc_memory.h"
 
+#include "type_impl.h"
+
 KETL_NAMED_VECTOR_DEFINITION(objects, void*)
 KETL_NAMED_TREE_MAP_DEFINITION(object_info_map, void*, ketl_gc_info, KETL_LESS_DEFAULT)
 
@@ -17,13 +19,22 @@ void ketl_gc_deinit(ketl_gc* pGc) {
     objects_deinit(&pGc->vRootObjects);
 }
 
-void ketl_gc_reg_root(ketl_gc* pGc, void* pObject, ketl_type* pType) {
+void* ketl_gc_create(ketl_gc* pGc, ketl_type* pType, uint8_t flags) {
+    void* pObject = ketl_alloc(pGc->pAllocator, pType->size);
+    ketl_gc_reg(pGc, pObject, pType, flags | KETL_GC_FREE_AFTER_USE);
+    return pObject;
+}
+
+void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* pType, uint8_t flags) {
     ketl_gc_info info = {
         .pType = pType,
         .flagUsage = pGc->flagUsage,
+        .freeAfterUse = flags & KETL_GC_FREE_AFTER_USE,
     };
     object_info_map_get_or_insert_ref(&pGc->mObjectInfo, pObject, &info);
-    objects_push_back_copy(&pGc->vRootObjects, pObject);
+    if (flags & KETL_GC_ROOT) {
+        objects_push_back_copy(&pGc->vRootObjects, pObject);
+    }
 }
 
 static void* find_object_start(ketl_gc* pGc, const void* pInsideObject, ketl_gc_info** ppInfo) {
@@ -61,8 +72,8 @@ static void mark_objects(ketl_gc* pGc) {
     while (pGc->vCollectBuffer.size) {
         void* pObject = pGc->vRootObjects.pData[--pGc->vCollectBuffer.size];
         ketl_gc_info* pInfo;
-        find_object_start(pGc, pObject, &pInfo);
-        if (pInfo->flagUsage != flagUsage) {
+        void* pRoot = find_object_start(pGc, pObject, &pInfo);
+        if (pRoot && pInfo->flagUsage != flagUsage) {
             pInfo->flagUsage = flagUsage;
             objects_push_back_copy(&pGc->vRootObjects, pInfo->pType);
             // TODO collect fields to vCollectBuffer
@@ -81,8 +92,10 @@ static uint32_t visit_node_and_swipe(ketl_gc* pGc, uint32_t nodeOffset) {
     pNode->rightOffset = visit_node_and_swipe(pGc, pNode->rightOffset);
 
     if (pNode->value.flagUsage != pGc->flagUsage) {
-        // TODO place for destructor
-        // TODO dealloc
+        // TODO place for destructor if needed
+        if (pNode->value.freeAfterUse) {
+            ketl_free(pGc->pAllocator, pNode->key);
+        }
         return (uint32_t)(-1);
     }
 

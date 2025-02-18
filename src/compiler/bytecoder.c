@@ -117,4 +117,4 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
     
     add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN);
     return create_bytecode_struct(&context);
-} 
+}

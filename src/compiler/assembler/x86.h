@@ -12,29 +12,29 @@
 #define KETL_SIZE_32B   4
 #define KETL_SIZE_64B   8
 
-#define KETL_REG_AX     0
-#define KETL_REG_CX     1
-#define KETL_REG_DX     2
-#define KETL_REG_BX     3
-#define KETL_REG_SP     4
-#define KETL_REG_BP     5
-#define KETL_REG_SI     6
-#define KETL_REG_DI     7
-#define KETL_REG_R8     8
-#define KETL_REG_R9     9
-#define KETL_REG_R10    10
-#define KETL_REG_R11    11
-#define KETL_REG_R12    12
-#define KETL_REG_R13    13
-#define KETL_REG_R14    14
-#define KETL_REG_R15    15
+#define KETL_REG_AX     0x00
+#define KETL_REG_CX     0x01
+#define KETL_REG_DX     0x02
+#define KETL_REG_BX     0x03
+#define KETL_REG_SP     0x04
+#define KETL_REG_BP     0x05
+#define KETL_REG_SI     0x06
+#define KETL_REG_DI     0x07
+#define KETL_REG_R8     0x08
+#define KETL_REG_R9     0x09
+#define KETL_REG_R10    0x0a
+#define KETL_REG_R11    0x0b
+#define KETL_REG_R12    0x0c
+#define KETL_REG_R13    0x0d
+#define KETL_REG_R14    0x0e
+#define KETL_REG_R15    0x0f
 
-#define KETL_ARG_REG            0
-#define KETL_ARG_REG_MEM        1
-#define KETL_ARG_RSP_MEM_DISP   2
-#define KETL_ARG_RBP_MEM_DISP   3
-#define KETL_ARG_IMM            4
-#define KETL_ARG_IMM_MEM        5
+#define KETL_ARG_REG            0x00
+#define KETL_ARG_REG_MEM        0x01
+#define KETL_ARG_RSP_MEM_DISP   0x02
+#define KETL_ARG_RBP_MEM_DISP   0x03
+#define KETL_ARG_IMM            0x04
+#define KETL_ARG_IMM_MEM        0x05
 
 #define KETL_OP_MOV     0
 
@@ -52,7 +52,7 @@ KETL_DEFINE(x86_op_struct) {
     uint64_t secondArg;
 };
 
-#define REX_PREFIX 0b0100
+#define REX_PREFIX 0x04 // 0b0100
 
 KETL_DEFINE(REXByte) {
     uint8_t b : 1;
@@ -68,10 +68,10 @@ KETL_DEFINE(MODRMByte) {
     uint8_t mod : 2;
 };
 
-#define MODRM_MOD_IND       0b00
-#define MODRM_MOD_IND_DIS8  0b01
-#define MODRM_MOD_IND_DIS32 0b10
-#define MODRM_MOD_DIR       0b11
+#define MODRM_MOD_IND       0x00 // 0b00
+#define MODRM_MOD_IND_DIS8  0x01 // 0b01
+#define MODRM_MOD_IND_DIS32 0x02 // 0b10
+#define MODRM_MOD_DIR       0x03 // 0b11
 
 KETL_DEFINE(SIBByte) {
     uint8_t base : 3;
@@ -79,10 +79,10 @@ KETL_DEFINE(SIBByte) {
     uint8_t scale : 2;
 };
 
-#define SIB_SCALE_1 0b00
-#define SIB_SCALE_2 0b01
-#define SIB_SCALE_4 0b10
-#define SIB_SCALE_8 0b11
+#define SIB_SCALE_1 0x00 // 0b00
+#define SIB_SCALE_2 0x01 // 0b01
+#define SIB_SCALE_4 0x02 // 0b10
+#define SIB_SCALE_8 0x03 // 0b11
 
 KETL_NAMED_VECTOR_DECLARATION(opcodes, uint8_t)
 

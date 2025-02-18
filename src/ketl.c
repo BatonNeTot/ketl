@@ -7,6 +7,7 @@
 
 #include "executable_memory.h"
 #include "execution.h"
+#include "type_impl.h"
 #include "memory_impl.h"
 
 #include <stdio.h>
@@ -18,6 +19,39 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
     };
 
     ketl_gc_init(&pState->gc, pAllocator);
+
+#define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
+
+    ketl_type* pMainMetaType = ketl_alloc(pAllocator, sizeof(ketl_type_meta));
+    INIT_TYPE(pMainMetaType, ketl_type_meta) {
+        .pName = "",
+        .type = KETL_TYPE_META,
+        .align = _Alignof(ketl_type_meta),
+        .size = sizeof(ketl_type_meta)
+    };
+    ketl_gc_reg(&pState->gc, pMainMetaType, pMainMetaType, KETL_GC_ROOT | KETL_GC_FREE_AFTER_USE);
+
+    ketl_type* pPrimitiveMetaType = ketl_gc_create(&pState->gc, pMainMetaType, KETL_GC_ROOT);
+    INIT_TYPE(pPrimitiveMetaType, ketl_type_meta) {
+        .pName = "",
+        .type = KETL_TYPE_META,
+        .align = _Alignof(ketl_type_primitive),
+        .size = sizeof(ketl_type_primitive)
+    };
+
+#define CREATE_PRIMITIVE_TYPE(_varName, _name, _size, _isInteger, _isSigned)\
+ketl_type* _varName = ketl_gc_create(&pState->gc, pPrimitiveMetaType, KETL_GC_ROOT); \
+INIT_TYPE(_varName, ketl_type_primitive) {\
+        .pName = _name,\
+        .type = KETL_TYPE_PRIMITIVE,\
+        .align = _size,\
+        .size = _size,\
+        .isInteger = _isInteger,\
+        .isSigned = _isSigned,\
+        }
+
+    CREATE_PRIMITIVE_TYPE(tVoid, "Void", 0, false, false);
+    CREATE_PRIMITIVE_TYPE(tInt64, "Int64", 8, true, true);
 
     return pState;
 }

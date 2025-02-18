@@ -644,9 +644,6 @@ if __name__ == '__main__':
 	templateFilename = sys.argv[1]
 	outputFilename = sys.argv[2]
 
-	print(templateFilename)
-	print(outputFilename)
-
 	templateSrc = ''
 	with open(templateFilename, 'r') as templateFile:
 		templateSrc = templateFile.read()

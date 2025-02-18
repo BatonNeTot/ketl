@@ -1,0 +1,47 @@
+//🫖ketl
+#ifndef ketl_type_impl_h
+#define ketl_type_impl_h
+
+#include "ketl/type.h"
+
+enum __KETL_TYPE {
+KETL_TYPE_META,
+KETL_TYPE_PRIMITIVE,
+KETL_TYPE_FUNCTION,
+KETL_TYPE_CFUNCTION,
+};
+
+#define KETL_TYPE_BODY \
+const char* pName;\
+uint8_t type;\
+uint8_t align;\
+uint16_t size
+
+KETL_DEFINE(ketl_type) {
+    KETL_TYPE_BODY;
+};
+
+KETL_DEFINE(ketl_type_meta) {
+    KETL_TYPE_BODY;
+};
+
+KETL_DEFINE(ketl_type_primitive) {
+    KETL_TYPE_BODY;
+    bool isInteger;
+    bool isSigned;
+};
+
+KETL_DEFINE(ketl_type_field) {
+	ketl_type* pType;
+	const char* pName;
+};
+
+KETL_DEFINE(ketl_type_function) {
+    KETL_TYPE_BODY;
+    uint16_t parametersCount;
+	ketl_type* pReturnType;
+    ketl_type_field fields[0];
+};
+
+
+#endif // ketl_type_impl_h
