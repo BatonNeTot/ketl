@@ -98,7 +98,7 @@
 #define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
 #define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)
 
-#define KETL_ALIGN(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
+#define KETL_ALIGN_FORWARD(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
 
 int64_t ketl_str_to_i64(const char* str, size_t length);
 

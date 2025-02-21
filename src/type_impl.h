@@ -31,16 +31,15 @@ KETL_DEFINE(ketl_type_primitive) {
     bool isSigned;
 };
 
-KETL_DEFINE(ketl_type_field) {
+KETL_DEFINE(ketl_type_parameter) {
 	ketl_type* pType;
-	const char* pName;
 };
 
 KETL_DEFINE(ketl_type_function) {
     KETL_TYPE_BODY;
     uint16_t parametersCount;
 	ketl_type* pReturnType;
-    ketl_type_field fields[0];
+    ketl_type_parameter parameters[0];
 };
 
 

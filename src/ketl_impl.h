@@ -2,8 +2,27 @@
 
 #include "type_impl.h"
 #include "gc_memory.h"
+#include "atomic_strings.h"
+
+#include "containers/vector.h"
+#include "containers/hash_map.h"
+
+KETL_DEFINE(function_parameters) {
+    ketl_type_parameter* pParameters;
+    uint16_t parametersCount;
+};
+
+KETL_NAMED_HASH_MAP_DECLARATION(function_types_map, function_parameters, ketl_type_function*)
+
+KETL_NAMED_VECTOR_DECLARATION(function_meta_types, ketl_type_meta*)
 
 KETL_DEFINE(ketl_state) {
     const ketl_allocator* pAllocator;
     ketl_gc gc;
+    ketl_atomic_strings atomicStrings;
+    ketl_type* pMainMetaType;
+    function_types_map mFunctionTypes;
+    function_meta_types vFunctionMetaTypes;
 };
+
+ketl_type* ketl_state_find_type(const char* pName);

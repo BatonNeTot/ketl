@@ -34,7 +34,7 @@ void KETL_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
     uint32_t initialCapacity = ketl_prime_capacities[initialCapacityIndex];\
     \
     const uint32_t arraySize = sizeof(KETL_CONCAT(name,_bucket)*) * initialCapacity;\
-    const uint32_t alignedBucketsOffset = KETL_ALIGN(arraySize, _Alignof(KETL_CONCAT(name,_bucket)));\
+    const uint32_t alignedBucketsOffset = KETL_ALIGN_FORWARD(arraySize, _Alignof(KETL_CONCAT(name,_bucket)));\
     const uint32_t totalAllocateSize = alignedBucketsOffset + sizeof(KETL_CONCAT(name,_bucket)) * initialCapacity;\
     \
     void* bucketsAlloc = ketl_alloc(pAllocator, totalAllocateSize);\
@@ -82,7 +82,7 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
 		}\
 		uint32_t newCapacity = ketl_prime_capacities[pMap->capacityIndex = newCapacityIndex];\
 		const uint32_t arraySize = sizeof(KETL_CONCAT(name,_bucket)*) * newCapacity;\
-        const uint32_t alignedBucketsOffset = KETL_ALIGN(arraySize, _Alignof(KETL_CONCAT(name,_bucket)));\
+        const uint32_t alignedBucketsOffset = KETL_ALIGN_FORWARD(arraySize, _Alignof(KETL_CONCAT(name,_bucket)));\
         const uint32_t totalAllocateSize = alignedBucketsOffset + sizeof(KETL_CONCAT(name,_bucket)) * newCapacity;\
         \
         void* bucketsAlloc = ketl_alloc(pMap->pAllocator, totalAllocateSize);\
