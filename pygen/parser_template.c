@@ -107,7 +107,7 @@ static uint16_t push_top_literal(ketl_parser_context* pContext) {
 static uint16_t push_node_and_return(ketl_parser_context* pContext, ketl_ir_type type, uint16_t arg0, uint16_t arg1, uint16_t arg2, uint16_t result) {
     ketl_ir_node_vector_push_back_copy(&pContext->vNodes, (ketl_ir_node){
         .type = type,
-        .args = { arg0, arg1, arg2 },
+        .aArgs = { arg0, arg1, arg2 },
     });
     return result;
 }
@@ -118,7 +118,7 @@ static uint16_t push_node_with_temp_var(ketl_parser_context* pContext, ketl_ir_t
     uint16_t arg0 = push_symbol(pContext, pBuffer, length + 2);
     ketl_ir_node_vector_push_back_copy(&pContext->vNodes, (ketl_ir_node){
         .type = type,
-        .args = { arg0, arg1, arg2 },
+        .aArgs = { arg0, arg1, arg2 },
     });
     return arg0;
 }

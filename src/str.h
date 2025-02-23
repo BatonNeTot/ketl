@@ -5,12 +5,12 @@
 #include "ketl/utils.h"
 
 
-uint64_t ketl_str_hash(const char* str);
+uint64_t ketl_str_hash(const char* pStr);
 
-bool ketl_str_is_equal(const char* restrict lhsStr, const char* restrict rhsStr);
+bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsStr);
 
-uint64_t ketl_str_hash_n(const char* str, uint32_t length);
+uint64_t ketl_str_hash_n(const char* pStr, uint32_t length);
 
-bool ketl_str_is_equal_n(const char* restrict lhsStr, const char* restrict rhsStr, uint32_t minLength);
+bool ketl_str_is_equal_n(const char* restrict pLhsStr, const char* restrict pRhsStr, uint32_t minLength);
 
 #endif // ketl_str_h

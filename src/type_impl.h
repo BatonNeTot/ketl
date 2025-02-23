@@ -38,8 +38,8 @@ KETL_DEFINE(ketl_type_parameter) {
 KETL_DEFINE(ketl_type_function) {
     KETL_TYPE_BODY;
     uint16_t parametersCount;
-	ketl_type* pReturnType;
-    ketl_type_parameter parameters[0];
+	//ketl_type* pReturnType; return type is first parameter for now
+    ketl_type_parameter aParameters[0];
 };
 
 

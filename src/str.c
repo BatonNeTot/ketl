@@ -65,8 +65,8 @@ static const uint64_t powP2[MAX_STRING_LENGTH] = {
 	351315841ULL, 998686009ULL
 };
 
-uint64_t ketl_str_hash(const char* str) {
-	if (str == NULL) {
+uint64_t ketl_str_hash(const char* pStr) {
+	if (pStr == NULL) {
 		return 0;
 	}
 
@@ -76,7 +76,7 @@ uint64_t ketl_str_hash(const char* str) {
 	uint64_t counter = 0;
 
 	KETL_FOREVER {
-		char symbol = str[counter];
+		char symbol = pStr[counter];
 		if (symbol == '\0') {
 			return (((uint64_t)firstPart) << 32) + secondPart;
 		}
@@ -92,8 +92,8 @@ uint64_t ketl_str_hash(const char* str) {
 	}
 }
 
-uint64_t ketl_str_hash_n(const char* str, uint32_t length) {
-	if (str == NULL) {
+uint64_t ketl_str_hash_n(const char* pStr, uint32_t length) {
+	if (pStr == NULL) {
 		return 0;
 	}
 	if (length != KETL_NULL_TERMINATED_LENGTH_32 && length > MAX_STRING_LENGTH) {
@@ -106,7 +106,7 @@ uint64_t ketl_str_hash_n(const char* str, uint32_t length) {
 	uint64_t counter = 0;
 
 	KETL_FOREVER {
-		char symbol = str[counter];
+		char symbol = pStr[counter];
 		if (symbol == '\0' || counter >= length) {
 			return (((uint64_t)firstPart) << 32) + secondPart;
 		}
@@ -122,15 +122,15 @@ uint64_t ketl_str_hash_n(const char* str, uint32_t length) {
 	}
 }
 
-bool ketl_str_is_equal(const char* restrict lhsStr, const char* restrict rhsStr) {
-	if (lhsStr == NULL || rhsStr == NULL) {
+bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsStr) {
+	if (pLhsStr == NULL || pRhsStr == NULL) {
 		return false;
 	}
 
 	uint64_t counter = 0;
 	KETL_FOREVER {
-		char lhs = lhsStr[counter];
-		char rhs = rhsStr[counter];
+		char lhs = pLhsStr[counter];
+		char rhs = pRhsStr[counter];
 
 		bool endLhs = lhs == '\0';
 		bool endRhs = rhs == '\0';
@@ -147,15 +147,15 @@ bool ketl_str_is_equal(const char* restrict lhsStr, const char* restrict rhsStr)
 	}
 }
 
-bool ketl_str_is_equal_n(const char* restrict lhsStr, const char* restrict rhsStr, uint32_t length) {
-	if (lhsStr == NULL || rhsStr == NULL) {
+bool ketl_str_is_equal_n(const char* restrict pLhsStr, const char* restrict pRhsStr, uint32_t length) {
+	if (pLhsStr == NULL || pRhsStr == NULL) {
 		return false;
 	}
 
 	uint64_t counter = 0;
 	KETL_FOREVER {
-		char lhs = lhsStr[counter];
-		char rhs = rhsStr[counter];
+		char lhs = pLhsStr[counter];
+		char rhs = pRhsStr[counter];
 
 		bool endLhs = lhs == '\0';
 		bool endRhs = rhs == '\0' || length <= counter;

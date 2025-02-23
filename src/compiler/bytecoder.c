@@ -80,9 +80,9 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
         ketl_ir_node node = ir.pNodes[i];
         switch(node.type) {
             case KETL_IR_TYPE_PLUS: {
-                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.args[0]);
-                ketl_bytecode_stack_offset arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.args[1]);
-                ketl_bytecode_stack_offset arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.args[2]);
+                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
+                ketl_bytecode_stack_offset arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[1]);
+                ketl_bytecode_stack_offset arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[2]);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_I64ADD);
                 instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0, sizeof(arg0));
@@ -91,9 +91,9 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
                 break;
             }
             case KETL_IR_TYPE_MULTIPLY: {
-                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.args[0]);
-                ketl_bytecode_stack_offset arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.args[1]);
-                ketl_bytecode_stack_offset arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.args[2]);
+                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
+                ketl_bytecode_stack_offset arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[1]);
+                ketl_bytecode_stack_offset arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[2]);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_I64MULTIPLY);
                 instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0, sizeof(arg0));
@@ -102,7 +102,7 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
                 break;
             }
             case KETL_IR_TYPE_RETURN_VALUE: {
-                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.args[0]);
+                ketl_bytecode_stack_offset arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
                 
                 add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN_64VALUE);
                 instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0, sizeof(arg0));

@@ -11,13 +11,18 @@ enum __KETL_IR_TYPE {
     KETL_IR_TYPE_RETURN_VALUE,
 
     KETL_IR_TYPE_ASSIGN,
+
     KETL_IR_TYPE_PLUS,
     KETL_IR_TYPE_MULTIPLY,
+
+    // only count binary operators for now
+    KETL_IR_FIRST_OPERATOR = KETL_IR_TYPE_PLUS,
+    KETL_IR_LAST_OPERATOR = KETL_IR_TYPE_MULTIPLY,
 };
 
 KETL_DEFINE(ketl_ir_node) {
     ketl_ir_type type;
-    uint16_t args[3];
+    uint16_t aArgs[3];
 };
 
 KETL_DEFINE(ketl_ir) {

@@ -42,6 +42,8 @@ KETL_NAMED_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_typ
 
 KETL_NAMED_VECTOR_DEFINITION(function_meta_types, ketl_type_meta*)
 
+KETL_NAMED_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
+
 static ketl_type_function* get_function_type(ketl_state* pState, const function_parameters* pParameters) {
     uint16_t parametersCount = pParameters->parametersCount;
     function_types_map_bucket* pBucket = function_types_map_get_or_insert_copy(&pState->mFunctionTypes, *pParameters, NULL);
@@ -63,15 +65,18 @@ static ketl_type_function* get_function_type(ketl_state* pState, const function_
             .pName = "",
             .type = KETL_TYPE_META,
             .align = _Alignof(void(*)()),
-            .size = sizeof(void(*)())
+            .size = sizeof(void(*)()),
+            .parametersCount = parametersCount
         };
+        ketl_memcpy(pFunction->aParameters, pParameters->pParameters, parametersCount * sizeof(ketl_type_parameter));
+
+        pBucket->key.pParameters = pFunction->aParameters;
         pBucket->value = pFunction;
     }
     return pBucket->value;
 }
 
 ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
-    (void)&get_function_type;
     ketl_state* pState = ketl_alloc(pAllocator, sizeof(ketl_state));
     *pState = (ketl_state){
         .pAllocator = pAllocator
@@ -82,6 +87,10 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
     function_types_map_init(&pState->mFunctionTypes, pAllocator);
     function_meta_types_init(&pState->vFunctionMetaTypes, 4, pAllocator);
     ketl_memset(pState->vFunctionMetaTypes.pData, 0, 4 * sizeof(ketl_type_meta*));
+
+    for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
+        operator_overloading_map_init(pState->amOperatorOverloading + i, pAllocator);
+    }
 
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
 
@@ -116,10 +125,26 @@ INIT_TYPE(_varName, ketl_type_primitive) {\
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
 
+    {
+        ketl_type_parameter parametersArray[] = { {.pType = tInt64}, {.pType = tInt64}, {.pType = tInt64} };
+        function_parameters parameters = {
+            .pParameters = parametersArray,
+            .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)
+        };
+
+        ketl_type_function* pFunctionType = get_function_type(pState, &parameters);
+        parameters.pParameters = pFunctionType->aParameters;
+
+        operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (KETL_IR_TYPE_PLUS - KETL_IR_FIRST_OPERATOR), parameters, KETL_BYTECODE_I64ADD);
+    }
+
     return pState;
 }
 
 void ketl_state_destroy(ketl_state* pState) {
+    for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
+        operator_overloading_map_deinit(pState->amOperatorOverloading + i);
+    }
     function_meta_types_deinit(&pState->vFunctionMetaTypes);
     function_types_map_deinit(&pState->mFunctionTypes);
     ketl_atomic_strings_deinit(&pState->atomicStrings);
@@ -136,9 +161,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
     ketl_ir ir = ketl_parser_parser(pSource, length, pState->pAllocator);
 
     for (uint32_t i = 0u; i < ir.nodesCount; ++i) {
-        char buffer[256];
-        uint32_t length = ketl_ir_node_format(ir.pNodes[i], ir.pSymbols, buffer, sizeof(buffer) / sizeof(*buffer));
-        printf("(%d) %.*s\n", i, length, buffer);
+        char aBuffer[256];
+        uint32_t length = ketl_ir_node_format(ir.pNodes[i], ir.pSymbols, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
+        printf("(%d) %.*s\n", i, length, aBuffer);
     }
 
     ketl_bytecode bytecode = ketl_bytecode_compile(ir, pState->pAllocator);
@@ -147,9 +172,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
             i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
-        char buffer[256];
-        uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, buffer, sizeof(buffer) / sizeof(*buffer));
-        printf("%d: %.*s\n", i, length, buffer);
+        char aBuffer[256];
+        uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
+        printf("%d: %.*s\n", i, length, aBuffer);
     }
 
     uint32_t opcodesSize = 0u;
@@ -157,9 +182,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
     ketl_free(pState->pAllocator, bytecode.pInstructions);
 
     {
-        char buffer[1024];
-        uint32_t length = ketl_assembler_format(pOpcodes, opcodesSize, buffer, sizeof(buffer) / sizeof(*buffer));
-        printf("%.*s\n", length, buffer);
+        char aBuffer[1024];
+        uint32_t length = ketl_assembler_format(pOpcodes, opcodesSize, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
+        printf("%.*s\n", length, aBuffer);
     }
 
     ketl_executable_memory ex_memory;
