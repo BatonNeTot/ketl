@@ -10,7 +10,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
             i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
         switch (bytecode.pInstructions[i]) {
-            case KETL_BYTECODE_STACK_RESERVE: {
+            case KETL_BYTECODE_STACK_PROLOG: {
                 ketl_bytecode_stack_offset stackUsage = *(ketl_bytecode_stack_offset*)(bytecode.pInstructions + i + sizeof(ketl_bytecode_instr));
                 
                 if (stackUsage > 0) {

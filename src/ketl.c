@@ -40,7 +40,7 @@ static bool is_parameters_equal(const function_parameters* pLhsParameters, const
 
 KETL_NAMED_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
 
-KETL_NAMED_VECTOR_DEFINITION(function_meta_types, ketl_type_meta*)
+KETL_NAMED_VECTOR_DEFINITION(types, ketl_type*)
 
 KETL_NAMED_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
 
@@ -48,22 +48,10 @@ static ketl_type_function* get_function_type(ketl_state* pState, const function_
     uint16_t parametersCount = pParameters->parametersCount;
     function_types_map_bucket* pBucket = function_types_map_get_or_insert_copy(&pState->mFunctionTypes, *pParameters, NULL);
     if (pBucket->value == NULL) {
-        while (pState->vFunctionMetaTypes.size <= parametersCount) {
-            ketl_type_meta* pMeta = ketl_gc_create(&pState->gc, pState->pMainMetaType, KETL_GC_ROOT);
-            *pMeta = (ketl_type_meta){
-                .pName = "",
-                .type = KETL_TYPE_META,
-                .align = _Alignof(ketl_type_function),
-                .size = sizeof(ketl_type_function) + pState->vFunctionMetaTypes.size * sizeof(ketl_type_parameter)
-            };
-            function_meta_types_push_back_copy(&pState->vFunctionMetaTypes, pMeta);
-        }
-
-        ketl_type_meta* pMeta = pState->vFunctionMetaTypes.pData[parametersCount - 1];
-        ketl_type_function* pFunction = ketl_gc_create(&pState->gc, (ketl_type*)pMeta, KETL_GC_ROOT);
+        ketl_type_function* pFunction = ketl_alloc(pState->pAllocator, sizeof(ketl_type_function) + parametersCount * sizeof(ketl_type_parameter));
         *pFunction = (ketl_type_function){
             .pName = "",
-            .type = KETL_TYPE_META,
+            .type = KETL_TYPE_FUNCTION,
             .align = _Alignof(void(*)()),
             .size = sizeof(void(*)()),
             .parametersCount = parametersCount
@@ -85,34 +73,14 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
     ketl_gc_init(&pState->gc, pAllocator);
     ketl_atomic_strings_init(&pState->atomicStrings, pAllocator);
     function_types_map_init(&pState->mFunctionTypes, pAllocator);
-    function_meta_types_init(&pState->vFunctionMetaTypes, 4, pAllocator);
-    ketl_memset(pState->vFunctionMetaTypes.pData, 0, 4 * sizeof(ketl_type_meta*));
 
     for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
         operator_overloading_map_init(pState->amOperatorOverloading + i, pAllocator);
     }
 
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
-
-    ketl_type* pMainMetaType = pState->pMainMetaType = ketl_alloc(pAllocator, sizeof(ketl_type_meta));
-    INIT_TYPE(pMainMetaType, ketl_type_meta) {
-        .pName = "",
-        .type = KETL_TYPE_META,
-        .align = _Alignof(ketl_type_meta),
-        .size = sizeof(ketl_type_meta)
-    };
-    ketl_gc_reg(&pState->gc, pMainMetaType, pMainMetaType, KETL_GC_ROOT | KETL_GC_FREE_AFTER_USE);
-
-    ketl_type* pPrimitiveMetaType = ketl_gc_create(&pState->gc, pMainMetaType, KETL_GC_ROOT);
-    INIT_TYPE(pPrimitiveMetaType, ketl_type_meta) {
-        .pName = "",
-        .type = KETL_TYPE_META,
-        .align = _Alignof(ketl_type_primitive),
-        .size = sizeof(ketl_type_primitive)
-    };
-
 #define CREATE_PRIMITIVE_TYPE(_varName, _name, _size, _isInteger, _isSigned)\
-ketl_type* _varName = ketl_gc_create(&pState->gc, pPrimitiveMetaType, KETL_GC_ROOT); \
+ketl_type* _varName = ketl_alloc(pAllocator, sizeof(ketl_type_primitive)); \
 INIT_TYPE(_varName, ketl_type_primitive) {\
         .pName = _name,\
         .type = KETL_TYPE_PRIMITIVE,\
@@ -125,18 +93,21 @@ INIT_TYPE(_varName, ketl_type_primitive) {\
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
 
-    {
-        ketl_type_parameter parametersArray[] = { {.pType = tInt64}, {.pType = tInt64}, {.pType = tInt64} };
-        function_parameters parameters = {
-            .pParameters = parametersArray,
-            .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)
-        };
+#define REGISTER_BINARY_OPERATOR(_operatorIr, _argType, _returnType, _bytecode)\
+do {\
+    ketl_type_parameter parametersArray[] = { {.pType = _returnType}, {.pType = _argType}, {.pType = _argType} };\
+    function_parameters parameters = {\
+        .pParameters = parametersArray,\
+        .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)\
+    };\
+\
+    ketl_type_function* pFunctionType = get_function_type(pState, &parameters);\
+    parameters.pParameters = pFunctionType->aParameters;\
+\
+    operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (_operatorIr - KETL_IR_FIRST_OPERATOR), parameters, _bytecode);\
+} while (false)
 
-        ketl_type_function* pFunctionType = get_function_type(pState, &parameters);
-        parameters.pParameters = pFunctionType->aParameters;
-
-        operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (KETL_IR_TYPE_PLUS - KETL_IR_FIRST_OPERATOR), parameters, KETL_BYTECODE_I64ADD);
-    }
+    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_PLUS, tInt64, tInt64, KETL_BYTECODE_I64ADD);
 
     return pState;
 }
@@ -145,7 +116,6 @@ void ketl_state_destroy(ketl_state* pState) {
     for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
         operator_overloading_map_deinit(pState->amOperatorOverloading + i);
     }
-    function_meta_types_deinit(&pState->vFunctionMetaTypes);
     function_types_map_deinit(&pState->mFunctionTypes);
     ketl_atomic_strings_deinit(&pState->atomicStrings);
     ketl_gc_deinit(&pState->gc);

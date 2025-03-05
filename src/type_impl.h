@@ -5,7 +5,6 @@
 #include "ketl/type.h"
 
 enum __KETL_TYPE {
-KETL_TYPE_META,
 KETL_TYPE_PRIMITIVE,
 KETL_TYPE_FUNCTION,
 KETL_TYPE_CFUNCTION,
@@ -18,10 +17,6 @@ uint8_t align;\
 uint16_t size
 
 KETL_DEFINE(ketl_type) {
-    KETL_TYPE_BODY;
-};
-
-KETL_DEFINE(ketl_type_meta) {
     KETL_TYPE_BODY;
 };
 

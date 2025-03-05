@@ -36,20 +36,20 @@ uint8_t ketl_bytecode_decode_instruction_length(ketl_bytecode_instr instruction)
 uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buffer, uint32_t bufferSize) {
     (void)pLabels;
     switch(pInstruction[0]) {
-        case KETL_BYTECODE_STACK_RESERVE: {
-            return snprintf(buffer, bufferSize, "RESERVE %d", 
+        case KETL_BYTECODE_STACK_PROLOG: {
+            return snprintf(buffer, bufferSize, "PROLOG %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
         }
         case KETL_BYTECODE_RETURN_8VALUE:
         case KETL_BYTECODE_RETURN_16VALUE:
         case KETL_BYTECODE_RETURN_32VALUE:
         case KETL_BYTECODE_RETURN_64VALUE: {
-            return snprintf(buffer, bufferSize, "RETURN_VALUE %d, %d", 
+            return snprintf(buffer, bufferSize, "EPILOG, RETURN_VALUE %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
         case KETL_BYTECODE_RETURN: {
-            return snprintf(buffer, bufferSize, "RETURN %d", 
+            return snprintf(buffer, bufferSize, "EPILOG, RETURN %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
         }
         case KETL_BYTECODE_U8LOAD_CONST: {

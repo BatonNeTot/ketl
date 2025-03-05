@@ -18,7 +18,7 @@ KETL_DEFINE(function_parameters) {
 
 KETL_NAMED_HASH_MAP_DECLARATION(function_types_map, function_parameters, ketl_type_function*)
 
-KETL_NAMED_VECTOR_DECLARATION(function_meta_types, ketl_type_meta*)
+KETL_NAMED_VECTOR_DECLARATION(types, ketl_type*)
 
 KETL_NAMED_HASH_MAP_DECLARATION(operator_overloading_map, function_parameters, ketl_bytecode_instr)
 
@@ -26,10 +26,9 @@ KETL_DEFINE(ketl_state) {
     const ketl_allocator* pAllocator;
     ketl_gc gc;
     ketl_atomic_strings atomicStrings;
-    ketl_type* pMainMetaType;
 
+    
     function_types_map mFunctionTypes;
-    function_meta_types vFunctionMetaTypes;
 
     operator_overloading_map amOperatorOverloading[KETL_IR_LAST_OPERATOR + 1 - KETL_IR_FIRST_OPERATOR];
 };
