@@ -8,8 +8,7 @@
 
 #include "memory_impl.h"
 
-#define KETL_HASH_MAP_DECLARATION(kType, vType) KETL_NAMED_HASH_MAP_DECLARATION(KETL_CONCAT(kType,_,vType,_hash_map), kType, vType)
-#define KETL_NAMED_HASH_MAP_DECLARATION(name, kType, vType)\
+#define KETL_HASH_MAP_DECLARATION(name, kType, vType)\
 KETL_DEFINE(KETL_CONCAT(name,_bucket)) {\
     KETL_CONCAT(name,_bucket)* pNext;\
 	uint64_t hash;\
@@ -25,10 +24,11 @@ KETL_DEFINE(name) {\
 };\
 void KETL_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator);\
 void KETL_CONCAT(name,_deinit)(name* pMap);\
+KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_null)(name* pMap, kType key);\
 KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
+void KETL_CONCAT(name,_erase)(name* pMap, KETL_CONCAT(name,_bucket)* pBucket);\
 
-#define KETL_HASH_MAP_DEFINITION(kType, vType, kHash, kEqual) KETL_NAMED_HASH_MAP_DEFINITION(KETL_CONCAT(kType,_,vType,_hash_map), kType, vType, kHash, kEqual)
-#define KETL_NAMED_HASH_MAP_DEFINITION(name, kType, vType, kHash, kEqual)\
+#define KETL_HASH_MAP_DEFINITION(name, kType, vType, kHash, kEqual)\
 void KETL_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
     const uint32_t initialCapacityIndex = 0;\
     uint32_t initialCapacity = ketl_prime_capacities[initialCapacityIndex];\
@@ -58,6 +58,22 @@ void KETL_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
 void KETL_CONCAT(name,_deinit)(name* pMap) {\
     ketl_free(pMap->pAllocator, pMap->ppBuckets);\
 }\
+KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_null)(name* pMap, kType key) {\
+    uint32_t capacity = ketl_prime_capacities[pMap->capacityIndex];\
+	KETL_CONCAT(name,_bucket)** ppBuckets = pMap->ppBuckets;\
+	uint64_t hash = kHash(key);\
+	uint64_t index = hash % capacity;\
+	KETL_CONCAT(name,_bucket)* pBucket = ppBuckets[index];\
+\
+	while (pBucket) {\
+		if (pBucket->hash == hash && kEqual(pBucket->key, key)) {\
+			return pBucket;\
+		}\
+\
+		pBucket = pBucket->pNext;\
+	}\
+    return NULL;\
+}\
 KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value) {\
     uint32_t capacity = ketl_prime_capacities[pMap->capacityIndex];\
 	KETL_CONCAT(name,_bucket)** ppBuckets = pMap->ppBuckets;\
@@ -77,7 +93,7 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
 	if (size > capacity) {\
 		uint64_t newCapacityIndex = pMap->capacityIndex + 1;\
 		if (KETL_PRIME_CAPACITIES_TOTAL <= newCapacityIndex) {\
-			/* TODO error */\
+			/* TODO error fatal */\
 			return NULL;\
 		}\
 		uint32_t newCapacity = ketl_prime_capacities[pMap->capacityIndex = newCapacityIndex];\
@@ -131,9 +147,28 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
 	ppBuckets[index] = pBucket;\
 	return pBucket;\
 }\
+void KETL_CONCAT(name,_erase)(name* pMap, KETL_CONCAT(name,_bucket)* pBucket) {\
+    uint32_t capacity = ketl_prime_capacities[pMap->capacityIndex];\
+	KETL_CONCAT(name,_bucket)** ppBuckets = pMap->ppBuckets;\
+	uint64_t hash = kHash(pBucket->key);\
+	uint64_t index = hash % capacity;\
+	KETL_CONCAT(name,_bucket)* pHeadBucket = ppBuckets[index];\
+\
+    if (pHeadBucket == pBucket) {\
+        ppBuckets[index] = pBucket->pNext;\
+        return;\
+    }\
+\
+    while (pHeadBucket) {\
+        if (pHeadBucket->pNext == pBucket) {\
+            pHeadBucket->pNext = pBucket->pNext;\
+            return;\
+        }\
+        pHeadBucket = pHeadBucket->pNext;\
+    }\
+}\
 
-#define KETL_HASH_MAP_FOREACH(kType, vType, pMap, runnable) KETL_NAMED_HASH_MAP_FOREACH(KETL_CONCAT(kType,_,kType,_hash_map), kType, vType, pMap, runnable)
-#define KETL_NAMED_HASH_MAP_FOREACH(name, kType, vType, pMap, runnable)\
+#define KETL_HASH_MAP_FOREACH(name, kType, vType, pMap, runnable)\
 do {\
     name* __pMap = (pMap);\
     uint32_t __capacity = ketl_prime_capacities[__pMap->capacityIndex];\

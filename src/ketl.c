@@ -38,11 +38,11 @@ static bool is_parameters_equal(const function_parameters* pLhsParameters, const
     return true;
 }
 
-KETL_NAMED_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
+KETL_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
 
-KETL_NAMED_VECTOR_DEFINITION(types, ketl_type*)
+KETL_VECTOR_DEFINITION(types, ketl_type*)
 
-KETL_NAMED_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
+KETL_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
 
 static ketl_type_function* get_function_type(ketl_state* pState, const function_parameters* pParameters) {
     uint16_t parametersCount = pParameters->parametersCount;
@@ -50,10 +50,10 @@ static ketl_type_function* get_function_type(ketl_state* pState, const function_
     if (pBucket->value == NULL) {
         ketl_type_function* pFunction = ketl_alloc(pState->pAllocator, sizeof(ketl_type_function) + parametersCount * sizeof(ketl_type_parameter));
         *pFunction = (ketl_type_function){
-            .pName = "",
+            .aName = KETL_ATOMIC_STRING_EMPTY,
             .type = KETL_TYPE_FUNCTION,
-            .align = _Alignof(void(*)()),
-            .size = sizeof(void(*)()),
+            .align = _Alignof(void(*)(void)),
+            .size = sizeof(void(*)(void)),
             .parametersCount = parametersCount
         };
         ketl_memcpy(pFunction->aParameters, pParameters->pParameters, parametersCount * sizeof(ketl_type_parameter));
@@ -72,6 +72,7 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
 
     ketl_gc_init(&pState->gc, pAllocator);
     ketl_atomic_strings_init(&pState->atomicStrings, pAllocator);
+    ketl_namespace_init(&pState->globalNamespace, pAllocator);
     function_types_map_init(&pState->mFunctionTypes, pAllocator);
 
     for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
@@ -81,14 +82,22 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
 #define CREATE_PRIMITIVE_TYPE(_varName, _name, _size, _isInteger, _isSigned)\
 ketl_type* _varName = ketl_alloc(pAllocator, sizeof(ketl_type_primitive)); \
+do {\
+ketl_atomic_string aName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
 INIT_TYPE(_varName, ketl_type_primitive) {\
-        .pName = _name,\
+        .aName = aName,\
         .type = KETL_TYPE_PRIMITIVE,\
         .align = _size,\
         .size = _size,\
         .isInteger = _isInteger,\
         .isSigned = _isSigned,\
-        }
+        };\
+ketl_namespace_value namespaceValue = {\
+    .type = KETL_NAMESPACE_VALUE_TYPE,\
+    .pType = _varName,\
+};\
+ketl_namespace_put(&pState->globalNamespace, aName, namespaceValue);\
+} while(0)
 
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
@@ -117,6 +126,7 @@ void ketl_state_destroy(ketl_state* pState) {
         operator_overloading_map_deinit(pState->amOperatorOverloading + i);
     }
     function_types_map_deinit(&pState->mFunctionTypes);
+    ketl_namespace_deinit(&pState->globalNamespace);
     ketl_atomic_strings_deinit(&pState->atomicStrings);
     ketl_gc_deinit(&pState->gc);
 

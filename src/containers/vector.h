@@ -6,8 +6,7 @@
 
 #include "memory_impl.h"
 
-#define KETL_VECTOR_DECLARATION(type) KETL_NAMED_VECTOR_DECLARATION(KETL_CONCAT(type,_vector), type)
-#define KETL_NAMED_VECTOR_DECLARATION(name, type)\
+#define KETL_VECTOR_DECLARATION(name, type)\
 KETL_DEFINE(name) {\
     const ketl_allocator* pAllocator;\
 	type* pData;\
@@ -23,8 +22,7 @@ type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value);\
 type* KETL_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue);\
 type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size);\
 
-#define KETL_VECTOR_DEFINITION(type) KETL_NAMED_VECTOR_DEFINITION(KETL_CONCAT(type,_vector), type)
-#define KETL_NAMED_VECTOR_DEFINITION(name, type)\
+#define KETL_VECTOR_DEFINITION(name, type)\
 void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator){\
     *pVector = (name){\
         .pAllocator = pAllocator,\

@@ -1,7 +1,7 @@
 //🫖ketl
 #include "x86.h"
 
-KETL_NAMED_VECTOR_DEFINITION(opcodes, uint8_t)
+KETL_VECTOR_DEFINITION(opcodes, uint8_t)
 
 static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
     if (pOpStruct->size == KETL_SIZE_16B) {

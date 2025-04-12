@@ -12,7 +12,7 @@ KETL_DEFINE(ketl_executable_memory_page) {
 	uint32_t pageSize;
 };
 
-KETL_VECTOR_DECLARATION(ketl_executable_memory_page)
+KETL_VECTOR_DECLARATION(ketl_executable_memory_page_vector, ketl_executable_memory_page)
 
 KETL_DEFINE(ketl_executable_memory) {
 	ketl_executable_memory_page_vector vPages;

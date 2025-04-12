@@ -9,16 +9,16 @@
 
 #include <stdlib.h>
 
-KETL_NAMED_VECTOR_DECLARATION(instructions, uint8_t)
-KETL_NAMED_VECTOR_DEFINITION(instructions, uint8_t)
+KETL_VECTOR_DECLARATION(instructions, uint8_t)
+KETL_VECTOR_DEFINITION(instructions, uint8_t)
 
 KETL_DEFINE(arg_info) {
     ketl_type* pType;
     ketl_bytecode_stack_offset stackOffset;
 };
 
-KETL_NAMED_HASH_MAP_DECLARATION(variables, const char*, arg_info)
-KETL_NAMED_HASH_MAP_DEFINITION(variables, const char*, arg_info, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+KETL_HASH_MAP_DECLARATION(variables, const char*, arg_info)
+KETL_HASH_MAP_DEFINITION(variables, const char*, arg_info, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
 
 KETL_DEFINE(bytecoder_context) {
     instructions vInstructions;
@@ -99,9 +99,9 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
                 arg_info arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[2]);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_I64ADD);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg2.stackOffset, sizeof(arg2));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1.stackOffset));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg2.stackOffset, sizeof(arg2.stackOffset));
                 break;
             }
             case KETL_IR_TYPE_MULTIPLY: {
@@ -110,16 +110,16 @@ ketl_bytecode ketl_bytecode_compile(ketl_ir ir, const ketl_allocator* pAllocator
                 arg_info arg2 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[2]);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_I64MULTIPLY);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg2.stackOffset, sizeof(arg2));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1.stackOffset));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg2.stackOffset, sizeof(arg2.stackOffset));
                 break;
             }
             case KETL_IR_TYPE_RETURN_VALUE: {
                 arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
                 
                 add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN_64VALUE);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
                 return create_bytecode_struct(&context);
             }
             case KETL_IR_TYPE_RETURN: {

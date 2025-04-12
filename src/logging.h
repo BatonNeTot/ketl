@@ -22,7 +22,7 @@ uint64_t ketl_logv(ketl_log_level level, const char* message, va_list args);
 
 uint64_t ketl_log(ketl_log_level level, const char* message, ...);
 
-ketl_log_level ketl_log_get_level();
+ketl_log_level ketl_log_get_level(void);
 
 void ketl_log_set_level(ketl_log_level level);
 

@@ -4,6 +4,8 @@
 
 #include "ketl/type.h"
 
+#include "atomic_strings.h"
+
 enum __KETL_TYPE {
 KETL_TYPE_PRIMITIVE,
 KETL_TYPE_FUNCTION,
@@ -11,7 +13,7 @@ KETL_TYPE_CFUNCTION,
 };
 
 #define KETL_TYPE_BODY \
-const char* pName;\
+ketl_atomic_string aName;\
 uint8_t type;\
 uint8_t align;\
 uint16_t size

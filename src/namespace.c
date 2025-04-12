@@ -1,0 +1,42 @@
+//🫖ketl
+#include "namespace.h"
+
+KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
+KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+
+void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* pAllocator) {
+    namespace_nodes_init(&pNamespace->vNodes, 16, pAllocator);
+    namespace_map_init(&pNamespace->mVars, pAllocator);
+}
+
+void ketl_namespace_deinit(ketl_namespace* pNamespace) {
+    namespace_map_deinit(&pNamespace->mVars);
+    namespace_nodes_deinit(&pNamespace->vNodes);
+}
+
+//void ketl_namespace_copy(ketl_namespace* pDstNamespace, ketl_namespace* pSrcNamespace);
+
+void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string key, ketl_namespace_value value) {
+    // TODO insert into vector uninitialized or something
+    ketl_namespace_node newNode = {
+        .nextOffset = (uint32_t)(-1),
+        .value = value
+    };
+    uint32_t newNodeOffset = pNamespace->vNodes.size;
+    namespace_nodes_push_back_ref(&pNamespace->vNodes, &newNode);
+
+    namespace_map_bucket* pBucket = namespace_map_get_or_insert_copy(&pNamespace->mVars, key, newNodeOffset);
+    if (pBucket->value != newNodeOffset) {
+        pNamespace->vNodes.pData[newNodeOffset].nextOffset = pBucket->value;
+        pBucket->value = newNodeOffset;
+    }
+}
+
+ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic_string key) {
+    namespace_map_bucket* pBucket = namespace_map_get_or_null(&pNamespace->mVars, key);
+    if (pBucket == NULL) {
+        return NULL;
+    }
+
+    return pNamespace->vNodes.pData + pBucket->value;
+}

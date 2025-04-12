@@ -84,7 +84,7 @@ KETL_DEFINE(SIBByte) {
 #define SIB_SCALE_4 0x02 // 0b10
 #define SIB_SCALE_8 0x03 // 0b11
 
-KETL_NAMED_VECTOR_DECLARATION(opcodes, uint8_t)
+KETL_VECTOR_DECLARATION(opcodes, uint8_t)
 
 
 #define PUSH_OPCODE_REG_IMM(pOpcodes, sizeArg, opcodeArg, regArg, immArg) do {\

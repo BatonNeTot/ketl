@@ -16,8 +16,8 @@ KETL_DEFINE(ketl_gc_info) {
     bool freeAfterUse;
 };
 
-KETL_NAMED_VECTOR_DECLARATION(objects, void*)
-KETL_NAMED_TREE_MAP_DECLARATION(object_info_map, void*, ketl_gc_info)
+KETL_VECTOR_DECLARATION(objects, void*)
+KETL_TREE_MAP_DECLARATION(object_info_map, void*, ketl_gc_info)
 
 KETL_DEFINE(ketl_gc) {
     const ketl_allocator *pAllocator;

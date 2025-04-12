@@ -44,12 +44,12 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
         case KETL_BYTECODE_RETURN_16VALUE:
         case KETL_BYTECODE_RETURN_32VALUE:
         case KETL_BYTECODE_RETURN_64VALUE: {
-            return snprintf(buffer, bufferSize, "EPILOG, RETURN_VALUE %d, %d", 
+            return snprintf(buffer, bufferSize, "EPILOG %d, RETURN_VALUE, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
         case KETL_BYTECODE_RETURN: {
-            return snprintf(buffer, bufferSize, "EPILOG, RETURN %d", 
+            return snprintf(buffer, bufferSize, "EPILOG %d, RETURN", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
         }
         case KETL_BYTECODE_U8LOAD_CONST: {

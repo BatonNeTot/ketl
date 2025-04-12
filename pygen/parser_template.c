@@ -34,17 +34,17 @@ KETL_DEFINE(ketl_parse_node) {
     };
 };
 
-KETL_VECTOR_DECLARATION(ketl_parse_node)
-KETL_VECTOR_DEFINITION(ketl_parse_node)
+KETL_VECTOR_DECLARATION(ketl_parse_node_vector, ketl_parse_node)
+KETL_VECTOR_DEFINITION(ketl_parse_node_vector, ketl_parse_node)
 
-KETL_VECTOR_DECLARATION(ketl_ir_node)
-KETL_VECTOR_DEFINITION(ketl_ir_node)
+KETL_VECTOR_DECLARATION(ketl_ir_node_vector, ketl_ir_node)
+KETL_VECTOR_DEFINITION(ketl_ir_node_vector, ketl_ir_node)
 
-KETL_NAMED_VECTOR_DECLARATION(symbols, char)
-KETL_NAMED_VECTOR_DEFINITION(symbols, char)
+KETL_VECTOR_DECLARATION(symbols, char)
+KETL_VECTOR_DEFINITION(symbols, char)
 
-KETL_NAMED_HASH_MAP_DECLARATION(symbols_map, const char*, uint16_t)
-KETL_NAMED_HASH_MAP_DEFINITION(symbols_map, const char*, uint16_t, ketl_str_hash, ketl_str_is_equal)
+KETL_HASH_MAP_DECLARATION(symbols_map, const char*, uint16_t)
+KETL_HASH_MAP_DEFINITION(symbols_map, const char*, uint16_t, ketl_str_hash, ketl_str_is_equal)
 
 KETL_DEFINE(ketl_parser_context) {
     const char* pSource;
@@ -87,7 +87,7 @@ static uint16_t push_symbol(ketl_parser_context* pContext, const char* pSymbol, 
         const char* pAtomicSymbol = symbols_push_back_ref_n(&pContext->vSymbols, pSymbol, length);
         if (pCheckData != pContext->vSymbols.pData) {
             pCheckData = pContext->vSymbols.pData;
-            KETL_NAMED_HASH_MAP_FOREACH(symbols_map, const char*, uint16_t, pmSymbolsMap, 
+            KETL_HASH_MAP_FOREACH(symbols_map, const char*, uint16_t, pmSymbolsMap, 
             __pBucket->key = pCheckData + __pBucket->value;);
         }
         pSymbolBucket->key = pAtomicSymbol;

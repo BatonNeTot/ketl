@@ -27,7 +27,7 @@ uint64_t ketl_log(ketl_log_level level, const char* message, ...) {
     return result;
 }
 
-ketl_log_level ketl_log_get_level() {
+ketl_log_level ketl_log_get_level(void) {
     return log_level;
 }
 

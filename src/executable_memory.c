@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-inline static uint32_t ketl_get_page_size() {
+inline static uint32_t ketl_get_page_size(void) {
 	return getpagesize();
 }
 
@@ -34,7 +34,7 @@ inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 #if KETL_OS_WINDOWS
 #include <Windows.h>
 
-inline static uint32_t ketl_get_page_size() {
+inline static uint32_t ketl_get_page_size(void) {
 	SYSTEM_INFO system_info;
 	GetSystemInfo(&system_info);
 	return system_info.dwPageSize;
@@ -61,9 +61,9 @@ inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 
 #endif
 
-KETL_VECTOR_DEFINITION(ketl_executable_memory_page)
+KETL_VECTOR_DEFINITION(ketl_executable_memory_page_vector, ketl_executable_memory_page)
 
-static uint32_t ketl_get_static_page_size() {
+static uint32_t ketl_get_static_page_size(void) {
 	static uint32_t pageSize = 0;
 	if (pageSize == 0) {
 		pageSize = ketl_get_page_size();
@@ -71,7 +71,7 @@ static uint32_t ketl_get_static_page_size() {
 	return pageSize;
 }
 
-static uint32_t ketl_get_static_page_size_log() {
+static uint32_t ketl_get_static_page_size_log(void) {
 	static uint32_t pageSizeLog = -1;
 	if (pageSizeLog == (uint32_t)(-1)) {
 		uint32_t pageSize = ketl_get_page_size();

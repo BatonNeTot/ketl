@@ -6,8 +6,7 @@
 
 #include "memory_impl.h"
 
-#define KETL_TREE_MAP_DECLARATION(kType, vType) KETL_NAMED_TREE_MAP_DECLARATION(KETL_CONCAT(kType,_,vType,_tree_map), kType, vType)
-#define KETL_NAMED_TREE_MAP_DECLARATION(name, kType, vType)\
+#define KETL_TREE_MAP_DECLARATION(name, kType, vType)\
 KETL_DEFINE(KETL_CONCAT(name,_node)) {\
     union {\
     uint32_t leftOffset;\
@@ -32,8 +31,7 @@ KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType
 KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
 KETL_CONCAT(name,_node)* KETL_CONCAT(name,_erase)(name* pMap, kType key);\
 
-#define KETL_TREE_MAP_DEFINITION(kType, vType, kLess) KETL_NAMED_TREE_MAP_DEFINITION(KETL_CONCAT(kType,_,vType,_tree_map), kType, vType, kLess)
-#define KETL_NAMED_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
+#define KETL_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
 void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator) {\
     const uint32_t arraySize = sizeof(KETL_CONCAT(name,_node)) * initialCapacity;\
     \
