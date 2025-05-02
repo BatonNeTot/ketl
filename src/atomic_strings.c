@@ -34,13 +34,18 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* pAtomicStrings, 
     strings_map_bucket* pSymbolBucket = strings_map_get_or_insert_copy(pmSymbolsMap, pStr, 0);
     if (pSymbolBucket->key == pStr) {
         char* pCheckData = pvSymbols->pData;
-        const char* pAtomicSymbol = strings_storage_push_back_ref_n(pvSymbols, pStr, length);
-        strings_storage_push_back_copy(pvSymbols, '\0');
+        strings_storage_reserve(pvSymbols, pvSymbols->size + length + 1);
         if (pCheckData != pvSymbols->pData) {
             pCheckData = pvSymbols->pData;
             KETL_HASH_MAP_FOREACH(strings_map, const char*, uint16_t, pmSymbolsMap, 
             __pBucket->key = pCheckData + __pBucket->value;);
         }
+
+        const char* pAtomicSymbol = strings_storage_push_back_ref_n(pvSymbols, pStr, length);
+        strings_storage_push_back_copy(pvSymbols, '\0');
+
+        assert(pCheckData == pvSymbols->pData);
+
         pSymbolBucket->key = pAtomicSymbol;
         pSymbolBucket->value = pAtomicSymbol - pvSymbols->pData;
     }

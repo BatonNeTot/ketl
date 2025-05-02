@@ -83,10 +83,12 @@ type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uin
     uint32_t newSize = pVector->size += size;\
     uint32_t capacity = pVector->capacity;\
     while (newSize > capacity) {\
-        capacity = pVector->capacity = (uint32_t)(capacity << 1);\
+        capacity = (uint32_t)(capacity << 1);\
     }\
-    pVector->capacity = capacity;\
-    pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * capacity);\
+    if (pVector->capacity != capacity) {\
+        pVector->capacity = capacity;\
+        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * capacity);\
+    }\
     pData += index;\
     ketl_memcpy(pData, pValues, sizeof(type) * size);\
     return pData;\

@@ -10,6 +10,7 @@
 #include "containers/hash_map.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 KETL_VECTOR_DECLARATION(instructions, uint8_t)
 KETL_VECTOR_DEFINITION(instructions, uint8_t)
@@ -42,7 +43,7 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
             ketl_bytecode_stack_offset stackOffset = pContext->usedStack;
             pContext->usedStack = stackOffset + sizeof(value);
 
-            instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_I64LOAD_CONST);
+            instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_ICONST);
             instructions_push_back_ref_n(&pContext->vInstructions, (uint8_t*)&stackOffset, sizeof(stackOffset));
             instructions_push_back_ref_n(&pContext->vInstructions, (uint8_t*)&value, sizeof(value));
             return (arg_info){
@@ -50,7 +51,7 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
                 .stackOffset = stackOffset
             };
         }
-        default: {
+        case '~': {
             arg_info argInfo = {
                 .pType = NULL,
                 .stackOffset = pContext->usedStack
@@ -58,6 +59,15 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
             variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, symbol, argInfo);
             if (bucket->value.stackOffset == argInfo.stackOffset) {
                 pContext->usedStack += sizeof(int64_t);
+            }
+            return bucket->value;
+        }
+        default: {
+            variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, symbol);
+            if (bucket == NULL) {
+                // TODO ERROR
+                printf("unknown variable %s\n", symbol);
+                assert(false);
             }
             return bucket->value;
         }
@@ -115,6 +125,37 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
     for (uint32_t i = 0u; i < ir.nodesCount; ++i) {
         ketl_ir_node node = ir.pNodes[i];
         switch(node.type) {
+            case KETL_IR_TYPE_PUSH_ARGUMENT: {
+                arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
+
+                // TODO FIX
+                // get type size and use appropriate push arg bytecode
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64PUSH_ARG);
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                break;
+            }
+            case KETL_IR_TYPE_CALL: {
+                arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
+                arg_info arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[1]);
+
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1.stackOffset));
+                break;
+            }
+            case KETL_IR_TYPE_RETURN: {
+                add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN);
+                return create_bytecode_struct(&context);
+            }
+            case KETL_IR_TYPE_RETURN_VALUE: {
+                arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
+                
+                // TODO FIX
+                // get type size and use appropriate return bytecode
+                add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_64RETURN);
+                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                return create_bytecode_struct(&context);
+            }
             case KETL_IR_TYPE_PLUS:
             case KETL_IR_TYPE_MULTIPLY: {
                 arg_info args[] = {
@@ -142,16 +183,12 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
                 instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&args[2].stackOffset, sizeof(args[2].stackOffset));
                 break;
             }
-            case KETL_IR_TYPE_RETURN_VALUE: {
-                arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
-                
-                add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN_64VALUE);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
-                return create_bytecode_struct(&context);
-            }
-            case KETL_IR_TYPE_RETURN: {
-                add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_RETURN);
-                return create_bytecode_struct(&context);
+            default: {
+                // TODO ERROR
+                char aBuffer[256];
+                uint32_t length = ketl_ir_node_format(node, ir.pSymbols, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
+                printf("unknown ir node: %.*s\n", length, aBuffer);
+                assert(false);
             }
         }
     }

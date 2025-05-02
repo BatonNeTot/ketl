@@ -7,6 +7,8 @@
 #include "ketl/memory.h"
 #include "ketl/utils.h"
 
+#include <stdio.h>
+
 
 uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* pAllocator);
 

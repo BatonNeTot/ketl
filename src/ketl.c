@@ -144,8 +144,8 @@ do {\
     operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (_operatorIr - KETL_IR_FIRST_OPERATOR), parameters, _bytecode);\
 } while (false)
 
-    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_PLUS, tInt64, tInt64, KETL_BYTECODE_I64ADD);
-    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_MULTIPLY, tInt64, tInt64, KETL_BYTECODE_I64MULTIPLY);
+    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_PLUS, tInt64, tInt64, KETL_BYTECODE_64IADD);
+    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_MULTIPLY, tInt64, tInt64, KETL_BYTECODE_64IMULTIPLY);
 
     return pState;
 }
