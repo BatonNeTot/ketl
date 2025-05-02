@@ -12,9 +12,9 @@
 
 #include <stdio.h>
 
-#define PARAMETERS_HASH(key) parameters_hash(&(key))
+#define FUNC_SIGNATURE_HASH(key) func_signature_hash(&(key))
 
-static uint64_t parameters_hash(const function_parameters* pParameters) {
+static uint64_t func_signature_hash(const function_parameters* pParameters) {
     uint64_t hash = 0u;
     uint16_t parametersCount = pParameters->parametersCount;
     for (uint16_t i = 0u; i < parametersCount; ++i) {
@@ -23,9 +23,9 @@ static uint64_t parameters_hash(const function_parameters* pParameters) {
     return hash;
 }
 
-#define IS_PARAMETERS_EQUAL(lhsKey, rhsKey) is_parameters_equal(&(lhsKey), &(rhsKey))
+#define IS_FUNC_SIGNATURES_EQUAL(lhsKey, rhsKey) is_func_signatures_equal(&(lhsKey), &(rhsKey))
 
-static bool is_parameters_equal(const function_parameters* pLhsParameters, const function_parameters* pRhsParameters) {
+static bool is_func_signatures_equal(const function_parameters* pLhsParameters, const function_parameters* pRhsParameters) {
     if (pLhsParameters->parametersCount != pRhsParameters->parametersCount) {
         return false;
     }
@@ -38,11 +38,39 @@ static bool is_parameters_equal(const function_parameters* pLhsParameters, const
     return true;
 }
 
-KETL_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
+#define FUNC_PARAMETERS_HASH(key) func_parameters_hash(&(key))
+
+static uint64_t func_parameters_hash(const function_parameters* pParameters) {
+    uint64_t hash = 0u;
+    uint16_t parametersCount = pParameters->parametersCount;
+    // first is return type, ignore it for parameters
+    for (uint16_t i = 1u; i < parametersCount; ++i) {
+        hash = ((uint64_t)pParameters->pParameters[i].pType) ^ (hash << 1);
+    }
+    return hash;
+}
+
+#define IS_FUNC_PARAMETERS_EQUAL(lhsKey, rhsKey) is_func_parameters_equal(&(lhsKey), &(rhsKey))
+
+static bool is_func_parameters_equal(const function_parameters* pLhsParameters, const function_parameters* pRhsParameters) {
+    if (pLhsParameters->parametersCount != pRhsParameters->parametersCount) {
+        return false;
+    }
+    uint16_t parametersCount = pLhsParameters->parametersCount;
+    // first is return type, ignore it for parameters
+    for (uint16_t i = 1u; i < parametersCount; ++i) {
+        if (pLhsParameters->pParameters[i].pType != pRhsParameters->pParameters[i].pType) {
+            return false;
+        }
+    }
+    return true;
+}
+
+KETL_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
 
 KETL_VECTOR_DEFINITION(types, ketl_type*)
 
-KETL_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, PARAMETERS_HASH, IS_PARAMETERS_EQUAL)
+KETL_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
 static ketl_type_function* get_function_type(ketl_state* pState, const function_parameters* pParameters) {
     uint16_t parametersCount = pParameters->parametersCount;
@@ -50,7 +78,7 @@ static ketl_type_function* get_function_type(ketl_state* pState, const function_
     if (pBucket->value == NULL) {
         ketl_type_function* pFunction = ketl_alloc(pState->pAllocator, sizeof(ketl_type_function) + parametersCount * sizeof(ketl_type_parameter));
         *pFunction = (ketl_type_function){
-            .aName = KETL_ATOMIC_STRING_EMPTY,
+            .sName = KETL_ATOMIC_STRING_EMPTY,
             .type = KETL_TYPE_FUNCTION,
             .align = _Alignof(void(*)(void)),
             .size = sizeof(void(*)(void)),
@@ -83,9 +111,9 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
 #define CREATE_PRIMITIVE_TYPE(_varName, _name, _size, _isInteger, _isSigned)\
 ketl_type* _varName = ketl_alloc(pAllocator, sizeof(ketl_type_primitive)); \
 do {\
-ketl_atomic_string aName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
+ketl_atomic_string sName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
 INIT_TYPE(_varName, ketl_type_primitive) {\
-        .aName = aName,\
+        .sName = sName,\
         .type = KETL_TYPE_PRIMITIVE,\
         .align = _size,\
         .size = _size,\
@@ -96,7 +124,7 @@ ketl_namespace_value namespaceValue = {\
     .type = KETL_NAMESPACE_VALUE_TYPE,\
     .pType = _varName,\
 };\
-ketl_namespace_put(&pState->globalNamespace, aName, namespaceValue);\
+ketl_namespace_put(&pState->globalNamespace, sName, namespaceValue);\
 } while(0)
 
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
@@ -117,6 +145,7 @@ do {\
 } while (false)
 
     REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_PLUS, tInt64, tInt64, KETL_BYTECODE_I64ADD);
+    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_MULTIPLY, tInt64, tInt64, KETL_BYTECODE_I64MULTIPLY);
 
     return pState;
 }
@@ -146,7 +175,7 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
         printf("(%d) %.*s\n", i, length, aBuffer);
     }
 
-    ketl_bytecode bytecode = ketl_bytecode_compile(ir, pState->pAllocator);
+    ketl_bytecode bytecode = ketl_bytecode_compile(pState, ir, pState->pAllocator);
     ketl_free(pState->pAllocator, ir.pNodes);
     ketl_free(pState->pAllocator, ir.pSymbols);
 

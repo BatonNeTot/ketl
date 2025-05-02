@@ -35,6 +35,7 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* pAtomicStrings, 
     if (pSymbolBucket->key == pStr) {
         char* pCheckData = pvSymbols->pData;
         const char* pAtomicSymbol = strings_storage_push_back_ref_n(pvSymbols, pStr, length);
+        strings_storage_push_back_copy(pvSymbols, '\0');
         if (pCheckData != pvSymbols->pData) {
             pCheckData = pvSymbols->pData;
             KETL_HASH_MAP_FOREACH(strings_map, const char*, uint16_t, pmSymbolsMap, 

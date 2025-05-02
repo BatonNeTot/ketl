@@ -13,7 +13,7 @@ KETL_TYPE_CFUNCTION,
 };
 
 #define KETL_TYPE_BODY \
-ketl_atomic_string aName;\
+ketl_atomic_string sName;\
 uint8_t type;\
 uint8_t align;\
 uint16_t size

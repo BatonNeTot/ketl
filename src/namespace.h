@@ -41,8 +41,8 @@ void ketl_namespace_deinit(ketl_namespace* pNamespace);
 
 void ketl_namespace_copy(ketl_namespace* pDstNamespace, ketl_namespace* pSrcNamespace);
 
-void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string key, ketl_namespace_value value);
+void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_namespace_value value);
 
-ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic_string key);
+ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic_string sKey);
 
 #endif // ketl_namespace_h
