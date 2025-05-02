@@ -40,6 +40,7 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
     pContext->pTokens[count] = (ketl_token){.type = type, .length = length, .prevOffset = prevOffset};
     ++pContext->count;
     pContext->lastTokenEnd = offset + length;
+    pContext->offset += length;
 }
 
 static char ketl_lexer_get_symbol(ketl_lexer_context* pContext) {
@@ -127,16 +128,16 @@ static bool ketl_lexer_parse_literal_char(ketl_lexer_context* pContext, char nex
 
     // error correction
     if (endMarkOffset >= pContext->length || pContext->pSource[endMarkOffset] != '\'') {
+        // TODO ERROR
         if (endMarkOffset >= pContext->length) {
             charLength = pContext->length - charOffset;
         }
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LITERAL_CHAR, charLength);
-        pContext->offset += charLength;
         return true;
     }
 
     ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LITERAL_CHAR, charLength);
-    pContext->offset += charLength + 1;
+    pContext->offset += 1;
     return true;
 }
 
@@ -165,7 +166,7 @@ static bool ketl_lexer_parse_literal_string(ketl_lexer_context* pContext, char n
     uint32_t literalLength = pContext->offset - literalStartOffset;
     pContext->offset = literalStartOffset;
     ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LITERAL_STRING, literalLength);
-    pContext->offset += literalLength + 1;
+    pContext->offset += 1;
     return true;
 }
 
@@ -190,7 +191,6 @@ static bool ketl_lexer_parse_literal_integer(ketl_lexer_context* pContext, char 
     uint32_t literalLength = pContext->offset - literalStartOffset;
     pContext->offset = literalStartOffset;
     ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LITERAL_INTEGER, literalLength);
-    pContext->offset += literalLength;
     return true;
 }
 
@@ -219,16 +219,12 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
         case 'r': {
             if (ketl_str_is_equal_n("return", pContext->pSource + pContext->offset, idLength)) {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_RETURN, idLength);
-            } else {
-                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
+                return true;
             }
             break;
         }
-        default: {
-            ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
-        }
     }
-    pContext->offset += idLength;
+    ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ID, idLength);
     return true;
 }
 
@@ -236,62 +232,50 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
     switch (nextSymbol) {  
     case '(': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case ')': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '{': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_CURLY_LEFT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '}': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_CURLY_RIGHT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '[': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_SQUARE_LEFT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case ']': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_SQUARE_RIGHT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '.': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_DOT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case ',': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_COMMA, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '?': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_TERNARY_FIRST, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case ':': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_TERNARY_SECOND, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case ';': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '~': {
         ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_NOT, 1);
-        pContext->offset += 1;
         return true;
     } 
 	case '=': {
@@ -301,10 +285,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
 
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_EQUAL, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -315,10 +297,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_XOR, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -329,10 +309,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_MULTIPLY, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_MULTIPLY, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -343,10 +321,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_DIVIDE, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_DIVIDE, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -357,10 +333,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_REMAINDER, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_REMAINDER, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -371,10 +345,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_NOT_EQUAL, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LOGICAL_NOT, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -385,13 +357,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_PLUS, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_INCREMENT, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_PLUS, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -402,13 +371,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_MINUS, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_DECREMENT, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_MINUS, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -419,13 +385,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LOGICAL_AND, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_AND, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -436,13 +399,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LOGICAL_OR, 2);
-            pContext->offset += 2;
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_OR, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -453,7 +413,6 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LESS_OR_EQUAL, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             pContext->offset += 2;
             char thirdSymbol = ketl_lexer_get_symbol(pContext);
@@ -461,14 +420,11 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
 
             if (thirdSymbol == '=') {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT, 3);
-                pContext->offset += 3;
             } else {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT, 2);
-                pContext->offset += 2;
             }
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_LESS, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
@@ -479,7 +435,6 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         
         if (secondSymbol == '=') {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_GREATER_OR_EQUAL, 2);
-            pContext->offset += 2;
         } else if (secondSymbol == nextSymbol) {
             pContext->offset += 2;
             char thirdSymbol = ketl_lexer_get_symbol(pContext);
@@ -487,14 +442,11 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
 
             if (thirdSymbol == '=') {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT, 3);
-                pContext->offset += 3;
             } else {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT, 2);
-                pContext->offset += 2;
             }
         } else {
             ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_GREATER, 1);
-            pContext->offset += 1;
         }
         return true;
     } 
