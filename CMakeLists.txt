@@ -35,6 +35,7 @@ set(PROJECT_GEN_OUTPUT ${PROJECT_GEN_LEXER_OUTPUT} ${PROJECT_GEN_PARSER_OUTPUT})
 if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
+    set(CMAKE_C_COMPILER "/usr/bin/clang")
     add_compile_options(-Wall -Wextra -Werror -pedantic -Wno-gnu)
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")

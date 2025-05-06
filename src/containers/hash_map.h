@@ -39,7 +39,7 @@ void KETL_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
     \
     void* bucketsAlloc = ketl_alloc(pAllocator, totalAllocateSize);\
     KETL_CONCAT(name,_bucket)** ppBuckets = bucketsAlloc;\
-    KETL_CONCAT(name,_bucket)* pBucketsBuffer = bucketsAlloc + alignedBucketsOffset;\
+    KETL_CONCAT(name,_bucket)* pBucketsBuffer = (void*)((char*)bucketsAlloc + alignedBucketsOffset);\
     \
     *pMap = (name){\
         .pAllocator = pAllocator,\
@@ -103,7 +103,7 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
         \
         void* bucketsAlloc = ketl_alloc(pMap->pAllocator, totalAllocateSize);\
         KETL_CONCAT(name,_bucket)** ppNewBuckets = bucketsAlloc;\
-        KETL_CONCAT(name,_bucket)* pBucketsBuffer = bucketsAlloc + alignedBucketsOffset;\
+        KETL_CONCAT(name,_bucket)* pBucketsBuffer = (void*)((char*)bucketsAlloc + alignedBucketsOffset);\
         pMap->ppBuckets = ppNewBuckets;\
 \
         ketl_memset(ppNewBuckets, 0, arraySize);\

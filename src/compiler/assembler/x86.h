@@ -162,22 +162,6 @@ KETL_VECTOR_DECLARATION(opcodes, uint8_t)
     __tmpOpStruct.secondArg = (regArg);\
     push_opcode((pOpcodes), &__tmpOpStruct);\
 } while(false)
- 
-#if KETL_OS_WINDOWS
-    #define PUSH_MOV_STACK_TO_REG(pOpcodes, sizeMacro, regMacro, stackOffset)\
-        PUSH_OPCODE_REG_RSP_DISP(pOpcodes, sizeMacro, KETL_OP_MOV, regMacro, stackOffset);
-#else
-    #define PUSH_MOV_STACK_TO_REG(pOpcodes, sizeMacro, regMacro, stackOffset)\
-        PUSH_OPCODE_REG_RBP_DISP(pOpcodes, sizeMacro, KETL_OP_MOV, regMacro, stackOffset);
-#endif
-
-#if KETL_OS_WINDOWS
-    #define PUSH_MOV_REG_TO_STACK(pOpcodes, sizeMacro, stackOffset, regMacro)\
-        PUSH_OPCODE_RSP_DISP_REG(pOpcodes, sizeMacro, KETL_OP_MOV, stackOffset, regMacro);
-#else
-    #define PUSH_MOV_REG_TO_STACK(pOpcodes, sizeMacro, stackOffset, regMacro)\
-        PUSH_OPCODE_RBP_DISP_REG(pOpcodes, sizeMacro, KETL_OP_MOV, stackOffset, regMacro);
-#endif
 
 void push_opcode(opcodes* pOpcodes, x86_op_struct* pOpStruct);
 

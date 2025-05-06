@@ -3,6 +3,8 @@
 
 #include "str.h"
 
+#include <string.h>
+
 
 KETL_VECTOR_DEFINITION(strings_storage, char)
 KETL_HASH_MAP_DEFINITION(strings_map, const char*, ketl_atomic_string, ketl_str_hash, ketl_str_is_equal)

@@ -4,7 +4,7 @@
 #if KETL_OS_WINDOWS
 #include "assembler/x86_win32.cxx"
 #else
-
+#include "assembler/x86_system_v.cxx"
 #endif
 
 #include <stdio.h>

@@ -2,16 +2,20 @@
 #include "compiler/assembler.h"
 
 #include "x86.h"
- 
+
+#define TEMP_REPLACE_WITH_TYPE_SIZE 8
+
 #define PUSH_MOV_STACK_TO_REG(pOpcodes, sizeMacro, regMacro, stackOffset)\
-    PUSH_OPCODE_REG_RSP_DISP(pOpcodes, sizeMacro, KETL_OP_MOV, regMacro, stackOffset);
+    PUSH_OPCODE_REG_RBP_DISP(pOpcodes, sizeMacro, KETL_OP_MOV, regMacro, (0x100000000llu - stackOffset - TEMP_REPLACE_WITH_TYPE_SIZE));
 
 #define PUSH_MOV_REG_TO_STACK(pOpcodes, sizeMacro, stackOffset, regMacro)\
-    PUSH_OPCODE_RSP_DISP_REG(pOpcodes, sizeMacro, KETL_OP_MOV, stackOffset, regMacro);
+    PUSH_OPCODE_RBP_DISP_REG(pOpcodes, sizeMacro, KETL_OP_MOV, (0x100000000llu - stackOffset - TEMP_REPLACE_WITH_TYPE_SIZE), regMacro);
 
 static uint8_t aParameterRegs[] = {
-    KETL_REG_CX,
+    KETL_REG_DI,
+    KETL_REG_SI,
     KETL_REG_DX,
+    KETL_REG_CX,
     KETL_REG_R8,
     KETL_REG_R9,
 };
@@ -48,6 +52,16 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
     opcodes opcodes;
     opcodes_init(&opcodes, bytecode.instructionsCount, pAllocator);
 
+    bool hasCalls = false;
+
+    for (uint32_t i = 0u; i < bytecode.instructionsCount; 
+        i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
+        if (bytecode.pInstructions[i == KETL_BYTECODE_CALL]) {
+            hasCalls = true;
+            break;
+        }
+    }
+
     uint32_t remainingPushArgCount = 0;
 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
@@ -55,8 +69,17 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
         switch (bytecode.pInstructions[i]) {
             case KETL_BYTECODE_STACK_PROLOG: {
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
+
+                {
+                    uint8_t opcodesArray[] =
+                    {
+                        0x55,                                                 // push rbp
+                        0x48, 0x89, 0xe5,                                     // mov  rbp, rsp
+                    };
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                }
                 
-                if (stackUsage > 0) {
+                if ((hasCalls && stackUsage > 0) || (!hasCalls && stackUsage <= 128)) {
                     uint8_t opcodesArray[] =
                     {
                         0x48, 0x81, 0xec, 0xff, 0xff, 0x00, 0x00,             // sub     rsp, 65535
@@ -84,9 +107,9 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 {
                     const uint8_t opcodesArray[] =
                     {
-                        0xff, 0x94, 0x24, 0xff, 0xff, 0x00, 0x00,           // call qword ptr [rsp + 65535]                          
+                        0xff, 0x95, 0xff, 0xff, 0x00, 0x00,           // call qword ptr [rbp + 65535]                          
                     };
-                    *(int32_t*)(opcodesArray + 3) = (int32_t)stackOffset;
+                    *(int32_t*)(opcodesArray + 2) = (int32_t)(0x100000000llu - stackOffset - TEMP_REPLACE_WITH_TYPE_SIZE);
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
@@ -94,13 +117,17 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
             }
             case KETL_BYTECODE_RETURN: {
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
-                if (stackUsage > 0) {
+                if ((hasCalls && stackUsage > 0) || (!hasCalls && stackUsage <= 128)) {
                     const uint8_t opcodesArray[] =
                     {
-                        0x48, 0x81, 0xc4, 0xff, 0xff, 0x00, 0x00,             // add     rsp, 65535
+                        0xc9,              //  leave
                     };
-                    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
-                    *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                } else {
+                    const uint8_t opcodesArray[] =
+                    {
+                        0x5d,              //  pop     rbp
+                    };
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }
 
@@ -115,13 +142,17 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
-                if (stackUsage > 0) {
+                if ((hasCalls && stackUsage > 0) || (!hasCalls && stackUsage <= 128)) {
                     const uint8_t opcodesArray[] =
                     {
-                        0x48, 0x81, 0xc4, 0xff, 0xff, 0x00, 0x00,             // add     rsp, 65535
+                        0xc9,              //  leave
                     };
-                    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
-                    *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                } else {
+                    const uint8_t opcodesArray[] =
+                    {
+                        0x5d,              //  pop     rbp
+                    };
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }
 

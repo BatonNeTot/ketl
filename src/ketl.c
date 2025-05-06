@@ -154,7 +154,23 @@ void ketl_state_destroy(ketl_state* pState) {
     for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
         operator_overloading_map_deinit(pState->amOperatorOverloading + i);
     }
+
+    KETL_HASH_MAP_FOREACH(function_types_map, function_parameters, ketl_type_function*, &pState->mFunctionTypes,
+        ketl_free(pState->pAllocator, __pBucket->value);    
+    );
     function_types_map_deinit(&pState->mFunctionTypes);
+
+#define FREE_PRIMITIVE_TYPE(_name)\
+do {\
+ketl_atomic_string sTypeName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
+ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sTypeName);\
+assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
+ketl_free(pState->pAllocator, pTypeNode->value.pType);\
+} while(0)
+
+    FREE_PRIMITIVE_TYPE("void");
+    FREE_PRIMITIVE_TYPE("i64");
+
     ketl_namespace_deinit(&pState->globalNamespace);
     ketl_atomic_strings_deinit(&pState->atomicStrings);
     ketl_gc_deinit(&pState->gc);
