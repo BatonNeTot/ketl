@@ -18,17 +18,13 @@ uint8_t ketl_bytecode_decode_instruction_length(ketl_bytecode_instr instruction)
         switch (instruction) {
             case KETL_BYTECODE_RETURN:
             return sizeof(ketl_bytecode_instr);
-            case KETL_BYTECODE_8LOAD_UCONST:
-            case KETL_BYTECODE_8LOAD_ICONST:
+            case KETL_BYTECODE_8LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint8_t);
-            case KETL_BYTECODE_16LOAD_UCONST:
-            case KETL_BYTECODE_16LOAD_ICONST:
+            case KETL_BYTECODE_16LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint16_t);
-            case KETL_BYTECODE_32LOAD_UCONST:
-            case KETL_BYTECODE_32LOAD_ICONST:
+            case KETL_BYTECODE_32LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint32_t);
-            case KETL_BYTECODE_64LOAD_UCONST:
-            case KETL_BYTECODE_64LOAD_ICONST:
+            case KETL_BYTECODE_64LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint64_t);
             default:
             return 0;
@@ -51,8 +47,9 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
         }
         case KETL_BYTECODE_CALL: {
-            return snprintf(buffer, bufferSize, "CALL %d", 
-            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
+            return snprintf(buffer, bufferSize, "CALL INTO %d: %d", 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
         case KETL_BYTECODE_RETURN: {
             return snprintf(buffer, bufferSize, "EPILOG %d, RETURN", 
@@ -66,51 +63,31 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
-        case KETL_BYTECODE_8LOAD_UCONST: {
+        case KETL_BYTECODE_8LOAD_CONST: {
             return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(uint8_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
-        case KETL_BYTECODE_16LOAD_UCONST: {
+        case KETL_BYTECODE_16LOAD_CONST: {
             return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(uint16_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
-        case KETL_BYTECODE_32LOAD_UCONST: {
+        case KETL_BYTECODE_32LOAD_CONST: {
             return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(uint32_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
-        case KETL_BYTECODE_64LOAD_UCONST: {
+        case KETL_BYTECODE_64LOAD_CONST: {
             return snprintf(buffer, bufferSize, "LOAD_CONST %d, %lld", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(uint64_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
-        }
-        case KETL_BYTECODE_8LOAD_ICONST: {
-            return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
-            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
-            *(int8_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
-        }
-        case KETL_BYTECODE_16LOAD_ICONST: {
-            return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
-            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
-            *(int16_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
-        }
-        case KETL_BYTECODE_32LOAD_ICONST: {
-            return snprintf(buffer, bufferSize, "LOAD_CONST %d, %d", 
-            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
-            *(int32_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
-        }
-        case KETL_BYTECODE_64LOAD_ICONST: {
-            return snprintf(buffer, bufferSize, "LOAD_CONST %d, %lld", 
-            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
-            *(int64_t*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
         }
         case KETL_BYTECODE_8UADD:
         case KETL_BYTECODE_16UADD:
         case KETL_BYTECODE_32UADD:
         case KETL_BYTECODE_64UADD: {
-            return snprintf(buffer, bufferSize, "UADD %d, %d, %d", 
+            return snprintf(buffer, bufferSize, "UADD INTO %d: %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
@@ -119,7 +96,7 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
         case KETL_BYTECODE_16IADD:
         case KETL_BYTECODE_32IADD:
         case KETL_BYTECODE_64IADD: {
-            return snprintf(buffer, bufferSize, "ADD %d, %d, %d", 
+            return snprintf(buffer, bufferSize, "ADD INTO %d: %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
@@ -128,7 +105,7 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
         case KETL_BYTECODE_16UMULTIPLY:
         case KETL_BYTECODE_32UMULTIPLY:
         case KETL_BYTECODE_64UMULTIPLY: {
-            return snprintf(buffer, bufferSize, "UMULTIPLY %d, %d, %d", 
+            return snprintf(buffer, bufferSize, "UMULTIPLY INTO %d: %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
@@ -137,7 +114,7 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
         case KETL_BYTECODE_16IMULTIPLY:
         case KETL_BYTECODE_32IMULTIPLY:
         case KETL_BYTECODE_64IMULTIPLY: {
-            return snprintf(buffer, bufferSize, "MULTIPLY %d, %d, %d", 
+            return snprintf(buffer, bufferSize, "MULTIPLY INTO %d: %d, %d", 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));

@@ -2,21 +2,23 @@
 #include "ketl/ketl.hpp"
 
 extern "C" {
-#include "containers/tree_map.h"
-
-#include "gc_memory.h"
 }
 
 #include <iostream>
+
+int64_t inc(int64_t val) {
+    return ++val;
+}
 
 int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
 
-    const char* source = "return test(2 + 3, 4 * 5, 3 + 4);";
-    
-    auto state = ketl_state_create(&ketl_default_allocator);
-    auto result = ketl_state_eval_int64(state, source, KETL_NULL_TERMINATED_LENGTH_32);
+    KETL::State ketl(&ketl_default_allocator);
+
+    ketl.defineFunction("inc", &inc);
+
+    const char* pSource = "return inc(2);";
+    auto result = ketl.eval(pSource);
     std::cout << "result = " << result << std::endl;
-    ketl_state_destroy(state);
 }

@@ -31,21 +31,23 @@ KETL_DEFINE(bytecoder_context) {
     ketl_bytecode_stack_offset usedStack;
 };
 
+#define PUSH_CONSTANT(instructions, value) (instructions_push_back_ref_n((instructions), (uint8_t*)&(value), sizeof(value)))
+
 static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* symbol) {
     switch(symbol[0]) {
         case '#': {
             ketl_atomic_string sIntTypeName = ketl_atomic_strings_get(&pContext->pState->atomicStrings, "i64", 3);
             ketl_namespace_node* pTypeNode = ketl_namespace_find(&pContext->pState->globalNamespace, sIntTypeName);
-            assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE);
+            assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
 
             int64_t value = strtoll(symbol + 1, NULL, 10);
 
             ketl_bytecode_stack_offset stackOffset = pContext->usedStack;
             pContext->usedStack = stackOffset + sizeof(value);
 
-            instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_ICONST);
-            instructions_push_back_ref_n(&pContext->vInstructions, (uint8_t*)&stackOffset, sizeof(stackOffset));
-            instructions_push_back_ref_n(&pContext->vInstructions, (uint8_t*)&value, sizeof(value));
+            instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_CONST);
+            PUSH_CONSTANT(&pContext->vInstructions, stackOffset);
+            PUSH_CONSTANT(&pContext->vInstructions, value);
             return (arg_info){
                 .pType = pTypeNode->value.pType,
                 .stackOffset = stackOffset
@@ -58,18 +60,48 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
             };
             variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, symbol, argInfo);
             if (bucket->value.stackOffset == argInfo.stackOffset) {
+                // TODO FIX take into account type size and alignment
                 pContext->usedStack += sizeof(int64_t);
             }
             return bucket->value;
         }
         default: {
             variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, symbol);
-            if (bucket == NULL) {
-                // TODO ERROR
-                printf("unknown variable %s\n", symbol);
-                assert(false);
+            if (bucket != NULL) {
+                return bucket->value;
             }
-            return bucket->value;
+
+            ketl_atomic_string sSymbol = ketl_atomic_strings_get(&pContext->pState->atomicStrings, symbol, KETL_NULL_TERMINATED_LENGTH_32);
+            ketl_namespace_node* pSymbolNode = ketl_namespace_find(&pContext->pState->globalNamespace, sSymbol);
+            if (pSymbolNode != NULL) {
+                KETL_FOREVER {
+                    if (pSymbolNode->value.type == KETL_NAMESPACE_VALUE_VAR) {
+                        arg_info argInfo = {
+                            .pType = pSymbolNode->value.var.pType,
+                            .stackOffset = pContext->usedStack
+                        };
+                        variables_get_or_insert_copy(&pContext->mVariables, symbol, argInfo);
+                        // TODO FIX take into account type size and alignment
+                        pContext->usedStack += sizeof(int64_t);
+
+                        // TODO FIX
+                        // get type size and use appropriate load global bytecode
+                        instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_CONST);
+                        PUSH_CONSTANT(&pContext->vInstructions, argInfo.stackOffset);
+                        PUSH_CONSTANT(&pContext->vInstructions, pSymbolNode->value.var.pValue);
+                        return argInfo;
+                    }
+
+                    if (pSymbolNode->nextOffset == (uint32_t)(-1)) {
+                        break;
+                    }
+                    pSymbolNode = pContext->pState->globalNamespace.vNodes.pData + pSymbolNode->nextOffset;
+                }
+            }
+
+            // TODO ERROR
+            printf("unknown variable %s\n", symbol);
+            assert(false);
         }
     }
     return (arg_info){
@@ -95,7 +127,7 @@ static operator_overloading_map_bucket* determine_operator_binary(bytecoder_cont
 static void add_footer(bytecoder_context* pContext, uint32_t stackReserveBackpatchOffset, ketl_bytecode_instr returnInstr) {
     ketl_bytecode_stack_offset stackReservedSize = pContext->usedStack;
     instructions_push_back_copy(&pContext->vInstructions, returnInstr);
-    instructions_push_back_ref_n(&pContext->vInstructions, (uint8_t*)&stackReservedSize, sizeof(stackReservedSize));
+    PUSH_CONSTANT(&pContext->vInstructions, stackReservedSize);
     *(ketl_bytecode_stack_offset*)(pContext->vInstructions.pData + stackReserveBackpatchOffset) = stackReservedSize;
 }
 
@@ -120,7 +152,7 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
     ketl_bytecode_stack_offset stackReserveDummy = 0;
     instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_STACK_PROLOG);
     uint32_t stackReserveBackpatchOffset = context.vInstructions.size;
-    instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&stackReserveDummy, sizeof(stackReserveDummy));
+    PUSH_CONSTANT(&context.vInstructions, stackReserveDummy);
 
     for (uint32_t i = 0u; i < ir.nodesCount; ++i) {
         ketl_ir_node node = ir.pNodes[i];
@@ -131,7 +163,7 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
                 // TODO FIX
                 // get type size and use appropriate push arg bytecode
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64PUSH_ARG);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
                 break;
             }
             case KETL_IR_TYPE_CALL: {
@@ -139,8 +171,8 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
                 arg_info arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[1]);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg1.stackOffset, sizeof(arg1.stackOffset));
+                PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, arg1.stackOffset);
                 break;
             }
             case KETL_IR_TYPE_RETURN: {
@@ -153,7 +185,7 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
                 // TODO FIX
                 // get type size and use appropriate return bytecode
                 add_footer(&context, stackReserveBackpatchOffset, KETL_BYTECODE_64RETURN);
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&arg0.stackOffset, sizeof(arg0.stackOffset));
+                PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
                 return create_bytecode_struct(&context);
             }
             case KETL_IR_TYPE_PLUS:
@@ -178,9 +210,9 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
                 
                 instructions_push_back_copy(&context.vInstructions, operatorBucket->value);
 
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&args[0].stackOffset, sizeof(args[0].stackOffset));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&args[1].stackOffset, sizeof(args[1].stackOffset));
-                instructions_push_back_ref_n(&context.vInstructions, (uint8_t*)&args[2].stackOffset, sizeof(args[2].stackOffset));
+                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
                 break;
             }
             default: {

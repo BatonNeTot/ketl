@@ -12,13 +12,18 @@ typedef uint8_t ketl_namespace_value_type;
 
 enum __KETL_NAMESPACE_VALUE_TYPE {
     KETL_NAMESPACE_VALUE_TYPE,
+    KETL_NAMESPACE_VALUE_VAR,
 };
 
 KETL_DEFINE(ketl_namespace_value) {
     ketl_namespace_value_type type;
-    // TODO some properties to fill in the aligment?
+    // TODO some properties to fill in the aligment gap?
     union {
         ketl_type* pType;
+        struct {
+            ketl_type* pType;
+            void* pValue;
+        } var;
     };
 };
 

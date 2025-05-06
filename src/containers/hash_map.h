@@ -129,6 +129,7 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
 		ppBuckets = ppNewBuckets;\
 \
         \
+        pMap->pFreeBucket = pBucketsBuffer + freeIndex;\
         --newCapacity;\
         for (; freeIndex < newCapacity; ++freeIndex) {\
             pBucketsBuffer[freeIndex].pNext = pBucketsBuffer + freeIndex + 1;\

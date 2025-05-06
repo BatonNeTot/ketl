@@ -86,7 +86,6 @@ KETL_DEFINE(SIBByte) {
 
 KETL_VECTOR_DECLARATION(opcodes, uint8_t)
 
-
 #define PUSH_OPCODE_REG_IMM(pOpcodes, sizeArg, opcodeArg, regArg, immArg) do {\
     x86_op_struct __tmpOpStruct;\
     __tmpOpStruct.size = (sizeArg);\

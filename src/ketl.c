@@ -162,6 +162,15 @@ void ketl_state_destroy(ketl_state* pState) {
     ketl_free(pState->pAllocator, pState);
 }
 
+void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t length, ketl_type* pType, void* pFunc) {
+    ketl_atomic_string sName = ketl_atomic_strings_get(&pState->atomicStrings, pName, length);
+    ketl_namespace_value namespaceValue = {
+        .type = KETL_NAMESPACE_VALUE_VAR,
+        .var = { pType, pFunc }
+    };
+    ketl_namespace_put(&pState->globalNamespace, sName, namespaceValue);
+}
+
 void ketl_state_eval(ketl_state* pState, const char* pSource, uint32_t length) {
     ketl_state_eval_int64(pState, pSource, length);
 }
