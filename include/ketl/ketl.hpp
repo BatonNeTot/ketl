@@ -29,8 +29,15 @@ namespace KETL {
 		State& operator=(State&& other) = delete;
 
 		template <class R, class... Args>
-		void defineFunction(const std::string_view& name, R (*pFunc)(Args...)) {
-			ketl_state_define_function(_pStateImpl, name.data(), name.length(), nullptr, reinterpret_cast<void*>(pFunc));
+		void defineCFunction(const std::string_view& name, R (*pFunc)(Args...)) {
+			ketl_type_parameter aParameters[] = {
+				ketl_type_parameter{__TypeHelper<R>::getType(_pStateImpl)}, (ketl_type_parameter{__TypeHelper<Args>::getType(_pStateImpl)})...
+			};
+			ketl_function_parameters funcParameters = {
+				aParameters, 1 + sizeof...(Args)
+			};
+			ketl_type* pFuncType = ketl_state_get_cfunction_type(_pStateImpl, &funcParameters);
+			ketl_state_define_function(_pStateImpl, name.data(), name.length(), pFuncType, reinterpret_cast<void*>(pFunc));
 		}
 
 		int64_t eval(const std::string_view& source) {
@@ -39,6 +46,16 @@ namespace KETL {
 
 	private:
 		ketl_state* _pStateImpl;
+
+		template <class T>
+		struct __TypeHelper;
+
+		template <>
+		struct __TypeHelper<int64_t> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_i64(pState);
+			}
+		};
 	};
 
 }

@@ -44,9 +44,33 @@ static uint32_t countPushArgs(ketl_bytecode bytecode, uint32_t initialIndex) {
 
 #define IMM_ARG(type, offset) (*(type*)(bytecode.pInstructions + i + sizeof(ketl_bytecode_instr) + (offset) * sizeof(ketl_bytecode_stack_offset)))
 
+#define PREALLOCATION_CALL_REG_PARAMS_SPACE (8 * (sizeof(aParameterRegs) / sizeof(*aParameterRegs)))
+#define SHADOW_STACK_SPACE 8 // I'm not sure about it, I came to this during msvc disasm study
+
+#define NEED_STACK_ALLOC(stackUsage, hasCalls) (hasCalls || stackUsage > 0)
+
+#define ADAPT_STACK_USAGE(stackUsage, hasCalls)\
+do {\
+    if (hasCalls) {\
+        stackUsage += PREALLOCATION_CALL_REG_PARAMS_SPACE;\
+    }\
+    stackUsage = KETL_ALIGN_FORWARD(stackUsage, 16); /* 16 bites aligned */\
+    stackUsage += SHADOW_STACK_SPACE; /* add shadow space AFTER alignment */\
+} while(false)
+
 uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* pAllocator) {
     opcodes opcodes;
     opcodes_init(&opcodes, bytecode.instructionsCount, pAllocator);
+
+    bool hasCalls = false;
+
+    for (uint32_t i = 0u; i < bytecode.instructionsCount; 
+        i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
+        if (bytecode.pInstructions[i == KETL_BYTECODE_CALL]) {
+            hasCalls = true;
+            break;
+        }
+    }
 
     uint32_t remainingPushArgCount = 0;
 
@@ -56,12 +80,12 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
             case KETL_BYTECODE_STACK_PROLOG: {
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
                 
-                if (stackUsage > 0) {
+                if (NEED_STACK_ALLOC(stackUsage, hasCalls)) {
                     uint8_t opcodesArray[] =
                     {
                         0x48, 0x81, 0xec, 0xff, 0xff, 0x00, 0x00,             // sub     rsp, 65535
                     };
-                    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
+                    ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }
@@ -94,12 +118,12 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
             }
             case KETL_BYTECODE_RETURN: {
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
-                if (stackUsage > 0) {
+                if (NEED_STACK_ALLOC(stackUsage, hasCalls)) {
                     const uint8_t opcodesArray[] =
                     {
                         0x48, 0x81, 0xc4, 0xff, 0xff, 0x00, 0x00,             // add     rsp, 65535
                     };
-                    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
+                    ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }
@@ -115,12 +139,12 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 
                 ketl_bytecode_stack_offset stackUsage = IMM_ARG(ketl_bytecode_stack_offset, 0);
-                if (stackUsage > 0) {
+                if (NEED_STACK_ALLOC(stackUsage, hasCalls)) {
                     const uint8_t opcodesArray[] =
                     {
                         0x48, 0x81, 0xc4, 0xff, 0xff, 0x00, 0x00,             // add     rsp, 65535
                     };
-                    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
+                    ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }

@@ -14,7 +14,7 @@
 
 #define FUNC_SIGNATURE_HASH(key) func_signature_hash(&(key))
 
-static uint64_t func_signature_hash(const function_parameters* pParameters) {
+static uint64_t func_signature_hash(const ketl_function_parameters* pParameters) {
     uint64_t hash = 0u;
     uint16_t parametersCount = pParameters->parametersCount;
     for (uint16_t i = 0u; i < parametersCount; ++i) {
@@ -25,7 +25,7 @@ static uint64_t func_signature_hash(const function_parameters* pParameters) {
 
 #define IS_FUNC_SIGNATURES_EQUAL(lhsKey, rhsKey) is_func_signatures_equal(&(lhsKey), &(rhsKey))
 
-static bool is_func_signatures_equal(const function_parameters* pLhsParameters, const function_parameters* pRhsParameters) {
+static bool is_func_signatures_equal(const ketl_function_parameters* pLhsParameters, const ketl_function_parameters* pRhsParameters) {
     if (pLhsParameters->parametersCount != pRhsParameters->parametersCount) {
         return false;
     }
@@ -40,7 +40,7 @@ static bool is_func_signatures_equal(const function_parameters* pLhsParameters, 
 
 #define FUNC_PARAMETERS_HASH(key) func_parameters_hash(&(key))
 
-static uint64_t func_parameters_hash(const function_parameters* pParameters) {
+static uint64_t func_parameters_hash(const ketl_function_parameters* pParameters) {
     uint64_t hash = 0u;
     uint16_t parametersCount = pParameters->parametersCount;
     // first is return type, ignore it for parameters
@@ -52,7 +52,7 @@ static uint64_t func_parameters_hash(const function_parameters* pParameters) {
 
 #define IS_FUNC_PARAMETERS_EQUAL(lhsKey, rhsKey) is_func_parameters_equal(&(lhsKey), &(rhsKey))
 
-static bool is_func_parameters_equal(const function_parameters* pLhsParameters, const function_parameters* pRhsParameters) {
+static bool is_func_parameters_equal(const ketl_function_parameters* pLhsParameters, const ketl_function_parameters* pRhsParameters) {
     if (pLhsParameters->parametersCount != pRhsParameters->parametersCount) {
         return false;
     }
@@ -66,30 +66,47 @@ static bool is_func_parameters_equal(const function_parameters* pLhsParameters, 
     return true;
 }
 
-KETL_HASH_MAP_DEFINITION(function_types_map, function_parameters, ketl_type_function*, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
+KETL_HASH_MAP_DEFINITION(function_types_map, ketl_function_parameters, function_type_composite, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
 
 KETL_VECTOR_DEFINITION(types, ketl_type*)
 
-KETL_HASH_MAP_DEFINITION(operator_overloading_map, function_parameters, ketl_bytecode_instr, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
+KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
-static ketl_type_function* get_function_type(ketl_state* pState, const function_parameters* pParameters) {
+static const function_type_composite* get_function_type_composite(ketl_state* pState, const ketl_function_parameters* pParameters) {
     uint16_t parametersCount = pParameters->parametersCount;
-    function_types_map_bucket* pBucket = function_types_map_get_or_insert_copy(&pState->mFunctionTypes, *pParameters, NULL);
-    if (pBucket->value == NULL) {
-        ketl_type_function* pFunction = ketl_alloc(pState->pAllocator, sizeof(ketl_type_function) + parametersCount * sizeof(ketl_type_parameter));
-        *pFunction = (ketl_type_function){
-            .sName = KETL_ATOMIC_STRING_EMPTY,
+    function_types_map_bucket* pBucket = function_types_map_get_or_insert_copy(&pState->mFunctionTypes, *pParameters, (function_type_composite){NULL, NULL, NULL});
+    if (pBucket->value.pSignature == NULL) {
+        uint64_t signatureSize = sizeof(ketl_type_signature) + parametersCount * sizeof(ketl_type_parameter);
+        uint64_t functionsOffset = KETL_ALIGN_FORWARD(signatureSize, _Alignof(ketl_type_function));
+        uint64_t totalAllocSize = functionsOffset + 2 * sizeof(ketl_type_function);
+        void* pAllocMem = ketl_alloc(pState->pAllocator, totalAllocSize);
+
+        ketl_type_signature* pSignature = pAllocMem;
+        *pSignature = (ketl_type_signature){
+            .parametersCount = parametersCount
+        };
+        ketl_memcpy(pSignature->aParameters, pParameters->pParameters, parametersCount * sizeof(ketl_type_parameter));
+
+        pBucket->key.pParameters = pSignature->aParameters;
+        pBucket->value.pSignature = pSignature;
+
+        ketl_type_function* pFuncTypes = (ketl_type_function*)((char*)pAllocMem + functionsOffset);
+        *pFuncTypes = (ketl_type_function){
             .type = KETL_TYPE_FUNCTION,
             .align = _Alignof(void(*)(void)),
             .size = sizeof(void(*)(void)),
-            .parametersCount = parametersCount
+            .pTypeSignature = pSignature
         };
-        ketl_memcpy(pFunction->aParameters, pParameters->pParameters, parametersCount * sizeof(ketl_type_parameter));
-
-        pBucket->key.pParameters = pFunction->aParameters;
-        pBucket->value = pFunction;
+        *(pFuncTypes + 1) = (ketl_type_function){
+            .type = KETL_TYPE_CFUNCTION,
+            .align = _Alignof(void(*)(void)),
+            .size = sizeof(void(*)(void)),
+            .pTypeSignature = pSignature
+        };
+        pBucket->value.pFuncType = pFuncTypes;
+        pBucket->value.pCFuncType = pFuncTypes + 1;
     }
-    return pBucket->value;
+    return &pBucket->value;
 }
 
 ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
@@ -133,13 +150,13 @@ ketl_namespace_put(&pState->globalNamespace, sName, namespaceValue);\
 #define REGISTER_BINARY_OPERATOR(_operatorIr, _argType, _returnType, _bytecode)\
 do {\
     ketl_type_parameter parametersArray[] = { {.pType = _returnType}, {.pType = _argType}, {.pType = _argType} };\
-    function_parameters parameters = {\
+    ketl_function_parameters parameters = {\
         .pParameters = parametersArray,\
         .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)\
     };\
 \
-    ketl_type_function* pFunctionType = get_function_type(pState, &parameters);\
-    parameters.pParameters = pFunctionType->aParameters;\
+    const function_type_composite* pFuncTypeComposite = get_function_type_composite(pState, &parameters);\
+    parameters.pParameters = pFuncTypeComposite->pSignature->aParameters;\
 \
     operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (_operatorIr - KETL_IR_FIRST_OPERATOR), parameters, _bytecode);\
 } while (false)
@@ -156,7 +173,7 @@ void ketl_state_destroy(ketl_state* pState) {
     }
 
     KETL_HASH_MAP_FOREACH(function_types_map, function_parameters, ketl_type_function*, &pState->mFunctionTypes,
-        ketl_free(pState->pAllocator, __pBucket->value);    
+        ketl_free(pState->pAllocator, __pBucket->value.pSignature);    
     );
     function_types_map_deinit(&pState->mFunctionTypes);
 
@@ -176,6 +193,29 @@ ketl_free(pState->pAllocator, pTypeNode->value.pType);\
     ketl_gc_deinit(&pState->gc);
 
     ketl_free(pState->pAllocator, pState);
+}
+
+// TODO FIX might be called often, replace allocation on heap with field in ketl_state
+ketl_type* ketl_state_get_void(ketl_state* pState) {
+    ketl_atomic_string sVoidTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "void", 4);
+    ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sVoidTypeName);
+    assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
+    return pTypeNode->value.pType;
+}
+
+ketl_type* ketl_state_get_i64(ketl_state* pState) {
+    ketl_atomic_string sIntTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "i64", 3);
+    ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sIntTypeName);
+    assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
+    return pTypeNode->value.pType;
+}
+
+ketl_type* ketl_state_get_function_type(ketl_state* pState, const ketl_function_parameters* pParameters) {
+    return (ketl_type*)get_function_type_composite(pState, pParameters)->pFuncType;
+}
+
+ketl_type* ketl_state_get_cfunction_type(ketl_state* pState, const ketl_function_parameters* pParameters) {
+    return (ketl_type*)get_function_type_composite(pState, pParameters)->pCFuncType;
 }
 
 void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t length, ketl_type* pType, void* pFunc) {

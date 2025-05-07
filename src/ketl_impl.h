@@ -12,16 +12,17 @@
 #include "containers/vector.h"
 #include "containers/hash_map.h"
 
-KETL_DEFINE(function_parameters) {
-    ketl_type_parameter* pParameters;
-    uint16_t parametersCount;
+KETL_DEFINE(function_type_composite) {
+    ketl_type_signature* pSignature;
+    ketl_type_function* pFuncType;
+    ketl_type_function* pCFuncType;
 };
 
-KETL_HASH_MAP_DECLARATION(function_types_map, function_parameters, ketl_type_function*)
+KETL_HASH_MAP_DECLARATION(function_types_map, ketl_function_parameters, function_type_composite)
 
 KETL_VECTOR_DECLARATION(types, ketl_type*)
 
-KETL_HASH_MAP_DECLARATION(operator_overloading_map, function_parameters, ketl_bytecode_instr)
+KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr)
 
 KETL_DEFINE(ketl_state) {
     const ketl_allocator* pAllocator;

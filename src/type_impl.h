@@ -13,7 +13,6 @@ KETL_TYPE_CFUNCTION,
 };
 
 #define KETL_TYPE_BODY \
-ketl_atomic_string sName;\
 uint8_t type;\
 uint8_t align;\
 uint16_t size
@@ -24,19 +23,20 @@ KETL_DEFINE(ketl_type) {
 
 KETL_DEFINE(ketl_type_primitive) {
     KETL_TYPE_BODY;
+    ketl_atomic_string sName;
     bool isInteger;
     bool isSigned;
 };
 
-KETL_DEFINE(ketl_type_parameter) {
-	ketl_type* pType;
+KETL_DEFINE(ketl_type_signature) {
+    uint16_t parametersCount;
+	//ketl_type* pReturnType; return type is first parameter for now
+    ketl_type_parameter aParameters[0];
 };
 
 KETL_DEFINE(ketl_type_function) {
     KETL_TYPE_BODY;
-    uint16_t parametersCount;
-	//ketl_type* pReturnType; return type is first parameter for now
-    ketl_type_parameter aParameters[0];
+    ketl_type_signature* pTypeSignature;
 };
 
 

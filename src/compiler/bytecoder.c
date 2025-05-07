@@ -36,9 +36,7 @@ KETL_DEFINE(bytecoder_context) {
 static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* symbol) {
     switch(symbol[0]) {
         case '#': {
-            ketl_atomic_string sIntTypeName = ketl_atomic_strings_get(&pContext->pState->atomicStrings, "i64", 3);
-            ketl_namespace_node* pTypeNode = ketl_namespace_find(&pContext->pState->globalNamespace, sIntTypeName);
-            assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
+            ketl_type* pIntType = ketl_state_get_i64(pContext->pState);
 
             int64_t value = strtoll(symbol + 1, NULL, 10);
 
@@ -49,7 +47,7 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
             PUSH_CONSTANT(&pContext->vInstructions, stackOffset);
             PUSH_CONSTANT(&pContext->vInstructions, value);
             return (arg_info){
-                .pType = pTypeNode->value.pType,
+                .pType = pIntType,
                 .stackOffset = stackOffset
             };
         }
@@ -116,7 +114,7 @@ static operator_overloading_map_bucket* determine_operator_binary(bytecoder_cont
 
     // first type is return type, ignored during search
     ketl_type_parameter parametersArray[] = { {.pType = NULL}, {.pType = args[0].pType}, {.pType = args[1].pType} };
-    function_parameters parameters = {
+    ketl_function_parameters parameters = {
         .pParameters = parametersArray,
         .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)
     };
@@ -169,6 +167,9 @@ ketl_bytecode ketl_bytecode_compile(ketl_state* pState, ketl_ir ir, const ketl_a
             case KETL_IR_TYPE_CALL: {
                 arg_info arg0 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[0]);
                 arg_info arg1 = get_arg_stack_offset(&context, ir.pSymbols + node.aArgs[1]);
+
+                // TODO FIX allow other types to be called
+                assert(arg1.pType->type == KETL_TYPE_CFUNCTION);
 
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
                 PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
