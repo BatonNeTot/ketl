@@ -12,6 +12,18 @@ extern "C" {
 
 namespace KETL {
 
+	namespace {
+		template <class T>
+		struct __TypeHelper;
+
+		template <>
+		struct __TypeHelper<int64_t> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_i64(pState);
+			}
+		};
+	}
+
 	class State {
 	public:
 
@@ -46,16 +58,6 @@ namespace KETL {
 
 	private:
 		ketl_state* _pStateImpl;
-
-		template <class T>
-		struct __TypeHelper;
-
-		template <>
-		struct __TypeHelper<int64_t> {
-			static ketl_type* getType(ketl_state* pState) {
-				return ketl_state_get_i64(pState);
-			}
-		};
 	};
 
 }
