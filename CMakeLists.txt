@@ -39,7 +39,7 @@ endif()
 if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
-    add_compile_options(-Wall -Wextra -Werror -pedantic -Wno-gnu)
+    add_compile_options(-Wall -Wextra -Werror -pedantic)
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
         add_compile_options(-fsanitize=address)
@@ -68,6 +68,8 @@ endif()
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")
 target_include_directories(${PROJECT_TARGET} PRIVATE "src" ${PROJECT_GEN_OUTPUT_DIR})
+
+##################################
 
 set(PROJECT_EXE_TARGET "${PROJECT_TARGET}_exe")
 

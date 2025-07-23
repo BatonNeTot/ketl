@@ -16,11 +16,11 @@ void ketl_namespace_deinit(ketl_namespace* pNamespace) {
 
 //void ketl_namespace_copy(ketl_namespace* pDstNamespace, ketl_namespace* pSrcNamespace);
 
-void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_namespace_value value) {
+void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_variable variable) {
     // TODO insert into vector uninitialized or something
     ketl_namespace_node newNode = {
         .nextOffset = (uint32_t)(-1),
-        .value = value
+        .variable = variable
     };
     uint32_t newNodeOffset = pNamespace->vNodes.size;
     namespace_nodes_push_back_ref(&pNamespace->vNodes, &newNode);

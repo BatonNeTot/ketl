@@ -4,32 +4,14 @@
 
 #include "ketl/type.h"
 
+#include "variable.h"
 #include "atomic_strings.h"
 
 #include "ketl/utils.h"
 
-typedef uint8_t ketl_namespace_value_type;
-
-enum __KETL_NAMESPACE_VALUE_TYPE {
-    KETL_NAMESPACE_VALUE_TYPE,
-    KETL_NAMESPACE_VALUE_VAR,
-};
-
-KETL_DEFINE(ketl_namespace_value) {
-    ketl_namespace_value_type type;
-    // TODO some properties to fill in the aligment gap?
-    union {
-        ketl_type* pType;
-        struct {
-            ketl_type* pType;
-            void* pValue;
-        } var;
-    };
-};
-
 KETL_DEFINE(ketl_namespace_node) {
     uint32_t nextOffset;
-    ketl_namespace_value value;
+    ketl_variable variable;
 };
 
 KETL_VECTOR_DECLARATION(namespace_nodes, ketl_namespace_node)
@@ -46,7 +28,7 @@ void ketl_namespace_deinit(ketl_namespace* pNamespace);
 
 void ketl_namespace_copy(ketl_namespace* pDstNamespace, ketl_namespace* pSrcNamespace);
 
-void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_namespace_value value);
+void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_variable variable);
 
 ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic_string sKey);
 

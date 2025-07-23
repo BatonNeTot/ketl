@@ -20,6 +20,11 @@ KETL_DEFINE(arg_info) {
     ketl_bytecode_stack_offset stackOffset;
 };
 
+KETL_DEFINE(undefined_value) {
+    ketl_variable* pValue;
+    undefined_value* pNextValue;
+};
+
 KETL_HASH_MAP_DECLARATION(variables, const char*, arg_info)
 KETL_HASH_MAP_DEFINITION(variables, const char*, arg_info, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
 
@@ -33,12 +38,30 @@ KETL_DEFINE(bytecoder_context) {
 
 #define PUSH_CONSTANT(instructions, value) (instructions_push_back_ref_n((instructions), (uint8_t*)&(value), sizeof(value)))
 
-static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* symbol) {
-    switch(symbol[0]) {
+static arg_info push_value_as_arg(bytecoder_context* pContext, const char* pSymbol, ketl_variable* pValue) {
+    arg_info argInfo = {
+        .pType = pValue->pType,
+        .stackOffset = pContext->usedStack
+    };
+    variables_get_or_insert_copy(&pContext->mVariables, pSymbol, argInfo);
+    // TODO FIX take into account type size and alignment
+    pContext->usedStack += sizeof(int64_t);
+
+    // TODO FIX
+    // get type size and use appropriate load global bytecode
+    instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_CONST);
+    PUSH_CONSTANT(&pContext->vInstructions, argInfo.stackOffset);
+    PUSH_CONSTANT(&pContext->vInstructions, pValue->pointer);
+    return argInfo;
+}
+
+static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* pSymbol) {
+    switch(pSymbol[0]) {
+        // int literal
         case '#': {
             ketl_type* pIntType = ketl_state_get_i64(pContext->pState);
 
-            int64_t value = strtoll(symbol + 1, NULL, 10);
+            int64_t value = strtoll(pSymbol + 1, NULL, 10);
 
             ketl_bytecode_stack_offset stackOffset = pContext->usedStack;
             pContext->usedStack = stackOffset + sizeof(value);
@@ -51,43 +74,33 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
                 .stackOffset = stackOffset
             };
         }
+        // temprorary variable
         case '~': {
             arg_info argInfo = {
                 .pType = NULL,
                 .stackOffset = pContext->usedStack
             };
-            variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, symbol, argInfo);
+            variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, pSymbol, argInfo);
             if (bucket->value.stackOffset == argInfo.stackOffset) {
                 // TODO FIX take into account type size and alignment
                 pContext->usedStack += sizeof(int64_t);
             }
             return bucket->value;
         }
+        // local or global variable
+        // might be existing temporart variable
         default: {
-            variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, symbol);
+            variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, pSymbol);
             if (bucket != NULL) {
                 return bucket->value;
             }
 
-            ketl_atomic_string sSymbol = ketl_atomic_strings_get(&pContext->pState->atomicStrings, symbol, KETL_NULL_TERMINATED_LENGTH_32);
+            ketl_atomic_string sSymbol = ketl_atomic_strings_get(&pContext->pState->atomicStrings, pSymbol, KETL_NULL_TERMINATED_LENGTH_32);
             ketl_namespace_node* pSymbolNode = ketl_namespace_find(&pContext->pState->globalNamespace, sSymbol);
             if (pSymbolNode != NULL) {
                 KETL_FOREVER {
-                    if (pSymbolNode->value.type == KETL_NAMESPACE_VALUE_VAR) {
-                        arg_info argInfo = {
-                            .pType = pSymbolNode->value.var.pType,
-                            .stackOffset = pContext->usedStack
-                        };
-                        variables_get_or_insert_copy(&pContext->mVariables, symbol, argInfo);
-                        // TODO FIX take into account type size and alignment
-                        pContext->usedStack += sizeof(int64_t);
-
-                        // TODO FIX
-                        // get type size and use appropriate load global bytecode
-                        instructions_push_back_copy(&pContext->vInstructions, KETL_BYTECODE_64LOAD_CONST);
-                        PUSH_CONSTANT(&pContext->vInstructions, argInfo.stackOffset);
-                        PUSH_CONSTANT(&pContext->vInstructions, pSymbolNode->value.var.pValue);
-                        return argInfo;
+                    if (pSymbolNode->variable.type != KETL_VARIABLE_TYPE) {
+                        return push_value_as_arg(pContext, pSymbol, &pSymbolNode->variable);
                     }
 
                     if (pSymbolNode->nextOffset == (uint32_t)(-1)) {
@@ -98,7 +111,7 @@ static arg_info get_arg_stack_offset(bytecoder_context* pContext, const char* sy
             }
 
             // TODO ERROR
-            printf("unknown variable %s\n", symbol);
+            printf("unknown variable %s\n", pSymbol);
             assert(false);
         }
     }

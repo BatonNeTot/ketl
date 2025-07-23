@@ -31,7 +31,7 @@ KETL_DEFINE(ketl_type_primitive) {
 KETL_DEFINE(ketl_type_signature) {
     uint16_t parametersCount;
 	//ketl_type* pReturnType; return type is first parameter for now
-    ketl_type_parameter aParameters[0];
+    ketl_type_parameter aParameters[]; // size of 'parametersCount'
 };
 
 KETL_DEFINE(ketl_type_function) {

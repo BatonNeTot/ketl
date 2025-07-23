@@ -137,11 +137,12 @@ INIT_TYPE(_varName, ketl_type_primitive) {\
         .isInteger = _isInteger,\
         .isSigned = _isSigned,\
         };\
-ketl_namespace_value namespaceValue = {\
-    .type = KETL_NAMESPACE_VALUE_TYPE,\
-    .pType = _varName,\
+ketl_variable namespaceVariable = {\
+    .type = KETL_VARIABLE_TYPE,\
+    .pType = NULL,\
+    .pointer = _varName,\
 };\
-ketl_namespace_put(&pState->globalNamespace, sName, namespaceValue);\
+ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);\
 } while(0)
 
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
@@ -181,8 +182,8 @@ void ketl_state_destroy(ketl_state* pState) {
 do {\
 ketl_atomic_string sTypeName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
 ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sTypeName);\
-assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
-ketl_free(pState->pAllocator, pTypeNode->value.pType);\
+assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
+ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 } while(0)
 
     FREE_PRIMITIVE_TYPE("void");
@@ -199,15 +200,15 @@ ketl_free(pState->pAllocator, pTypeNode->value.pType);\
 ketl_type* ketl_state_get_void(ketl_state* pState) {
     ketl_atomic_string sVoidTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "void", 4);
     ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sVoidTypeName);
-    assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
-    return pTypeNode->value.pType;
+    assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
+    return pTypeNode->variable.pointer;
 }
 
 ketl_type* ketl_state_get_i64(ketl_state* pState) {
     ketl_atomic_string sIntTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "i64", 3);
     ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sIntTypeName);
-    assert(pTypeNode->value.type == KETL_NAMESPACE_VALUE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
-    return pTypeNode->value.pType;
+    assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
+    return pTypeNode->variable.pointer;
 }
 
 ketl_type* ketl_state_get_function_type(ketl_state* pState, const ketl_function_parameters* pParameters) {
@@ -220,11 +221,12 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* pState, const ketl_function
 
 void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t length, ketl_type* pType, void* pFunc) {
     ketl_atomic_string sName = ketl_atomic_strings_get(&pState->atomicStrings, pName, length);
-    ketl_namespace_value namespaceValue = {
-        .type = KETL_NAMESPACE_VALUE_VAR,
-        .var = { pType, pFunc }
+    ketl_variable namespaceVariable = {
+        .type = KETL_VARIABLE_POINTER,
+        .pType = pType,
+        .pointer = pFunc,
     };
-    ketl_namespace_put(&pState->globalNamespace, sName, namespaceValue);
+    ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);
 }
 
 void ketl_state_eval(ketl_state* pState, const char* pSource, uint32_t length) {

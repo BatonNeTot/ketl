@@ -4,7 +4,6 @@
 
 #include "ketl/memory.h"
 #include "ketl/type.h"
-#include "ketl/variable.h"
 #include "ketl/function.h"
 
 #include "ketl/utils.h"
