@@ -2,12 +2,13 @@
 #ifndef ketl_compiler_parser_h
 #define ketl_compiler_parser_h
 
-#include "compiler/ir.h"
+#include "compiler/hir.h"
 
 #include "ketl/memory.h"
 #include "ketl/utils.h"
 
+KETL_FORWARD(ketl_state);
 
-ketl_ir ketl_parser_parser(const char* pSource, uint32_t length, const ketl_allocator* pAllocator);
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_source, uint32_t length, const ketl_allocator* p_allocator);
 
 #endif // ketl_compiler_parser_h

@@ -1,8 +1,5 @@
-import sys
-from string import Template
 from inspect import isclass
 from enum import Enum
-import os
 from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR 
 
 class record(object):
@@ -638,61 +635,5 @@ class Parser:
 		print(*(state.index for state in stack))
 
 
-from lexgen import Tokens
-
-if __name__ == '__main__':
-	templateFilename = sys.argv[1]
-	outputFilename = sys.argv[2]
-
-	templateSrc = ''
-	with open(templateFilename, 'r') as templateFile:
-		templateSrc = templateFile.read()
-
-	templatingMapping = Model([
-			Prod('statements', [ Nonterm('statement'), Nonterm("statements") ]),
-			Prod('statements', []),
-			Prod('block', [ Term('CURLY_LEFT'), Nonterm("statements"), Term("CURLY_RIGHT") ]),
-
-			Prod('statement', [ Nonterm('expr'), Term("TERMINATION_CHARACTER") ]),
-			Prod('statement', [ Term('RETURN'), Term("TERMINATION_CHARACTER") ],
-				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_RETURN, 0, 0, 0, 0);"),
-			Prod('statement', [ Term('RETURN'), Nonterm('expr'), Term("TERMINATION_CHARACTER") ],
-				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_RETURN_VALUE, STACK_TOP(2).result, 0, 0, 0);"),
-
-			Prod('expr', [ Term("PARENTHESIS_LEFT"), Nonterm('expr'), Term("PARENTHESIS_RIGHT") ],	
-				action="result = STACK_TOP(2).result;"),
-			Prod('expr', [ Term("ID") ],				
-				action="result = PUSH_TOP_LITERAL_ID();"),
-			Prod('expr', [ Term("LITERAL_INTEGER") ],				
-				action="result = PUSH_TOP_LITERAL_NUMBER();"),
-
-			Prod('call_args_tail', [ Term("COMMA"), Nonterm('expr'), Nonterm('call_args_tail') ],	
-				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_PUSH_ARGUMENT, STACK_TOP(2).result, 0, 0, 0);"),
-			Prod('call_args_tail', []),
-			Prod('call_args', [ Nonterm('expr'), Nonterm('call_args_tail') ],	
-				action="result = PUSH_NODE_AND_RETURN(KETL_IR_TYPE_PUSH_ARGUMENT, STACK_TOP(2).result, 0, 0, 0);"),
-			Prod('call_args', []),
-			Prod('expr', [ Nonterm('expr'), Term("PARENTHESIS_LEFT"), Nonterm('call_args'), Term('PARENTHESIS_RIGHT') ],	
-				operatorPrecedence=0,	
-				action="result = PUSH_NODE_WTIH_TEMP_VAR(KETL_IR_TYPE_CALL, STACK_TOP(4).result, 0);"),
-				
-			Prod('expr', [ Nonterm('expr'), Term("MULTIPLY"), Nonterm('expr') ],	
-				operatorPrecedence=1,	
-				action="result = PUSH_NODE_WTIH_TEMP_VAR(KETL_IR_TYPE_MULTIPLY, STACK_TOP(3).result, STACK_TOP(1).result);"),
-			Prod('expr', [ Nonterm('expr'), Term("PLUS"), Nonterm('expr') ],	
-				operatorPrecedence=2,	
-				action="result = PUSH_NODE_WTIH_TEMP_VAR(KETL_IR_TYPE_PLUS, STACK_TOP(3).result, STACK_TOP(1).result);"),
-		], Tokens, 
-		['ltr', 'ltr', 'ltr'],
-		
-		).getCTemplateMapping()
-
-	templateSrc = Template(templateSrc).substitute(templatingMapping)
-
-	if os.path.isfile(outputFilename):
-		os.chmod(outputFilename, S_IWUSR|S_IREAD)
-	with open(outputFilename, 'w') as outputFile:
-		outputFile.write(templateSrc)
-	os.chmod(outputFilename, S_IREAD|S_IRGRP|S_IROTH)
 
 	

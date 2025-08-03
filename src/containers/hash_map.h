@@ -169,7 +169,7 @@ void KETL_CONCAT(name,_erase)(name* pMap, KETL_CONCAT(name,_bucket)* pBucket) {\
     }\
 }\
 
-#define KETL_HASH_MAP_FOREACH(name, kType, vType, pMap, runnable)\
+#define KETL_HASH_MAP_FOREACH(name, pMap, runnable)\
 do {\
     name* __pMap = (pMap);\
     uint32_t __capacity = ketl_prime_capacities[__pMap->capacityIndex];\

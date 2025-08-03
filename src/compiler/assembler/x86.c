@@ -52,9 +52,9 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     }
     
-    switch (pOpStruct->firstArgType) {
+    KETL_SWITCH_STRICT (pOpStruct->firstArgType) {
     case KETL_ARG_REG:
-        switch (pOpStruct->secondArgType) {
+        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
         case KETL_ARG_REG_MEM:
         case KETL_ARG_RSP_MEM_DISP:
@@ -123,7 +123,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                 pOpStruct->firstArg -= KETL_REG_R8;
                 ((REXByte*)(pOpcodes->pData + rexOffset))->r = 1;
             }
-            switch (pOpStruct->size) {
+            KETL_SWITCH_STRICT (pOpStruct->size) {
             case KETL_SIZE_8B: {
                 uint8_t secondArg = pOpStruct->secondArg;
                 opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
@@ -144,7 +144,6 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                 opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
-            KETL_NODEFAULT()
             }
             return;
         case KETL_ARG_IMM_MEM:
@@ -161,13 +160,12 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                 push_mov(pOpcodes, pOpStruct);
             }
             return;
-        KETL_NODEFAULT()
         return;
         }
     case KETL_ARG_REG_MEM:
     case KETL_ARG_RSP_MEM_DISP:
     case KETL_ARG_RBP_MEM_DISP:
-        switch (pOpStruct->secondArgType) {
+        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
                 opcodes_push_back_copy(pOpcodes, 0x88);
@@ -213,11 +211,10 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                 opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             }
             return;
-        KETL_NODEFAULT()
         return;
         }
     case KETL_ARG_IMM_MEM:
-        switch (pOpStruct->secondArgType) {
+        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
                 opcodes_push_back_copy(pOpcodes, 0xa2);
@@ -232,10 +229,8 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                 push_mov(pOpcodes, pOpStruct);
             }
             return;
-        KETL_NODEFAULT()
         return;
         }
-    KETL_NODEFAULT()
     return;
     }
 }

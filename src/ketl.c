@@ -120,8 +120,8 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
     ketl_namespace_init(&pState->globalNamespace, pAllocator);
     function_types_map_init(&pState->mFunctionTypes, pAllocator);
 
-    for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
-        operator_overloading_map_init(pState->amOperatorOverloading + i, pAllocator);
+    for (uint32_t i = 0; i < KETL_ARRAY_SIZE(pState->amHIROperatorOverloading); ++i) {
+        operator_overloading_map_init(pState->amHIROperatorOverloading + i, pAllocator);
     }
 
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
@@ -148,7 +148,7 @@ ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);\
     CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
 
-#define REGISTER_BINARY_OPERATOR(_operatorIr, _argType, _returnType, _bytecode)\
+#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _argType, _returnType, _hir_tag_typed_op)\
 do {\
     ketl_type_parameter parametersArray[] = { {.pType = _returnType}, {.pType = _argType}, {.pType = _argType} };\
     ketl_function_parameters parameters = {\
@@ -159,21 +159,21 @@ do {\
     const function_type_composite* pFuncTypeComposite = get_function_type_composite(pState, &parameters);\
     parameters.pParameters = pFuncTypeComposite->pSignature->aParameters;\
 \
-    operator_overloading_map_get_or_insert_copy(pState->amOperatorOverloading + (_operatorIr - KETL_IR_FIRST_OPERATOR), parameters, _bytecode);\
+    operator_overloading_map_get_or_insert_copy(pState->amHIROperatorOverloading + (_hir_tag_op - KETL_HIR_FIRST_UNDEF_OPERATOR), parameters, _hir_tag_typed_op);\
 } while (false)
 
-    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_PLUS, tInt64, tInt64, KETL_BYTECODE_64IADD);
-    REGISTER_BINARY_OPERATOR(KETL_IR_TYPE_MULTIPLY, tInt64, tInt64, KETL_BYTECODE_64IMULTIPLY);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS_UNDEF, tInt64, tInt64, KETL_HIR_PLUS_I64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MULTY_UNDEF, tInt64, tInt64, KETL_HIR_MULTY_I64);
 
     return pState;
 }
 
 void ketl_state_destroy(ketl_state* pState) {
-    for (uint32_t i = 0; i < (sizeof(pState->amOperatorOverloading) / sizeof(*pState->amOperatorOverloading)); ++i) {
-        operator_overloading_map_deinit(pState->amOperatorOverloading + i);
+    for (uint32_t i = 0; i < KETL_ARRAY_SIZE(pState->amHIROperatorOverloading); ++i) {
+        operator_overloading_map_deinit(pState->amHIROperatorOverloading + i);
     }
 
-    KETL_HASH_MAP_FOREACH(function_types_map, function_parameters, ketl_type_function*, &pState->mFunctionTypes,
+    KETL_HASH_MAP_FOREACH(function_types_map, &pState->mFunctionTypes,
         ketl_free(pState->pAllocator, __pBucket->value.pSignature);    
     );
     function_types_map_deinit(&pState->mFunctionTypes);
@@ -234,17 +234,19 @@ void ketl_state_eval(ketl_state* pState, const char* pSource, uint32_t length) {
 }
 
 int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t length) {
-    ketl_ir ir = ketl_parser_parser(pSource, length, pState->pAllocator);
+    ketl_hir_t hir;
+    ketl_parser_build_hir(pState, &hir, pSource, length, pState->pAllocator);
 
-    for (uint32_t i = 0u; i < ir.nodesCount; ++i) {
-        char aBuffer[256];
-        uint32_t length = ketl_ir_node_format(ir.pNodes[i], ir.pSymbols, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
-        printf("(%d) %.*s\n", i, length, aBuffer);
+    {
+        char arr_buffer[1024];
+        uint32_t length = ketl_hir_format(&hir, arr_buffer, KETL_ARRAY_SIZE(arr_buffer));
+        printf("%.*s", length, arr_buffer);
     }
 
-    ketl_bytecode bytecode = ketl_bytecode_compile(pState, ir, pState->pAllocator);
-    ketl_free(pState->pAllocator, ir.pNodes);
-    ketl_free(pState->pAllocator, ir.pSymbols);
+    printf("-------------------------------\n");
+
+    ketl_bytecode bytecode = ketl_bytecode_compile_from_hir(pState, &hir, pState->pAllocator);
+    ketl_hir_deinit(&hir);
 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
             i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
@@ -252,6 +254,8 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
         uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
         printf("%d: %.*s\n", i, length, aBuffer);
     }
+
+    printf("-------------------------------\n");
 
     uint32_t opcodesSize = 0u;
     uint8_t* pOpcodes = ketl_assembler_compile(bytecode, &opcodesSize, pState->pAllocator);

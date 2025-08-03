@@ -7,8 +7,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include <assert.h>
-
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 
     #define KETL_OS_WINDOWS 1
@@ -58,14 +56,6 @@
 #   error "Unknown compiler"
 #endif
 
-
-#if KETL_OS_WINDOWS
-    #include <debugapi.h>
-    #define KETL_DEBUGBREAK() __debugbreak()
-#else
-    #define KETL_DEBUGBREAK() do { __asm__ volatile("int $0x03"); int nothing = 0; (void)nothing; } while(0)
-#endif
-
 #define KETL_HASH_DEFAULT(a) ((uint64_t)(a))
 #define KETL_EQUAL_DEFAULT(a, b) ((a) == (b))
 
@@ -78,29 +68,49 @@
 #define KETL_STR_VALUE(x) __KETL_STR_VALUE(x)
 
 #define __KETL_CONCAT(a,b,c,d,e,f,g,i,j,k,l,m,n,o,p,...) a##b##c##d##e##f##g##i##j##k##l##m##n##o##p
-#define KETL_CONCAT(...) __KETL_CONCAT(__VA_ARGS__,,,,,,,,,,,,,,,,,)
+#define KETL_CONCAT(...) __KETL_CONCAT(__VA_ARGS__,,,,,,,,,,,,,,,,, )
+
+#ifndef KETL_ASSERT
+    #include <assert.h>
+    #define KETL_ASSERT(expr) (assert(expr))
+#endif
+
+#if !defined(NDEBUG)
+    #if KETL_OS_WINDOWS
+        #include <debugapi.h>
+        #define KETL_DEBUGBREAK() __debugbreak()
+    #else
+        #define KETL_DEBUGBREAK() do { __asm__ volatile("int $0x03"); int __dummy = 0; (void)__dummy; } while(0) // to stop exactly at the KETL_DEBUGBREAK()
+    #endif
+#else
+    #define KETL_DEBUGBREAK() do {} while(0) // in case compiler would complain about empty ;
+#endif
+
+#ifdef NDEBUG
+    #if !KETL_OS_WINDOWS
+        #define KETL_UNREACHABLE() __builtin_unreachable();
+    #else
+        #define KETL_UNREACHABLE() __assume(0);
+    #endif
+#else
+    // This code is supposed to be unreachable, so assert
+    #define KETL_UNREACHABLE() KETL_ASSERT(false);
+#endif
 
 #define KETL_FOREVER while(1)
+
+#define KETL_SWITCH_STRICT(val) switch(val) if (0) { default: KETL_UNREACHABLE(); } else
 
 #define KETL_STRUCT_PREFIX _ketl_struct_
 #define KETL_FORWARD(name) typedef struct KETL_CONCAT(KETL_STRUCT_PREFIX, name) name
 #define KETL_DEFINE(name) KETL_FORWARD(name); struct KETL_CONCAT(KETL_STRUCT_PREFIX, name)
 
-#ifdef NDEBUG
-    #if !KETL_OS_WINDOWS
-        #define KETL_NODEFAULT() default: __builtin_unreachable();
-    #else
-        #define KETL_NODEFAULT() default: __assume(0);
-    #endif
-#else
-    // This code is supposed to be unreachable, so assert
-    #define KETL_NODEFAULT() default: KETL_DEBUGBREAK(); //TODO assert
-#endif
-
 #define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
 #define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)
 
 #define KETL_ALIGN_FORWARD(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
+
+#define KETL_ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
 int64_t ketl_str_to_i64(const char* str, size_t length);
 

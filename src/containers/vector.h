@@ -76,7 +76,7 @@ type* KETL_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue){\
 }\
 type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size){\
     if (size == 0) {\
-        return NULL;\
+        return pVector->pData + pVector->size;\
     }\
     type* pData = pVector->pData;\
     uint32_t index = pVector->size;\

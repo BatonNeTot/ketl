@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
 
     ketl.defineCFunction("factorial", &factorial);
 
-    const char* pSource = "return factorial(5);";
+    const char* pSource = "return factorial(3);";
     auto result = ketl.eval(pSource);
     std::cout << "result = " << result << std::endl;
 }

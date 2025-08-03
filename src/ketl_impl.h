@@ -1,7 +1,7 @@
 #include "ketl/ketl.h"
 
 #include "bytecode.h"
-#include "compiler/ir.h"
+#include "compiler/hir.h"
 
 #include "type_impl.h"
 #include "gc_memory.h"
@@ -32,7 +32,7 @@ KETL_DEFINE(ketl_state) {
     
     function_types_map mFunctionTypes;
 
-    operator_overloading_map amOperatorOverloading[KETL_IR_LAST_OPERATOR + 1 - KETL_IR_FIRST_OPERATOR];
+    operator_overloading_map amHIROperatorOverloading[KETL_HIR_LAST_UNDEF_OPERATOR + 1 - KETL_HIR_FIRST_UNDEF_OPERATOR];
 };
 
 ketl_type* ketl_state_find_type(const char* pName);
