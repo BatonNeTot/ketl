@@ -52,8 +52,8 @@ namespace KETL {
 			ketl_state_define_function(_pStateImpl, name.data(), name.length(), pFuncType, reinterpret_cast<void*>(pFunc));
 		}
 
-		int64_t eval(const std::string_view& source) {
-			return ketl_state_eval_int64(_pStateImpl, source.data(), source.length());
+		int64_t eval(const std::string_view& filename, const std::string_view& source) {
+			return ketl_state_eval_int64(_pStateImpl, filename.data(), source.data(), source.length());
 		}
 
 	private:

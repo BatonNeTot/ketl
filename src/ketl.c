@@ -163,7 +163,9 @@ do {\
 } while (false)
 
     REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS_UNDEF, tInt64, tInt64, KETL_HIR_PLUS_I64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS_UNDEF, tInt64, tInt64, KETL_HIR_MINUS_I64);
     REGISTER_BINARY_OPERATOR(KETL_HIR_MULTY_UNDEF, tInt64, tInt64, KETL_HIR_MULTY_I64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_DIV_UNDEF, tInt64, tInt64, KETL_HIR_DIV_I64);
 
     return pState;
 }
@@ -182,7 +184,7 @@ void ketl_state_destroy(ketl_state* pState) {
 do {\
 ketl_atomic_string sTypeName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
 ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sTypeName);\
-assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
+KETL_ASSERT(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
 ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 } while(0)
 
@@ -198,17 +200,18 @@ ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 
 // TODO FIX might be called often, replace allocation on heap with field in ketl_state
 ketl_type* ketl_state_get_void(ketl_state* pState) {
-    ketl_atomic_string sVoidTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "void", 4);
-    ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sVoidTypeName);
-    assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
-    return pTypeNode->variable.pointer;
+    return ketl_state_get_type(pState, "void", 4);
 }
 
 ketl_type* ketl_state_get_i64(ketl_state* pState) {
-    ketl_atomic_string sIntTypeName = ketl_atomic_strings_get(&pState->atomicStrings, "i64", 3);
-    ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sIntTypeName);
-    assert(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));
-    return pTypeNode->variable.pointer;
+    return ketl_state_get_type(pState, "i64", 3);
+}
+
+ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uint32_t length) {
+    ketl_atomic_string a_type_name = ketl_atomic_strings_get(&p_state->atomicStrings, p_type_name, length);
+    ketl_namespace_node* p_type_node = ketl_namespace_find(&p_state->globalNamespace, a_type_name);
+    KETL_ASSERT(p_type_node->variable.type == KETL_VARIABLE_TYPE && p_type_node->nextOffset == (uint32_t)(-1));
+    return p_type_node->variable.pointer;
 }
 
 ketl_type* ketl_state_get_function_type(ketl_state* pState, const ketl_function_parameters* pParameters) {
@@ -229,13 +232,13 @@ void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t 
     ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);
 }
 
-void ketl_state_eval(ketl_state* pState, const char* pSource, uint32_t length) {
-    ketl_state_eval_int64(pState, pSource, length);
+void ketl_state_eval(ketl_state* pState, const char* p_filename, const char* pSource, uint32_t length) {
+    ketl_state_eval_int64(pState, pSource, p_filename, length);
 }
 
-int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t length) {
+int64_t ketl_state_eval_int64(ketl_state* pState, const char* p_filename, const char* pSource, uint32_t length) {
     ketl_hir_t hir;
-    ketl_parser_build_hir(pState, &hir, pSource, length, pState->pAllocator);
+    ketl_parser_build_hir(pState, &hir, p_filename, pSource, length, pState->pAllocator);
 
     {
         char arr_buffer[1024];
@@ -250,9 +253,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
 
     for (uint32_t i = 0u; i < bytecode.instructionsCount; 
             i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
-        char aBuffer[256];
-        uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
-        printf("%d: %.*s\n", i, length, aBuffer);
+        char arr_buffer[256];
+        uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, arr_buffer, KETL_ARRAY_SIZE(arr_buffer));
+        printf("%d: %.*s\n", i, length, arr_buffer);
     }
 
     printf("-------------------------------\n");
@@ -262,9 +265,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* pSource, uint32_t 
     ketl_free(pState->pAllocator, bytecode.pInstructions);
 
     {
-        char aBuffer[1024];
-        uint32_t length = ketl_assembler_format(pOpcodes, opcodesSize, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
-        printf("%.*s\n", length, aBuffer);
+        char arr_buffer[2048];
+        uint32_t length = ketl_assembler_format(pOpcodes, opcodesSize, arr_buffer, KETL_ARRAY_SIZE(arr_buffer));
+        printf("%.*s\n", length, arr_buffer);
     }
 
     ketl_executable_memory ex_memory;

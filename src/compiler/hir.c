@@ -9,23 +9,11 @@ bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag) {
 
 void ketl_hir_deinit(ketl_hir_t* p_hir) {
     ketl_free(p_hir->p_allocator, p_hir->p_symbols);
+    ketl_free(p_hir->p_allocator, p_hir->p_vars);
+    ketl_free(p_hir->p_allocator, p_hir->p_used_globals);
     ketl_free(p_hir->p_allocator, p_hir->p_used_types);
     ketl_free(p_hir->p_allocator, p_hir->p_block_offsets);
-    ketl_free(p_hir->p_allocator, p_hir->p_vars);
     ketl_free(p_hir->p_allocator, p_hir->p_instrs);
-}
-
-ketl_hir_instr_offset_t ketl_hir_get_pos_size(ketl_hir_pos_tag_t pos_tag) {
-    KETL_SWITCH_STRICT (pos_tag) {
-        case KETL_HIR_POS_NONE:
-            return 0;
-        case KETL_HIR_POS_COL:
-            return sizeof(ketl_hir_pos_col_t);
-        case KETL_HIR_POS_LINE:
-            return sizeof(ketl_hir_pos_line_t);
-        case KETL_HIR_POS_FILE:
-            return sizeof(ketl_hir_pos_file_t);
-    }
 }
 
 ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_instr) {
@@ -51,6 +39,9 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
             ketl_hir_call_t* hir_info = (ketl_hir_call_t*)p_instr;
             return sizeof(ketl_hir_call_t) + hir_info->arguments_count * sizeof(*hir_info->arguments);
         }
+
+        case KETL_HIR_ASSIGN:
+            return sizeof(ketl_hir_assign_t);
     
         case KETL_HIR_RETURN:
             return 0;
@@ -65,21 +56,21 @@ ketl_hir_instr_offset_t ketl_hir_decode_size(ketl_hir_t* p_hir, ketl_hir_instr_o
     ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
     p_instr += sizeof(ketl_hir_header_t);
 
-    p_instr += ketl_hir_get_pos_size(header.start_pos_tag);
-    p_instr += ketl_hir_get_pos_size(header.end_pos_tag);
-
     p_instr += ketl_hir_get_instr_size(header.tag, p_instr);
 
     return p_instr - (p_hir->p_instrs + instr_offset);
 }
 
 static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id, char* buffer, uint32_t bufferSize) {
-    if (p_hir->p_vars[var_id].name == KETL_ATOMIC_STRING_EMPTY) {
-        return snprintf(buffer, bufferSize, "~%"PRIu16, 
-            p_hir->p_vars[var_id].uid);
-    } else if (p_hir->p_vars[var_id].uid == KETL_HIR_VAR_UID_LITERAL) {
+    if (p_hir->p_vars[var_id].uid == KETL_HIR_VAR_UID_LITERAL) {
         return snprintf(buffer, bufferSize, "%s", 
             KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars[var_id].name));
+    } else if (p_hir->p_vars[var_id].uid == KETL_HIR_VAR_UID_GLOBAL) {
+        return snprintf(buffer, bufferSize, "%s", 
+            KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_used_globals[p_hir->p_vars[var_id].global_index].name));
+    } else if (p_hir->p_vars[var_id].name == KETL_HIR_VAR_NAME_TEMP) {
+        return snprintf(buffer, bufferSize, "~%"PRIu16, 
+            p_hir->p_vars[var_id].uid);
     } else {
         return snprintf(buffer, bufferSize, "%s#%"PRIu16, 
             KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars[var_id].name), p_hir->p_vars[var_id].uid);
@@ -92,9 +83,6 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
     ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
     p_instr += sizeof(ketl_hir_header_t);
 
-    p_instr += ketl_hir_get_pos_size(header.start_pos_tag);
-    p_instr += ketl_hir_get_pos_size(header.end_pos_tag);
-
     char var_buffer[3][256];
     
 #define INIT_HIR_INFO(type) type* p_hir_info = (type*)p_instr
@@ -102,7 +90,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
 
     KETL_SWITCH_STRICT (header.tag) {
         case KETL_HIR_NONE_STMT:
-            return snprintf(buffer, bufferSize, "none");
+            return snprintf(buffer, bufferSize, ";");
 
         case KETL_HIR_PLUS_UNDEF:
         case KETL_HIR_PLUS_I64:{
@@ -110,7 +98,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
-            return snprintf(buffer, bufferSize, "%s = %s + %s",
+            return snprintf(buffer, bufferSize, "%s = %s + %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
         case KETL_HIR_MINUS_UNDEF:
@@ -119,7 +107,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
-            return snprintf(buffer, bufferSize, "%s = %s - %s",
+            return snprintf(buffer, bufferSize, "%s = %s - %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
         case KETL_HIR_MULTY_UNDEF:
@@ -128,7 +116,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
-            return snprintf(buffer, bufferSize, "%s = %s * %s",
+            return snprintf(buffer, bufferSize, "%s = %s * %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
         case KETL_HIR_DIV_UNDEF:
@@ -137,7 +125,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
-            return snprintf(buffer, bufferSize, "%s = %s / %s",
+            return snprintf(buffer, bufferSize, "%s = %s / %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
 
@@ -152,7 +140,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
                 }
                 count += ketl_hir_format_var(p_hir, p_hir_info->arguments[i], buffer + count, bufferSize - count);
             }
-            count += snprintf(buffer + count, bufferSize - count, ")");
+            count += snprintf(buffer + count, bufferSize - count, ");");
             return count;
         }
         case KETL_HIR_CALL: {
@@ -167,18 +155,26 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
                 }
                 count += ketl_hir_format_var(p_hir, p_hir_info->arguments[i], buffer + count, bufferSize - count);
             }
-            count += snprintf(buffer + count, bufferSize - count, ")");
+            count += snprintf(buffer + count, bufferSize - count, ");");
             return count;
+        }
+
+        case KETL_HIR_ASSIGN: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, bufferSize, "%s = %s;",
+                var_buffer[0], var_buffer[1]);
         }
     
         case KETL_HIR_RETURN:
-            return snprintf(buffer, bufferSize, "return");
+            return snprintf(buffer, bufferSize, "return;");
         case KETL_HIR_RETURN_VALUE: {
             INIT_HIR_INFO(ketl_hir_return_value_t);
             FORMAT_VAR(p_hir_info->value_var, var_buffer[0]);
-            return snprintf(buffer, bufferSize, "return %s",
+            return snprintf(buffer, bufferSize, "return %s;",
                 var_buffer[0]);
-            }
+        }
     }
 }
 

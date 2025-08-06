@@ -26,8 +26,8 @@ KETL_DEFINE(undefined_value) {
     undefined_value* pNextValue;
 };
 
-KETL_HASH_MAP_DECLARATION(variables, const char*, arg_info)
-KETL_HASH_MAP_DEFINITION(variables, const char*, arg_info, ketl_str_hash, ketl_str_is_equal)
+KETL_HASH_MAP_DECLARATION(variables, ketl_hir_var_id_t, arg_info)
+KETL_HASH_MAP_DEFINITION(variables, ketl_hir_var_id_t, arg_info, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
 
 KETL_DEFINE(bytecoder_context) {
     instructions vInstructions;
@@ -35,17 +35,18 @@ KETL_DEFINE(bytecoder_context) {
     ketl_state* pState;
     char* pSymbols;
     ketl_hir_t* p_hir;
+    ketl_hir_var_id_t global_var;
     ketl_bytecode_stack_offset usedStack;
 };
 
 #define PUSH_CONSTANT(instructions, value) (instructions_push_back_ref_n((instructions), (uint8_t*)&(value), sizeof(value)))
 
-static arg_info push_value_as_arg(bytecoder_context* pContext, const char* pSymbol, ketl_variable* pValue) {
+static arg_info push_value_as_arg(bytecoder_context* pContext, ketl_hir_var_id_t var_id, ketl_variable* pValue) {
     arg_info argInfo = {
         .pType = pValue->pType,
         .stackOffset = pContext->usedStack
     };
-    variables_get_or_insert_copy(&pContext->mVariables, pSymbol, argInfo);
+    variables_get_or_insert_copy(&pContext->mVariables, var_id, argInfo);
     // TODO FIX take into account type size and alignment
     pContext->usedStack += sizeof(int64_t);
 
@@ -91,53 +92,17 @@ static arg_info hir_get_arg_stack_offset(bytecoder_context* pContext, ketl_hir_v
         };
     }
 
-    if (var.name == KETL_ATOMIC_STRING_EMPTY) {
-        // TODO FIX
-        //assert(var.type != KETL_HIR_USED_TYPE_UNKHOWN);
-        // temprorary variable
-        arg_info argInfo = {
-            .pType = var.type != KETL_HIR_USED_TYPE_UNKHOWN ? pContext->p_hir->p_used_types[var.type] : NULL,
-            .stackOffset = pContext->usedStack
-        };
-        char arr_buffer[256] = {'\0'};
-        arr_buffer[0] = '~';
-        snprintf(arr_buffer + 1, KETL_ARRAY_SIZE(arr_buffer) - 1, "%"PRIu16, var.uid);
-        
-        variables_bucket* bucket = variables_get_or_insert_copy(&pContext->mVariables, arr_buffer, argInfo);
-        if (bucket->value.stackOffset == argInfo.stackOffset) {
-            // TODO FIX take into account type size and alignment
-            pContext->usedStack += sizeof(int64_t);
-        }
-        return bucket->value;
-    }
-
-    const char* p_symbol = KETL_ATOMIC_STRING_GET_POINTER(pContext->pSymbols, var.name);
-
-    // local or global variable
+    // local variable
     // might be existing temporart variable
-    variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, p_symbol);
+    variables_bucket* bucket = variables_get_or_null(&pContext->mVariables, var_id);
     if (bucket != NULL) {
         return bucket->value;
     }
 
-    ketl_atomic_string sSymbol = ketl_atomic_strings_get(&pContext->pState->atomicStrings, p_symbol, KETL_NULL_TERMINATED_LENGTH_32);
-    ketl_namespace_node* pSymbolNode = ketl_namespace_find(&pContext->pState->globalNamespace, sSymbol);
-    if (pSymbolNode != NULL) {
-        KETL_FOREVER {
-            if (pSymbolNode->variable.type != KETL_VARIABLE_TYPE) {
-                return push_value_as_arg(pContext, p_symbol, &pSymbolNode->variable);
-            }
-
-            if (pSymbolNode->nextOffset == (uint32_t)(-1)) {
-                break;
-            }
-            pSymbolNode = pContext->pState->globalNamespace.vNodes.pData + pSymbolNode->nextOffset;
-        }
-    }
-
     // TODO ERROR
+    const char* p_symbol = KETL_ATOMIC_STRING_GET_POINTER(pContext->pSymbols, var.name);
     printf("unknown variable %s\n", p_symbol);
-    assert(false);
+    KETL_ASSERT(false);
         
     return (arg_info){
         .pType = NULL,
@@ -150,6 +115,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
         .pState = pState,
         .pSymbols = p_hir->p_symbols,
         .p_hir = p_hir,
+        .global_var = (ketl_hir_var_id_t)-1,
         .usedStack = 0,
     };
     instructions_init(&context.vInstructions, 16, p_allocator);
@@ -160,14 +126,37 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
     uint32_t stackReserveBackpatchOffset = context.vInstructions.size;
     PUSH_CONSTANT(&context.vInstructions, stackReserveDummy);
 
+    for (ketl_hir_var_id_t var_id = 0u; var_id < p_hir->vars_count; ++var_id) {
+        ketl_hir_var_t var = p_hir->p_vars[var_id];
+        if (var.uid == KETL_HIR_VAR_UID_LITERAL) {
+            continue;
+        }
+
+        if (var.uid == KETL_HIR_VAR_UID_GLOBAL) {
+            push_value_as_arg(&context, var_id, p_hir->p_used_globals[var.global_index].p_variable);
+            continue;
+        }
+
+        KETL_ASSERT(var.type != KETL_HIR_USED_TYPE_UNKHOWN);
+        // temprorary variable
+        arg_info argInfo = {
+            // TODO FIX
+            .pType = var.type != KETL_HIR_USED_TYPE_UNKHOWN ? p_hir->p_used_types[var.type] : NULL,
+            .stackOffset = context.usedStack
+        };
+
+        variables_bucket* bucket = variables_get_or_insert_copy(&context.mVariables, var_id, argInfo);
+        if (bucket->value.stackOffset == argInfo.stackOffset) {
+            // TODO FIX take into account type size and alignment
+            context.usedStack += sizeof(int64_t);
+        }
+    }
+
     for (uint32_t i = 0u; i < p_hir->instrs_count; i += ketl_hir_decode_size(p_hir, i)) {
         uint8_t* p_instr = p_hir->p_instrs + i;
 
         ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
         p_instr += sizeof(ketl_hir_header_t);
-
-        p_instr += ketl_hir_get_pos_size(header.start_pos_tag);
-        p_instr += ketl_hir_get_pos_size(header.end_pos_tag);
 
         KETL_SWITCH_STRICT (header.tag) {
             case KETL_HIR_PLUS_I64: {
@@ -186,6 +175,54 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
                 break;
             }
+            case KETL_HIR_MINUS_I64: {
+                ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
+
+                arg_info args[] = {
+                    hir_get_arg_stack_offset(&context, p_hir_info->output_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->lhs_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->rhs_var),
+                };
+                
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64ISUB);
+
+                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
+                break;
+            }
+            case KETL_HIR_MULTY_I64: {
+                ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
+
+                arg_info args[] = {
+                    hir_get_arg_stack_offset(&context, p_hir_info->output_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->lhs_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->rhs_var),
+                };
+                
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64IMULTIPLY);
+
+                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
+                break;
+            }
+            case KETL_HIR_DIV_I64: {
+                ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
+
+                arg_info args[] = {
+                    hir_get_arg_stack_offset(&context, p_hir_info->output_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->lhs_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->rhs_var),
+                };
+                
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64IDIVIDE);
+
+                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
+                break;
+            }
             case KETL_HIR_CALL: {
                 ketl_hir_call_t* p_hir_info = (ketl_hir_call_t*)p_instr;
 
@@ -193,7 +230,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 arg_info callee_arg = hir_get_arg_stack_offset(&context, p_hir_info->callee);
 
                 // TODO FIX allow other types to be called
-                assert(callee_arg.pType->type == KETL_TYPE_CFUNCTION);
+                KETL_ASSERT(callee_arg.pType->type == KETL_TYPE_CFUNCTION);
 
                 for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
                     arg_info arg = hir_get_arg_stack_offset(&context, p_hir_info->arguments[i]);
@@ -207,6 +244,23 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
                 PUSH_CONSTANT(&context.vInstructions, output_arg.stackOffset);
                 PUSH_CONSTANT(&context.vInstructions, callee_arg.stackOffset);
+                break;
+            }
+            case KETL_HIR_ASSIGN: {
+                
+                ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
+
+                arg_info args[] = {
+                    hir_get_arg_stack_offset(&context, p_hir_info->dest_var),
+                    hir_get_arg_stack_offset(&context, p_hir_info->source_var),
+                };
+                
+                // TODO FIX
+                // get type size and use appropriate push arg bytecode
+                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64ASSIGN);
+
+                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
                 break;
             }
             case KETL_HIR_RETURN_VALUE: {

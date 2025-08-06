@@ -43,7 +43,7 @@ static uint32_t countPushArgs(ketl_bytecode bytecode, uint32_t initialIndex) {
     }
     // TODO ERROR
     printf("sudden end of bytecode - call instruction expected");
-    assert(false);
+    KETL_ASSERT(false);
 }
 
 #define IMM_ARG(type, offset) (*(type*)(bytecode.pInstructions + i + sizeof(ketl_bytecode_instr) + (offset) * sizeof(ketl_bytecode_stack_offset)))
@@ -109,7 +109,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 if (remainingPushArgCount >= sizeof(aParameterRegs) / sizeof(*aParameterRegs)) {
                     // TODO FIX
                     // push onto actual stack
-                    assert(false);
+                    KETL_ASSERT(false);
                 }
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, aParameterRegs[--remainingPushArgCount], IMM_ARG(ketl_bytecode_stack_offset, 0));
                 break;
@@ -229,7 +229,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 char aBuffer[256];
                 uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
                 printf("unknown bytecode: %.*s\n", length, aBuffer);
-                assert(false);
+                KETL_ASSERT(false);
             }
         }
     }
