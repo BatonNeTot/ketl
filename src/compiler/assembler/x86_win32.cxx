@@ -185,8 +185,8 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
             }
             case KETL_BYTECODE_64UADD:
             case KETL_BYTECODE_64IADD: {
-                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 {
                     const uint8_t opcodesArray[] =
                     {
@@ -199,8 +199,8 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
             }
             case KETL_BYTECODE_64USUB:
             case KETL_BYTECODE_64ISUB: {
-                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 {
                     const uint8_t opcodesArray[] =
                     {
@@ -212,8 +212,8 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 break;
             }
             case KETL_BYTECODE_64IMULTIPLY: {
-                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 {
                     const uint8_t opcodesArray[] =
                     {
@@ -225,13 +225,53 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 break;
             }
             case KETL_BYTECODE_64IDIVIDE: {
-                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
                 {
                     const uint8_t opcodesArray[] =
                     {
                         0x48, 0x31, 0xd2,   // xor rdx
                         0x48, 0xf7, 0xf1,   // idiv rcx // rdx:rax / rcx = rax, % rcx = rdx                                
+                    };
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                }
+                PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
+                break;
+            }
+            case KETL_BYTECODE_64IMODULO: {
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
+                {
+                    const uint8_t opcodesArray[] =
+                    {
+                        0x48, 0x31, 0xd2,   // xor rdx
+                        0x48, 0xf7, 0xf1,   // idiv rcx // rdx:rax / rcx = rax, % rcx = rdx                                
+                    };
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                }
+                PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_DX);
+                break;
+            }
+            case KETL_BYTECODE_64IEQUAL: {
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
+                {
+                    const uint8_t opcodesArray[] =
+                    {
+                        0x0f, 0x94, 0xc0,   // sete al                                
+                    };
+                    opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
+                }
+                PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
+                break;
+            }
+            case KETL_BYTECODE_64INOT_EQUAL: {
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_CX, IMM_ARG(ketl_bytecode_stack_offset, 2));
+                PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, KETL_REG_AX, IMM_ARG(ketl_bytecode_stack_offset, 1));
+                {
+                    const uint8_t opcodesArray[] =
+                    {
+                        0x0f, 0x95, 0xc0,   // setne al                                
                     };
                     opcodes_push_back_ref_n(&opcodes, opcodesArray, sizeof(opcodesArray) / sizeof(*opcodesArray));
                 }

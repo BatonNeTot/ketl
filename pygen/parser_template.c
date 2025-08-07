@@ -185,9 +185,23 @@ static ketl_hir_used_type_index_t find_type(ketl_parser_context* pContext, ketl_
     return ketl_hir_builder_get_used_type_index(&pContext->hir_builder, p_type);
 }
 
-static void push_hir_assign(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+static void push_hir_assign_impl(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+
+    ketl_hir_var_t* p_lhs_var = pContext->hir_builder.v_vars.pData + lhs_var;
+    ketl_hir_var_t* p_rhs_var = pContext->hir_builder.v_vars.pData + rhs_var;
+
+    if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL || p_lhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
+        // TODO error
+        KETL_ASSERT(false);
+    }
+    
     // TODO casting if needed
-    // TODO check that lhs_var is not literal or temp
+
+    if (p_rhs_var->uid != KETL_HIR_VAR_UID_LITERAL&& p_rhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
+        ketl_hir_builder_replace_temp_var(&pContext->hir_builder, lhs_var, rhs_var);
+        return;
+    }
+
     ketl_hir_header_t assign_header = {
         .tag = KETL_HIR_ASSIGN,
         .file_symbol = pContext->p_filename,
@@ -203,23 +217,28 @@ static void push_hir_assign(ketl_parser_context* pContext, ketl_parse_pos_info* 
     ketl_hir_builder_insert_instr(&pContext->hir_builder, assign_header, (uint8_t*)&instr);
 }
 
+static void push_hir_assign(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+    ketl_hir_var_t* p_lhs_var = pContext->hir_builder.v_vars.pData + lhs_var;
+    if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
+        // TODO error
+        KETL_ASSERT(false);
+        return;
+    }
+
+    if (p_lhs_var->info != KETL_HIR_VAR_INFO_TEMP &&
+        pContext->hir_builder.v_vars_infos.pData[p_lhs_var->info].p_global == NULL) {
+        // TODO might not work in a looping scenario
+        //lhs_var = ketl_hir_builder_increment_var_uid(&pContext->hir_builder, lhs_var);
+        // TODO should not run during debug compilation
+    }
+    push_hir_assign_impl(pContext, p_pos_info, lhs_var, rhs_var);
+}
+
 static void push_hir_variable_declaration(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info, ketl_parse_node_output id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
-    // TODO casting if needed
     ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(&pContext->hir_builder, 
         push_symbol(pContext, id_literal), type_index);
-    ketl_hir_header_t assign_header = {
-        .tag = KETL_HIR_ASSIGN,
-        .file_symbol = pContext->p_filename,
-        .start_line_index = p_pos_info->start_pos_line,
-        .end_line_index = p_pos_info->end_pos_line,
-        .start_col_index = p_pos_info->start_pos_col,
-        .end_col_index = p_pos_info->end_pos_col,
-    };
-    ketl_hir_assign_t instr = {
-        .dest_var = id_var,
-        .source_var = init_var,
-    };
-    ketl_hir_builder_insert_instr(&pContext->hir_builder, assign_header, (uint8_t*)&instr);
+
+    push_hir_assign_impl(pContext, p_pos_info, id_var, init_var);
 }
 
 #define call(function, ...) ((function)(pContext, __VA_ARGS__))

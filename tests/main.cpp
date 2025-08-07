@@ -6,11 +6,12 @@ extern "C" {
 
 #include <iostream>
 
-int64_t factorial(int64_t val) {
-    if (val <= 1) {
-        return 1;
-    }
-    return val * factorial(val - 1);
+int64_t test(int64_t val) {
+    return val + 42000;
+}
+
+int64_t test(int64_t a, int64_t b) {
+    return a * 1000 + b;
 }
 
 int main(int argc, char** argv) {
@@ -19,13 +20,14 @@ int main(int argc, char** argv) {
 
     KETL::State ketl(&ketl_default_allocator);
 
-    ketl.defineCFunction("factorial", &factorial);
+    ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t)>(&test));
+    //ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
     const char* pSource = 
         "i64 a = 5 + 8;"
         "i64 b = 34 - 6;"
-        "a = b - a;"
-        "return factorial((a - 1) * 4 / 10);"
+        "a = (b - a) % 20;"
+        "return ((a - 1) * 4 / 10) != 5;"
     ;
     auto result = ketl.eval("", pSource);
     std::cout << "result = " << result << std::endl;

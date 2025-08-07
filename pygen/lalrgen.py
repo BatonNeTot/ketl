@@ -40,7 +40,7 @@ if __name__ == '__main__':
 				action="call_with_pos(push_hir_variable_declaration, stack_top(4), stack_top(5).type_index, stack_top(2).var_id);"),
 				
 			Prod('statement', [ Nonterm('expr'), Term('ASSIGN'), Nonterm('expr'), Term("TERMINATION_CHARACTER") ],
-				operatorPrecedence=3,	
+				operatorPrecedence=5,	
 				action="call_with_pos(push_hir_assign, stack_top(4).var_id, stack_top(2).var_id);"),
 
 			Prod('expr', [ Nonterm('expr'), Term("MULTIPLY"), Nonterm('expr') ],	
@@ -49,12 +49,36 @@ if __name__ == '__main__':
 			Prod('expr', [ Nonterm('expr'), Term("DIVIDE"), Nonterm('expr') ],	
 				operatorPrecedence=1,	
 				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_DIV_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("REMAINDER"), Nonterm('expr') ],	
+				operatorPrecedence=1,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_MOD_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+
 			Prod('expr', [ Nonterm('expr'), Term("PLUS"), Nonterm('expr') ],	
 				operatorPrecedence=2,	
 				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_PLUS_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
 			Prod('expr', [ Nonterm('expr'), Term("MINUS"), Nonterm('expr') ],	
 				operatorPrecedence=2,	
 				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_MINUS_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+
+
+			Prod('expr', [ Nonterm('expr'), Term("EQUAL"), Nonterm('expr') ],	
+				operatorPrecedence=4,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_EQUAL_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("NOT_EQUAL"), Nonterm('expr') ],	
+				operatorPrecedence=4,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_NOT_EQUAL_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("LESS"), Nonterm('expr') ],	
+				operatorPrecedence=3,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_LESS_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("LESS_OR_EQUAL"), Nonterm('expr') ],	
+				operatorPrecedence=3,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_LESS_OR_EQUAL_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("GREATER"), Nonterm('expr') ],	
+				operatorPrecedence=3,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_GREATER_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
+			Prod('expr', [ Nonterm('expr'), Term("GREATER_OR_EQUAL"), Nonterm('expr') ],	
+				operatorPrecedence=3,	
+				action="result.var_id = call_with_pos(push_hir_binary_op, KETL_HIR_GREATER_OR_EQUAL_UNDEF, stack_top(3).var_id, stack_top(1).var_id);"),
 
 			Prod('type', [ Term('ID') ], action="result.type_index = call(find_type, stack_top(1));"),
 			Prod('type', [ Term('I8') ], action="result.type_index = call(find_type, stack_top(1));"),
@@ -74,7 +98,7 @@ if __name__ == '__main__':
 				action="call_with_pos(push_hir_return_value, stack_top(2).var_id);"),
 
 		], Tokens, 
-		['ltr', 'ltr', 'ltr', 'rtl'],
+		['ltr', 'ltr', 'ltr', 'ltr', 'ltr', 'rtl'],
 		
 		).getCTemplateMapping()
 

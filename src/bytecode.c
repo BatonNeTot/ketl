@@ -159,7 +159,133 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
         case KETL_BYTECODE_16IDIVIDE:
         case KETL_BYTECODE_32IDIVIDE:
         case KETL_BYTECODE_64IDIVIDE: {
-            return snprintf(buffer, bufferSize, "MULTIPLY INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            return snprintf(buffer, bufferSize, "DIVIDE INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8UMODULO:
+        case KETL_BYTECODE_16UMODULO:
+        case KETL_BYTECODE_32UMODULO:
+        case KETL_BYTECODE_64UMODULO: {
+            return snprintf(buffer, bufferSize, "UMODULO INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8IMODULO:
+        case KETL_BYTECODE_16IMODULO:
+        case KETL_BYTECODE_32IMODULO:
+        case KETL_BYTECODE_64IMODULO: {
+            return snprintf(buffer, bufferSize, "MODULO INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8UEQUAL:
+        case KETL_BYTECODE_16UEQUAL:
+        case KETL_BYTECODE_32UEQUAL:
+        case KETL_BYTECODE_64UEQUAL: {
+            return snprintf(buffer, bufferSize, "UEQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8IEQUAL:
+        case KETL_BYTECODE_16IEQUAL:
+        case KETL_BYTECODE_32IEQUAL:
+        case KETL_BYTECODE_64IEQUAL: {
+            return snprintf(buffer, bufferSize, "EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8UNOT_EQUAL:
+        case KETL_BYTECODE_16UNOT_EQUAL:
+        case KETL_BYTECODE_32UNOT_EQUAL:
+        case KETL_BYTECODE_64UNOT_EQUAL: {
+            return snprintf(buffer, bufferSize, "UNOT_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8INOT_EQUAL:
+        case KETL_BYTECODE_16INOT_EQUAL:
+        case KETL_BYTECODE_32INOT_EQUAL:
+        case KETL_BYTECODE_64INOT_EQUAL: {
+            return snprintf(buffer, bufferSize, "NOT_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8ULESS:
+        case KETL_BYTECODE_16ULESS:
+        case KETL_BYTECODE_32ULESS:
+        case KETL_BYTECODE_64ULESS: {
+            return snprintf(buffer, bufferSize, "ULESS INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8ILESS:
+        case KETL_BYTECODE_16ILESS:
+        case KETL_BYTECODE_32ILESS:
+        case KETL_BYTECODE_64ILESS: {
+            return snprintf(buffer, bufferSize, "LESS INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8ULESS_OR_EQUAL:
+        case KETL_BYTECODE_16ULESS_OR_EQUAL:
+        case KETL_BYTECODE_32ULESS_OR_EQUAL:
+        case KETL_BYTECODE_64ULESS_OR_EQUAL: {
+            return snprintf(buffer, bufferSize, "ULESS_OR_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8ILESS_OR_EQUAL:
+        case KETL_BYTECODE_16ILESS_OR_EQUAL:
+        case KETL_BYTECODE_32ILESS_OR_EQUAL:
+        case KETL_BYTECODE_64ILESS_OR_EQUAL: {
+            return snprintf(buffer, bufferSize, "LESS_OR_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8UGREATER:
+        case KETL_BYTECODE_16UGREATER:
+        case KETL_BYTECODE_32UGREATER:
+        case KETL_BYTECODE_64UGREATER: {
+            return snprintf(buffer, bufferSize, "UGREATER INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8IGREATER:
+        case KETL_BYTECODE_16IGREATER:
+        case KETL_BYTECODE_32IGREATER:
+        case KETL_BYTECODE_64IGREATER: {
+            return snprintf(buffer, bufferSize, "GREATER INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8UGREATER_OR_EQUAL:
+        case KETL_BYTECODE_16UGREATER_OR_EQUAL:
+        case KETL_BYTECODE_32UGREATER_OR_EQUAL:
+        case KETL_BYTECODE_64UGREATER_OR_EQUAL: {
+            return snprintf(buffer, bufferSize, "UGREATER_OR_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_8IGREATER_OR_EQUAL:
+        case KETL_BYTECODE_16IGREATER_OR_EQUAL:
+        case KETL_BYTECODE_32IGREATER_OR_EQUAL:
+        case KETL_BYTECODE_64IGREATER_OR_EQUAL: {
+            return snprintf(buffer, bufferSize, "GREATER_OR_EQUAL INTO %"PRIoffset": %"PRIoffset", %"PRIoffset, 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset)));

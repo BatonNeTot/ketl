@@ -2,7 +2,7 @@
 #ifndef ketl_compiler_parser_h
 #define ketl_compiler_parser_h
 
-#include "compiler/hir.h"
+#include "compiler/hir_builder.h"
 
 #include "ketl/memory.h"
 #include "ketl/utils.h"
