@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag) {
-    return tag >= KETL_HIR_RETURN;
+    return tag >= KETL_HIR_JUMP;
 }
 
 void ketl_hir_deinit(ketl_hir_t* p_hir) {
@@ -55,6 +55,11 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
 
         case KETL_HIR_ASSIGN:
             return sizeof(ketl_hir_assign_t);
+
+        case KETL_HIR_JUMP:
+            return sizeof(ketl_hir_jump_t);
+        case KETL_HIR_JUMP_IF:
+            return sizeof(ketl_hir_jump_if_t);
     
         case KETL_HIR_RETURN:
             return 0;
@@ -96,10 +101,11 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
     ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
     p_instr += sizeof(ketl_hir_header_t);
 
-    char var_buffer[3][256];
+    char var_buffer[4][256];
     
 #define INIT_HIR_INFO(type) type* p_hir_info = (type*)p_instr
-#define FORMAT_VAR(var_id, buffer) ketl_hir_format_var(p_hir, var_id, buffer, KETL_ARRAY_SIZE(buffer))
+#define FORMAT_VAR(var_id, buffer) (ketl_hir_format_var(p_hir, var_id, buffer, KETL_ARRAY_SIZE(buffer)))
+#define FORMAT_BLOCK(block_index, buffer) (snprintf(buffer, KETL_ARRAY_SIZE(buffer), "BB%"PRIu16, block_index))
 
     KETL_SWITCH_STRICT (header.tag) {
         case KETL_HIR_NONE_STMT:
@@ -241,6 +247,22 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
             return snprintf(buffer, bufferSize, "%s = %s;",
                 var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_JUMP: {
+            INIT_HIR_INFO(ketl_hir_jump_t);
+            FORMAT_BLOCK(p_hir_info->block_index, var_buffer[0]);
+            return snprintf(buffer, bufferSize, "goto %s;",
+                var_buffer[0]);
+        }
+
+        case KETL_HIR_JUMP_IF: {
+            INIT_HIR_INFO(ketl_hir_jump_if_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->expr_var, var_buffer[2]);
+            return snprintf(buffer, bufferSize, "if (%s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[0], var_buffer[1]);
         }
     
         case KETL_HIR_RETURN:

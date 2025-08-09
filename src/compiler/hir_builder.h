@@ -31,8 +31,6 @@ KETL_DEFINE(ketl_hir_builder_t) {
 
     hir_builder_symbol_to_var_map_t m_symbol_to_var;
     hir_builder_type_to_used_type_map_t m_type_to_used_type;
-
-    ketl_hir_block_index_t active_block;
 };
 
 void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocator* p_allocator);

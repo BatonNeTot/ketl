@@ -6,19 +6,36 @@
 #define PRIoffset PRIu16
 
 uint8_t ketl_bytecode_decode_instruction_length(ketl_bytecode_instr instruction) {
-    if (instruction <= KETL_BYTECODE_RETURN) {
-        if (instruction == KETL_BYTECODE_CALL) {
-            return sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset);
-        }
-        return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset);
-    } else if (instruction <= KETL_BYTECODE_64ASSIGN) {
-        return sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset);
-    } else if (instruction >= KETL_BYTECODE_8UADD) {
+    if (instruction >= KETL_BYTECODE_8UADD) {
         return sizeof(ketl_bytecode_instr) + 3 * sizeof(ketl_bytecode_stack_offset);
     } else {
-        switch (instruction) {
+        KETL_SWITCH_STRICT (instruction) {
+            case KETL_BYTECODE_STACK_PROLOG:
+            case KETL_BYTECODE_8PUSH_ARG:
+            case KETL_BYTECODE_16PUSH_ARG:
+            case KETL_BYTECODE_32PUSH_ARG:
+            case KETL_BYTECODE_64PUSH_ARG:
+            return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset);
+            case KETL_BYTECODE_CALL:
+            return sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset);
+            case KETL_BYTECODE_JUMP:
+            return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_jump_offset);
+            case KETL_BYTECODE_8JUMP_IF:
+            case KETL_BYTECODE_16JUMP_IF:
+            case KETL_BYTECODE_32JUMP_IF:
+            case KETL_BYTECODE_64JUMP_IF:
+            return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_jump_offset) + sizeof(ketl_bytecode_stack_offset);
             case KETL_BYTECODE_RETURN:
-            return sizeof(ketl_bytecode_instr);
+            return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset);
+            case KETL_BYTECODE_8RETURN:
+            case KETL_BYTECODE_16RETURN:
+            case KETL_BYTECODE_32RETURN:
+            case KETL_BYTECODE_64RETURN:
+            case KETL_BYTECODE_8ASSIGN:
+            case KETL_BYTECODE_16ASSIGN:
+            case KETL_BYTECODE_32ASSIGN:
+            case KETL_BYTECODE_64ASSIGN:
+            return sizeof(ketl_bytecode_instr) + 2 * sizeof(ketl_bytecode_stack_offset);
             case KETL_BYTECODE_8LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint8_t);
             case KETL_BYTECODE_16LOAD_CONST:
@@ -27,8 +44,6 @@ uint8_t ketl_bytecode_decode_instruction_length(ketl_bytecode_instr instruction)
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint32_t);
             case KETL_BYTECODE_64LOAD_CONST:
             return sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset) + sizeof(uint64_t);
-            default:
-            return 0;
         }
     }
 }
@@ -51,6 +66,18 @@ uint32_t ketl_bytecode_format(uint8_t* pInstruction, uint8_t* pLabels, char* buf
             return snprintf(buffer, bufferSize, "CALL INTO %"PRIoffset": %"PRIoffset, 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr)), 
             *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_stack_offset)));
+        }
+        case KETL_BYTECODE_JUMP: {
+            return snprintf(buffer, bufferSize, "JUMP TO %"PRIoffset, 
+            *(ketl_bytecode_jump_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
+        }
+        case KETL_BYTECODE_8JUMP_IF:
+        case KETL_BYTECODE_16JUMP_IF:
+        case KETL_BYTECODE_32JUMP_IF:
+        case KETL_BYTECODE_64JUMP_IF: {
+            return snprintf(buffer, bufferSize, "IF %"PRIoffset" JUMP TO %"PRIoffset, 
+            *(ketl_bytecode_stack_offset*)(pInstruction + sizeof(ketl_bytecode_instr) + sizeof(ketl_bytecode_jump_offset)), 
+            *(ketl_bytecode_jump_offset*)(pInstruction + sizeof(ketl_bytecode_instr)));
         }
         case KETL_BYTECODE_RETURN: {
             return snprintf(buffer, bufferSize, "EPILOG %"PRIoffset", RETURN", 

@@ -38,8 +38,10 @@ static void ketl_lexer_increment_line(ketl_lexer_context* p_context) {
 
 static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type type, uint32_t length) {
     uint32_t count = pContext->count;
-    if (count < pContext->capacity) {
-        uint32_t newCapacity = pContext->capacity = (uint32_t)(pContext->capacity * 1.5f);
+    if (count >= pContext->capacity) {
+        uint32_t newCapacity = (uint32_t)(pContext->capacity << 1);
+        KETL_ASSERT(newCapacity > pContext->capacity);
+        pContext->capacity = newCapacity;
         pContext->pTokens = ketl_realloc(pContext->pAllocator, pContext->pTokens, sizeof(ketl_token) * newCapacity);
     }
     uint32_t offset = pContext->offset;
@@ -51,12 +53,11 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
         .start_pos_line = pContext->line,
         .end_pos_line = pContext->line,
         .start_pos_col = pContext->col,
-        .end_pos_col = pContext->col = length,
+        .end_pos_col = (pContext->col += length),
     };
     ++pContext->count;
     pContext->lastTokenEnd = offset + length;
     pContext->offset += length;
-    pContext->col += length;
 }
 
 static char ketl_lexer_get_symbol(ketl_lexer_context* pContext) {
@@ -181,7 +182,7 @@ static bool ketl_lexer_parse_literal_string(ketl_lexer_context* pContext, char n
         return false;
     }
 
-    char literalStartOffset = pContext->offset += 1;
+    uint32_t literalStartOffset = pContext->offset += 1;
     pContext->col += 1;
     KETL_FOREVER {
         nextSymbol = ketl_lexer_get_symbol(pContext);
@@ -215,7 +216,7 @@ static bool ketl_lexer_parse_literal_integer(ketl_lexer_context* pContext, char 
         return false;
     }
 
-    char literalStartOffset = pContext->offset;
+    uint32_t literalStartOffset = pContext->offset;
     pContext->offset += 1;
 
 
@@ -239,7 +240,7 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
         return false;
     }
 
-    char idStartOffset = pContext->offset;
+    uint32_t idStartOffset = pContext->offset;
     pContext->offset = idStartOffset + 1;
 
     KETL_FOREVER {
@@ -256,7 +257,18 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
 
     char firstSymbol = ketl_lexer_get_symbol(pContext);
     switch (firstSymbol) {
+        case 'e': {
+            if (ketl_str_is_equal_n("else", pContext->pSource + pContext->offset, idLength)) {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ELSE, idLength);
+                return true;
+            }
+            break;
+        }
         case 'i': {
+            if (ketl_str_is_equal_n("if", pContext->pSource + pContext->offset, idLength)) {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_IF, idLength);
+                return true;
+            }
             if (ketl_str_is_equal_n("i64", pContext->pSource + pContext->offset, idLength)) {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_I64, idLength);
                 return true;

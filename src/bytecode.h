@@ -16,6 +16,12 @@ enum __KETL_BYTECODE_INSTRUCTION {
     KETL_BYTECODE_64PUSH_ARG,
     KETL_BYTECODE_CALL,
 
+    KETL_BYTECODE_JUMP,
+    KETL_BYTECODE_8JUMP_IF,
+    KETL_BYTECODE_16JUMP_IF,
+    KETL_BYTECODE_32JUMP_IF,
+    KETL_BYTECODE_64JUMP_IF,
+
     KETL_BYTECODE_RETURN,
     KETL_BYTECODE_8RETURN,
     KETL_BYTECODE_16RETURN,
@@ -133,6 +139,7 @@ enum __KETL_BYTECODE_INSTRUCTION {
 };
 
 typedef uint16_t ketl_bytecode_stack_offset;
+typedef uint16_t ketl_bytecode_jump_offset;
 
 KETL_DEFINE(ketl_bytecode) {
     uint8_t* pInstructions;

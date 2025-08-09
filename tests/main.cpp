@@ -27,7 +27,13 @@ int main(int argc, char** argv) {
         "i64 a = 5 + 8;"
         "i64 b = 34 - 6;"
         "a = (b - a) % 20;"
-        "return ((a - 1) * 4 / 10) != 5;"
+        "i64 result = 0;"
+        "if (((a - 1) * 4 / 10) == 5) {"
+        "   result = 42;"
+        "} else {"
+        "   result = 31;"
+        "}"
+        "return result;"
     ;
     auto result = ketl.eval("", pSource);
     std::cout << "result = " << result << std::endl;

@@ -28,6 +28,12 @@ class Term:
 	#@functools.cache
 	def __hash__(self):
 		return hash(self.__str__()) 
+	
+	def __repr__(self):
+		return Term.__str__(self)
+
+	def to_str(self, terms, nonterms):
+		return str(terms[self.token])
 
 	def __str__(self):
 		return '\'' + (('[' + str(self.token) + ']') if isinstance(self.token, int) else str(self.token)) + '\''
@@ -45,6 +51,12 @@ class Nonterm:
 	#@functools.cache
 	def __hash__(self):
 		return hash(self.__str__()) 
+	
+	def __repr__(self):
+		return Nonterm.__str__(self)
+
+	def to_str(self, terms, nonterms):
+		return nonterms[self.value].name
 
 	def __str__(self):
 		return ('[' + str(self.value) + ']') if isinstance(self.value, int) else str(self.value)
@@ -59,12 +71,15 @@ class Prod:
 		self.operatorPrecedence = operatorPrecedence
 		self.action = action
 
+	def to_str(record, terms, nonterms):
+		return f'{nonterms[record.nonterm].name} -> {", ".join(s.to_str(terms, nonterms) for s in record.body)}'
+
 	def __str__(self):
 		return self.name + '->' + ','.join(str(s) for s in self.body)
 	
 	def templateEnum(self, languageEnum):
 		return Prod(self.name, 
-			  [Term(languageEnum[symbol.token].value) if symbol.isTerminal() else symbol for symbol in self.body], 
+			  [Term(languageEnum[symbol.token]) if symbol.isTerminal() else symbol for symbol in self.body], 
 			  self.operatorPrecedence, self.action)
 
 class LRActionType(Enum):
@@ -126,7 +141,7 @@ class Model:
 	def __init__(self, productions, language, operatorsAssociativity, startProductionName=None):
 		if isclass(language) and issubclass(language, Enum) or isinstance(language, Enum):
 			languageEnum = language
-			language = list(range(0, len(languageEnum)))
+			language = list(languageEnum)
 			productions = [production.templateEnum(languageEnum) for production in productions]
 
 		if startProductionName is None:
@@ -508,6 +523,10 @@ class Model:
 
 	def __actionTableError(self, state, symbol, action, currentAction):
 			print('Failed to set ' + str(action) + ' to table in ' + str(state) + ':' + self.__symbolToStr(symbol) + '; already filled with ' + str(currentAction))
+			if action.action == LRActionType.REDUCE:
+				print(f'{action} = {Prod.to_str(self.__productions[action.value], self.__terms, self.__nonterms)}')
+			if currentAction.action == LRActionType.REDUCE:
+				print(f'{currentAction} = {Prod.to_str(self.__productions[currentAction.value], self.__terms, self.__nonterms)}')
 
 	def __constructActionTable(self):
 		self.__actionTable = [record(actions=[error()] * (len(self.__terms) + 2), goto=[-1] * len(self.__nonterms)) for _ in range(len(self.__kernelItemSets))]

@@ -54,14 +54,20 @@ KETL_VECTOR_DEFINITION(_ketl_parse_node_stack_t, ketl_parse_node)
 KETL_VECTOR_DECLARATION(_ketl_parse_argument_stack_t, ketl_hir_var_id_t)
 KETL_VECTOR_DEFINITION(_ketl_parse_argument_stack_t, ketl_hir_var_id_t)
 
+KETL_VECTOR_DECLARATION(_ketl_parse_flow_stack_t, ketl_hir_block_index_t)
+KETL_VECTOR_DEFINITION(_ketl_parse_flow_stack_t, ketl_hir_block_index_t)
+
 KETL_DEFINE(ketl_parser_context) {
     ketl_state* p_state;
     const char* p_source;
     uint32_t offset;
     ketl_hir_symbol_offset_t p_filename;
+    ketl_hir_block_index_t next_block;
     ketl_hir_builder_t hir_builder;
     _ketl_parse_node_stack_t v_node_stack;
+
     _ketl_parse_argument_stack_t v_argument_stack;
+    _ketl_parse_flow_stack_t v_flow_stack;
 };
 
 static uint16_t actionsTable[] = {
@@ -227,7 +233,7 @@ static void push_hir_assign(ketl_parser_context* pContext, ketl_parse_pos_info* 
 
     if (p_lhs_var->info != KETL_HIR_VAR_INFO_TEMP &&
         pContext->hir_builder.v_vars_infos.pData[p_lhs_var->info].p_global == NULL) {
-        // TODO might not work in a looping scenario
+        // TODO will not work in a looping scenario without f instruction at the begining of the block
         //lhs_var = ketl_hir_builder_increment_var_uid(&pContext->hir_builder, lhs_var);
         // TODO should not run during debug compilation
     }
@@ -241,20 +247,107 @@ static void push_hir_variable_declaration(ketl_parser_context* pContext, ketl_pa
     push_hir_assign_impl(pContext, p_pos_info, id_var, init_var);
 }
 
-#define call(function, ...) ((function)(pContext, __VA_ARGS__))
-#define call_with_pos(function, ...) ((function)(pContext, &pos_info, __VA_ARGS__))
+static ketl_hir_block_index_t reserve_hir_blocks(ketl_parser_context* pContext, uint8_t count) {
+    ketl_hir_block_index_t first_block = pContext->hir_builder.v_blocks.size;
+    _ketl_parse_flow_stack_t_reserve(&pContext->v_flow_stack, pContext->v_flow_stack.size + count);
+    hir_builder_blocks_t_reserve(&pContext->hir_builder.v_blocks, pContext->hir_builder.v_blocks.size + count);
+    for (uint8_t i = count; i > 0; --i) {
+        _ketl_parse_flow_stack_t_push_back_copy(&pContext->v_flow_stack, first_block + i - 1);
+        hir_builder_blocks_t_push_back_copy(&pContext->hir_builder.v_blocks, 0u);
+    }
+    return first_block;
+}
+
+static void pull_hir_flow_block(ketl_parser_context* pContext) {
+    KETL_ASSERT(pContext->v_flow_stack.size > 0);
+
+    uint16_t last_flow_index = --pContext->v_flow_stack.size;
+    ketl_hir_block_index_t last_flow_block = pContext->v_flow_stack.pData[last_flow_index];
+    pContext->hir_builder.v_blocks.pData[last_flow_block] = pContext->hir_builder.v_instrs.size;
+}
+
+static void push_hir_endif(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info) {
+    ketl_hir_header_t jump_header = {
+        .tag = KETL_HIR_JUMP,
+        .file_symbol = pContext->p_filename,
+        .start_line_index = p_pos_info->start_pos_line,
+        .end_line_index = p_pos_info->end_pos_line,
+        .start_col_index = p_pos_info->start_pos_col,
+        .end_col_index = p_pos_info->end_pos_col,
+    };
+    ketl_hir_jump_t instr = {
+        .block_index = pContext->next_block,
+    };
+    
+    ketl_hir_builder_insert_instr(&pContext->hir_builder, jump_header, (uint8_t*)&instr);
+
+    pContext->next_block = (ketl_hir_block_index_t)-1;
+
+    pull_hir_flow_block(pContext);
+}
+
+static void push_hir_else(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info) {
+    ketl_hir_header_t jump_header = {
+        .tag = KETL_HIR_JUMP,
+        .file_symbol = pContext->p_filename,
+        .start_line_index = p_pos_info->start_pos_line,
+        .end_line_index = p_pos_info->end_pos_line,
+        .start_col_index = p_pos_info->start_pos_col,
+        .end_col_index = p_pos_info->end_pos_col,
+    };
+    ketl_hir_jump_t instr = {
+        .block_index = pContext->next_block,
+    };
+    
+    ketl_hir_builder_insert_instr(&pContext->hir_builder, jump_header, (uint8_t*)&instr);
+
+    pull_hir_flow_block(pContext);
+}
+
+static void push_hir_if(ketl_parser_context* pContext, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t bool_expr_var) {
+    // TODO check casting
+
+    ketl_hir_block_index_t first_block = reserve_hir_blocks(pContext, 3);
+    
+    ketl_hir_header_t if_header = {
+        .tag = KETL_HIR_JUMP_IF,
+        .file_symbol = pContext->p_filename,
+        .start_line_index = p_pos_info->start_pos_line,
+        .end_line_index = p_pos_info->end_pos_line,
+        .start_col_index = p_pos_info->start_pos_col,
+        .end_col_index = p_pos_info->end_pos_col,
+    };
+    ketl_hir_jump_if_t instr = {
+        .true_block = first_block,
+        .false_block = first_block + 1,
+        .expr_var = bool_expr_var,
+    };
+    
+    pContext->next_block = first_block + 2;
+    // TODO provide true and false branches
+    ketl_hir_builder_insert_instr(&pContext->hir_builder, if_header, (uint8_t*)&instr);
+
+    pull_hir_flow_block(pContext);
+}
+
+#define call(function) ((function)(pContext))
+#define call_n(function, ...) ((function)(pContext, __VA_ARGS__))
+#define call_with_pos(function) ((function)(pContext, &pos_info))
+#define call_n_with_pos(function, ...) ((function)(pContext, &pos_info, __VA_ARGS__))
 
 #ifndef NDEBUG
 //#define DRAW_STACK_INFO
 #endif
 
-#define DRAW_STACK(stack)\
+#define DRAW_STACK(pContext)\
 do {\
-    for (uint32_t i = 0; i < (stack).size; ++i) {\
-        printf("%d(%d) ", (stack).pData[i].state, (stack).pData[i].output.token.body.type);\
+    for (uint32_t i = 0; i < (pContext)->v_node_stack.size; ++i) {\
+        printf("%d('%.*s') ", (pContext)->v_node_stack.pData[i].state,\
+            (pContext)->v_node_stack.pData[i].pos_info.end_pos_col - (pContext)->v_node_stack.pData[i].pos_info.start_pos_col,\
+            (pContext)->p_source + (pContext)->v_node_stack.pData[i].pos_info.start_pos_col);\
     }\
     printf("\n");\
-    /*printf("stack size %d\n", (stack).size);*/\
+    /*printf("stack size %d\n", (pContext)->v_node_stack).size;*/\
 } while(false)
 
 static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_token token) {
@@ -270,17 +363,24 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
 
         switch ((action & ACTION_MASK_TYPE) >> ACTION_SHIFT_TYPE) {
             case ACTION_TYPE_SHIFT: {
-                _ketl_parse_node_stack_t_push_back_copy(&pContext->v_node_stack, (ketl_parse_node){.state = (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE, 
+                _ketl_parse_node_stack_t_push_back_copy(&pContext->v_node_stack, (ketl_parse_node){
+                    .state = (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE, 
+                    .pos_info = {
+                        .start_pos_line = token.start_pos_line,
+                        .end_pos_line = token.end_pos_line,
+                        .start_pos_col = token.start_pos_col,
+                        .end_pos_col = token.end_pos_col,
+                    },
                     .output = {
                         .token = {
                             .body = token,
                             .offset = pContext->offset,
                         },
-                    },
-                    });
+                    }
+                });
 #ifdef DRAW_STACK_INFO
                 printf("pushing %d\n", (action & ACTION_MASK_VALUE) >> ACTION_SHIFT_VALUE);
-                DRAW_STACK(pContext->v_node_stack);
+                DRAW_STACK(pContext);
 #endif
                 return false;
             }
@@ -306,7 +406,7 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
                 uint64_t stateAfterReduction = stack_top_node(1).state;
                 uint64_t gotoState = gotoTable[stateAfterReduction * NONTERMS_COUNT + prodNonterm];
 #ifdef DRAW_STACK_INFO
-                DRAW_STACK(pContext->v_node_stack);
+                DRAW_STACK(pContext);
 				printf("from state %lld and nonterm %d\n", stateAfterReduction, prodNonterm);
                 printf("pushing %lld\n", gotoState);
 #endif
@@ -316,7 +416,7 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
                     .pos_info=pos_info,
                     });
 #ifdef DRAW_STACK_INFO
-                DRAW_STACK(pContext->v_node_stack);
+                DRAW_STACK(pContext);
 #endif
                 if (gotoState == (uint64_t)-1) {
                     printf("uknown goto by nonterm {productionInfo.nonterm} of length {productionInfo.length}!\n");
@@ -324,8 +424,8 @@ static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_
                 continue;
             }
             case ACTION_TYPE_ERROR: {
-                printf("can't process %d!\n", token.type);
-                DRAW_STACK(pContext->v_node_stack);
+                printf("can't process token %d!\n", token.type);
+                DRAW_STACK(pContext);
                 return true;
             }
             case ACTION_TYPE_ACCEPT: {
@@ -351,9 +451,11 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p
     ketl_parser_context context = {.p_state = p_state, .p_source = p_source, .offset = 0};
     ketl_hir_builder_init(&context.hir_builder, p_allocator);
     context.p_filename = ketl_atomic_strings_get(&context.hir_builder.symbols, p_filename, KETL_NULL_TERMINATED_LENGTH_32);
+    context.next_block = (ketl_hir_block_index_t)-1;
     _ketl_parse_node_stack_t_init(&context.v_node_stack, 4, p_allocator);
     _ketl_parse_node_stack_t_push_back_copy(&context.v_node_stack, (ketl_parse_node){.state=0, .output={0}});
     _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 4, p_allocator);
+    _ketl_parse_flow_stack_t_init(&context.v_flow_stack, 4, p_allocator);
 
     for (uint32_t i = 0u; i < count; ++i) {
         const ketl_token token = pTokens[i];
@@ -379,7 +481,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p
     printf("total stack: %d\n", context.v_node_stack.capacity);
     printf("last stack: %d\n", context.v_node_stack.size);
     printf("result: %d\n", context.v_node_stack.pData[context.v_node_stack.size - (1)].result);
-    DRAW_STACK(context.v_node_stack);
+    DRAW_STACK(&context);
     for (uint32_t i = 0u; i < context.vSymbols.size; ++i) {
         if (i != 0 && (i & 15) == 0) {
             printf("\n");
@@ -395,6 +497,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p
         KETL_ASSERT(false);
     }
 
+    _ketl_parse_flow_stack_t_deinit(&context.v_flow_stack);
     _ketl_parse_argument_stack_t_deinit(&context.v_argument_stack);
     _ketl_parse_node_stack_t_deinit(&context.v_node_stack);
 

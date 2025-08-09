@@ -43,6 +43,10 @@ enum {
     KETL_HIR_CALL,
 
     KETL_HIR_ASSIGN,
+
+    KETL_HIR_JUMP,
+
+    KETL_HIR_JUMP_IF,
     
     KETL_HIR_RETURN,
     KETL_HIR_RETURN_VALUE,
@@ -94,6 +98,16 @@ KETL_DEFINE(ketl_hir_call_t) {
 KETL_DEFINE(ketl_hir_assign_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
+};
+
+KETL_DEFINE(ketl_hir_jump_t) {
+    ketl_hir_block_index_t block_index;
+};
+
+KETL_DEFINE(ketl_hir_jump_if_t) {
+    ketl_hir_block_index_t true_block;
+    ketl_hir_block_index_t false_block;
+    ketl_hir_var_id_t expr_var;
 };
 
 KETL_DEFINE(ketl_hir_return_value_t) {
