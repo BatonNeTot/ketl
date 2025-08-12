@@ -1,11 +1,11 @@
 //🫖ketl
 #include "x86.h"
 
-KETL_VECTOR_DEFINITION(opcodes, uint8_t)
+KETL_VECTOR_DEFINITION(opcodes_t, uint8_t)
 
-static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
+static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
     if (pOpStruct->size == KETL_SIZE_16B) {
-        opcodes_push_back_copy(pOpcodes, 0x66); // set 16-bit operand size
+        opcodes_t_push_back_copy(pOpcodes, 0x66); // set 16-bit operand size
     }
 
     REXByte rex = {
@@ -17,7 +17,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         // set 64-bit operand size
         rex.w = 1;
         rexOffset = pOpcodes->size;
-        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_t_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     } else if (pOpStruct->size == KETL_SIZE_8B &&
         (
             (
@@ -35,7 +35,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         )) {
         // for accessing spl, bpl, sil and dil rex be inserted
         rexOffset = pOpcodes->size;
-        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_t_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     } else if (
         (
             (pOpStruct->firstArgType == KETL_ARG_REG ||
@@ -49,7 +49,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         // for accessing r8-r15 registers
         // additional flags must be set, but they will be desided later
         rexOffset = pOpcodes->size;
-        opcodes_push_back_ref(pOpcodes, (uint8_t*)(&rex));
+        opcodes_t_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     }
     
     KETL_SWITCH_STRICT (pOpStruct->firstArgType) {
@@ -60,9 +60,9 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         case KETL_ARG_RSP_MEM_DISP:
         case KETL_ARG_RBP_MEM_DISP:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_push_back_copy(pOpcodes, 0x8a);
+                opcodes_t_push_back_copy(pOpcodes, 0x8a);
             } else {
-                opcodes_push_back_copy(pOpcodes, 0x8b);
+                opcodes_t_push_back_copy(pOpcodes, 0x8b);
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
@@ -82,7 +82,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->firstArg,
                     .rm = pOpStruct->secondArg
                 };
-                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&modrm);
             } else {
                 if (pOpStruct->secondArgType == KETL_ARG_REG_MEM) {
                     // [reg]
@@ -91,7 +91,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .reg = pOpStruct->firstArg,
                         .rm = pOpStruct->secondArg
                     };
-                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                    opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                 } else {
                     // [SIB]
                     MODRMByte modrm = {
@@ -99,7 +99,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .reg = pOpStruct->firstArg,
                         .rm = KETL_REG_SP
                     };
-                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                    opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                     // [RSP + disp32] or [RBP + disp32]
                     SIBByte sib = {
                         .scale =  SIB_SCALE_1,
@@ -107,17 +107,17 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                         .base = pOpStruct->secondArgType == KETL_ARG_RSP_MEM_DISP
                             ? KETL_REG_SP : KETL_REG_BP
                     };
-                    opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
+                    opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&sib);
                     uint32_t secondArg = pOpStruct->secondArg;
-                    opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                    opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 }
             }
             return;
         case KETL_ARG_IMM:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_push_back_copy(pOpcodes, 0xb0 + pOpStruct->firstArg);
+                opcodes_t_push_back_copy(pOpcodes, 0xb0 + pOpStruct->firstArg);
             } else {
-                opcodes_push_back_copy(pOpcodes, 0xb8 + pOpStruct->firstArg);
+                opcodes_t_push_back_copy(pOpcodes, 0xb8 + pOpStruct->firstArg);
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
@@ -126,34 +126,34 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
             KETL_SWITCH_STRICT (pOpStruct->size) {
             case KETL_SIZE_8B: {
                 uint8_t secondArg = pOpStruct->secondArg;
-                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             case KETL_SIZE_16B: {
                 uint16_t secondArg = pOpStruct->secondArg;
-                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             case KETL_SIZE_32B: {
                 uint32_t secondArg = pOpStruct->secondArg;
-                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             case KETL_SIZE_64B: {
                 uint64_t secondArg = pOpStruct->secondArg;
-                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+                opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             }
             return;
         case KETL_ARG_IMM_MEM:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_push_back_copy(pOpcodes, 0xa0);
+                opcodes_t_push_back_copy(pOpcodes, 0xa0);
             } else {
-                opcodes_push_back_copy(pOpcodes, 0xa1);
+                opcodes_t_push_back_copy(pOpcodes, 0xa1);
             }
             uint64_t secondArg = pOpStruct->secondArg;
-            opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
+            opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
             if (pOpStruct->firstArg != KETL_REG_AX) {
                 pOpStruct->secondArgType = KETL_ARG_REG;
                 pOpStruct->secondArg = KETL_REG_AX;
@@ -168,9 +168,9 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_push_back_copy(pOpcodes, 0x88);
+                opcodes_t_push_back_copy(pOpcodes, 0x88);
             } else {
-                opcodes_push_back_copy(pOpcodes, 0x89);
+                opcodes_t_push_back_copy(pOpcodes, 0x89);
             }
             if (pOpStruct->firstArgType == KETL_ARG_REG_MEM &&
                 pOpStruct->firstArg >= KETL_REG_R8) {
@@ -190,7 +190,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->secondArg,
                     .rm = pOpStruct->firstArg
                 };
-                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&modrm);
             } else {
                 // [SIB]
                 MODRMByte modrm = {
@@ -198,7 +198,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .reg = pOpStruct->secondArg,
                     .rm = KETL_REG_SP
                 };
-                opcodes_push_back_ref(pOpcodes, (uint8_t*)&modrm);
+                opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&modrm);
                 // [RSP + disp32] or [RBP + disp32]
                 SIBByte sib = {
                     .scale =  SIB_SCALE_1,
@@ -206,9 +206,9 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
                     .base = pOpStruct->firstArgType == KETL_ARG_RSP_MEM_DISP
                         ? KETL_REG_SP : KETL_REG_BP
                 };
-                opcodes_push_back_ref(pOpcodes, (uint8_t*)&sib);
+                opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&sib);
                 uint32_t firstArg = pOpStruct->firstArg;
-                opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
+                opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             }
             return;
         return;
@@ -217,12 +217,12 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
         KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_push_back_copy(pOpcodes, 0xa2);
+                opcodes_t_push_back_copy(pOpcodes, 0xa2);
             } else {
-                opcodes_push_back_copy(pOpcodes, 0xa3);
+                opcodes_t_push_back_copy(pOpcodes, 0xa3);
             }
             uint64_t firstArg = pOpStruct->firstArg;
-            opcodes_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
+            opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             if (pOpStruct->secondArg != KETL_REG_AX) {
                 pOpStruct->firstArgType = KETL_ARG_REG;
                 pOpStruct->firstArg = KETL_REG_AX;
@@ -235,7 +235,7 @@ static void push_mov(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
     }
 }
 
-void push_opcode(opcodes* pOpcodes, x86_op_struct* pOpStruct) {
+void push_opcode(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
     switch (pOpStruct->opCode) {
     case KETL_OP_MOV:
         push_mov(pOpcodes, pOpStruct);

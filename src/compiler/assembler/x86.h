@@ -84,7 +84,7 @@ KETL_DEFINE(SIBByte) {
 #define SIB_SCALE_4 0x02 // 0b10
 #define SIB_SCALE_8 0x03 // 0b11
 
-KETL_VECTOR_DECLARATION(opcodes, uint8_t)
+KETL_VECTOR_DECLARATION(opcodes_t, uint8_t)
 
 #define PUSH_OPCODE_REG_IMM(pOpcodes, sizeArg, opcodeArg, regArg, immArg) do {\
     x86_op_struct __tmpOpStruct;\
@@ -163,6 +163,6 @@ KETL_VECTOR_DECLARATION(opcodes, uint8_t)
     push_opcode((pOpcodes), &__tmpOpStruct);\
 } while(false)
 
-void push_opcode(opcodes* pOpcodes, x86_op_struct* pOpStruct);
+void push_opcode(opcodes_t* pOpcodes, x86_op_struct* pOpStruct);
 
 #endif // ketl_compiler_assembler_x86_h
