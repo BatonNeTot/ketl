@@ -7,6 +7,7 @@
 
 #include "executable_memory.h"
 #include "execution.h"
+#include "value_impl.h"
 #include "type_impl.h"
 #include "memory_impl.h"
 
@@ -145,7 +146,7 @@ ketl_variable namespaceVariable = {\
 ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);\
 } while(0)
 
-    CREATE_PRIMITIVE_TYPE(tVoid, "void", 0, false, false);
+    CREATE_PRIMITIVE_TYPE(tVoid, "none", 0, false, false);
     CREATE_PRIMITIVE_TYPE(tBool, "bool", 1, false, false);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
 
@@ -193,11 +194,12 @@ void ketl_state_destroy(ketl_state* pState) {
 do {\
 ketl_atomic_string sTypeName = ketl_atomic_strings_get(&pState->atomicStrings, _name, sizeof(_name) - 1);\
 ketl_namespace_node* pTypeNode = ketl_namespace_find(&pState->globalNamespace, sTypeName);\
-KETL_ASSERT(pTypeNode->variable.type == KETL_VARIABLE_TYPE && pTypeNode->nextOffset == (uint32_t)(-1));\
+KETL_ASSERT(pTypeNode->variable.type == KETL_VARIABLE_TYPE);\
 ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 } while(0)
 
-    FREE_PRIMITIVE_TYPE("void");
+    FREE_PRIMITIVE_TYPE("none");
+    FREE_PRIMITIVE_TYPE("bool");
     FREE_PRIMITIVE_TYPE("i64");
 
     ketl_namespace_deinit(&pState->globalNamespace);
@@ -208,8 +210,8 @@ ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 }
 
 // TODO FIX might be called often, replace allocation on heap with field in ketl_state
-ketl_type* ketl_state_get_void(ketl_state* pState) {
-    return ketl_state_get_type(pState, "void", 4);
+ketl_type* ketl_state_get_none_type(ketl_state* pState) {
+    return ketl_state_get_type(pState, "none", 4);
 }
 
 ketl_type* ketl_state_get_i64(ketl_state* pState) {
@@ -219,7 +221,7 @@ ketl_type* ketl_state_get_i64(ketl_state* pState) {
 ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uint32_t length) {
     ketl_atomic_string a_type_name = ketl_atomic_strings_get(&p_state->atomicStrings, p_type_name, length);
     ketl_namespace_node* p_type_node = ketl_namespace_find(&p_state->globalNamespace, a_type_name);
-    KETL_ASSERT(p_type_node->variable.type == KETL_VARIABLE_TYPE && p_type_node->nextOffset == (uint32_t)(-1));
+    KETL_ASSERT(p_type_node->variable.type == KETL_VARIABLE_TYPE);
     return p_type_node->variable.pointer;
 }
 
@@ -241,13 +243,14 @@ void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t 
     ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);
 }
 
-void ketl_state_eval(ketl_state* pState, const char* p_filename, const char* pSource, uint32_t length) {
-    ketl_state_eval_int64(pState, pSource, p_filename, length);
-}
+ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const char* pSource, uint32_t length) {
+    ketl_variable output_variable;
 
-int64_t ketl_state_eval_int64(ketl_state* pState, const char* p_filename, const char* pSource, uint32_t length) {
+    ////////////////////////////////
+
     ketl_hir_t hir;
     ketl_parser_build_hir(pState, &hir, p_filename, pSource, length, pState->pAllocator);
+    ketl_variable_set_type(&output_variable, hir.p_used_types[hir.return_type]);
 
     {
         char arr_buffer[1024];
@@ -284,14 +287,9 @@ int64_t ketl_state_eval_int64(ketl_state* pState, const char* p_filename, const 
 
     uint8_t* executableOpcodes = ketl_executable_memory_allocate(&ex_memory, pOpcodes, opcodesSize);
     ketl_free(pState->pAllocator, pOpcodes);
-    int64_t result = ketl_execute(&executableOpcodes);
+    output_variable.uint64 = ketl_execute(&executableOpcodes);
 
     ketl_executable_memory_deinit(&ex_memory);
 
-    return result;
-}
-
-ketl_type* ketl_state_find_type(const char* pName) {
-    (void)pName;
-    return NULL;
+    return ketl_value_from_variable(output_variable, pState->pAllocator);
 }

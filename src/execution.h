@@ -5,6 +5,6 @@
 #include "ketl/utils.h"
 
 
-int64_t ketl_execute(void* opcodes);
+uint64_t ketl_execute(void* opcodes);
 
 #endif // ketl_execution_h

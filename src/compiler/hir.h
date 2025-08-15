@@ -153,6 +153,8 @@ KETL_DEFINE(ketl_hir_t) {
     ketl_hir_var_info_index_t vars_infos_count;
     ketl_hir_block_index_t blocks_count;
     ketl_hir_used_type_index_t used_types_count;
+
+    ketl_hir_used_type_index_t return_type;
 };
 
 void ketl_hir_deinit(ketl_hir_t* p_hir);

@@ -503,5 +503,5 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p
 
     ketl_free(p_allocator, pTokens);
 
-    ketl_hir_builder_flush(&context.hir_builder, p_hir);
+    ketl_hir_builder_flush(p_state, &context.hir_builder, p_hir);
 }

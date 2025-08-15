@@ -6,10 +6,10 @@
 
 #include "atomic_strings.h"
 
-enum __KETL_TYPE {
-KETL_TYPE_PRIMITIVE,
-KETL_TYPE_FUNCTION,
-KETL_TYPE_CFUNCTION,
+enum {
+    KETL_TYPE_PRIMITIVE,
+    KETL_TYPE_FUNCTION,
+    KETL_TYPE_CFUNCTION,
 };
 
 #define KETL_TYPE_BODY \

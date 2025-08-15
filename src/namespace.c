@@ -19,7 +19,6 @@ void ketl_namespace_deinit(ketl_namespace* pNamespace) {
 void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_variable variable) {
     // TODO insert into vector uninitialized or something
     ketl_namespace_node newNode = {
-        .nextOffset = (uint32_t)(-1),
         .variable = variable
     };
     uint32_t newNodeOffset = pNamespace->vNodes.size;
@@ -27,8 +26,10 @@ void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ket
 
     namespace_map_bucket* pBucket = namespace_map_get_or_insert_copy(&pNamespace->mVars, sKey, newNodeOffset);
     if (pBucket->value != newNodeOffset) {
-        pNamespace->vNodes.pData[newNodeOffset].nextOffset = pBucket->value;
-        pBucket->value = newNodeOffset;
+        // TODO check const stuff
+        // replace if replacement possible
+        // do error if not
+        KETL_ASSERT(false);
     }
 }
 

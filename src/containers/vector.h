@@ -26,7 +26,7 @@ type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uin
 void KETL_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator){\
     *pVector = (name){\
         .pAllocator = pAllocator,\
-        .pData = ketl_alloc(pAllocator, sizeof(type) * initialCapacity),\
+        .pData = ketl_alloc(pAllocator, sizeof(*pVector->pData) * initialCapacity),\
         .size = 0,\
         .capacity = initialCapacity};\
 }\
@@ -47,7 +47,7 @@ void KETL_CONCAT(name,_reserve)(name* pVector, uint32_t newCapacity){\
     }\
     if (currentCapacity != pVector->capacity) {\
         pVector->capacity = currentCapacity;\
-        pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * currentCapacity);\
+        pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * currentCapacity);\
     }\
 }\
 type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value){\
@@ -56,7 +56,7 @@ type* KETL_CONCAT(name,_push_back_copy)(name* pVector, type value){\
     uint32_t capacity = pVector->capacity;\
     if (index >= capacity) {\
         uint32_t newCapacity = pVector->capacity = (uint32_t)(capacity << 1);\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * newCapacity);\
+        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * newCapacity);\
     }\
     pData += index;\
     *pData = value;\
@@ -68,7 +68,7 @@ type* KETL_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue){\
     uint32_t capacity = pVector->capacity;\
     if (index >= capacity) {\
         uint32_t newCapacity = pVector->capacity = (uint32_t)(capacity << 1);\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * newCapacity);\
+        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * newCapacity);\
     }\
     pData += index;\
     *pData = *pValue;\
@@ -87,10 +87,10 @@ type* KETL_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uin
     }\
     if (pVector->capacity != capacity) {\
         pVector->capacity = capacity;\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(type) * capacity);\
+        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * capacity);\
     }\
     pData += index;\
-    ketl_memcpy(pData, pValues, sizeof(type) * size);\
+    ketl_memcpy(pData, pValues, sizeof(*pVector->pData) * size);\
     return pData;\
 }\
 

@@ -10,7 +10,6 @@
 #include "ketl/utils.h"
 
 KETL_DEFINE(ketl_namespace_node) {
-    uint32_t nextOffset;
     ketl_variable variable;
 };
 

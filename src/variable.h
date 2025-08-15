@@ -10,7 +10,7 @@
 
 typedef uint8_t ketl_variable_type;
 
-enum __KETL_VARIABLE {
+enum {
     KETL_VARIABLE_NONE,
 
     KETL_VARIABLE_TYPE,
@@ -57,5 +57,7 @@ KETL_DEFINE(ketl_variable) {
 	ketl_variable_type type;
 	ketl_type* pType;
 };
+
+void ketl_variable_set_type(ketl_variable* p_variable, ketl_type* p_type);
 
 #endif // ketl_variable_h

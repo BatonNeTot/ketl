@@ -167,10 +167,8 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
             continue;
         }
 
-        //KETL_ASSERT(var.type != KETL_HIR_USED_TYPE_UNKHOWN);
         // temprorary variable
         arg_info argInfo = {
-            // TODO FIX
             .pType = var.type != KETL_HIR_USED_TYPE_UNKHOWN ? p_hir->p_used_types[var.type] : NULL,
             .stackOffset = stackReservedSize
         };

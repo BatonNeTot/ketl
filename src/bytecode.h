@@ -6,7 +6,7 @@
 
 typedef uint8_t ketl_bytecode_instr;
 
-enum __KETL_BYTECODE_INSTRUCTION {
+enum {
     KETL_BYTECODE_NONE,
     KETL_BYTECODE_STACK_PROLOG,
 

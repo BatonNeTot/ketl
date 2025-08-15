@@ -34,5 +34,3 @@ KETL_DEFINE(ketl_state) {
 
     operator_overloading_map amHIROperatorOverloading[KETL_HIR_LAST_UNDEF_OPERATOR + 1 - KETL_HIR_FIRST_UNDEF_OPERATOR];
 };
-
-ketl_type* ketl_state_find_type(const char* pName);
