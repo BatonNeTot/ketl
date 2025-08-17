@@ -21,12 +21,14 @@ KETL_DEFINE(function_type_composite) {
 KETL_HASH_MAP_DECLARATION(function_types_map, ketl_function_parameters, function_type_composite)
 
 KETL_VECTOR_DECLARATION(types, ketl_type*)
+KETL_VECTOR_DECLARATION(string_builder_t, char)
 
 KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr)
 
 KETL_DEFINE(ketl_state) {
     const ketl_allocator* pAllocator;
     ketl_gc gc;
+    string_builder_t error_stream;
     ketl_atomic_strings atomicStrings;
     ketl_namespace globalNamespace;
     

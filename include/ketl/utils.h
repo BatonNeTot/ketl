@@ -86,24 +86,18 @@
     #define KETL_DEBUGBREAK() do {} while(0) // in case compiler would complain about empty ;
 #endif
 
-#ifdef NDEBUG
-    #if !KETL_OS_WINDOWS
-        #define KETL_UNREACHABLE() __builtin_unreachable();
-    #else
-        #define KETL_UNREACHABLE() __assume(0);
-    #endif
+#if !defined(_MSC_VER)
+    #define KETL_UNREACHABLE() __builtin_unreachable();
 #else
-    // This code is supposed to be unreachable, so assert
-    #define KETL_UNREACHABLE() KETL_ASSERT(false);
+    #define KETL_UNREACHABLE() __assume(0);
 #endif
 
 #define KETL_FOREVER while(1)
 
 #define KETL_SWITCH_STRICT(val) switch(val) if (0) { default: KETL_UNREACHABLE(); } else
 
-#define KETL_STRUCT_PREFIX _ketl_struct_
-#define KETL_FORWARD(name) typedef struct KETL_CONCAT(KETL_STRUCT_PREFIX, name) name
-#define KETL_DEFINE(name) KETL_FORWARD(name); struct KETL_CONCAT(KETL_STRUCT_PREFIX, name)
+#define KETL_FORWARD(name) typedef struct name name
+#define KETL_DEFINE(name) KETL_FORWARD(name); struct name
 
 #define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
 #define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)

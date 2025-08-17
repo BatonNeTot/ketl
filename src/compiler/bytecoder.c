@@ -337,7 +337,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
             case KETL_BYTECODE_64JUMP_IF: {
                 ketl_hir_block_index_t block = *(ketl_bytecode_jump_offset*)(context.vInstructions.pData + i + sizeof(ketl_bytecode_instr));
                 instr_to_bytecode_offsets_bucket* p_bucket = instr_to_bytecode_offsets_get_or_null(&context.m_instr_to_bytecode_offsets, p_hir->p_block_offsets[block]); 
-                *(ketl_bytecode_jump_offset*)(context.vInstructions.pData + i + sizeof(ketl_bytecode_instr)) = p_bucket->value;
+                *(ketl_bytecode_jump_offset*)(context.vInstructions.pData + i + sizeof(ketl_bytecode_instr)) = (ketl_bytecode_jump_offset)p_bucket->value;
                 break;
         }
         }

@@ -1,7 +1,7 @@
 //🫖ketl
 #include "common.h"
 
-const uint64_t ketl_prime_capacities[] =
+const uint32_t ketl_prime_capacities[] =
 {
   /*1ULL, 3ULL,*/ 11UL, 23ULL, 53ULL, 97ULL, 193ULL, 389ULL,
   769ULL, 1543ULL, 3079ULL, 6151ULL, 12289ULL,
@@ -12,4 +12,4 @@ const uint64_t ketl_prime_capacities[] =
   1610612741ULL, 3221225473ULL, 4294967291ULL
 };
 
-const uint64_t KETL_PRIME_CAPACITIES_TOTAL = sizeof(ketl_prime_capacities) / sizeof(ketl_prime_capacities[0]);
+const uint32_t KETL_PRIME_CAPACITIES_TOTAL = sizeof(ketl_prime_capacities) / sizeof(ketl_prime_capacities[0]);

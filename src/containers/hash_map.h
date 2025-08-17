@@ -91,7 +91,7 @@ KETL_CONCAT(name,_bucket)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kTy
 \
 	uint32_t size = ++pMap->size;\
 	if (size > capacity) {\
-		uint64_t newCapacityIndex = pMap->capacityIndex + 1;\
+		uint32_t newCapacityIndex = pMap->capacityIndex + 1;\
 		if (KETL_PRIME_CAPACITIES_TOTAL <= newCapacityIndex) {\
 			/* TODO error fatal */\
 			return NULL;\

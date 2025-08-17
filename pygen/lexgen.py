@@ -18,8 +18,8 @@ Tokens = Enum('Tokens', [
 	'SQUARE_RIGHT', 
 	'DOT',
 	'COMMA',
-	'TERNARY_FIRST',
-	'TERNARY_SECOND',
+	'QUESTION_MARK',
+	'COLON',
 	'TERMINATION_CHARACTER',
 
 	'LOGICAL_NOT',
@@ -73,7 +73,6 @@ Tokens = Enum('Tokens', [
 	'F32',
 	'F64',
 
-	'AUTO',
 	'BOOL',
 	'BREAK',
 	'CASE',
@@ -87,7 +86,6 @@ Tokens = Enum('Tokens', [
 	'ENUM',
 	'EXTERN',
 	'FALSE',
-	'FLOAT',
 	'FOR',
 	'GOTO',
 	'IF',
@@ -96,18 +94,12 @@ Tokens = Enum('Tokens', [
 	'LONG',
 	'REGISTER',
 	'RETURN',
-	'SHORT',
-	'SIGNED',
-	'SIZEOF',
-	'STATIC',
 	'STRUCT',
 	'SWITCH',
 	'TRUE',
-	'TYPEDEF',
 	'UNION',
 	'UNSIGNED',
-	'VOID',
-	'VOLATILE',
+	'NONE',
 	'WHILE',
 ], start=0)
 
@@ -120,7 +112,7 @@ if __name__ == '__main__':
 	with open(templateFilename, 'r') as templateFile:
 		templateSrc = templateFile.read()
 
-	tokenIds = [(token.name, token.value) for token in Tokens] + [('TOTAL', len(Tokens))]
+	tokenIds = [(token.name, token.value) for token in Tokens] + [('TOTAL', len(Tokens)), ('ERROR', len(Tokens) + 1)]
 	tokenMaxSize = len(max(tokenIds, key=lambda pair: len(pair[0]))[0])
 	templatingMapping = {
 		'tokenIds' : '\n'.join(f'#define KETL_TOKEN_TYPE_{id.ljust(tokenMaxSize)} {value}' for id, value in tokenIds)

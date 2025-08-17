@@ -48,12 +48,12 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
     uint32_t prevOffset = offset - pContext->lastTokenEnd;
     pContext->pTokens[count] = (ketl_token){
         .type = type, 
-        .length = length, 
-        .prevOffset = prevOffset,
+        .length = (uint8_t)length, 
+        .prevOffset = (uint16_t)prevOffset,
         .start_pos_line = pContext->line,
         .end_pos_line = pContext->line,
         .start_pos_col = pContext->col,
-        .end_pos_col = (pContext->col += length),
+        .end_pos_col = (pContext->col += (uint16_t)length),
     };
     ++pContext->count;
     pContext->lastTokenEnd = offset + length;
@@ -322,11 +322,11 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
         return true;
     } 
 	case '?': {
-        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_TERNARY_FIRST, 1);
+        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_QUESTION_MARK, 1);
         return true;
     } 
 	case ':': {
-        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_TERNARY_SECOND, 1);
+        ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_COLON, 1);
         return true;
     } 
 	case ';': {

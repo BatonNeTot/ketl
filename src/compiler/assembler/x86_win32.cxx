@@ -41,7 +41,7 @@ static uint32_t countPushArgs(ketl_bytecode bytecode, uint32_t initialIndex) {
     }
     // TODO ERROR
     printf("sudden end of bytecode - call instruction expected");
-    KETL_ASSERT(false);
+    KETL_UNREACHABLE();
 }
 
 #define IMM_ARG(type, offset) (*(type*)(bytecode.pInstructions + i + sizeof(ketl_bytecode_instr) + (offset) * sizeof(ketl_bytecode_stack_offset)))

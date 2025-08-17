@@ -1,6 +1,7 @@
 //🫖ketl
 #include "ketl/ketl.hpp"
 
+#include <string>
 #include <iostream>
 
 int main(int argc, char **argv) {

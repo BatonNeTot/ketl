@@ -108,16 +108,16 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
                             ? KETL_REG_SP : KETL_REG_BP
                     };
                     opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&sib);
-                    uint32_t secondArg = pOpStruct->secondArg;
+                    uint32_t secondArg = (uint32_t)pOpStruct->secondArg;
                     opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 }
             }
             return;
         case KETL_ARG_IMM:
             if (pOpStruct->size == KETL_SIZE_8B) {
-                opcodes_t_push_back_copy(pOpcodes, 0xb0 + pOpStruct->firstArg);
+                opcodes_t_push_back_copy(pOpcodes, 0xb0 + (uint8_t)pOpStruct->firstArg);
             } else {
-                opcodes_t_push_back_copy(pOpcodes, 0xb8 + pOpStruct->firstArg);
+                opcodes_t_push_back_copy(pOpcodes, 0xb8 + (uint8_t)pOpStruct->firstArg);
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
@@ -125,17 +125,17 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
             }
             KETL_SWITCH_STRICT (pOpStruct->size) {
             case KETL_SIZE_8B: {
-                uint8_t secondArg = pOpStruct->secondArg;
+                uint8_t secondArg = (uint8_t)pOpStruct->secondArg;
                 opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             case KETL_SIZE_16B: {
-                uint16_t secondArg = pOpStruct->secondArg;
+                uint16_t secondArg = (uint16_t)pOpStruct->secondArg;
                 opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
             case KETL_SIZE_32B: {
-                uint32_t secondArg = pOpStruct->secondArg;
+                uint32_t secondArg = (uint32_t)pOpStruct->secondArg;
                 opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
                 break;
             }
@@ -207,7 +207,7 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
                         ? KETL_REG_SP : KETL_REG_BP
                 };
                 opcodes_t_push_back_ref(pOpcodes, (uint8_t*)&sib);
-                uint32_t firstArg = pOpStruct->firstArg;
+                uint32_t firstArg = (uint32_t)pOpStruct->firstArg;
                 opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&firstArg, sizeof(firstArg));
             }
             return;

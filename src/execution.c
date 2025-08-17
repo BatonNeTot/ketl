@@ -3,7 +3,7 @@
 
 #include "ketl/utils.h"
 
-
+/*
 __asm__(".globl ketl_execute\n\t"
 #if !KETL_OS_WINDOWS
         ".type ketl_execute, @function\n\t"
@@ -16,3 +16,4 @@ __asm__(".globl ketl_execute\n\t"
         "jmp *(%rcx)\n\t" // rcx == functionClass*
 #endif
         ".cfi_endproc");
+*/

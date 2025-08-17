@@ -98,7 +98,7 @@ static uint32_t KETL_CONCAT(__,name,_rotate_right)(KETL_CONCAT(name,_node)* pNod
 }\
 static uint32_t KETL_CONCAT(__,name,_balance)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
     KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    int32_t balance = KETL_CONCAT(__,name,_get_balance)(pNodes, nodeOffset);\
+    int32_t balance = (int32_t)KETL_CONCAT(__,name,_get_balance)(pNodes, nodeOffset);\
     \
     if (balance < -1) {\
         if (KETL_CONCAT(__,name,_get_balance)(pNodes, pNode->leftOffset) <= 0) {\
@@ -182,7 +182,7 @@ static uint64_t KETL_CONCAT(__,name,_erase_leftmost_impl)(KETL_CONCAT(name,_node
         *pFoundOffset = nodeOffset;\
         return pNode->rightOffset;\
     } else {\
-        pNode->leftOffset = KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->leftOffset, pFoundOffset);\
+        pNode->leftOffset = (uint32_t)KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->leftOffset, pFoundOffset);\
     }\
 \
     pNode->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
@@ -196,9 +196,9 @@ static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes
 \
     KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->leftOffset, key, pFoundOffset);\
+        pNode->leftOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->leftOffset, key, pFoundOffset);\
     } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->rightOffset, key, pFoundOffset);\
+        pNode->rightOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->rightOffset, key, pFoundOffset);\
     } else {\
         if (pNode->leftOffset == (uint32_t)(-1)) {\
             *pFoundOffset = nodeOffset;\
@@ -210,7 +210,7 @@ static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes
         }\
 \
         uint32_t leftOffset = pNode->leftOffset;\
-        uint32_t rightOffset = KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->rightOffset, pFoundOffset);\
+        uint32_t rightOffset = (uint32_t)KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->rightOffset, pFoundOffset);\
 \
         uint32_t replacementOffset = *pFoundOffset;\
         *pFoundOffset = nodeOffset;\
@@ -229,7 +229,7 @@ static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes
 KETL_CONCAT(name,_node)* KETL_CONCAT(name,_erase)(name* pMap, kType key) {\
     uint32_t foundOffset = (uint32_t)(-1);\
     KETL_CONCAT(name,_node)* pNodes = pMap->pNodes; \
-    pMap->rootOffset = KETL_CONCAT(__,name,_erase_impl)(pNodes, pMap->rootOffset, key, &foundOffset);\
+    pMap->rootOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pMap->rootOffset, key, &foundOffset);\
     if (foundOffset == (uint32_t)(-1)) {\
         return NULL;\
     }\

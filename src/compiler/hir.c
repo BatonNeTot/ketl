@@ -76,7 +76,7 @@ ketl_hir_instr_offset_t ketl_hir_decode_size(ketl_hir_t* p_hir, ketl_hir_instr_o
 
     p_instr += ketl_hir_get_instr_size(header.tag, p_instr);
 
-    return p_instr - (p_hir->p_instrs + instr_offset);
+    return (ketl_hir_instr_offset_t)(p_instr - (p_hir->p_instrs + instr_offset));
 }
 
 static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id, char* buffer, uint32_t bufferSize) {
@@ -84,14 +84,17 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
     if (p_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         return snprintf(buffer, bufferSize, "%s", KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var->literal));
     } else if (p_var->info == KETL_HIR_VAR_INFO_TEMP) {
-        return snprintf(buffer, bufferSize, "~%"PRIu16, p_var->uid);
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "~%"PRIu16"|undef" : "~%"PRIu16;
+        return snprintf(buffer, bufferSize, format, p_var->uid);
     } 
     
     ketl_hir_var_info_t* p_var_info = p_hir->p_vars_infos + p_var->info;
     if (p_var_info->p_global != NULL) {
-        return snprintf(buffer, bufferSize, "%s", KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "%s|undef" : "%s";
+        return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
     } else {
-        return snprintf(buffer, bufferSize, "%s#%"PRIu16, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "%s#%"PRIu16"undef" : "%s#%"PRIu16;
+        return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
     }
 } 
 
@@ -293,11 +296,13 @@ uint32_t ketl_hir_format(ketl_hir_t* p_hir, char* p_buffer, uint32_t buffer_size
         }
 
         // print terminator instr
-        if (i != p_hir->p_block_offsets[block]) {
-            printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "%*s", tab_size, "");
+        if (i < p_hir->instrs_count) {
+            if (i != p_hir->p_block_offsets[block]) {
+                printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "%*s", tab_size, "");
+            }
+            printed_count += ketl_hir_format_instr(p_hir, i, p_buffer + printed_count, buffer_size - printed_count);
+            printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "\n");
         }
-        printed_count += ketl_hir_format_instr(p_hir, i, p_buffer + printed_count, buffer_size - printed_count);
-        printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "\n");
     }
 
     return printed_count;

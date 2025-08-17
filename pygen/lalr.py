@@ -1,6 +1,5 @@
 from inspect import isclass
 from enum import Enum
-from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR 
 
 class record(object):
 	def __init__(self, **kwds):
@@ -33,7 +32,7 @@ class Term:
 		return Term.__str__(self)
 
 	def to_str(self, terms, nonterms):
-		return str(terms[self.token])
+		return str(terms[self.token]) if self.token in terms else 'None'
 
 	def __str__(self):
 		return '\'' + (('[' + str(self.token) + ']') if isinstance(self.token, int) else str(self.token)) + '\''
@@ -79,7 +78,7 @@ class Prod:
 	
 	def templateEnum(self, languageEnum):
 		return Prod(self.name, 
-			  [Term(languageEnum[symbol.token]) if symbol.isTerminal() else symbol for symbol in self.body], 
+			  [(Term(languageEnum[symbol.token]) if symbol.token is not None else Term(None)) if symbol.isTerminal() else symbol for symbol in self.body], 
 			  self.operatorPrecedence, self.action)
 
 class LRActionType(Enum):
@@ -100,16 +99,21 @@ class LRAction:
 
 	def shiftState(self):
 		if self.action != LRActionType.SHIFT:
-			raise Exception()
+			raise Exception(self)
 		return self.value
 
 	def reduceProduction(self):
 		if self.action != LRActionType.REDUCE:
-			raise Exception()
+			raise Exception(self)
+		return self.value
+
+	def errorProduction(self):
+		if self.action != LRActionType.ERROR:
+			raise Exception(self)
 		return self.value
 	
 	def toUInt16(self):
-		return self.action.value + (self.value << LRActionValueShift)
+		return ((self.action.value << LRActionTypeShift) & LRActionTypeMask) + ((self.value << LRActionValueShift) & LRActionValueMask)
 
 	def __str__(self):
 		if self.action == LRActionType.SHIFT:
@@ -117,13 +121,13 @@ class LRAction:
 		if self.action == LRActionType.REDUCE:
 			return 'r' + str(self.reduceProduction())
 		if self.action == LRActionType.ERROR:
-			return 'e'
+			return 'e' + str(self.errorProduction())
 		if self.action == LRActionType.ACCEPT:
 			return 'acc'
 		return None
 
 	def __eq__(self, other):
-		return str(self) == str(other)
+		return self.action == other.action and	self.value == other.value
 
 def shift(nextState):
 	return LRAction(LRActionType.SHIFT, nextState)
@@ -134,8 +138,8 @@ def reduce(production):
 def accept():
 	return LRAction(LRActionType.ACCEPT)
 
-def error():
-	return LRAction(LRActionType.ERROR)
+def error(production = 1):
+	return LRAction(LRActionType.ERROR, production)
 
 class Model:
 	def __init__(self, productions, language, operatorsAssociativity, startProductionName=None):
@@ -157,12 +161,13 @@ class Model:
 		self.__constructFirstTerminals()
 		self.__constructKernelItems()
 
+		# self.__printFirsts()
+		# print(*(f'{index} {nonterm.name}' for index, nonterm in enumerate(self.__nonterms)), sep='\n')
+		# self.__printKernels()
+
 		self.__constructActionTable()
 
-		#self.__printFirsts()
-		#print(*(f'{index} {nonterm.name}' for index, nonterm in enumerate(self.__nonterms)), sep='\n')
-		#self.__printKernels()
-		#self.__printActionTable()
+		# self.__printActionTable()
 
 	def __printFirsts(self):
 		for nonterm in self.__nonterms:
@@ -177,7 +182,7 @@ class Model:
 				production += self.__nonterms[item.nonterm].name
 				production += '->'
 				production += ''.join(self.__symbolsToStr(self.__productions[item.prodIndex].body[:item.dotPos]))
-				production += '.'
+				production += '|'
 				production += ''.join(self.__symbolsToStr(self.__productions[item.prodIndex].body[item.dotPos:]))
 				production += '\t'
 				production += '/'.join(self.__termToStr(lookahead) for lookahead in lookaheads)
@@ -307,7 +312,7 @@ class Model:
 	def __itemToStr(self, itemPair):
 		item, lookaheads = itemPair
 		symbols = self.__productions[item.prodIndex].body
-		return f'{self.__nontermToStr(item.nonterm)}->{"".join(self.__symbolsToStr(symbols[:item.dotPos]))}.{"".join(self.__symbolsToStr(symbols[item.dotPos:]))}\t{self.__lookaheadsToStr(lookaheads)}'
+		return f'{self.__nontermToStr(item.nonterm)}->{"".join(self.__symbolsToStr(symbols[:item.dotPos]))}|{"".join(self.__symbolsToStr(symbols[item.dotPos:]))}\t{self.__lookaheadsToStr(lookaheads)}'
 
 	def __it(nonterm, prodIndex, dotPos=0):
 		return record(nonterm=nonterm, prodIndex=prodIndex, dotPos=dotPos)
@@ -445,29 +450,39 @@ class Model:
 			self.__setActionTableGoto(state, item, symbol.value, action)
 
 	def __setActionTableAction(self, state, item, term, action):
-		if term >= len(self.__actionTable[state].actions):
+		if term >= len(self.__actionTable[state].actions): 
 			print(f'state={state}, item={item}. term={term}, action={action}')
 		currentAction = self.__actionTable[state].actions[term]
 
-		if currentAction.action == LRActionType.ERROR or action.action == LRActionType.ACCEPT:
+		if currentAction.action == LRActionType.ERROR and action.action != LRActionType.ERROR or action.action == LRActionType.ACCEPT:
 			self.__actionTable[state].actions[term] = action
 			return
 
 		if currentAction == action:
 			return
 
+		if currentAction.action == LRActionType.ERROR and action != error() and action.action == LRActionType.ERROR:
+			self.__actionTable[state].actions[term] = action
+			return
+
+		if currentAction.action != LRActionType.ERROR and action.action == LRActionType.ERROR:
+			return
+
 		if action.action == currentAction.action:
-			self.__actionTableError(state, Term(term), action, currentAction)
+			self.__actionTableError('same', state, Term(term), action, currentAction)
 			return
 
 		shiftAction = error()
 		reduceAction = error()
-		if currentAction.action == LRActionType.SHIFT:
+		if currentAction.action == LRActionType.SHIFT and action.action == LRActionType.REDUCE:
 			shiftAction = currentAction
 			reduceAction = action
-		else:
+		elif currentAction.action == LRActionType.REDUCE and action.action == LRActionType.SHIFT:
 			shiftAction = action
 			reduceAction = currentAction
+		else:
+			self.__actionTableError('not shift and reduce', state, Term(term), action, currentAction)
+			raise Exception()
 
 		prodIndex = reduceAction.reduceProduction()
 		leftOperatorPrecedence = self.__productions[prodIndex].operatorPrecedence
@@ -480,7 +495,7 @@ class Model:
 				proposedOperatorPrecedence = self.__productions[item.prodIndex].operatorPrecedence
 				if proposedOperatorPrecedence >= 0:
 					if rightOperatorPrecedence >= 0:
-						self.__actionTableError(state, Term(term), action, currentAction)
+						self.__actionTableError('smth precedence', state, Term(term), action, currentAction)
 						return
 					rightOperatorPrecedence = proposedOperatorPrecedence
 
@@ -509,7 +524,7 @@ class Model:
 		currentGoto = self.__actionTable[state].goto[nonterm]
 
 		if action.action != LRActionType.SHIFT:
-			self.__actionTableError(state, Nonterm(nonterm), action, currentGoto)
+			self.__actionTableError('not shift', state, Nonterm(nonterm), action, currentGoto)
 			return
 
 		if currentGoto < 0:
@@ -519,17 +534,17 @@ class Model:
 		if currentGoto == action.shiftState():
 			return
 
-		self.__actionTableError(state, Nonterm(nonterm), action, currentGoto)
+		self.__actionTableError('can\'t', state, Nonterm(nonterm), action, currentGoto)
 
-	def __actionTableError(self, state, symbol, action, currentAction):
-			print('Failed to set ' + str(action) + ' to table in ' + str(state) + ':' + self.__symbolToStr(symbol) + '; already filled with ' + str(currentAction))
+	def __actionTableError(self, id, state, symbol, action, currentAction):
+			print(id + ': Failed to set ' + str(action) + ' to table in ' + str(state) + ':' + self.__symbolToStr(symbol) + '; already filled with ' + str(currentAction))
 			if action.action == LRActionType.REDUCE:
 				print(f'{action} = {Prod.to_str(self.__productions[action.value], self.__terms, self.__nonterms)}')
 			if currentAction.action == LRActionType.REDUCE:
 				print(f'{currentAction} = {Prod.to_str(self.__productions[currentAction.value], self.__terms, self.__nonterms)}')
 
 	def __constructActionTable(self):
-		self.__actionTable = [record(actions=[error()] * (len(self.__terms) + 2), goto=[-1] * len(self.__nonterms)) for _ in range(len(self.__kernelItemSets))]
+		self.__actionTable = [record(actions=[error()] * (len(self.__terms) + 1), goto=[-1] * len(self.__nonterms)) for _ in range(len(self.__kernelItemSets))]
 
 		for state, kernel in enumerate(self.__kernelItemSets):
 			for item, lookaheads in kernel.items.items():
@@ -538,7 +553,12 @@ class Model:
 				if len(symbolsAfterDot) == 0:
 					if item.nonterm != 0:
 						for lookahead in lookaheads:
-							self.__setActionTableValue(state, item, Term(lookahead), reduce(item.prodIndex))
+							if lookahead == self.__getErrorTermIndex():
+								for term in range(0, len(self.__terms) + 1):
+									if term not in lookaheads:
+										self.__setActionTableValue(state, item, Term(term), reduce(item.prodIndex))
+							else:
+								self.__setActionTableValue(state, item, Term(lookahead), reduce(item.prodIndex))
 
 					elif self.__getEndTermIndex() in lookaheads:
 						self.__setActionTableValue(state, item, Term(self.__getEndTermIndex()), accept())
@@ -546,7 +566,11 @@ class Model:
 					continue
 
 				firstSymbolAfterDot = symbolsAfterDot[0]
-				self.__setActionTableValue(state, item, firstSymbolAfterDot, shift(kernel.goto[firstSymbolAfterDot]))
+				if firstSymbolAfterDot.isTerminal() and firstSymbolAfterDot.token == self.__getErrorTermIndex():
+					for term in range(0, len(self.__terms) + 1):
+						self.__setActionTableValue(state, item, Term(term), error(item.prodIndex))
+				else:
+					self.__setActionTableValue(state, item, firstSymbolAfterDot, shift(kernel.goto[firstSymbolAfterDot]))
 
 	def buildParser(self, getTokenIndex):
 		return Parser([[reduce(action.reduceProduction() - 1) if action.action == LRActionType.REDUCE else action for action in table.actions] for table in self.__actionTable]
@@ -569,7 +593,10 @@ class Model:
 		return '\n    '.join(lines)
 	
 	def getCTemplateMapping(self):
-		actionTableBody = Model.formatTable([[(reduce(action.reduceProduction() - 1) if action.action == LRActionType.REDUCE else action).toUInt16() for action in table.actions] for table in self.__actionTable])
+		actionTableBody = Model.formatTable([[(
+			reduce(action.reduceProduction() - 1) if action.action == LRActionType.REDUCE else 
+			error(action.errorProduction() - 1) if action.action == LRActionType.ERROR else 
+			action).toUInt16() for action in table.actions] for table in self.__actionTable])
 		gotoTableBody = Model.formatTable([table.goto[1:].copy() for table in self.__actionTable])
 
 		prodNontermsArrayBody = ''

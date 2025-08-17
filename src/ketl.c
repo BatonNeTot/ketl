@@ -6,7 +6,6 @@
 #include "compiler/assembler.h"
 
 #include "executable_memory.h"
-#include "execution.h"
 #include "value_impl.h"
 #include "type_impl.h"
 #include "memory_impl.h"
@@ -70,6 +69,7 @@ static bool is_func_parameters_equal(const ketl_function_parameters* pLhsParamet
 KETL_HASH_MAP_DEFINITION(function_types_map, ketl_function_parameters, function_type_composite, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
 
 KETL_VECTOR_DEFINITION(types, ketl_type*)
+KETL_VECTOR_DEFINITION(string_builder_t, char)
 
 KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
@@ -117,6 +117,7 @@ ketl_state* ketl_state_create(const ketl_allocator* pAllocator) {
     };
 
     ketl_gc_init(&pState->gc, pAllocator);
+    string_builder_t_init(&pState->error_stream, 16, pState->pAllocator);
     ketl_atomic_strings_init(&pState->atomicStrings, pAllocator);
     ketl_namespace_init(&pState->globalNamespace, pAllocator);
     function_types_map_init(&pState->mFunctionTypes, pAllocator);
@@ -204,6 +205,7 @@ ketl_free(pState->pAllocator, pTypeNode->variable.pointer);\
 
     ketl_namespace_deinit(&pState->globalNamespace);
     ketl_atomic_strings_deinit(&pState->atomicStrings);
+    string_builder_t_deinit(&pState->error_stream);
     ketl_gc_deinit(&pState->gc);
 
     ketl_free(pState->pAllocator, pState);
@@ -250,6 +252,14 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
 
     ketl_hir_t hir;
     ketl_parser_build_hir(pState, &hir, p_filename, pSource, length, pState->pAllocator);
+    if (pState->error_stream.size > 0) {
+        // TODO return error
+        printf("%.*s", pState->error_stream.size, pState->error_stream.pData);
+        pState->error_stream.size = 0;
+
+        ketl_variable_set_type(&output_variable, ketl_state_get_none_type(pState));
+        return ketl_value_from_variable(output_variable, pState->pAllocator);
+    }
     ketl_variable_set_type(&output_variable, hir.p_used_types[hir.return_type]);
 
     {
@@ -287,9 +297,14 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
 
     uint8_t* executableOpcodes = ketl_executable_memory_allocate(&ex_memory, pOpcodes, opcodesSize);
     ketl_free(pState->pAllocator, pOpcodes);
-    output_variable.uint64 = ketl_execute(&executableOpcodes);
+
+    uint64_t(*func)(void) = (uint64_t(*)(void))executableOpcodes;
+
+    output_variable.uint64 = func();
 
     ketl_executable_memory_deinit(&ex_memory);
+
+    string_builder_t_deinit(&pState->error_stream);
 
     return ketl_value_from_variable(output_variable, pState->pAllocator);
 }

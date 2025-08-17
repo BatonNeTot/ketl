@@ -105,7 +105,7 @@ namespace KETL {
 				aParameters, 1 + sizeof...(Args)
 			};
 			ketl_type* pFuncType = ketl_state_get_cfunction_type(_p_state, &funcParameters);
-			ketl_state_define_function(_p_state, name.data(), name.length(), pFuncType, reinterpret_cast<void*>(pFunc));
+			ketl_state_define_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void*>(pFunc));
 		}
 
 		template <class T>
@@ -114,7 +114,7 @@ namespace KETL {
 		}
 
 		Value eval(const std::string_view& filename, const std::string_view& source) {
-			return Value{ ketl_state_eval(_p_state, filename.data(), source.data(), source.length()), *this };
+			return Value{ ketl_state_eval(_p_state, filename.data(), source.data(), static_cast<uint32_t>(source.length())), *this };
 		}
 
 	private:

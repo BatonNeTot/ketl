@@ -1,0 +1,140 @@
+//🫖ketl
+
+
+typedef uint16_t lalr_action;
+
+#define ACTION_TYPE_MASK   0x0003
+#define ACTION_TYPE_SHIFT  0
+#define ACTION_VALUE_MASK  0xFFFC
+#define ACTION_VALUE_SHIFT 2
+
+#define ACTION_SHIFT  0
+#define ACTION_REDUCE 1
+#define ACTION_ERROR  2
+#define ACTION_ACCEPT 3
+
+
+#define TERMS_COUNT (KETL_TOKEN_TYPE_TOTAL + 1) // additional last term and error term
+#define NONTERMS_COUNT $nontermCount
+
+static lalr_action actionsTable[] = {
+    $actionTableBody
+};
+
+static lalr_state gotoTable[] = {
+    $gotoTableBody
+};
+
+static uint16_t prodNontermsArray[] = {
+    $prodNontermsArrayBody
+};
+
+static uint8_t prodLengthsArray[] = {
+    $prodLengthsArrayBody
+};
+
+
+static bool ketl_parser_process_token(ketl_parser_context* pContext, const ketl_token token) {
+    KETL_FOREVER {
+        lalr_state state = stack_top_node(1).state;
+        lalr_action action = actionsTable[state * TERMS_COUNT + token.type];
+        uint8_t action_type = (action & ACTION_TYPE_MASK) >> ACTION_TYPE_SHIFT;
+#ifdef DRAW_STACK_INFO
+        printf("--------------------------------------------\n");
+        printf("parsing token %d\n", token.type);
+		printf("from state %"PRIu16" and term '%.*s'\n", state, 
+            token.end_pos_col - token.start_pos_col,
+            (pContext)->p_source + token.start_pos_col);
+        printf("actionCode %d, ", action);
+        printf("action %d\n", action_type);
+#endif
+
+        KETL_SWITCH_STRICT (action_type) {
+            case ACTION_SHIFT: {
+                _ketl_parse_node_stack_t_push_back_copy(&pContext->v_node_stack, (ketl_parse_node){
+                    .state = (action & ACTION_VALUE_MASK) >> ACTION_VALUE_SHIFT, 
+                    .pos_info = {
+                        .start_pos_line = token.start_pos_line,
+                        .end_pos_line = token.end_pos_line,
+                        .start_pos_col = token.start_pos_col,
+                        .end_pos_col = token.end_pos_col,
+                    },
+                    .output = {
+                        .token = {
+                            .body = token,
+                            .offset = pContext->offset,
+                        },
+                    }
+                });
+#ifdef DRAW_STACK_INFO
+                printf("pushing %d\n", (action & ACTION_VALUE_MASK) >> ACTION_VALUE_SHIFT);
+                DRAW_STACK(pContext);
+#endif
+                return false;
+            }
+            case ACTION_ERROR:
+            case ACTION_REDUCE: {
+                uint16_t prodIndex = (action & ACTION_VALUE_MASK) >> ACTION_VALUE_SHIFT;
+                uint16_t prodNonterm = prodNontermsArray[prodIndex];
+                ketl_parse_node_output result = {0};
+                uint8_t reducingLength = prodLengthsArray[prodIndex] - (action_type == ACTION_ERROR);
+                ketl_parse_pos_info pos_info;
+                if (reducingLength > 0) {
+                    ketl_parse_node* first_node = &stack_top_node(reducingLength);
+                    ketl_parse_node* last_node = &stack_top_node(1);
+                    pos_info = (ketl_parse_pos_info){
+                        .start_pos_line = first_node->pos_info.start_pos_line,
+                        .end_pos_line = last_node->pos_info.end_pos_line,
+                        .start_pos_col = first_node->pos_info.start_pos_col,
+                        .end_pos_col = last_node->pos_info.end_pos_col,
+                    };
+                } else {
+                    ketl_parse_node* last_node = &stack_top_node(1);
+                    pos_info = (ketl_parse_pos_info){
+                        .start_pos_line = last_node->pos_info.end_pos_line,
+                        .end_pos_line = last_node->pos_info.end_pos_line,
+                        .start_pos_col = last_node->pos_info.end_pos_col,
+                        .end_pos_col = last_node->pos_info.end_pos_col,
+                    };
+                }
+#ifdef DRAW_STACK_INFO
+                if (action_type == ACTION_ERROR) {
+                    printf("error ");
+                }
+                printf("reducing %d\n", reducingLength);
+#endif
+                switch (prodIndex) {
+                    $productionActionsSwitch
+                }
+                pContext->v_node_stack.size -= reducingLength;
+                lalr_state stateAfterReduction = stack_top_node(1).state;
+                lalr_state gotoState = gotoTable[stateAfterReduction * NONTERMS_COUNT + prodNonterm];
+
+                if (gotoState == (lalr_state)-1) {
+                    printf("uknown goto from %"PRIu16" by nonterm %"PRIu16" of length %"PRIu8"!\n", stateAfterReduction, prodNonterm, reducingLength);
+                    KETL_ASSERT(false);
+                }
+
+#ifdef DRAW_STACK_INFO
+                DRAW_STACK(pContext);
+				printf("from state %"PRIu16" and nonterm %"PRIu16"\n", stateAfterReduction, prodNonterm);
+                printf("pushing %"PRIu16"\n", gotoState);
+#endif
+
+                _ketl_parse_node_stack_t_push_back_copy(&pContext->v_node_stack, (ketl_parse_node){
+                    .state = gotoState, 
+                    .pos_info = pos_info,
+                    .output = result,
+                    });
+#ifdef DRAW_STACK_INFO
+                DRAW_STACK(pContext);
+#endif
+                continue;
+            }
+            case ACTION_ACCEPT: {
+                //printf("accept!\n");
+                return true;
+            }
+        }
+    }
+}

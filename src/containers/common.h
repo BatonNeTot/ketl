@@ -4,8 +4,8 @@
 
 #include "ketl/utils.h"
 
-extern const uint64_t ketl_prime_capacities[];
+extern const uint32_t ketl_prime_capacities[];
 
-extern const uint64_t KETL_PRIME_CAPACITIES_TOTAL;
+extern const uint32_t KETL_PRIME_CAPACITIES_TOTAL;
 
 #endif // ketl_containers_common_h

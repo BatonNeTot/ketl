@@ -24,7 +24,9 @@ int main(int argc, char** argv) {
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
     const char* pSource = ""
-        "return test(42, 51) * 1;"
+        "1 + 2;"
+        "3 + 4;"
+        "5 - "
     ;
 
     auto result = ketl.eval("", pSource);
