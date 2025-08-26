@@ -18,7 +18,7 @@ static inline bool ketl_lexer_is_alpha(char symbol) {
     return (symbol >= 'a' && symbol <= 'z') || (symbol >= 'A' && symbol <= 'Z');
 }
 
-KETL_DEFINE(ketl_lexer_context) {
+ANN_DEFINE(ketl_lexer_context) {
     const ketl_allocator* pAllocator;
     const char* pSource;
     uint32_t length;
@@ -40,7 +40,7 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
     uint32_t count = pContext->count;
     if (count >= pContext->capacity) {
         uint32_t newCapacity = (uint32_t)(pContext->capacity << 1);
-        KETL_ASSERT(newCapacity > pContext->capacity);
+        ANN_ASSERT(newCapacity > pContext->capacity);
         pContext->capacity = newCapacity;
         pContext->pTokens = ketl_realloc(pContext->pAllocator, pContext->pTokens, sizeof(ketl_token) * newCapacity);
     }
@@ -50,6 +50,7 @@ static void ketl_lexer_add_token(ketl_lexer_context* pContext, ketl_token_type t
         .type = type, 
         .length = (uint8_t)length, 
         .prevOffset = (uint16_t)prevOffset,
+        .offset = pContext->offset,
         .start_pos_line = pContext->line,
         .end_pos_line = pContext->line,
         .start_pos_col = pContext->col,
@@ -98,7 +99,7 @@ static bool ketl_lexer_parse_comments(ketl_lexer_context* pContext, char nextSym
     if (nextSymbol == '/') {
         pContext->offset += 2;
         pContext->col += 2;
-        KETL_FOREVER {
+        ANN_FOREVER {
             nextSymbol = ketl_lexer_get_symbol(pContext);
             if (nextSymbol == '\0' || ketl_lexer_parse_next_line(pContext, nextSymbol)) {
                 break;
@@ -113,7 +114,7 @@ static bool ketl_lexer_parse_comments(ketl_lexer_context* pContext, char nextSym
     if (nextSymbol == '*') {
         pContext->offset += 2;
         pContext->col += 2;
-        KETL_FOREVER {
+        ANN_FOREVER {
             nextSymbol = ketl_lexer_get_symbol(pContext);
             if (ketl_lexer_parse_next_line(pContext, nextSymbol)) {
                 continue;
@@ -155,7 +156,7 @@ static bool ketl_lexer_parse_literal_char(ketl_lexer_context* pContext, char nex
 
     if (ketl_lexer_parse_next_line(pContext, nextSymbol)) {
         // TODO ERROR and decide how to cleverly restore lexing
-        KETL_ASSERT(false);
+        ANN_ASSERT(false);
     }
 
 
@@ -184,7 +185,7 @@ static bool ketl_lexer_parse_literal_string(ketl_lexer_context* pContext, char n
 
     uint32_t literalStartOffset = pContext->offset += 1;
     pContext->col += 1;
-    KETL_FOREVER {
+    ANN_FOREVER {
         nextSymbol = ketl_lexer_get_symbol(pContext);
         if (ketl_lexer_parse_next_line(pContext, nextSymbol)) {
             // TODO ERROR
@@ -220,7 +221,7 @@ static bool ketl_lexer_parse_literal_integer(ketl_lexer_context* pContext, char 
     pContext->offset += 1;
 
 
-    KETL_FOREVER {
+    ANN_FOREVER {
         nextSymbol = ketl_lexer_get_symbol(pContext);
         if (!ketl_lexer_is_numeric(nextSymbol)) {
             break;
@@ -243,7 +244,7 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
     uint32_t idStartOffset = pContext->offset;
     pContext->offset = idStartOffset + 1;
 
-    KETL_FOREVER {
+    ANN_FOREVER {
         nextSymbol = ketl_lexer_get_symbol(pContext);
         if (nextSymbol != '_' && !ketl_lexer_is_alpha(nextSymbol) && !ketl_lexer_is_numeric(nextSymbol)) {
             break;
@@ -257,6 +258,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
 
     char firstSymbol = ketl_lexer_get_symbol(pContext);
     switch (firstSymbol) {
+        case 'd': {
+            if (ketl_str_is_equal_n("do", pContext->pSource + pContext->offset, idLength)) {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_DO, idLength);
+                return true;
+            }
+            break;
+        }
         case 'e': {
             if (ketl_str_is_equal_n("else", pContext->pSource + pContext->offset, idLength)) {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_ELSE, idLength);
@@ -278,6 +286,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_context* pContext, char nextSymbol) {
         case 'r': {
             if (ketl_str_is_equal_n("return", pContext->pSource + pContext->offset, idLength)) {
                 ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_RETURN, idLength);
+                return true;
+            }
+            break;
+        }
+        case 'v': {
+            if (ketl_str_is_equal_n("var", pContext->pSource + pContext->offset, idLength)) {
+                ketl_lexer_add_token(pContext, KETL_TOKEN_TYPE_VAR, idLength);
                 return true;
             }
             break;
@@ -514,7 +529,7 @@ static bool ketl_lexer_parse_operator(ketl_lexer_context* pContext, char nextSym
     }
 }
 
-ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount, const ketl_allocator* pAllocator) {
+ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, ketl_token_iterator* pCount, const ketl_allocator* pAllocator) {
     ketl_lexer_context context = {
         .pAllocator = pAllocator,
         .pSource = pSource,
@@ -528,7 +543,7 @@ ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32
         .lastTokenEnd = 0
     };
 
-    KETL_FOREVER {
+    ANN_FOREVER {
         char nextSymbol = ketl_lexer_get_symbol(&context);
 
         if (nextSymbol == '\0') {
@@ -572,6 +587,8 @@ ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32
         // TODO ERROR
         break;
     }
+
+    ketl_lexer_add_token(&context, KETL_TOKEN_TYPE_EOF, 0);
 
     *pCount = context.count;
     return context.pTokens;

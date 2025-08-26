@@ -8,7 +8,7 @@
 #include "containers/hash_map.h"
 #include "atomic_strings.h"
 
-KETL_FORWARD(ketl_state);
+ANN_FORWARD(ketl_state);
 
 KETL_VECTOR_DECLARATION(hir_builder_instrs_t, uint8_t)
 KETL_VECTOR_DECLARATION(hir_builder_vars_t, ketl_hir_var_t)
@@ -18,10 +18,17 @@ KETL_VECTOR_DECLARATION(hir_builder_used_types_t, ketl_type*)
 
 KETL_HASH_MAP_DECLARATION(hir_builder_symbol_to_var_map_t, ketl_hir_symbol_offset_t, ketl_hir_var_id_t)
 KETL_HASH_MAP_DECLARATION(hir_builder_type_to_used_type_map_t, ketl_type*, ketl_hir_used_type_index_t)
+KETL_HASH_MAP_DECLARATION(hir_builder_offset_to_block_t, ketl_hir_instr_offset_t, ketl_hir_block_index_t)
 
 KETL_VECTOR_DECLARATION(hir_builder_return_offsets_t, ketl_hir_instr_offset_t)
 
-KETL_DEFINE(ketl_hir_builder_t) {
+ANN_DEFINE(hir_builder_block_info_t) {
+    bool reachable;
+};
+
+KETL_VECTOR_DECLARATION(hir_builder_blocks_infos_t, hir_builder_block_info_t)
+
+ANN_DEFINE(ketl_hir_builder_t) {
     const ketl_allocator* p_allocator;
 
     hir_builder_instrs_t v_instrs;
@@ -32,12 +39,11 @@ KETL_DEFINE(ketl_hir_builder_t) {
     ketl_atomic_strings symbols;
 
     hir_builder_return_offsets_t v_return_offsets;
+    hir_builder_blocks_infos_t v_blocks_infos;
 
     hir_builder_symbol_to_var_map_t m_symbol_to_var;
     hir_builder_type_to_used_type_map_t m_type_to_used_type;
-
-    ketl_hir_instr_offset_t last_instr;
-    bool expects_instr;
+    hir_builder_offset_to_block_t m_offset_to_block;
 };
 
 void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocator* p_allocator);

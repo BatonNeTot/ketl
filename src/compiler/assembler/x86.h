@@ -38,7 +38,7 @@
 
 #define KETL_OP_MOV     0
 
-KETL_DEFINE(x86_op_struct) {
+ANN_DEFINE(x86_op_struct) {
     union {
         struct {
             uint8_t firstArgType;
@@ -54,7 +54,7 @@ KETL_DEFINE(x86_op_struct) {
 
 #define REX_PREFIX 0x04 // 0b0100
 
-KETL_DEFINE(REXByte) {
+ANN_DEFINE(REXByte) {
     uint8_t b : 1;
     uint8_t x : 1;
     uint8_t r : 1;
@@ -62,7 +62,7 @@ KETL_DEFINE(REXByte) {
     uint8_t prefix : 4;
 };
 
-KETL_DEFINE(MODRMByte) {
+ANN_DEFINE(MODRMByte) {
     uint8_t rm : 3;
     uint8_t reg : 3;
     uint8_t mod : 2;
@@ -73,7 +73,7 @@ KETL_DEFINE(MODRMByte) {
 #define MODRM_MOD_IND_DIS32 0x02 // 0b10
 #define MODRM_MOD_DIR       0x03 // 0b11
 
-KETL_DEFINE(SIBByte) {
+ANN_DEFINE(SIBByte) {
     uint8_t base : 3;
     uint8_t index : 3;
     uint8_t scale : 2;

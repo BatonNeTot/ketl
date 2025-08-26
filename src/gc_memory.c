@@ -4,7 +4,7 @@
 #include "type_impl.h"
 
 KETL_VECTOR_DEFINITION(objects, void*)
-KETL_TREE_MAP_DEFINITION(object_info_map, void*, ketl_gc_info, KETL_LESS_DEFAULT)
+KETL_TREE_MAP_DEFINITION(object_info_map, void*, ketl_gc_info, ANN_LESS)
 
 void ketl_gc_init(ketl_gc* pGc, const ketl_allocator *pAllocator) {
     objects_init(&pGc->vRootObjects, 16, pAllocator);
@@ -44,7 +44,7 @@ static void* find_object_start(ketl_gc* pGc, const void* pInsideObject, ketl_gc_
 
     object_info_map_node* pNodes = pGc->mObjectInfo.pNodes;
     object_info_map_node* pNode = pNodes + pGc->mObjectInfo.rootOffset;
-    KETL_FOREVER {
+    ANN_FOREVER {
         if (pInsideObject < pNode->key) {
             if (pNode->leftOffset == (uint32_t)(-1)) {
                 return NULL;
@@ -99,7 +99,7 @@ static uint32_t visit_node_and_swipe(ketl_gc* pGc, uint32_t nodeOffset) {
         return (uint32_t)(-1);
     }
 
-    pNode->height = 1 + KETL_MAX(__object_info_map_height(pNodes, pNode->leftOffset), __object_info_map_height(pNodes, pNode->rightOffset));
+    pNode->height = 1 + ANN_MAX(__object_info_map_height(pNodes, pNode->leftOffset), __object_info_map_height(pNodes, pNode->rightOffset));
 
     return __object_info_map_balance(pNodes, nodeOffset);
 }

@@ -75,7 +75,7 @@ uint64_t ketl_str_hash(const char* pStr) {
 
 	uint64_t counter = 0;
 
-	KETL_FOREVER {
+	ANN_FOREVER {
 		char symbol = pStr[counter];
 		if (symbol == '\0') {
 			return (((uint64_t)firstPart) << 32) + secondPart;
@@ -105,7 +105,7 @@ uint64_t ketl_str_hash_n(const char* pStr, uint32_t length) {
 
 	uint64_t counter = 0;
 
-	KETL_FOREVER {
+	ANN_FOREVER {
 		char symbol = pStr[counter];
 		if (symbol == '\0' || counter >= length) {
 			return (((uint64_t)firstPart) << 32) + secondPart;
@@ -128,7 +128,7 @@ bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsSt
 	}
 
 	uint64_t counter = 0;
-	KETL_FOREVER {
+	ANN_FOREVER {
 		char lhs = pLhsStr[counter];
 		char rhs = pRhsStr[counter];
 
@@ -147,13 +147,14 @@ bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsSt
 	}
 }
 
-bool ketl_str_is_equal_n(const char* restrict pLhsStr, const char* restrict pRhsStr, uint32_t length) {
+bool 
+ketl_str_is_equal_n(const char* restrict pLhsStr, const char* restrict pRhsStr, uint32_t length) {
 	if (pLhsStr == NULL || pRhsStr == NULL) {
 		return false;
 	}
 
 	uint64_t counter = 0;
-	KETL_FOREVER {
+	ANN_FOREVER {
 		char lhs = pLhsStr[counter];
 		char rhs = pRhsStr[counter];
 

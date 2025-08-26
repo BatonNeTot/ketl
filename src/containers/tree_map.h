@@ -7,7 +7,7 @@
 #include "memory_impl.h"
 
 #define KETL_TREE_MAP_DECLARATION(name, kType, vType)\
-KETL_DEFINE(KETL_CONCAT(name,_node)) {\
+ANN_DEFINE(ANN_CONCAT(name,_node)) {\
     union {\
     uint32_t leftOffset;\
     uint32_t nextOffset;\
@@ -17,25 +17,25 @@ KETL_DEFINE(KETL_CONCAT(name,_node)) {\
 	kType key;\
 	vType value;\
 };\
-KETL_DEFINE(name) {\
+ANN_DEFINE(name) {\
     const ketl_allocator* pAllocator;\
-	KETL_CONCAT(name,_node)* pNodes;\
+	ANN_CONCAT(name,_node)* pNodes;\
 	uint32_t freeNodeOffset;\
 	uint32_t rootOffset;\
 	uint32_t size;\
 	uint32_t capacity;\
 };\
-void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
-void KETL_CONCAT(name,_deinit)(name* pMap);\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_erase)(name* pMap, kType key);\
+void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
+void ANN_CONCAT(name,_deinit)(name* pMap);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* pMap, kType key);\
 
 #define KETL_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
-void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator) {\
-    const uint32_t arraySize = sizeof(KETL_CONCAT(name,_node)) * initialCapacity;\
+void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator) {\
+    const uint32_t arraySize = sizeof(ANN_CONCAT(name,_node)) * initialCapacity;\
     \
-    KETL_CONCAT(name,_node)* pNodes = ketl_alloc(pAllocator, arraySize);\
+    ANN_CONCAT(name,_node)* pNodes = ketl_alloc(pAllocator, arraySize);\
     \
     *pMap = (name){\
         .pAllocator = pAllocator,\
@@ -51,84 +51,84 @@ void KETL_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_al
     }\
     pNodes[initialCapacity].nextOffset = (uint32_t)(-1);\
 }\
-void KETL_CONCAT(name,_deinit)(name* pMap) {\
+void ANN_CONCAT(name,_deinit)(name* pMap) {\
     ketl_free(pMap->pAllocator, pMap->pNodes);\
 }\
-static uint16_t KETL_CONCAT(__,name,_height)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
+static uint16_t ANN_CONCAT(__,name,_height)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
     if (nodeOffset == (uint32_t)(-1)) {\
         return 0;\
     }\
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     return pNode->height;\
 }\
-static int64_t KETL_CONCAT(__,name,_get_balance)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
+static int64_t ANN_CONCAT(__,name,_get_balance)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
     if (nodeOffset == (uint32_t)(-1)) {\
         return 0;\
     }\
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    return KETL_CONCAT(__,name,_height)(pNodes, pNode->rightOffset) - KETL_CONCAT(__,name,_height)(pNodes, pNode->leftOffset);\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+    return ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset) - ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset);\
 }\
-static uint32_t KETL_CONCAT(__,name,_rotate_left)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    KETL_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
+static uint32_t ANN_CONCAT(__,name,_rotate_left)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
+    ANN_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
     uint32_t pYOffset = pX->rightOffset;\
-    KETL_CONCAT(name,_node) *pY = pNodes + pYOffset;\
+    ANN_CONCAT(name,_node) *pY = pNodes + pYOffset;\
     uint32_t T2Offset = pY->leftOffset;\
 \
     pY->leftOffset = nodeOffset;\
     pX->rightOffset = T2Offset;\
 \
-    pX->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pX->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
-    pY->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pY->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
+    pX->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pX->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
+    pY->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pY->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
 \
     return pYOffset;\
 }\
-static uint32_t KETL_CONCAT(__,name,_rotate_right)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    KETL_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
+static uint32_t ANN_CONCAT(__,name,_rotate_right)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
+    ANN_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
     uint32_t pYOffset = pX->leftOffset;\
-    KETL_CONCAT(name,_node) *pY = pNodes + pYOffset;\
+    ANN_CONCAT(name,_node) *pY = pNodes + pYOffset;\
     uint32_t T2Offset = pY->rightOffset;\
 \
     pY->rightOffset = nodeOffset;\
     pX->leftOffset = T2Offset;\
 \
-    pX->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pX->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
-    pY->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pY->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
+    pX->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pX->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
+    pY->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pY->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
 \
     return pYOffset;\
 }\
-static uint32_t KETL_CONCAT(__,name,_balance)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    int32_t balance = (int32_t)KETL_CONCAT(__,name,_get_balance)(pNodes, nodeOffset);\
+static uint32_t ANN_CONCAT(__,name,_balance)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+    int32_t balance = (int32_t)ANN_CONCAT(__,name,_get_balance)(pNodes, nodeOffset);\
     \
     if (balance < -1) {\
-        if (KETL_CONCAT(__,name,_get_balance)(pNodes, pNode->leftOffset) <= 0) {\
-            return KETL_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
+        if (ANN_CONCAT(__,name,_get_balance)(pNodes, pNode->leftOffset) <= 0) {\
+            return ANN_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
         } else {\
-            pNode->leftOffset = KETL_CONCAT(__,name,_rotate_left)(pNodes, pNode->leftOffset);\
-            return KETL_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
+            pNode->leftOffset = ANN_CONCAT(__,name,_rotate_left)(pNodes, pNode->leftOffset);\
+            return ANN_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
         }\
     }\
 \
     if (balance > 1) {\
-        if (KETL_CONCAT(__,name,_get_balance)(pNodes, pNode->rightOffset) >= 0) {\
-            return KETL_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
+        if (ANN_CONCAT(__,name,_get_balance)(pNodes, pNode->rightOffset) >= 0) {\
+            return ANN_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
         } else {\
-            pNode->rightOffset = KETL_CONCAT(__,name,_rotate_right)(pNodes, pNode->rightOffset);\
-            return KETL_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
+            pNode->rightOffset = ANN_CONCAT(__,name,_rotate_right)(pNodes, pNode->rightOffset);\
+            return ANN_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
         }\
     }\
 \
     return nodeOffset;\
 }\
-static uint32_t KETL_CONCAT(__,name,_get_or_insert_impl)(name* pMap, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
-    KETL_CONCAT(name,_node)* pNodes = pMap->pNodes;\
+static uint32_t ANN_CONCAT(__,name,_get_or_insert_impl)(name* pMap, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
+    ANN_CONCAT(name,_node)* pNodes = pMap->pNodes;\
     if (nodeOffset == (uint32_t)(-1)) {\
         if (pMap->freeNodeOffset == (uint32_t)(-1)) {\
             /* TODO allocate more */\
         }\
 \
         uint32_t newNodeOffset = pMap->freeNodeOffset;\
-        KETL_CONCAT(name,_node)* pNewNode = pNodes + newNodeOffset;\
+        ANN_CONCAT(name,_node)* pNewNode = pNodes + newNodeOffset;\
         pMap->freeNodeOffset = pNewNode->nextOffset;\
 \
         pNewNode->leftOffset = (uint32_t)(-1);\
@@ -139,66 +139,66 @@ static uint32_t KETL_CONCAT(__,name,_get_or_insert_impl)(name* pMap, uint32_t no
         return *pFoundOffset = newNodeOffset;\
     }\
 \
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->leftOffset, key, pFoundOffset);\
+        pNode->leftOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->leftOffset, key, pFoundOffset);\
     } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->rightOffset, key, pFoundOffset);\
+        pNode->rightOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->rightOffset, key, pFoundOffset);\
     } else {\
         return *pFoundOffset = nodeOffset;\
     }\
 \
-    pNode->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
 \
-    return KETL_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
 }\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value) {\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value) {\
     uint32_t freeNodeOffset = pMap->freeNodeOffset;\
     uint32_t foundOffset;\
-    pMap->rootOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+    pMap->rootOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
 \
-    KETL_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
+    ANN_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
     if (freeNodeOffset == foundOffset) {\
         pFoundNode->value = value;\
     }\
     \
     return pFoundNode;\
 }\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue) {\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue) {\
     uint32_t freeNodeOffset = pMap->freeNodeOffset;\
     uint32_t foundOffset;\
-    pMap->rootOffset = KETL_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+    pMap->rootOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
 \
-    KETL_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
+    ANN_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
     if (freeNodeOffset == foundOffset) {\
         pFoundNode->value = *pValue;\
     }\
     \
     return pFoundNode;\
 }\
-static uint64_t KETL_CONCAT(__,name,_erase_leftmost_impl)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, uint32_t* pFoundOffset) {\
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+static uint64_t ANN_CONCAT(__,name,_erase_leftmost_impl)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, uint32_t* pFoundOffset) {\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     if (pNode->leftOffset == (uint32_t)(-1)) {\
         *pFoundOffset = nodeOffset;\
         return pNode->rightOffset;\
     } else {\
-        pNode->leftOffset = (uint32_t)KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->leftOffset, pFoundOffset);\
+        pNode->leftOffset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->leftOffset, pFoundOffset);\
     }\
 \
-    pNode->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
 \
-    return KETL_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
 }\
-static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
+static uint64_t ANN_CONCAT(__,name,_erase_impl)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
     if (nodeOffset == (uint32_t)(-1)) {\
         return nodeOffset;\
     }\
 \
-    KETL_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
+    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
     if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->leftOffset, key, pFoundOffset);\
+        pNode->leftOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pNode->leftOffset, key, pFoundOffset);\
     } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pNode->rightOffset, key, pFoundOffset);\
+        pNode->rightOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pNode->rightOffset, key, pFoundOffset);\
     } else {\
         if (pNode->leftOffset == (uint32_t)(-1)) {\
             *pFoundOffset = nodeOffset;\
@@ -210,7 +210,7 @@ static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes
         }\
 \
         uint32_t leftOffset = pNode->leftOffset;\
-        uint32_t rightOffset = (uint32_t)KETL_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->rightOffset, pFoundOffset);\
+        uint32_t rightOffset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->rightOffset, pFoundOffset);\
 \
         uint32_t replacementOffset = *pFoundOffset;\
         *pFoundOffset = nodeOffset;\
@@ -222,19 +222,19 @@ static uint64_t KETL_CONCAT(__,name,_erase_impl)(KETL_CONCAT(name,_node)* pNodes
         pNode->leftOffset = leftOffset;\
     }\
 \
-    pNode->height = 1 + KETL_MAX(KETL_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), KETL_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
 \
-    return KETL_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
 }\
-KETL_CONCAT(name,_node)* KETL_CONCAT(name,_erase)(name* pMap, kType key) {\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* pMap, kType key) {\
     uint32_t foundOffset = (uint32_t)(-1);\
-    KETL_CONCAT(name,_node)* pNodes = pMap->pNodes; \
-    pMap->rootOffset = (uint32_t)KETL_CONCAT(__,name,_erase_impl)(pNodes, pMap->rootOffset, key, &foundOffset);\
+    ANN_CONCAT(name,_node)* pNodes = pMap->pNodes; \
+    pMap->rootOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pMap->rootOffset, key, &foundOffset);\
     if (foundOffset == (uint32_t)(-1)) {\
         return NULL;\
     }\
     \
-    KETL_CONCAT(name,_node)* pNode = pNodes + foundOffset;\
+    ANN_CONCAT(name,_node)* pNode = pNodes + foundOffset;\
     pNode->nextOffset = pMap->freeNodeOffset;\
     pMap->freeNodeOffset = foundOffset;\
     return pNode;\

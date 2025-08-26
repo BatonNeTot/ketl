@@ -141,7 +141,7 @@ enum {
 typedef uint16_t ketl_bytecode_stack_offset;
 typedef uint16_t ketl_bytecode_jump_offset;
 
-KETL_DEFINE(ketl_bytecode) {
+ANN_DEFINE(ketl_bytecode) {
     uint8_t* pInstructions;
     uint8_t* pLabels;
     uint32_t instructionsCount;

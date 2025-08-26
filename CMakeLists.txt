@@ -1,4 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.10)
 
 project ("ketljit")
 
@@ -8,50 +8,16 @@ set(PROJECT_TARGET "ketljit")
 
 ###############################
 
-get_filename_component(PROJECT_GEN_OUTPUT_DIR "src/generated" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
-get_filename_component(PROJECT_GEN_LEXER_OUTPUT "compiler/token.h" REALPATH BASE_DIR ${PROJECT_GEN_OUTPUT_DIR})
-get_filename_component(PROJECT_GEN_LEXER_TEMPLATE "pygen/token.h.template" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-get_filename_component(PROJECT_GEN_LEXER_GENERATOR "pygen/lexgen.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-add_custom_command(
-    COMMAND python ${PROJECT_GEN_LEXER_GENERATOR} ${PROJECT_GEN_LEXER_TEMPLATE} ${PROJECT_GEN_LEXER_OUTPUT}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    OUTPUT ${PROJECT_GEN_LEXER_OUTPUT}
-    DEPENDS ${PROJECT_GEN_LEXER_GENERATOR} ${PROJECT_GEN_LEXER_TEMPLATE})
-
-get_filename_component(PROJECT_GEN_PARSER_LALR_VALUES "compiler/parser_lalr.cxx.json" REALPATH BASE_DIR ${PROJECT_GEN_OUTPUT_DIR})
-get_filename_component(PROJECT_GEN_PARSER_LALR "pygen/lalr.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-get_filename_component(PROJECT_GEN_PARSER_LALR_GENERATOR "pygen/lalrgen.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-add_custom_command(
-    COMMAND python ${PROJECT_GEN_PARSER_LALR_GENERATOR} ${PROJECT_GEN_PARSER_LALR_VALUES}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    OUTPUT ${PROJECT_GEN_PARSER_LALR_VALUES}
-    DEPENDS ${PROJECT_GEN_PARSER_LALR_GENERATOR} ${PROJECT_GEN_PARSER_LALR} ${PROJECT_GEN_LEXER_GENERATOR})
-
-get_filename_component(PROJECT_GEN_PARSER_LALR_OUTPUT "compiler/parser_lalr.cxx" REALPATH BASE_DIR ${PROJECT_GEN_OUTPUT_DIR})
-get_filename_component(PROJECT_GEN_PARSER_LALR_PARSER "src/compiler/parser.c" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-get_filename_component(PROJECT_GEN_PARSER_LALR_TEMPLATE "pygen/parser_lalr.cxx.template" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-get_filename_component(PROJECT_GEN_PARSER_LALR_FILLER "pygen/lalr_filler.py" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-add_custom_command(
-    COMMAND python ${PROJECT_GEN_PARSER_LALR_FILLER} ${PROJECT_GEN_PARSER_LALR_TEMPLATE} ${PROJECT_GEN_PARSER_LALR_VALUES} ${PROJECT_GEN_PARSER_LALR_OUTPUT}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    OUTPUT ${PROJECT_GEN_PARSER_LALR_OUTPUT}
-    DEPENDS ${PROJECT_GEN_PARSER_LALR_FILLER} ${PROJECT_GEN_PARSER_LALR_TEMPLATE} ${PROJECT_GEN_PARSER_LALR_VALUES} ${PROJECT_GEN_PARSER_LALR_PARSER})
-    
-set(PROJECT_GEN_TARGET "${PROJECT_TARGET}_gen")
-add_custom_target(${PROJECT_GEN_TARGET} DEPENDS
-	${PROJECT_GEN_LEXER_OUTPUT} ${PROJECT_GEN_PARSER_LALR_OUTPUT})
-
-file(GLOB_RECURSE PROJECT_GEN_SOURCES CONFIGURE_DEPENDS "${PROJECT_GEN_OUTPUT_DIR}/*.c" "${PROJECT_GEN_OUTPUT_DIR}/*.h")
-
-###############################
-
 if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
-    add_compile_options(-Wall -Wextra -Werror -pedantic)
+	add_compile_options(-Wall -Wextra -Werror -pedantic)
 
-    if (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+	    add_compile_options(-Wno-switch-unreachable)
+    endif() 
+
+    if (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
         add_compile_options(-fsanitize=address)
     endif()
 endif()
@@ -60,10 +26,8 @@ add_subdirectory ("src")
 
 file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h)
 
-add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS} ${PROJECT_GEN_SOURCES})
+add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS})
 set_property(TARGET ${PROJECT_TARGET} PROPERTY C_STANDARD 11)
-
-add_dependencies(${PROJECT_TARGET} ${PROJECT_GEN_TARGET})
 
 set_target_properties(${PROJECT_TARGET}
     PROPERTIES
@@ -74,12 +38,12 @@ set_target_properties(${PROJECT_TARGET}
 
 target_compile_definitions(${PROJECT_TARGET} PRIVATE _AMD64_)
 
-if (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+if (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
     target_link_options(${PROJECT_TARGET} BEFORE PUBLIC -fsanitize=address)
 endif()
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")
-target_include_directories(${PROJECT_TARGET} PRIVATE "src" ${PROJECT_GEN_OUTPUT_DIR})
+target_include_directories(${PROJECT_TARGET} PRIVATE "src")
 
 ##################################
 
@@ -101,7 +65,7 @@ set_target_properties(${PROJECT_EXE_TARGET}
 
 target_compile_definitions(${PROJECT_EXE_TARGET} PRIVATE _AMD64_)
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
     target_link_options(${PROJECT_EXE_TARGET} BEFORE PUBLIC -fsanitize=address)
 endif()
 
@@ -133,7 +97,7 @@ set_target_properties(${PROJECT_TEST_TARGET}
 
 target_compile_definitions(${PROJECT_TEST_TARGET} PRIVATE _AMD64_)
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
     target_link_options(${PROJECT_TEST_TARGET} BEFORE PUBLIC -fsanitize=address)
 endif()
 

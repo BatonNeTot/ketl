@@ -7,9 +7,9 @@
 #include "ketl/type.h"
 
 
-KETL_FORWARD(ketl_state);
+ANN_FORWARD(ketl_state);
 
-KETL_FORWARD(ketl_value);
+ANN_FORWARD(ketl_value);
 
 bool ketl_value_is_none(ketl_state* p_state, ketl_value* p_value);
 

@@ -67,7 +67,7 @@ typedef uint16_t ketl_hir_block_index_t;
 typedef uint16_t ketl_hir_used_type_index_t;
 typedef uint16_t ketl_hir_symbol_offset_t;
 
-KETL_DEFINE(ketl_hir_header_t) {
+ANN_DEFINE(ketl_hir_header_t) {
     ketl_hir_tag_t tag;
     ketl_hir_symbol_offset_t file_symbol;
     uint32_t start_line_index;
@@ -76,41 +76,41 @@ KETL_DEFINE(ketl_hir_header_t) {
     uint16_t end_col_index;
 };
 
-KETL_DEFINE(ketl_hir_binary_op_t) {
+ANN_DEFINE(ketl_hir_binary_op_t) {
     ketl_hir_var_id_t lhs_var;
     ketl_hir_var_id_t rhs_var;
     ketl_hir_var_id_t output_var;
 };
 
-KETL_DEFINE(ketl_hir_call_void_t) {
+ANN_DEFINE(ketl_hir_call_void_t) {
     ketl_hir_var_id_t callee;
     uint16_t arguments_count;
     ketl_hir_var_id_t arguments[];
 };
 
-KETL_DEFINE(ketl_hir_call_t) {
+ANN_DEFINE(ketl_hir_call_t) {
     ketl_hir_var_id_t output_var;
     ketl_hir_var_id_t callee;
     uint16_t arguments_count;
     ketl_hir_var_id_t arguments[];
 };
 
-KETL_DEFINE(ketl_hir_assign_t) {
+ANN_DEFINE(ketl_hir_assign_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
 };
 
-KETL_DEFINE(ketl_hir_jump_t) {
+ANN_DEFINE(ketl_hir_jump_t) {
     ketl_hir_block_index_t block_index;
 };
 
-KETL_DEFINE(ketl_hir_jump_if_t) {
+ANN_DEFINE(ketl_hir_jump_if_t) {
     ketl_hir_block_index_t true_block;
     ketl_hir_block_index_t false_block;
     ketl_hir_var_id_t expr_var;
 };
 
-KETL_DEFINE(ketl_hir_return_value_t) {
+ANN_DEFINE(ketl_hir_return_value_t) {
     ketl_hir_var_id_t value_var;
 };
 
@@ -119,11 +119,11 @@ KETL_DEFINE(ketl_hir_return_value_t) {
 typedef uint16_t ketl_hir_var_uid_t;
 
 #define KETL_HIR_VAR_UID_LITERAL ((ketl_hir_var_uid_t)-1)
-#define KETL_HIR_USED_TYPE_UNKHOWN ((ketl_hir_used_type_index_t)-1)
+#define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 
-KETL_DEFINE(ketl_hir_var_t) {
+ANN_DEFINE(ketl_hir_var_t) {
     union {
         ketl_hir_symbol_offset_t literal;
         ketl_hir_var_info_index_t info;
@@ -132,13 +132,13 @@ KETL_DEFINE(ketl_hir_var_t) {
     ketl_hir_var_uid_t uid;
 };
 
-KETL_DEFINE(ketl_hir_var_info_t) {
+ANN_DEFINE(ketl_hir_var_info_t) {
     ketl_hir_symbol_offset_t name;
     ketl_variable* p_global;
     // TODO declaration info
 };
 
-KETL_DEFINE(ketl_hir_t) {
+ANN_DEFINE(ketl_hir_t) {
     const ketl_allocator* p_allocator;
 
     uint8_t* p_instrs;

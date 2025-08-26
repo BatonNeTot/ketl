@@ -5,13 +5,13 @@
 #include "ketl/utils.h"
 
 
-KETL_FORWARD(ketl_type);
+ANN_FORWARD(ketl_type);
 
-KETL_DEFINE(ketl_type_parameter) {
+ANN_DEFINE(ketl_type_parameter) {
 	ketl_type* pType;
 };
 
-KETL_DEFINE(ketl_function_parameters) {
+ANN_DEFINE(ketl_function_parameters) {
     ketl_type_parameter* pParameters;
     uint16_t parametersCount;
 };

@@ -1,0 +1,3 @@
+[submodule "include/annex"]
+	path = include/annex
+	url = git@github.com:BatonNeTot/annex.git

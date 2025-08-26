@@ -26,6 +26,17 @@ namespace KETL {
 				return ketl_state_get_i64(pState);
 			}
 		};
+	
+		template <class T>
+		struct __ValueGetter;
+
+		template <>
+		struct __ValueGetter<int64_t> {
+			static int64_t as(ketl_state* p_state, ketl_value* p_value) {
+				return ketl_value_as_i64(p_state, p_value);
+			}
+		};
+
 	}
 
 	class Value {
@@ -66,17 +77,6 @@ namespace KETL {
 	private:
 		ketl_value* _p_value;
 		State& _state;
-
-		template <class T>
-		struct __ValueGetter;
-
-		template <>
-		struct __ValueGetter<int64_t> {
-			static int64_t as(ketl_state* p_state, ketl_value* p_value) {
-				return ketl_value_as_i64(p_state, p_value);
-			}
-		};
-
 		friend State;
 	};
 
@@ -134,7 +134,7 @@ std::ostream& operator<<(std::ostream& os, const KETL::Value& ketl_value)
 	if (ketl_value.get_type() == ketl_value.get_state().get_type<int64_t>()) {
 		os << ketl_value.as<int64_t>();
 	} else {
-		KETL_ASSERT(false);
+		ANN_ASSERT(false);
 	}
     return os;
 }

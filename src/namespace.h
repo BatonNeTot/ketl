@@ -9,14 +9,14 @@
 
 #include "ketl/utils.h"
 
-KETL_DEFINE(ketl_namespace_node) {
+ANN_DEFINE(ketl_namespace_node) {
     ketl_variable variable;
 };
 
 KETL_VECTOR_DECLARATION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DECLARATION(namespace_map, ketl_atomic_string, uint32_t)
 
-KETL_DEFINE(ketl_namespace) {
+ANN_DEFINE(ketl_namespace) {
     namespace_nodes vNodes;
     namespace_map mVars;
 };

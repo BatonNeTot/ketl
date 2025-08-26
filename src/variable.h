@@ -34,7 +34,7 @@ enum {
 };
 
 
-KETL_DEFINE(ketl_variable) {
+ANN_DEFINE(ketl_variable) {
 	union {
 		uint64_t stack;
 		void* pointer;

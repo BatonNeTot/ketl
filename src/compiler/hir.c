@@ -17,7 +17,7 @@ void ketl_hir_deinit(ketl_hir_t* p_hir) {
 }
 
 ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_instr) {
-    KETL_SWITCH_STRICT (tag) {
+    ANN_SWITCH_STRICT (tag) {
         case KETL_HIR_NONE_STMT:
             return 0;
 
@@ -84,16 +84,16 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
     if (p_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         return snprintf(buffer, bufferSize, "%s", KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var->literal));
     } else if (p_var->info == KETL_HIR_VAR_INFO_TEMP) {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "~%"PRIu16"|undef" : "~%"PRIu16;
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "~%"PRIu16"|undef" : "~%"PRIu16;
         return snprintf(buffer, bufferSize, format, p_var->uid);
     } 
     
     ketl_hir_var_info_t* p_var_info = p_hir->p_vars_infos + p_var->info;
     if (p_var_info->p_global != NULL) {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "%s|undef" : "%s";
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "%s|undef" : "%s";
         return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
     } else {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKHOWN ? "%s#%"PRIu16"undef" : "%s#%"PRIu16;
+        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "%s#%"PRIu16"undef" : "%s#%"PRIu16;
         return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
     }
 } 
@@ -107,10 +107,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
     char var_buffer[4][256];
     
 #define INIT_HIR_INFO(type) type* p_hir_info = (type*)p_instr
-#define FORMAT_VAR(var_id, buffer) (ketl_hir_format_var(p_hir, var_id, buffer, KETL_ARRAY_SIZE(buffer)))
-#define FORMAT_BLOCK(block_index, buffer) (snprintf(buffer, KETL_ARRAY_SIZE(buffer), "BB%"PRIu16, block_index))
+#define FORMAT_VAR(var_id, buffer) (ketl_hir_format_var(p_hir, var_id, buffer, ANN_ARRAY_SIZE(buffer)))
+#define FORMAT_BLOCK(block_index, buffer) (snprintf(buffer, ANN_ARRAY_SIZE(buffer), "BB%"PRIu16, block_index))
 
-    KETL_SWITCH_STRICT (header.tag) {
+    ANN_SWITCH_STRICT (header.tag) {
         case KETL_HIR_NONE_STMT:
             return snprintf(buffer, bufferSize, ";");
 

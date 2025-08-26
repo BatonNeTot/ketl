@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-#if KETL_OS_LINUX
+#if ANN_OS_LINUX
 
 #include <unistd.h>
 #include <sys/mman.h>
@@ -31,7 +31,7 @@ inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 #endif
 
 
-#if KETL_OS_WINDOWS
+#if ANN_OS_WINDOWS
 #include <Windows.h>
 
 inline static uint32_t ketl_get_page_size(void) {

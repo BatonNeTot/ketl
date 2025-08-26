@@ -2,7 +2,7 @@
 #include "namespace.h"
 
 KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
-KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, ANN_HASH, ANN_EQUAL)
 
 void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* pAllocator) {
     namespace_nodes_init(&pNamespace->vNodes, 16, pAllocator);
@@ -29,7 +29,7 @@ void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ket
         // TODO check const stuff
         // replace if replacement possible
         // do error if not
-        KETL_ASSERT(false);
+        ANN_ASSERT(false);
     }
 }
 

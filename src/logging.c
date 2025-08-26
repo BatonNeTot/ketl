@@ -14,7 +14,7 @@ uint64_t ketl_logv(ketl_log_level level, const char* message, va_list args) {
     // TODO check if message ends with a '\n' and print additional '\n' only if nessesary 
     result += printf("\n");
     if (level >= KETL_LOG_BREAK_LEVEL) {
-        KETL_DEBUGBREAK();
+        ANN_DEBUGBREAK();
     }
     return result;
 }

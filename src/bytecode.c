@@ -9,7 +9,7 @@ uint8_t ketl_bytecode_decode_instruction_length(ketl_bytecode_instr instruction)
     if (instruction >= KETL_BYTECODE_8UADD) {
         return sizeof(ketl_bytecode_instr) + 3 * sizeof(ketl_bytecode_stack_offset);
     } else {
-        KETL_SWITCH_STRICT (instruction) {
+        ANN_SWITCH_STRICT (instruction) {
             case KETL_BYTECODE_STACK_PROLOG:
             case KETL_BYTECODE_8PUSH_ARG:
             case KETL_BYTECODE_16PUSH_ARG:

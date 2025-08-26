@@ -24,9 +24,12 @@ int main(int argc, char** argv) {
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
     const char* pSource = ""
-        "1 + 2;"
-        "3 + 4;"
-        "5 - "
+        "var a : i64 = 5;"
+        "if (a == 5) {"
+        //"   return 1;"
+        "} else {"
+        //"   return 2;" 
+        "}"
     ;
 
     auto result = ketl.eval("", pSource);

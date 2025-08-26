@@ -9,7 +9,7 @@
 
 #include "ketl/utils.h"
 
-KETL_FORWARD(ketl_state);
+ANN_FORWARD(ketl_state);
 
 ketl_state* ketl_state_create(const ketl_allocator* pAllocator);
 

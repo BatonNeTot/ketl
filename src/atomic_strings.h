@@ -14,7 +14,7 @@ typedef uint32_t ketl_atomic_string;
 KETL_VECTOR_DECLARATION(ketl_atomic_strings_storage, char)
 KETL_HASH_MAP_DECLARATION(ketl_atomic_strings_map, const char*, ketl_atomic_string)
 
-KETL_DEFINE(ketl_atomic_strings) {
+ANN_DEFINE(ketl_atomic_strings) {
     ketl_atomic_strings_storage vStorage;
     ketl_atomic_strings_map mStrMap;
 };

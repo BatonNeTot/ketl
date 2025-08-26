@@ -17,22 +17,22 @@ KETL_VECTOR_DECLARATION(instructions, uint8_t)
 KETL_VECTOR_DEFINITION(instructions, uint8_t)
 
 KETL_HASH_MAP_DECLARATION(instr_to_bytecode_offsets, ketl_hir_instr_offset_t, uint32_t)
-KETL_HASH_MAP_DEFINITION(instr_to_bytecode_offsets, ketl_hir_instr_offset_t, uint32_t, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+KETL_HASH_MAP_DEFINITION(instr_to_bytecode_offsets, ketl_hir_instr_offset_t, uint32_t, ANN_HASH, ANN_EQUAL)
 
-KETL_DEFINE(arg_info) {
+ANN_DEFINE(arg_info) {
     ketl_type* pType;
     ketl_bytecode_stack_offset stackOffset;
 };
 
-KETL_DEFINE(undefined_value) {
+ANN_DEFINE(undefined_value) {
     ketl_variable* pValue;
     undefined_value* pNextValue;
 };
 
 KETL_HASH_MAP_DECLARATION(variables, ketl_hir_var_id_t, arg_info)
-KETL_HASH_MAP_DEFINITION(variables, ketl_hir_var_id_t, arg_info, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+KETL_HASH_MAP_DEFINITION(variables, ketl_hir_var_id_t, arg_info, ANN_HASH, ANN_EQUAL)
 
-KETL_DEFINE(bytecoder_context) {
+ANN_DEFINE(bytecoder_context) {
     instructions vInstructions;
     instr_to_bytecode_offsets m_instr_to_bytecode_offsets;
     variables mVariables;
@@ -58,7 +58,7 @@ static arg_info hir_get_arg_stack_offset(bytecoder_context* pContext, ketl_hir_v
     // TODO ERROR
     const char* p_symbol = KETL_ATOMIC_STRING_GET_POINTER(pContext->pSymbols, pContext->p_hir->p_vars_infos[var.info].name);
     printf("unknown variable %s\n", p_symbol);
-    KETL_ASSERT(false);
+    ANN_ASSERT(false);
         
     return (arg_info){
         .pType = NULL,
@@ -67,7 +67,7 @@ static arg_info hir_get_arg_stack_offset(bytecoder_context* pContext, ketl_hir_v
 }
 
 static ketl_bytecode_instr get_binary_bytecode(ketl_hir_tag_t hir_tag) {
-    KETL_SWITCH_STRICT (hir_tag) {
+    ANN_SWITCH_STRICT (hir_tag) {
         case KETL_HIR_PLUS_I64:
             return KETL_BYTECODE_64IADD;
         case KETL_HIR_MINUS_I64:
@@ -95,7 +95,7 @@ static ketl_bytecode_instr get_binary_bytecode(ketl_hir_tag_t hir_tag) {
 } 
 
 static ketl_hir_block_index_t get_first_non_empty_block(ketl_hir_t* p_hir, ketl_hir_block_index_t block) {
-    KETL_FOREVER {
+    ANN_FOREVER {
         ketl_hir_instr_offset_t instr_offset = p_hir->p_block_offsets[block];
         uint8_t* p_instr = p_hir->p_instrs + instr_offset;
         ketl_hir_header_t* p_header = (ketl_hir_header_t*)p_instr;
@@ -128,7 +128,9 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
     for (ketl_hir_var_id_t var_id = 0u; var_id < p_hir->vars_count; ++var_id) {
         ketl_hir_var_t var = p_hir->p_vars[var_id];
         if (var.uid == KETL_HIR_VAR_UID_LITERAL) {
-            int64_t value = strtoll(KETL_ATOMIC_STRING_GET_POINTER(context.pSymbols, var.literal), NULL, 10);
+	    const char* p_literal = KETL_ATOMIC_STRING_GET_POINTER(context.pSymbols, var.literal);
+	    ANN_ASSERT(p_literal != NULL);
+            int64_t value = strtoll(p_literal, NULL, 10);
             ketl_type* p_type = context.p_hir->p_used_types[var.type];
 
             arg_info argInfo = {
@@ -169,7 +171,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
 
         // temprorary variable
         arg_info argInfo = {
-            .pType = var.type != KETL_HIR_USED_TYPE_UNKHOWN ? p_hir->p_used_types[var.type] : NULL,
+            .pType = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
             .stackOffset = stackReservedSize
         };
 
@@ -195,7 +197,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
         ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
         p_instr += sizeof(ketl_hir_header_t);
 
-        KETL_SWITCH_STRICT (header.tag) {
+        ANN_SWITCH_STRICT (header.tag) {
             case KETL_HIR_PLUS_I64:
             case KETL_HIR_MINUS_I64:
             case KETL_HIR_MULTY_I64:
@@ -230,7 +232,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 arg_info callee_arg = hir_get_arg_stack_offset(&context, p_hir_info->callee);
 
                 // TODO FIX allow other types to be called
-                KETL_ASSERT(callee_arg.pType->type == KETL_TYPE_CFUNCTION);
+                ANN_ASSERT(callee_arg.pType->type == KETL_TYPE_CFUNCTION);
 
                 for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
                     arg_info arg = hir_get_arg_stack_offset(&context, p_hir_info->arguments[i]);
@@ -272,7 +274,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                     if (p_hir->p_block_offsets[dest] != i + ketl_hir_decode_size(p_hir, i)) {
                         instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_JUMP);
 
-                        _STATIC_ASSERT(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t));
+                        _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
                         ketl_bytecode_jump_offset placeholder = dest;
                         PUSH_CONSTANT(&context.vInstructions, placeholder);
                     }
@@ -292,7 +294,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 // get type size and use appropriate return bytecode
                 instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64JUMP_IF);
 
-                _STATIC_ASSERT(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t));
+                _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
                 ketl_bytecode_jump_offset placeholder = true_dest;
                 PUSH_CONSTANT(&context.vInstructions, placeholder);
                 PUSH_CONSTANT(&context.vInstructions, expr.stackOffset);

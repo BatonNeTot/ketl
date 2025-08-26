@@ -52,9 +52,9 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
         opcodes_t_push_back_ref(pOpcodes, (uint8_t*)(&rex));
     }
     
-    KETL_SWITCH_STRICT (pOpStruct->firstArgType) {
+    ANN_SWITCH_STRICT (pOpStruct->firstArgType) {
     case KETL_ARG_REG:
-        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
+        ANN_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
         case KETL_ARG_REG_MEM:
         case KETL_ARG_RSP_MEM_DISP:
@@ -123,7 +123,7 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
                 pOpStruct->firstArg -= KETL_REG_R8;
                 ((REXByte*)(pOpcodes->pData + rexOffset))->r = 1;
             }
-            KETL_SWITCH_STRICT (pOpStruct->size) {
+            ANN_SWITCH_STRICT (pOpStruct->size) {
             case KETL_SIZE_8B: {
                 uint8_t secondArg = (uint8_t)pOpStruct->secondArg;
                 opcodes_t_push_back_ref_n(pOpcodes, (uint8_t*)&secondArg, sizeof(secondArg));
@@ -165,7 +165,7 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
     case KETL_ARG_REG_MEM:
     case KETL_ARG_RSP_MEM_DISP:
     case KETL_ARG_RBP_MEM_DISP:
-        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
+        ANN_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
                 opcodes_t_push_back_copy(pOpcodes, 0x88);
@@ -214,7 +214,7 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
         return;
         }
     case KETL_ARG_IMM_MEM:
-        KETL_SWITCH_STRICT (pOpStruct->secondArgType) {
+        ANN_SWITCH_STRICT (pOpStruct->secondArgType) {
         case KETL_ARG_REG:
             if (pOpStruct->size == KETL_SIZE_8B) {
                 opcodes_t_push_back_copy(pOpcodes, 0xa2);

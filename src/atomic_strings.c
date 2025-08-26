@@ -32,7 +32,7 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* pAtomicStrings, 
     if (length == KETL_NULL_TERMINATED_LENGTH_32) {
         length = (uint32_t)strlen(pStr);
     } else {
-        KETL_ASSERT(length < KETL_ARRAY_SIZE(arr_buffer));
+        ANN_ASSERT(length < ANN_ARRAY_SIZE(arr_buffer));
         ketl_memcpy(arr_buffer, pStr, length);
         pStr = arr_buffer;
     }
@@ -52,7 +52,7 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* pAtomicStrings, 
         const char* pAtomicSymbol = ketl_atomic_strings_storage_push_back_ref_n(pvSymbols, pStr, length);
         ketl_atomic_strings_storage_push_back_copy(pvSymbols, '\0');
 
-        KETL_ASSERT(pCheckData == pvSymbols->pData);
+        ANN_ASSERT(pCheckData == pvSymbols->pData);
 
         pSymbolBucket->key = pAtomicSymbol;
         pSymbolBucket->value = (ketl_atomic_string)(pAtomicSymbol - pvSymbols->pData);

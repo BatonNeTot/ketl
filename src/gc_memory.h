@@ -10,7 +10,7 @@
 
 #include "ketl/utils.h"
 
-KETL_DEFINE(ketl_gc_info) {
+ANN_DEFINE(ketl_gc_info) {
     ketl_type* pType;
     bool flagUsage;
     bool freeAfterUse;
@@ -19,7 +19,7 @@ KETL_DEFINE(ketl_gc_info) {
 KETL_VECTOR_DECLARATION(objects, void*)
 KETL_TREE_MAP_DECLARATION(object_info_map, void*, ketl_gc_info)
 
-KETL_DEFINE(ketl_gc) {
+ANN_DEFINE(ketl_gc) {
     const ketl_allocator *pAllocator;
     objects vRootObjects;
     objects vCollectBuffer;

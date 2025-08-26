@@ -10,6 +10,8 @@
 
 #define KETL_LEXER_INITIAL_TOKEN_CAPACITY 4
 
-ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* pCount, const ketl_allocator* pAllocator);
+typedef uint32_t ketl_token_iterator;
+
+ketl_token* ketl_lexer_build_tokens(const char* pSource, uint32_t length, uint32_t* ketl_token_iterator, const ketl_allocator* pAllocator);
 
 #endif // ketl_compiler_lexer_h

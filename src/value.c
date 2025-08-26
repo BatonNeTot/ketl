@@ -20,7 +20,7 @@ ketl_type* ketl_value_get_type(ketl_state* p_state, ketl_value* p_value) {
 int64_t ketl_value_as_i64(ketl_state* p_state, ketl_value* p_value) {
     (void)p_state;
 
-    KETL_ASSERT(ketl_value_get_type(p_state, p_value) == ketl_state_get_i64(p_state));
+    ANN_ASSERT(ketl_value_get_type(p_state, p_value) == ketl_state_get_i64(p_state));
     ketl_variable* p_variable = (ketl_variable*)p_value;
     return p_variable->int64;
 }

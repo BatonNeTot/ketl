@@ -7,14 +7,14 @@
 #include "ketl/memory.h"
 #include "ketl/utils.h"
 
-KETL_DEFINE(ketl_executable_memory_page) {
+ANN_DEFINE(ketl_executable_memory_page) {
 	uint8_t* pPage;
 	uint32_t pageSize;
 };
 
 KETL_VECTOR_DECLARATION(ketl_executable_memory_page_vector, ketl_executable_memory_page)
 
-KETL_DEFINE(ketl_executable_memory) {
+ANN_DEFINE(ketl_executable_memory) {
 	ketl_executable_memory_page_vector vPages;
 	uint32_t currentOffset;
 };

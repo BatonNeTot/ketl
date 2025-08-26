@@ -10,7 +10,7 @@
 #include "ketl/memory.h"
 #include "ketl/utils.h"
 
-KETL_FORWARD(ketl_state);
+ANN_FORWARD(ketl_state);
 
 ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_hir, const ketl_allocator* p_allocator);  
 

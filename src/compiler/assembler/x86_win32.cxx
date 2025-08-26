@@ -41,7 +41,7 @@ static uint32_t countPushArgs(ketl_bytecode bytecode, uint32_t initialIndex) {
     }
     // TODO ERROR
     printf("sudden end of bytecode - call instruction expected");
-    KETL_UNREACHABLE();
+    ANN_UNREACHABLE();
 }
 
 #define IMM_ARG(type, offset) (*(type*)(bytecode.pInstructions + i + sizeof(ketl_bytecode_instr) + (offset) * sizeof(ketl_bytecode_stack_offset)))
@@ -56,11 +56,11 @@ do {\
     if (hasCalls) {\
         stackUsage += PREALLOCATION_CALL_REG_PARAMS_SPACE;\
     }\
-    stackUsage = KETL_ALIGN_FORWARD(stackUsage, 16); /* 16 bites aligned */\
+    stackUsage = ANN_ALIGN_FORWARD(stackUsage, 16); /* 16 bites aligned */\
     stackUsage += SHADOW_STACK_SPACE; /* add shadow space AFTER alignment */\
 } while(false)
 
-KETL_DEFINE(ketl_jump_info_t) {
+ANN_DEFINE(ketl_jump_info_t) {
     uint32_t address_offset;
     uint32_t from_offset;
     uint32_t to_bytecode_offset;
@@ -70,7 +70,7 @@ KETL_VECTOR_DECLARATION(jump_infos_t, ketl_jump_info_t)
 KETL_VECTOR_DEFINITION(jump_infos_t, ketl_jump_info_t)
 
 KETL_HASH_MAP_DECLARATION(bytecode_to_offset_t, uint32_t, uint32_t)
-KETL_HASH_MAP_DEFINITION(bytecode_to_offset_t, uint32_t, uint32_t, KETL_HASH_DEFAULT, KETL_EQUAL_DEFAULT)
+KETL_HASH_MAP_DEFINITION(bytecode_to_offset_t, uint32_t, uint32_t, ANN_HASH, ANN_EQUAL)
 
 uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* pAllocator) {
     opcodes_t opcodes;
@@ -109,7 +109,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     };
                     ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 break;
             }
@@ -120,7 +120,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 if (remainingPushArgCount >= sizeof(aParameterRegs) / sizeof(*aParameterRegs)) {
                     // TODO FIX
                     // push onto actual stack
-                    KETL_ASSERT(false);
+                    ANN_ASSERT(false);
                 }
                 PUSH_MOV_STACK_TO_REG(&opcodes, KETL_SIZE_64B, aParameterRegs[--remainingPushArgCount], IMM_ARG(ketl_bytecode_stack_offset, 0));
                 break;
@@ -133,7 +133,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                         0xff, 0x94, 0x24, 0xff, 0xff, 0x00, 0x00,           // call qword ptr [rsp + 65535]                          
                     };
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackOffset;
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -147,10 +147,10 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     };
                     jump_infos_t_push_back_copy(&v_jump_infos, (ketl_jump_info_t){
                         .address_offset = opcodes.size + 1,
-                        .from_offset = opcodes.size + KETL_ARRAY_SIZE(opcodesArray),
+                        .from_offset = opcodes.size + ANN_ARRAY_SIZE(opcodesArray),
                         .to_bytecode_offset = jump_offset,
                     });
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 break;
             }
@@ -165,10 +165,10 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     };
                     jump_infos_t_push_back_copy(&v_jump_infos, (ketl_jump_info_t){
                         .address_offset = opcodes.size + 4,
-                        .from_offset = opcodes.size + KETL_ARRAY_SIZE(opcodesArray),
+                        .from_offset = opcodes.size + ANN_ARRAY_SIZE(opcodesArray),
                         .to_bytecode_offset = jump_offset,
                     });
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 break;
             }
@@ -181,14 +181,14 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     };
                     ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
 
                 const uint8_t opcodesArray[] =
                 {
                     0xc3                    // ret
                 };
-                opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 break;
             }
             case KETL_BYTECODE_64RETURN: {
@@ -202,7 +202,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     };
                     ADAPT_STACK_USAGE(stackUsage, hasCalls);
                     *(int32_t*)(opcodesArray + 3) = (int32_t)stackUsage;
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
 
                 {
@@ -210,7 +210,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     {
                         0xc3                    // ret
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 break;
             }
@@ -248,7 +248,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     {
                         0x48, 0x01, 0xc8,   // add rax, rcx                                   
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -262,7 +262,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     {
                         0x48, 0x29, 0xc8,   // sub rax, rcx                                   
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -275,7 +275,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                     {
                         0x48, 0xf7, 0xe9,   // imul rcx // rdx:rax = rax * rcx                                
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -289,7 +289,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                         0x48, 0x31, 0xd2,   // xor rdx
                         0x48, 0xf7, 0xf1,   // idiv rcx // rdx:rax / rcx = rax, % rcx = rdx                                
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -303,7 +303,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                         0x48, 0x31, 0xd2,   // xor rdx
                         0x48, 0xf7, 0xf1,   // idiv rcx // rdx:rax / rcx = rax, % rcx = rdx                                
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_DX);
                 break;
@@ -317,7 +317,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                         0x48, 0x39, 0xc8,   // cmp rax, rcx                                
                         0x0f, 0x94, 0xc0,   // sete al                                
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -331,7 +331,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                         0x48, 0x39, 0xc8,   // cmp rax, rcx        
                         0x0f, 0x95, 0xc0,   // setne al                                
                     };
-                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, KETL_ARRAY_SIZE(opcodesArray));
+                    opcodes_t_push_back_ref_n(&opcodes, opcodesArray, ANN_ARRAY_SIZE(opcodesArray));
                 }
                 PUSH_MOV_REG_TO_STACK(&opcodes, KETL_SIZE_64B, IMM_ARG(ketl_bytecode_stack_offset, 0), KETL_REG_AX);
                 break;
@@ -341,7 +341,7 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
                 char aBuffer[256];
                 uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, aBuffer, sizeof(aBuffer) / sizeof(*aBuffer));
                 printf("unknown bytecode: %.*s\n", length, aBuffer);
-                KETL_ASSERT(false);
+                ANN_ASSERT(false);
             }
         }
     }

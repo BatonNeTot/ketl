@@ -1,7 +1,7 @@
 //🫖ketl
 #include "ketl/utils.h"
 
-#if KETL_OS_WINDOWS
+#if ANN_OS_WINDOWS
 #include "assembler/x86_win32.cxx"
 #else
 #include "assembler/x86_system_v.cxx"
