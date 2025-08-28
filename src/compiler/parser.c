@@ -177,13 +177,13 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
     ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
     ketl_hir_var_t* p_rhs_var = p_context->hir_builder.v_vars.p_data + rhs_var;
 
-    if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL || p_lhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
-        ANN_ASSERT(false && "Can't assign to an l-value.");
+    if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
+        ANN_ASSERT(false && "Can't assign to an r-value.");
     }
     
     // TODO casting if needed
 
-    if (p_rhs_var->uid != KETL_HIR_VAR_UID_LITERAL&& p_rhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
+    if (p_rhs_var->uid != KETL_HIR_VAR_UID_LITERAL && p_rhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
         ketl_hir_builder_replace_temp_var(&p_context->hir_builder, lhs_var, rhs_var);
         return;
     }
@@ -374,6 +374,8 @@ typedef uint8_t ketl_precedence;
 enum {
     KETL_PREC_NONE,
     KETL_PREC_ASSIGNMENT,
+    KETL_PREC_LOGICAL_OR,
+    KETL_PREC_LOGICAL_AND,
     KETL_PREC_EQUALITY,
     KETL_PREC_COMPARISON,
     KETL_PREC_TERM,
@@ -486,6 +488,50 @@ static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_h
     }
 }
 
+static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
+    ketl_token_type token_type = CURRENT_TOKEN(1).type;
+    ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
+
+    ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 3);
+    ketl_hir_block_index_t true_statement = first_block;
+    ketl_hir_block_index_t false_statement = first_block + 1;
+    ketl_hir_block_index_t after_block = first_block + 2;
+
+    push_hir_if(p_context, NULL, lhs, true_statement, false_statement);
+
+    ketl_hir_block_index_t short_sircuit_block, second_block;
+    ANN_SWITCH_STRICT (token_type) {
+        case KETL_TOKEN_TYPE_LOGICAL_OR: {
+            short_sircuit_block = true_statement;
+            second_block = false_statement;
+            break;
+        }
+        case KETL_TOKEN_TYPE_LOGICAL_AND: {
+            short_sircuit_block = false_statement;
+            second_block = true_statement;
+            break;
+        }
+    }
+
+    pull_hir_set_block(p_context, second_block);
+    ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
+    
+    // TODO find common type, set temp var to common type
+    ketl_hir_var_id_t output_var = push_temp_var(p_context); 
+    // TODO do casting if necessary
+    push_hir_assign_impl(p_context, NULL, output_var, rhs);
+    push_hir_jump(p_context, NULL, after_block);
+    
+    pull_hir_set_block(p_context, short_sircuit_block);
+    // TODO do casting if necessary
+    push_hir_assign_impl(p_context, NULL, output_var, lhs);
+    push_hir_jump(p_context, NULL, after_block);
+
+    pull_hir_set_block(p_context, after_block);
+
+    return output_var;
+}
+
 static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs) {
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
 
@@ -495,87 +541,87 @@ static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_h
 }
 
 ketl_parse_rule parse_rules[] = {
-    [KETL_TOKEN_TYPE_ID]                         = { &parse_identificator, NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { &parse_number,        NULL,        NULL,       KETL_PREC_PRIMARY},
-    [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { &parse_grouping,      parse_call,        NULL,       KETL_PREC_CALL},
-    [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CURLY_LEFT]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CURLY_RIGHT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_SQUARE_LEFT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_SQUARE_RIGHT]               = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DOT]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_COMMA]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_COLON]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LOGICAL_OR]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LESS]                       = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_LESS_OR_EQUAL]              = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_GREATER]                    = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_GREATER_OR_EQUAL]           = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_EQUAL]                      = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_EQUALITY},
-    [KETL_TOKEN_TYPE_NOT_EQUAL]                  = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_EQUALITY},
-    [KETL_TOKEN_TYPE_BITWISE_NOT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_AND]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_OR]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_XOR]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT]         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_INCREMENT]                  = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DECREMENT]                  = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_PLUS]                       = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_TERM},
-    [KETL_TOKEN_TYPE_MINUS]                      = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_TERM},
-    [KETL_TOKEN_TYPE_MULTIPLY]                   = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_DIVIDE]                     = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,           NULL,        parse_binary_rtl, KETL_PREC_ASSIGNMENT},
-    [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_MULTIPLY]            = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_DIVIDE]              = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_REMAINDER]           = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT]  = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT] = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND]         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR]          = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR]         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I8]                         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I16]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I32]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I64]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U8]                         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U16]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U32]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U64]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_F32]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_F64]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BOOL]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BREAK]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CASE]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CHAR]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CONST]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_CONTINUE]                   = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DEFAULT]                    = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DO]                         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ELSE]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ENUM]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_FALSE]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_FOR]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_IF]                         = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_NONE]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_RETURN]                     = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_STRUCT]                     = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_SWITCH]                     = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_TRUE]                       = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_UNION]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_VAR]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_WHILE]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_EOF]                        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ERROR]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ID]                         = { parse_identificator, NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { parse_number,        NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { parse_grouping,      parse_call,          NULL,             KETL_PREC_CALL},
+    [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CURLY_LEFT]                 = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CURLY_RIGHT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_SQUARE_LEFT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_SQUARE_RIGHT]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DOT]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,                parse_short_circuit, NULL,             KETL_PREC_LOGICAL_AND},
+    [KETL_TOKEN_TYPE_LOGICAL_OR]                 = { NULL,                parse_short_circuit, NULL,             KETL_PREC_LOGICAL_OR},
+    [KETL_TOKEN_TYPE_LESS]                       = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_LESS_OR_EQUAL]              = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_GREATER]                    = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_GREATER_OR_EQUAL]           = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_EQUAL]                      = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_EQUALITY},
+    [KETL_TOKEN_TYPE_NOT_EQUAL]                  = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_EQUALITY},
+    [KETL_TOKEN_TYPE_BITWISE_NOT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_AND]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_OR]                 = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_XOR]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT]         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_INCREMENT]                  = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DECREMENT]                  = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_PLUS]                       = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_MINUS]                      = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_MULTIPLY]                   = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_DIVIDE]                     = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,                parse_binary_ltr,    NULL,             KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,                NULL,                parse_binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_MULTIPLY]            = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_DIVIDE]              = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_REMAINDER]           = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT]  = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT] = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND]         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR]          = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR]         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_I8]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_I16]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_I32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_I64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_U8]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_U16]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_U32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_U64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_F32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_F64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BOOL]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BREAK]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CASE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CHAR]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CONST]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CONTINUE]                   = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DEFAULT]                    = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DO]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ELSE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ENUM]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_FALSE]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_NONE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_RETURN]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_STRUCT]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_SWITCH]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_TRUE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_UNION]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_VAR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_WHILE]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_EOF]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ERROR]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
 };
 
 static ketl_parse_rule* get_parse_rule(ketl_token_type token_type) {
