@@ -83,8 +83,8 @@ namespace KETL {
 	class State {
 	public:
 
-		State(const ketl_allocator* pAllocator)
-			: _p_state(ketl_state_create(pAllocator)) {}
+		State(const ketl_allocator* p_allocator)
+			: _p_state(ketl_state_create(p_allocator)) {}
 
 		State(const State& other) = delete;
 		State(State&& other) = delete;

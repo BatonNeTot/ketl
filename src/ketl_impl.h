@@ -26,7 +26,7 @@ KETL_VECTOR_DECLARATION(string_builder_t, char)
 KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr)
 
 ANN_DEFINE(ketl_state) {
-    const ketl_allocator* pAllocator;
+    const ketl_allocator* p_allocator;
     ketl_gc gc;
     string_builder_t error_stream;
     ketl_atomic_strings atomicStrings;

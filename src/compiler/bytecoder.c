@@ -182,7 +182,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
         }
     }
     
-    *(ketl_bytecode_stack_offset*)(context.vInstructions.pData + stackReserveBackpatchOffset) = stackReservedSize;
+    *(ketl_bytecode_stack_offset*)(context.vInstructions.p_data + stackReserveBackpatchOffset) = stackReservedSize;
 
     bool first_instr_in_block = true;
 
@@ -330,16 +330,16 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
     }
 
     for (uint32_t i = 0u; i < context.vInstructions.size; 
-            i += ketl_bytecode_decode_instruction_length(context.vInstructions.pData[i])) {
-        switch (*(ketl_bytecode_instr*)(context.vInstructions.pData + i)) {
+            i += ketl_bytecode_decode_instruction_length(context.vInstructions.p_data[i])) {
+        switch (*(ketl_bytecode_instr*)(context.vInstructions.p_data + i)) {
             case KETL_BYTECODE_JUMP:
             case KETL_BYTECODE_8JUMP_IF:
             case KETL_BYTECODE_16JUMP_IF:
             case KETL_BYTECODE_32JUMP_IF:
             case KETL_BYTECODE_64JUMP_IF: {
-                ketl_hir_block_index_t block = *(ketl_bytecode_jump_offset*)(context.vInstructions.pData + i + sizeof(ketl_bytecode_instr));
+                ketl_hir_block_index_t block = *(ketl_bytecode_jump_offset*)(context.vInstructions.p_data + i + sizeof(ketl_bytecode_instr));
                 instr_to_bytecode_offsets_bucket* p_bucket = instr_to_bytecode_offsets_get_or_null(&context.m_instr_to_bytecode_offsets, p_hir->p_block_offsets[block]); 
-                *(ketl_bytecode_jump_offset*)(context.vInstructions.pData + i + sizeof(ketl_bytecode_instr)) = (ketl_bytecode_jump_offset)p_bucket->value;
+                *(ketl_bytecode_jump_offset*)(context.vInstructions.p_data + i + sizeof(ketl_bytecode_instr)) = (ketl_bytecode_jump_offset)p_bucket->value;
                 break;
         }
         }
@@ -349,7 +349,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
     instr_to_bytecode_offsets_deinit(&context.m_instr_to_bytecode_offsets);
 
     return (ketl_bytecode){
-        .pInstructions = context.vInstructions.pData,
+        .pInstructions = context.vInstructions.p_data,
         .instructionsCount = context.vInstructions.size,
     };
 }

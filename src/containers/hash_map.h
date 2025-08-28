@@ -16,20 +16,20 @@ ANN_DEFINE(ANN_CONCAT(name,_bucket)) {\
 	vType value;\
 };\
 ANN_DEFINE(name) {\
-    const ketl_allocator* pAllocator;\
+    const ketl_allocator* p_allocator;\
 	ANN_CONCAT(name,_bucket)** ppBuckets;\
 	ANN_CONCAT(name,_bucket)* pFreeBucket;\
 	uint32_t size;\
 	uint32_t capacityIndex;\
 };\
-void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator);\
+void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* p_allocator);\
 void ANN_CONCAT(name,_deinit)(name* pMap);\
 ANN_CONCAT(name,_bucket)* ANN_CONCAT(name,_get_or_null)(name* pMap, kType key);\
 ANN_CONCAT(name,_bucket)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
 void ANN_CONCAT(name,_erase)(name* pMap, ANN_CONCAT(name,_bucket)* pBucket);\
 
 #define KETL_HASH_MAP_DEFINITION(name, kType, vType, kHash, kEqual)\
-void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
+void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* p_allocator) {\
     const uint32_t initialCapacityIndex = 0;\
     uint32_t initialCapacity = ketl_prime_capacities[initialCapacityIndex];\
     \
@@ -37,12 +37,12 @@ void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
     const uint32_t alignedBucketsOffset = ANN_ALIGN_FORWARD(arraySize, _Alignof(ANN_CONCAT(name,_bucket)));\
     const uint32_t totalAllocateSize = alignedBucketsOffset + sizeof(ANN_CONCAT(name,_bucket)) * initialCapacity;\
     \
-    void* bucketsAlloc = ketl_alloc(pAllocator, totalAllocateSize);\
+    void* bucketsAlloc = ketl_alloc(p_allocator, totalAllocateSize);\
     ANN_CONCAT(name,_bucket)** ppBuckets = bucketsAlloc;\
     ANN_CONCAT(name,_bucket)* pBucketsBuffer = (void*)((char*)bucketsAlloc + alignedBucketsOffset);\
     \
     *pMap = (name){\
-        .pAllocator = pAllocator,\
+        .p_allocator = p_allocator,\
         .ppBuckets = ppBuckets,\
         .pFreeBucket = pBucketsBuffer,\
         .size = 0,\
@@ -56,7 +56,7 @@ void ANN_CONCAT(name,_init)(name* pMap, const ketl_allocator* pAllocator) {\
     pBucketsBuffer[initialCapacity].pNext = NULL;\
 }\
 void ANN_CONCAT(name,_deinit)(name* pMap) {\
-    ketl_free(pMap->pAllocator, pMap->ppBuckets);\
+    ketl_free(pMap->p_allocator, pMap->ppBuckets);\
 }\
 ANN_CONCAT(name,_bucket)* ANN_CONCAT(name,_get_or_null)(name* pMap, kType key) {\
     uint32_t capacity = ketl_prime_capacities[pMap->capacityIndex];\
@@ -101,7 +101,7 @@ ANN_CONCAT(name,_bucket)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType
         const uint32_t alignedBucketsOffset = ANN_ALIGN_FORWARD(arraySize, _Alignof(ANN_CONCAT(name,_bucket)));\
         const uint32_t totalAllocateSize = alignedBucketsOffset + sizeof(ANN_CONCAT(name,_bucket)) * newCapacity;\
         \
-        void* bucketsAlloc = ketl_alloc(pMap->pAllocator, totalAllocateSize);\
+        void* bucketsAlloc = ketl_alloc(pMap->p_allocator, totalAllocateSize);\
         ANN_CONCAT(name,_bucket)** ppNewBuckets = bucketsAlloc;\
         ANN_CONCAT(name,_bucket)* pBucketsBuffer = (void*)((char*)bucketsAlloc + alignedBucketsOffset);\
         pMap->ppBuckets = ppNewBuckets;\
@@ -124,7 +124,7 @@ ANN_CONCAT(name,_bucket)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType
 				pBucket = pNext;\
 			}\
 		}\
-		ketl_free(pMap->pAllocator, ppBuckets);\
+		ketl_free(pMap->p_allocator, ppBuckets);\
 		index = hash % newCapacity;\
 		ppBuckets = ppNewBuckets;\
 \

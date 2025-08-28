@@ -10,7 +10,6 @@
 #include <stddef.h>
 
 #define KETL_NULL_TERMINATED_LENGTH_32 ((uint32_t)-1)
-#define KETL_NULL_TERMINATED_LENGTH_64 ((uint64_t)-1)
 
 #define ANN_ARRAY_SIZE(array) (sizeof(array) / sizeof(*(array)))
 

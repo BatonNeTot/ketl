@@ -83,18 +83,18 @@ static uint32_t ketl_get_static_page_size_log(void) {
 	return pageSizeLog;
 }
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* pAllocator) {
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* p_allocator) {
 	*exeMemory = (ketl_executable_memory) {
 		.currentOffset = 0,
 	};
-	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1, pAllocator);
-	exeMemory->vPages.pData[0].pPage = NULL;
+	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1, p_allocator);
+	exeMemory->vPages.p_data[0].pPage = NULL;
 }
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory) {
 	ketl_executable_memory_page_vector vPages = exeMemory->vPages;
 	for (uint32_t i = 0u; i < vPages.size; ++i) {
-		ketl_executable_memory_page page = vPages.pData[i];
+		ketl_executable_memory_page page = vPages.p_data[i];
 		ketl_deallocate_exe_memory(page.pPage, page.pageSize);
 	}
 
@@ -104,7 +104,7 @@ void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory) {
 uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, const uint8_t* opcodes, uint64_t length) {
 	uint32_t currentPageIndex = exeMemory->vPages.size;
 	uint32_t currentOffset = exeMemory->currentOffset;
-	ketl_executable_memory_page currentPage = exeMemory->vPages.pData[currentPageIndex];
+	ketl_executable_memory_page currentPage = exeMemory->vPages.p_data[currentPageIndex];
 	if (currentPage.pPage == NULL || currentOffset + length > currentPage.pageSize) {
 		uint32_t pageSize = ketl_get_static_page_size();
 		uint32_t requestedPageCount = (uint32_t)((length + (pageSize - 1)) >> ketl_get_static_page_size_log());

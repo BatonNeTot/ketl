@@ -23,16 +23,17 @@ int main(int argc, char** argv) {
     //ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t)>(&test));
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
-    const char* pSource = ""
-        "var a : i64 = 5;"
-        "if (a == 5) {"
-        //"   return 1;"
-        "} else {"
-        //"   return 2;" 
+    const char* p_source = ""
+        "var a : i64 = 5;\n"
+        "if (a == 5) {\n"
+        "   return 1;\n"
+        "   return 42;\n"
+        "} else {\n"
+        "   return 2;\n" 
         "}"
     ;
 
-    auto result = ketl.eval("", pSource);
+    auto result = ketl.eval(__FILE__ "$<eval>", p_source);
     if (result) {
         std::cout << "result = " << result << std::endl;
     }

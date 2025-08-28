@@ -18,27 +18,27 @@ ANN_DEFINE(ANN_CONCAT(name,_node)) {\
 	vType value;\
 };\
 ANN_DEFINE(name) {\
-    const ketl_allocator* pAllocator;\
+    const ketl_allocator* p_allocator;\
 	ANN_CONCAT(name,_node)* pNodes;\
 	uint32_t freeNodeOffset;\
 	uint32_t rootOffset;\
 	uint32_t size;\
 	uint32_t capacity;\
 };\
-void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
+void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* p_allocator);\
 void ANN_CONCAT(name,_deinit)(name* pMap);\
 ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
 ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
 ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* pMap, kType key);\
 
 #define KETL_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
-void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* pAllocator) {\
+void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* p_allocator) {\
     const uint32_t arraySize = sizeof(ANN_CONCAT(name,_node)) * initialCapacity;\
     \
-    ANN_CONCAT(name,_node)* pNodes = ketl_alloc(pAllocator, arraySize);\
+    ANN_CONCAT(name,_node)* pNodes = ketl_alloc(p_allocator, arraySize);\
     \
     *pMap = (name){\
-        .pAllocator = pAllocator,\
+        .p_allocator = p_allocator,\
         .pNodes = pNodes,\
         .freeNodeOffset = 0,\
         .rootOffset = (uint32_t)(-1),\
@@ -52,7 +52,7 @@ void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_all
     pNodes[initialCapacity].nextOffset = (uint32_t)(-1);\
 }\
 void ANN_CONCAT(name,_deinit)(name* pMap) {\
-    ketl_free(pMap->pAllocator, pMap->pNodes);\
+    ketl_free(pMap->p_allocator, pMap->pNodes);\
 }\
 static uint16_t ANN_CONCAT(__,name,_height)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
     if (nodeOffset == (uint32_t)(-1)) {\

@@ -66,13 +66,13 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
-                ((REXByte*)(pOpcodes->pData + rexOffset))->r = 1;
+                ((REXByte*)(pOpcodes->p_data + rexOffset))->r = 1;
             }
             if ((pOpStruct->secondArgType == KETL_ARG_REG ||
                 pOpStruct->secondArgType == KETL_ARG_REG_MEM) &&
                 pOpStruct->secondArg >= KETL_REG_R8) {
                 pOpStruct->secondArg -= KETL_REG_R8;
-                ((REXByte*)(pOpcodes->pData + rexOffset))->b = 1;
+                ((REXByte*)(pOpcodes->p_data + rexOffset))->b = 1;
             }
             
             if (pOpStruct->secondArgType == KETL_ARG_REG) {
@@ -121,7 +121,7 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
             }
             if (pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
-                ((REXByte*)(pOpcodes->pData + rexOffset))->r = 1;
+                ((REXByte*)(pOpcodes->p_data + rexOffset))->r = 1;
             }
             ANN_SWITCH_STRICT (pOpStruct->size) {
             case KETL_SIZE_8B: {
@@ -175,11 +175,11 @@ static void push_mov(opcodes_t* pOpcodes, x86_op_struct* pOpStruct) {
             if (pOpStruct->firstArgType == KETL_ARG_REG_MEM &&
                 pOpStruct->firstArg >= KETL_REG_R8) {
                 pOpStruct->firstArg -= KETL_REG_R8;
-                ((REXByte*)(pOpcodes->pData + rexOffset))->b = 1;
+                ((REXByte*)(pOpcodes->p_data + rexOffset))->b = 1;
             }
             if (pOpStruct->secondArg >= KETL_REG_R8) {
                 pOpStruct->secondArg -= KETL_REG_R8;
-                ((REXByte*)(pOpcodes->pData + rexOffset))->r = 1;
+                ((REXByte*)(pOpcodes->p_data + rexOffset))->r = 1;
             }
 
 

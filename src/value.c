@@ -26,7 +26,7 @@ int64_t ketl_value_as_i64(ketl_state* p_state, ketl_value* p_value) {
 }
 
 void ketl_value_destroy(ketl_state* p_state, ketl_value* p_value) {
-    ketl_free(p_state->pAllocator, p_value);
+    ketl_free(p_state->p_allocator, p_value);
 }
 
 

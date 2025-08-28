@@ -19,7 +19,7 @@ ANN_DEFINE(ketl_executable_memory) {
 	uint32_t currentOffset;
 };
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* pAllocator);
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* p_allocator);
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory);
 

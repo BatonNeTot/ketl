@@ -8,9 +8,8 @@
 #include "ketl/utils.h"
 
 ANN_FORWARD(ketl_state);
+ANN_FORWARD(ketl_lexer_t);
 
-void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, const char* p_source, uint32_t length, const ketl_allocator* p_allocator);
-
-void ketl_simple_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, const char* p_source, uint32_t length, const ketl_allocator* p_allocator);
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator);
 
 #endif // ketl_compiler_parser_h

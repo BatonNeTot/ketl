@@ -21,7 +21,7 @@ ANN_DEFINE(ketl_namespace) {
     namespace_map mVars;
 };
 
-void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* pAllocator);
+void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* p_allocator);
 
 void ketl_namespace_deinit(ketl_namespace* pNamespace);
 

@@ -19,7 +19,7 @@ ANN_DEFINE(ketl_atomic_strings) {
     ketl_atomic_strings_map mStrMap;
 };
 
-void ketl_atomic_strings_init(ketl_atomic_strings* pAtomicStrings, const ketl_allocator* pAllocator);
+void ketl_atomic_strings_init(ketl_atomic_strings* pAtomicStrings, const ketl_allocator* p_allocator);
 
 void ketl_atomic_strings_deinit(ketl_atomic_strings* pAtomicStrings);
 

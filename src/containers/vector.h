@@ -8,12 +8,12 @@
 
 #define KETL_VECTOR_DECLARATION(name, type)\
 ANN_DEFINE(name) {\
-    const ketl_allocator* pAllocator;\
-	type* pData;\
+    const ketl_allocator* p_allocator;\
+	type* p_data;\
 	uint32_t size;\
 	uint32_t capacity;\
 };\
-void ANN_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator);\
+void ANN_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* p_allocator);\
 void ANN_CONCAT(name,_deinit)(name* pVector);\
 void ANN_CONCAT(name,_clear)(name* pVector);\
 void ANN_CONCAT(name,_resize)(name* pVector, uint32_t newSize);\
@@ -23,15 +23,15 @@ type* ANN_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue);\
 type* ANN_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size);\
 
 #define KETL_VECTOR_DEFINITION(name, type)\
-void ANN_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* pAllocator){\
+void ANN_CONCAT(name,_init)(name* pVector, uint32_t initialCapacity, const ketl_allocator* p_allocator){\
     *pVector = (name){\
-        .pAllocator = pAllocator,\
-        .pData = ketl_alloc(pAllocator, sizeof(*pVector->pData) * initialCapacity),\
+        .p_allocator = p_allocator,\
+        .p_data = ketl_alloc(p_allocator, sizeof(*pVector->p_data) * initialCapacity),\
         .size = 0,\
         .capacity = initialCapacity};\
 }\
 void ANN_CONCAT(name,_deinit)(name* pVector){\
-    ketl_free(pVector->pAllocator, pVector->pData);\
+    ketl_free(pVector->p_allocator, pVector->p_data);\
 }\
 void ANN_CONCAT(name,_clear)(name* pVector){\
     pVector->size = 0;\
@@ -47,38 +47,38 @@ void ANN_CONCAT(name,_reserve)(name* pVector, uint32_t newCapacity){\
     }\
     if (currentCapacity != pVector->capacity) {\
         pVector->capacity = currentCapacity;\
-        pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * currentCapacity);\
+        pVector->p_data = ketl_realloc(pVector->p_allocator, pVector->p_data, sizeof(*pVector->p_data) * currentCapacity);\
     }\
 }\
 type* ANN_CONCAT(name,_push_back_copy)(name* pVector, type value){\
-    type* pData = pVector->pData;\
+    type* p_data = pVector->p_data;\
     uint32_t index = pVector->size++;\
     uint32_t capacity = pVector->capacity;\
     if (index >= capacity) {\
         uint32_t newCapacity = pVector->capacity = (uint32_t)(capacity << 1);\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * newCapacity);\
+        p_data = pVector->p_data = ketl_realloc(pVector->p_allocator, pVector->p_data, sizeof(*pVector->p_data) * newCapacity);\
     }\
-    pData += index;\
-    *pData = value;\
-    return pData;\
+    p_data += index;\
+    *p_data = value;\
+    return p_data;\
 }\
 type* ANN_CONCAT(name,_push_back_ref)(name* pVector, type const* pValue){\
-    type* pData = pVector->pData;\
+    type* p_data = pVector->p_data;\
     uint32_t index = pVector->size++;\
     uint32_t capacity = pVector->capacity;\
     if (index >= capacity) {\
         uint32_t newCapacity = pVector->capacity = (uint32_t)(capacity << 1);\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * newCapacity);\
+        p_data = pVector->p_data = ketl_realloc(pVector->p_allocator, pVector->p_data, sizeof(*pVector->p_data) * newCapacity);\
     }\
-    pData += index;\
-    *pData = *pValue;\
-    return pData;\
+    p_data += index;\
+    *p_data = *pValue;\
+    return p_data;\
 }\
 type* ANN_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint32_t size){\
     if (size == 0) {\
-        return pVector->pData + pVector->size;\
+        return pVector->p_data + pVector->size;\
     }\
-    type* pData = pVector->pData;\
+    type* p_data = pVector->p_data;\
     uint32_t index = pVector->size;\
     uint32_t newSize = pVector->size += size;\
     uint32_t capacity = pVector->capacity;\
@@ -87,11 +87,11 @@ type* ANN_CONCAT(name,_push_back_ref_n)(name* pVector, type const* pValues, uint
     }\
     if (pVector->capacity != capacity) {\
         pVector->capacity = capacity;\
-        pData = pVector->pData = ketl_realloc(pVector->pAllocator, pVector->pData, sizeof(*pVector->pData) * capacity);\
+        p_data = pVector->p_data = ketl_realloc(pVector->p_allocator, pVector->p_data, sizeof(*pVector->p_data) * capacity);\
     }\
-    pData += index;\
-    ketl_memcpy(pData, pValues, sizeof(*pVector->pData) * size);\
-    return pData;\
+    p_data += index;\
+    ketl_memcpy(p_data, pValues, sizeof(*pVector->p_data) * size);\
+    return p_data;\
 }\
 
 

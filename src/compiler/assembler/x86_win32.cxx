@@ -72,15 +72,15 @@ KETL_VECTOR_DEFINITION(jump_infos_t, ketl_jump_info_t)
 KETL_HASH_MAP_DECLARATION(bytecode_to_offset_t, uint32_t, uint32_t)
 KETL_HASH_MAP_DEFINITION(bytecode_to_offset_t, uint32_t, uint32_t, ANN_HASH, ANN_EQUAL)
 
-uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* pAllocator) {
+uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* p_allocator) {
     opcodes_t opcodes;
-    opcodes_t_init(&opcodes, bytecode.instructionsCount, pAllocator);
+    opcodes_t_init(&opcodes, bytecode.instructionsCount, p_allocator);
 
     jump_infos_t v_jump_infos;
-    jump_infos_t_init(&v_jump_infos, 16, pAllocator);
+    jump_infos_t_init(&v_jump_infos, 16, p_allocator);
 
     bytecode_to_offset_t m_bytecode_to_offset;
-    bytecode_to_offset_t_init(&m_bytecode_to_offset, pAllocator);
+    bytecode_to_offset_t_init(&m_bytecode_to_offset, p_allocator);
 
     bool hasCalls = false;
 
@@ -347,9 +347,9 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
     }
 
     for (uint32_t i = 0u; i < v_jump_infos.size; ++i) {
-        bytecode_to_offset_t_bucket* p_bucket = bytecode_to_offset_t_get_or_null(&m_bytecode_to_offset, v_jump_infos.pData[i].to_bytecode_offset);
-        int32_t diff = p_bucket->value - v_jump_infos.pData[i].from_offset;
-        *(int32_t*)(opcodes.pData + v_jump_infos.pData[i].address_offset) = diff;
+        bytecode_to_offset_t_bucket* p_bucket = bytecode_to_offset_t_get_or_null(&m_bytecode_to_offset, v_jump_infos.p_data[i].to_bytecode_offset);
+        int32_t diff = p_bucket->value - v_jump_infos.p_data[i].from_offset;
+        *(int32_t*)(opcodes.p_data + v_jump_infos.p_data[i].address_offset) = diff;
     }
     
     bytecode_to_offset_t_deinit(&m_bytecode_to_offset);  
@@ -358,5 +358,5 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
     if (pOpcodesSize != NULL) {
         *pOpcodesSize = opcodes.size;
     }
-    return opcodes.pData;
+    return opcodes.p_data;
 }

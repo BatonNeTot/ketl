@@ -4,9 +4,9 @@
 KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, ANN_HASH, ANN_EQUAL)
 
-void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* pAllocator) {
-    namespace_nodes_init(&pNamespace->vNodes, 16, pAllocator);
-    namespace_map_init(&pNamespace->mVars, pAllocator);
+void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* p_allocator) {
+    namespace_nodes_init(&pNamespace->vNodes, 16, p_allocator);
+    namespace_map_init(&pNamespace->mVars, p_allocator);
 }
 
 void ketl_namespace_deinit(ketl_namespace* pNamespace) {
@@ -39,5 +39,5 @@ ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic
         return NULL;
     }
 
-    return pNamespace->vNodes.pData + pBucket->value;
+    return pNamespace->vNodes.p_data + pBucket->value;
 }

@@ -11,6 +11,7 @@
 #include "str.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 
 ANN_DEFINE(ketl_parse_pos_info) {
     uint32_t start_pos_line;
@@ -26,11 +27,9 @@ KETL_VECTOR_DEFINITION(_ketl_parse_argument_stack_t, ketl_hir_var_id_t)
 
 ANN_DEFINE(ketl_parser_context) {
     ketl_state* p_state;
-    const char* p_source;
-    ketl_token* p_tokens;
-    ketl_token_iterator token_iterator;
-    ketl_hir_symbol_offset_t p_filename;
-    ketl_hir_block_index_t next_block;
+    ketl_lexer_t* p_lexer;
+    ketl_token_iterator_t token_iterator;
+    ketl_hir_symbol_offset_t a_filename;
     ketl_hir_builder_t hir_builder;
 
     _ketl_parse_argument_stack_t v_argument_stack;
@@ -54,24 +53,84 @@ ANN_DEFINE(ketl_statement_info) {
 };
 
 #define EOF_STR "EOF"
-#define get_token_length(token) ((int)((token).length > 0 ? (token).length : sizeof(EOF_STR) - 1))
-#define get_token_source(token) ((token).length > 0 ? (p_context)->p_source + (token).offset : EOF_STR)
+#define TOKEN_LENGTH(token) ((int)((token).length > 0 ? (token).length : sizeof(EOF_STR) - 1))
+#define TOKEN_STRING(token) ((token).length > 0 ? (p_context)->p_lexer->p_source + (token).offset : EOF_STR)
+
+#define TOKEN(index) ((p_context)->p_lexer->v_tokens.p_data[(index)])
+#define CURRENT_TOKEN(offset) (TOKEN((p_context)->token_iterator - (offset)))
+
+#define GET_SYMBOL_SOURCE(symbol_offset) (ketl_atomic_strings_get_pointer(&p_context->hir_builder.symbols, (symbol_offset)))
 
 char error_buffer[256];
 
-#define error(...) \
+ANN_DEFINE(ketl_error_info) {
+    ketl_lexer_t* p_lexer;
+    const char* p_filename;
+    uint32_t offset;
+    uint32_t length;
+};
+
+static void report_error(string_builder_t* p_error_stream, ketl_error_info* p_error_info, const char* format, ...) {
+    uint32_t line, col;
+    line = ketl_lexer_find_line(p_error_info->p_lexer, p_error_info->offset);
+    col = p_error_info->offset - ketl_lexer_get_line_offset(p_error_info->p_lexer, line);
+
+    int message_size = 0;
+    message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
+        "%s:%"PRIu32":%"PRIu32": error: ", p_error_info->p_filename, line + 1, col + 1);
+
+    va_list vargs;
+    va_start(vargs, format);
+    message_size += vsnprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, format, vargs);
+    va_end(vargs);
+
+    uint32_t line_start = ketl_lexer_get_line_offset(p_error_info->p_lexer, line);
+    uint32_t line_end = ketl_lexer_get_line_offset(p_error_info->p_lexer, line + 1);
+    // TODO check for all new line configs
+    if (line_end > 0 && p_error_info->p_lexer->p_source[line_end - 1] == '\n') {
+        --line_end;
+    }
+    message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
+        "\n %4d |%.*s", line + 1, line_end - line_start, p_error_info->p_lexer->p_source + line_start);
+
+    message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
+        "\n      |%*s^", col, "");
+    for (uint32_t i = 1; i < p_error_info->length; ++i) {
+        message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
+        "~");
+    }
+
+    string_builder_t_push_back_ref_n(p_error_stream, error_buffer, message_size);
+    string_builder_t_push_back_copy(p_error_stream, '\n');
+}
+
+#define error(__offset, __length, message) \
 do {\
-    int __count = snprintf(error_buffer, ANN_ARRAY_SIZE(error_buffer), __VA_ARGS__);\
-    string_builder_t_push_back_ref_n(&p_context->p_state->error_stream, error_buffer, __count);\
-    string_builder_t_push_back_copy(&p_context->p_state->error_stream, '\n');\
+    ketl_error_info error_info = {\
+        .p_lexer = p_context->p_lexer,\
+        .p_filename = GET_SYMBOL_SOURCE(p_context->a_filename),\
+        .offset = (__offset),\
+        .length = (__length),\
+    };\
+    report_error(&p_context->p_state->error_stream, &error_info, message);\
+} while (0)
+#define errorf(__offset, __length, format, ...) \
+do {\
+    ketl_error_info error_info = {\
+        .p_lexer = p_context->p_lexer,\
+        .p_filename = GET_SYMBOL_SOURCE(p_context->a_filename),\
+        .offset = (__offset),\
+        .length = (__length),\
+    };\
+    report_error(&p_context->p_state->error_stream, &error_info, format, __VA_ARGS__);\
 } while (0)
 
 static ketl_hir_symbol_offset_t push_symbol_string(ketl_parser_context* p_context, const char* p_str, uint32_t length) {
     return (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_context->hir_builder.symbols, p_str, length);
 }
 
-static ketl_hir_symbol_offset_t push_symbol(ketl_parser_context* p_context, ketl_token literal) {
-    return push_symbol_string(p_context, get_token_source(literal), get_token_length(literal));
+static ketl_hir_symbol_offset_t push_symbol(ketl_parser_context* p_context, ketl_token_t literal) {
+    return push_symbol_string(p_context, TOKEN_STRING(literal), TOKEN_LENGTH(literal));
 }
 
 static ketl_hir_var_id_t push_literal_number_symbol(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal) {
@@ -82,7 +141,7 @@ static ketl_hir_var_id_t push_literal_number_symbol(ketl_parser_context* p_conte
     return literal_var;
 }
 
-static ketl_hir_var_id_t push_literal_number(ketl_parser_context* p_context, ketl_token literal) {
+static ketl_hir_var_id_t push_literal_number(ketl_parser_context* p_context, ketl_token_t literal) {
     return push_literal_number_symbol(p_context, push_symbol(p_context, literal));
 }
 
@@ -95,7 +154,7 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = hir_tag,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -115,12 +174,11 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
 
 static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
 
-    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.pData + lhs_var;
-    ketl_hir_var_t* p_rhs_var = p_context->hir_builder.v_vars.pData + rhs_var;
+    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
+    ketl_hir_var_t* p_rhs_var = p_context->hir_builder.v_vars.p_data + rhs_var;
 
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL || p_lhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
-        error("Can't assign to an l-value.");
-        ANN_ASSERT(false);
+        ANN_ASSERT(false && "Can't assign to an l-value.");
     }
     
     // TODO casting if needed
@@ -133,7 +191,7 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
     (void)p_pos_info;
     ketl_hir_header_t assign_header = {
         .tag = KETL_HIR_ASSIGN,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -149,14 +207,15 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
 }
 
 static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
-    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.pData + lhs_var;
+    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
-        error("Can't assign to an l-value.");
+        // TODO POS
+        error(0, 1, "Can't assign to an l-value.");
         return push_temp_var(p_context);
     }
 
     if (p_lhs_var->info != KETL_HIR_VAR_INFO_TEMP &&
-        p_context->hir_builder.v_vars_infos.pData[p_lhs_var->info].p_global == NULL) {
+        p_context->hir_builder.v_vars_infos.p_data[p_lhs_var->info].p_global == NULL) {
         // TODO will not work in a looping scenario without phi instruction at the begining of the block
         //lhs_var = ketl_hir_builder_increment_var_uid(&p_context->hir_builder, lhs_var);
         // TODO should not run during debug compilation
@@ -170,7 +229,7 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_parse_pos
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = KETL_HIR_RETURN_VALUE,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -184,23 +243,23 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_parse_pos
     ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
 }
 
-static uint16_t push_literal_id(ketl_parser_context* p_context, ketl_token literal) {
+static uint16_t push_literal_id(ketl_parser_context* p_context, ketl_token_t literal) {
     // TODO decide how to update uids
     ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(p_context->p_state, &p_context->hir_builder, 
         push_symbol(p_context, literal), KETL_HIR_USED_TYPE_UNKNOWN);
     if (id_var == (ketl_hir_var_id_t)-1) {
-        error("Use of undefined variable %.*s.", get_token_length(literal), get_token_source(literal));
+        errorf(literal.offset, literal.length, "Use of undeclared variable '%.*s'.", TOKEN_LENGTH(literal), TOKEN_STRING(literal));
         id_var = push_temp_var(p_context);
     }
     return id_var;
 }
 
-static ketl_hir_used_type_index_t find_type(ketl_parser_context* p_context, ketl_token type_literal) {
-    ketl_type* p_type = ketl_state_get_type(p_context->p_state, get_token_source(type_literal), get_token_length(type_literal));
+static ketl_hir_used_type_index_t find_type(ketl_parser_context* p_context, ketl_token_t type_literal) {
+    ketl_type* p_type = ketl_state_get_type(p_context->p_state, TOKEN_STRING(type_literal), TOKEN_LENGTH(type_literal));
     return ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
 }
 
-static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_token id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
+static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_token_t id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
     ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(&p_context->hir_builder, 
         push_symbol(p_context, id_literal), type_index);
 
@@ -215,7 +274,7 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_pars
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CALL,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -232,7 +291,7 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_pars
 
     ketl_hir_builder_insert_call(p_context->p_state, &p_context->hir_builder, header, &instr,
         // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
-        p_context->v_argument_stack.pData + (p_context->v_argument_stack.size -= arguments_count));
+        p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
     return output_var;
 }
 
@@ -245,17 +304,17 @@ static ketl_hir_block_index_t reserve_hir_blocks(ketl_parser_context* p_context,
     return first_block;
 }
 static void pull_hir_set_block(ketl_parser_context* p_context, ketl_hir_block_index_t block) {
-    p_context->hir_builder.v_blocks.pData[block] = p_context->hir_builder.v_instrs.size;
+    p_context->hir_builder.v_blocks.p_data[block] = p_context->hir_builder.v_instrs.size;
     hir_builder_offset_to_block_t_get_or_insert_copy(&p_context->hir_builder.m_offset_to_block, p_context->hir_builder.v_instrs.size, block);
 }
 
 static void push_hir_if(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t bool_expr_var, ketl_hir_block_index_t true_statement, ketl_hir_block_index_t false_statement) {
-    // TODO check casting
+    // TODO token_check casting
     
     (void)p_pos_info;
     ketl_hir_header_t if_header = {
         .tag = KETL_HIR_JUMP_IF,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -277,7 +336,7 @@ static void push_hir_jump(ketl_parser_context* p_context, ketl_parse_pos_info* p
     (void)p_pos_info;
     ketl_hir_header_t jump_header = {
         .tag = KETL_HIR_JUMP,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -296,7 +355,7 @@ static void push_hir_instr(ketl_parser_context* p_context, ketl_parse_pos_info* 
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = tag,
-        .file_symbol = p_context->p_filename,
+        .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -346,77 +405,76 @@ ANN_DEFINE(ketl_parse_rule) {
     ketl_precedence precedence;
 };
 
-#define CURRENT_TOKEN(offset) ((p_context)->p_tokens[(p_context)->token_iterator - (offset)])
-
-static ketl_parse_rule* get_rule(ketl_token_type token_type);
+static ketl_parse_rule* get_parse_rule(ketl_token_type token_type);
 static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_precedence precedence);
 
-static void advance(ketl_parser_context* p_context) {
+static void token_advance(ketl_parser_context* p_context) {
     ANN_FOREVER {
         uint32_t current = ++p_context->token_iterator;
 
-        if (p_context->p_tokens[current].type != KETL_TOKEN_TYPE_ERROR) break;
+        if (TOKEN(current).type != KETL_TOKEN_TYPE_ERROR) break;
 
-        error("Error in lexer.");
+        // TODO move error to the lexer, make it informative
+        error(TOKEN(current).offset, TOKEN(current).length, "Error in lexer.");
         ANN_ASSERT(false);
     }
 }
 
-static bool check(ketl_parser_context* p_context, ketl_token_type token_type) {
+static bool token_check(ketl_parser_context* p_context, ketl_token_type token_type) {
     return CURRENT_TOKEN(0).type == token_type;
 }
 
-static bool match(ketl_parser_context* p_context, ketl_token_type token_type) {
-    if (!check(p_context, token_type)) return false;
-    advance(p_context);
+static bool token_match(ketl_parser_context* p_context, ketl_token_type token_type) {
+    if (!token_check(p_context, token_type)) return false;
+    token_advance(p_context);
     return true;
 }
 
-static void consume(ketl_parser_context* p_context, ketl_token_type token_type, const char* message) {
-    if (!match(p_context, token_type)) {
-        error("%s", message);
+static void token_consume(ketl_parser_context* p_context, ketl_token_type token_type, const char* message) {
+    if (!token_match(p_context, token_type)) {
+        errorf(CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length, 0, "%s", message);
     }
 }
 
-static ketl_hir_var_id_t number(ketl_parser_context* p_context) {
+static ketl_hir_var_id_t parse_number(ketl_parser_context* p_context) {
     return push_literal_number(p_context, CURRENT_TOKEN(1));
 }
 
-static ketl_hir_var_id_t identificator(ketl_parser_context* p_context) {
+static ketl_hir_var_id_t parse_identificator(ketl_parser_context* p_context) {
     return push_literal_id(p_context, CURRENT_TOKEN(1));
 }
 
-static ketl_hir_var_id_t expression(ketl_parser_context* p_context);
-static ketl_statement_info statement(ketl_parser_context* p_context);
-static ketl_statement_info declaration(ketl_parser_context* p_context); 
+static ketl_hir_var_id_t parse_expression(ketl_parser_context* p_context);
+static ketl_statement_info parse_statement(ketl_parser_context* p_context);
+static ketl_statement_info parse_declaration(ketl_parser_context* p_context); 
 
-static ketl_hir_var_id_t grouping(ketl_parser_context* p_context) {
-    ketl_hir_var_id_t expr = expression(p_context);
-    consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after expression.");
+static ketl_hir_var_id_t parse_grouping(ketl_parser_context* p_context) {
+    ketl_hir_var_id_t expr = parse_expression(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after expression.");
     return expr;
 }
 
-static uint16_t argument_list(ketl_parser_context* p_context) {
+static uint16_t parse_argument_list(ketl_parser_context* p_context) {
     uint16_t argument_count = 0;
-    if (!check(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT)) {
+    if (!token_check(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT)) {
         do {
-            push_hir_argument(p_context, expression(p_context));
+            push_hir_argument(p_context, parse_expression(p_context));
             ++argument_count;
-        } while (match(p_context, KETL_TOKEN_TYPE_COMMA));
+        } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
     }
     
-    consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after arguments.");
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after arguments.");
     return argument_count;
 }
 
-static ketl_hir_var_id_t call(ketl_parser_context* p_context, ketl_hir_var_id_t callee) {
-    uint16_t argument_count = argument_list(p_context);
+static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee) {
+    uint16_t argument_count = parse_argument_list(p_context);
     return push_hir_call(p_context, NULL, callee, argument_count);
 }
 
-static ketl_hir_var_id_t binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
+static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
-    ketl_parse_rule* p_parse_rule = get_rule(token_type);
+    ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
 
     ANN_SWITCH_STRICT (token_type) {
@@ -428,7 +486,7 @@ static ketl_hir_var_id_t binary_ltr(ketl_parser_context* p_context, ketl_hir_var
     }
 }
 
-static ketl_hir_var_id_t binary_rtl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs) {
+static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs) {
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
 
     ANN_SWITCH_STRICT (token_type) {
@@ -437,11 +495,11 @@ static ketl_hir_var_id_t binary_rtl(ketl_parser_context* p_context, ketl_hir_var
 }
 
 ketl_parse_rule parse_rules[] = {
-    [KETL_TOKEN_TYPE_ID]                         = { &identificator, NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { &number,        NULL,        NULL,       KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_ID]                         = { &parse_identificator, NULL,        NULL,       KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { &parse_number,        NULL,        NULL,       KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { &grouping,      call,        NULL,       KETL_PREC_CALL},
+    [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { &parse_grouping,      parse_call,        NULL,       KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CURLY_LEFT]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CURLY_RIGHT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
@@ -455,12 +513,12 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_OR]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LESS]                       = { NULL,           &binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_LESS_OR_EQUAL]              = { NULL,           &binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_GREATER]                    = { NULL,           &binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_GREATER_OR_EQUAL]           = { NULL,           &binary_ltr, NULL,       KETL_PREC_COMPARISON},
-    [KETL_TOKEN_TYPE_EQUAL]                      = { NULL,           &binary_ltr, NULL,       KETL_PREC_EQUALITY},
-    [KETL_TOKEN_TYPE_NOT_EQUAL]                  = { NULL,           &binary_ltr, NULL,       KETL_PREC_EQUALITY},
+    [KETL_TOKEN_TYPE_LESS]                       = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_LESS_OR_EQUAL]              = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_GREATER]                    = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_GREATER_OR_EQUAL]           = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_COMPARISON},
+    [KETL_TOKEN_TYPE_EQUAL]                      = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_EQUALITY},
+    [KETL_TOKEN_TYPE_NOT_EQUAL]                  = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_EQUALITY},
     [KETL_TOKEN_TYPE_BITWISE_NOT]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_BITWISE_AND]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_BITWISE_OR]                 = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
@@ -469,12 +527,12 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_INCREMENT]                  = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DECREMENT]                  = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_PLUS]                       = { NULL,           &binary_ltr, NULL,       KETL_PREC_TERM},
-    [KETL_TOKEN_TYPE_MINUS]                      = { NULL,           &binary_ltr, NULL,       KETL_PREC_TERM},
-    [KETL_TOKEN_TYPE_MULTIPLY]                   = { NULL,           &binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_DIVIDE]                     = { NULL,           &binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,           &binary_ltr, NULL,       KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,           NULL,        binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_PLUS]                       = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_MINUS]                      = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_MULTIPLY]                   = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_DIVIDE]                     = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,           &parse_binary_ltr, NULL,       KETL_PREC_FACTOR},
+    [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,           NULL,        parse_binary_rtl, KETL_PREC_ASSIGNMENT},
     [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ASSIGN_MULTIPLY]            = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
@@ -520,25 +578,25 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_ERROR]                      = { NULL,           NULL,        NULL,       KETL_PREC_NONE},
 };
 
-static ketl_parse_rule* get_rule(ketl_token_type token_type) {
+static ketl_parse_rule* get_parse_rule(ketl_token_type token_type) {
     return &parse_rules[token_type];
 }
 
-static ketl_hir_var_id_t parse_lhs(ketl_parser_context* p_context, ketl_precedence precedence) {    
-    ketl_parse_prefix f_prefix_rule = get_rule(CURRENT_TOKEN(1).type)->f_prefix;
+static ketl_hir_var_id_t parse_lhs_operand(ketl_parser_context* p_context, ketl_precedence precedence) {    
+    ketl_parse_prefix f_prefix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_prefix;
     if (f_prefix_rule == NULL) {
-        error("Expected expression.");
+        error(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected expression.");
         return push_temp_var(p_context);
     }
 
     ketl_hir_var_id_t lhs = f_prefix_rule(p_context);
 
-    while (precedence < get_rule(CURRENT_TOKEN(0).type)->precedence ||
-        (associativity[precedence] == KETL_LTR && precedence == get_rule(CURRENT_TOKEN(0).type)->precedence)) {
-        advance(p_context);
-        ketl_parse_ltr_infix f_ltr_infix_rule = get_rule(CURRENT_TOKEN(1).type)->f_ltr_infix;
+    while (precedence < get_parse_rule(CURRENT_TOKEN(0).type)->precedence ||
+        (associativity[precedence] == KETL_LTR && precedence == get_parse_rule(CURRENT_TOKEN(0).type)->precedence)) {
+        token_advance(p_context);
+        ketl_parse_ltr_infix f_ltr_infix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_ltr_infix;
         if (f_ltr_infix_rule == NULL) {
-            error("Expected operator.");
+            error(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected operator.");
             return push_temp_var(p_context);
         }
         lhs = f_ltr_infix_rule(p_context, lhs);
@@ -548,20 +606,20 @@ static ketl_hir_var_id_t parse_lhs(ketl_parser_context* p_context, ketl_preceden
 }
 
 static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_precedence precedence) {
-    advance(p_context);
+    token_advance(p_context);
 
     if (associativity[precedence] == KETL_LTR) {
-        ketl_hir_var_id_t lhs = parse_lhs(p_context, precedence);
+        ketl_hir_var_id_t lhs = parse_lhs_operand(p_context, precedence);
         return lhs;
     }
 
     // looking for the rtl operator
-    ketl_token_iterator start_pos = p_context->token_iterator;
-    ketl_parse_rule* p_parse_rule = get_rule(CURRENT_TOKEN(1).type);
+    ketl_token_iterator_t start_pos = p_context->token_iterator;
+    ketl_parse_rule* p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
     ketl_precedence token_precedence = p_parse_rule->precedence;
     while (precedence < token_precedence) {
-        advance(p_context);
-        p_parse_rule = get_rule(CURRENT_TOKEN(1).type);
+        token_advance(p_context);
+        p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
         token_precedence = p_parse_rule->precedence;
     }
 
@@ -569,7 +627,7 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     if (precedence != token_precedence) {
         p_context->token_iterator = start_pos;
         
-        ketl_hir_var_id_t lhs = parse_lhs(p_context, precedence);
+        ketl_hir_var_id_t lhs = parse_lhs_operand(p_context, precedence);
         return lhs;
     }
 
@@ -577,15 +635,15 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     ketl_hir_var_id_t rhs = parse_precedence(p_context, precedence);
 
     // saving end of the rhs operand for restoring later
-    ketl_token_iterator end_pos = p_context->token_iterator;
+    ketl_token_iterator_t end_pos = p_context->token_iterator;
     p_context->token_iterator = start_pos;
 
-    ketl_hir_var_id_t lhs = parse_lhs(p_context, precedence);
+    ketl_hir_var_id_t lhs = parse_lhs_operand(p_context, precedence);
         
-    advance(p_context);
+    token_advance(p_context);
 
     // back to the rtl operator
-    ketl_parse_rtl_infix f_rtl_infix = get_rule(CURRENT_TOKEN(1).type)->f_rtl_infix;
+    ketl_parse_rtl_infix f_rtl_infix = get_parse_rule(CURRENT_TOKEN(1).type)->f_rtl_infix;
     ANN_ASSERT(f_rtl_infix != NULL);
     lhs = f_rtl_infix(p_context, lhs, rhs);
 
@@ -594,56 +652,63 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     return lhs;
 }
 
-static ketl_hir_var_id_t expression(ketl_parser_context* p_context) {
+static ketl_hir_var_id_t parse_expression(ketl_parser_context* p_context) {
     return parse_precedence(p_context, KETL_PREC_ASSIGNMENT);
 }
 
-static ketl_statement_info expression_statement(ketl_parser_context* p_context) {
-    expression(p_context);
-    consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after expression.");
+static ketl_statement_info parse_expression_statement(ketl_parser_context* p_context) {
+    parse_expression(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after expression.");
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
-static ketl_statement_info block_statement_inner(ketl_parser_context* p_context) {
+static ketl_statement_info parse_block_statement_inner(ketl_parser_context* p_context) {
     ketl_parse_return_info return_info = KETL_RETURN_EMPTY;
-    while (!check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT) && !check(p_context, KETL_TOKEN_TYPE_EOF)) {
+    while (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT) && !token_check(p_context, KETL_TOKEN_TYPE_EOF)) {
         if (return_info & KETL_RETURN_ALWAYS) {
-            error("Unreachable statement.");
+            uint32_t statement_start = CURRENT_TOKEN(0).offset;
+            ketl_parse_return_info decl_return_info = parse_declaration(p_context).return_info;
+            uint32_t statement_end = CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length;
+
+            error(statement_start, statement_end - statement_start, "Unreachable statement.");
+
+            return_info |= decl_return_info;
+        } else {
+            return_info |= parse_declaration(p_context).return_info;
         }
-        return_info |= declaration(p_context).return_info;
     }
     return (ketl_statement_info){ .return_info = return_info };
 }
 
-static ketl_statement_info block_statement(ketl_parser_context* p_context) {
-    advance(p_context); // {
-    ketl_statement_info statement_info = block_statement_inner(p_context);
-    consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' at the end of the block.");
+static ketl_statement_info parse_block_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // {
+    ketl_statement_info statement_info = parse_block_statement_inner(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' at the end of the block.");
     return statement_info;
 }
 
-static ketl_statement_info if_statement(ketl_parser_context* p_context) {
-    advance(p_context); // if
+static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // if
 
     ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 2);
     ketl_hir_block_index_t true_statement = first_block;
     ketl_hir_block_index_t false_statement = first_block + 1;
 
-    consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after if keyword.");
-    ketl_hir_var_id_t expr = expression(p_context);
-    consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after if statement expression.");
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after if keyword.");
+    ketl_hir_var_id_t expr = parse_expression(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after if statement expression.");
 
     push_hir_if(p_context, NULL, expr, true_statement, false_statement);
 
     pull_hir_set_block(p_context, true_statement);
-    ketl_parse_return_info true_return_info = statement(p_context).return_info;
+    ketl_parse_return_info true_return_info = parse_statement(p_context).return_info;
 
     ketl_parse_return_info return_info;
 
-    if (match(p_context, KETL_TOKEN_TYPE_ELSE)) {
+    if (token_match(p_context, KETL_TOKEN_TYPE_ELSE)) {
         if (true_return_info & KETL_RETURN_ALWAYS) {
             pull_hir_set_block(p_context, false_statement);
-            ketl_parse_return_info false_return_info = statement(p_context).return_info;
+            ketl_parse_return_info false_return_info = parse_statement(p_context).return_info;
             if (!(false_return_info & KETL_RETURN_ALWAYS)) {
                 ketl_hir_block_index_t after_block = reserve_hir_blocks(p_context, 1);
                 push_hir_jump(p_context, NULL, after_block);
@@ -658,7 +723,7 @@ static ketl_statement_info if_statement(ketl_parser_context* p_context) {
             push_hir_jump(p_context, NULL, after_block);
         
             pull_hir_set_block(p_context, false_statement);
-            ketl_parse_return_info false_return_info = statement(p_context).return_info;
+            ketl_parse_return_info false_return_info = parse_statement(p_context).return_info;
             if (!(false_return_info & KETL_RETURN_ALWAYS)) {
                 push_hir_jump(p_context, NULL, after_block);
             }
@@ -681,89 +746,91 @@ static ketl_statement_info if_statement(ketl_parser_context* p_context) {
     return (ketl_statement_info){ .return_info = return_info };
 }
 
-static ketl_statement_info return_statement(ketl_parser_context* p_context) {
-    advance(p_context); // return
-    if (match(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER)) {
+static ketl_statement_info parse_return_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // return
+    if (token_match(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER)) {
         push_hir_instr(p_context, NULL, KETL_HIR_RETURN);
         return (ketl_statement_info){ .return_info = KETL_RETURN_ALWAYS_NONE };
     } else {
-        push_hir_return_value(p_context, NULL, expression(p_context));
-        consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after return statement expression.");
+        push_hir_return_value(p_context, NULL, parse_expression(p_context));
+        token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after return statement expression.");
         return (ketl_statement_info){ .return_info = KETL_RETURN_ALWAYS_VALUE };
     }
 }
 
-static ketl_statement_info statement(ketl_parser_context* p_context) {
+static ketl_statement_info parse_statement(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_CURLY_LEFT           : return block_statement     (p_context); break;
-        case KETL_TOKEN_TYPE_IF                   : return if_statement        (p_context); break;
-        case KETL_TOKEN_TYPE_RETURN               : return return_statement    (p_context); break;
-        case KETL_TOKEN_TYPE_TERMINATION_CHARACTER:        advance             (p_context); 
+        case KETL_TOKEN_TYPE_CURLY_LEFT           : return parse_block_statement     (p_context); break;
+        case KETL_TOKEN_TYPE_IF                   : return parse_if_statement        (p_context); break;
+        case KETL_TOKEN_TYPE_RETURN               : return parse_return_statement    (p_context); break;
+        case KETL_TOKEN_TYPE_TERMINATION_CHARACTER:        token_advance             (p_context); 
                                                     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
-        default                                   : return expression_statement(p_context); break;
+        default                                   : return parse_expression_statement(p_context); break;
     }
 }
 
 static ketl_hir_used_type_index_t parse_type(ketl_parser_context* p_context) {
     ketl_hir_used_type_index_t type = find_type(p_context, CURRENT_TOKEN(0));
-    advance(p_context);
+    token_advance(p_context);
     return type;
 }
 
-static ketl_statement_info var_declaration(ketl_parser_context* p_context) {
-    advance(p_context); // var
-    ketl_token id_literal = CURRENT_TOKEN(0);
-    advance(p_context); // id
+static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context) {
+    uint32_t decl_start = CURRENT_TOKEN(0).offset;
+
+    token_advance(p_context); // var
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
     ketl_hir_used_type_index_t type = KETL_HIR_USED_TYPE_UNKNOWN;
     ketl_hir_var_id_t initial_value = -1;
-    if (match(p_context, KETL_TOKEN_TYPE_COLON)) {
+    if (token_match(p_context, KETL_TOKEN_TYPE_COLON)) {
         type = parse_type(p_context);
     }
-    if (match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
-        initial_value = expression(p_context);
+    if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
+        initial_value = parse_expression(p_context);
     } else {
         if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
-            error("Variable declaration without a type expects an initial expression.");
+            uint32_t decl_end = CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length;
+            error(decl_start, decl_end - decl_start, "Variable declaration without a type expects an initial expression.");
         } else {
             // TODO do default contructor or smth
             initial_value = push_literal_number_symbol(p_context, push_symbol_string(p_context, "0", 1));
         }
     }
     push_hir_variable_declaration(p_context, NULL, id_literal, type, initial_value);
-    consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after variable parse_declaration.");
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
-static ketl_statement_info declaration(ketl_parser_context* p_context) {
+static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_VAR: return var_declaration(p_context); break;
-        default                 : return statement      (p_context); break;
+        case KETL_TOKEN_TYPE_VAR: return parse_var_declaration(p_context); break;
+        default                 : return parse_statement      (p_context); break;
     }
 }
 
-void ketl_simple_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, const char* p_source, uint32_t length, const ketl_allocator* p_allocator) {
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator) {
     *p_hir = (ketl_hir_t){0};
 
     ketl_parser_context context = {0};
     ketl_parser_context* p_context = &context;
-    context = (ketl_parser_context){.p_state = p_state, .p_source = p_source};
+    context = (ketl_parser_context){
+        .p_state = p_state, 
+        .p_lexer = p_lexer
+    };
     ketl_hir_builder_init(&context.hir_builder, p_allocator);
-    context.p_filename = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&context.hir_builder.symbols, p_filename, KETL_NULL_TERMINATED_LENGTH_32);
-    context.next_block = (ketl_hir_block_index_t)-1;
-
-    uint32_t count = 0;
-    ketl_token* p_tokens = ketl_lexer_build_tokens(p_source, length, &count, p_allocator);
-    context.p_tokens = p_tokens;
-    context.token_iterator = (ketl_token_iterator)-1;
+    context.a_filename = push_symbol_string(&context, p_filename, KETL_NULL_TERMINATED_LENGTH_32);
+    context.token_iterator = (ketl_token_iterator_t)-1;
     
-    if (p_tokens != NULL) {
+    if (p_lexer->v_tokens.size > 0) {
         _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 4, p_allocator);
 
-        advance(&context);
-        ketl_statement_info statement_info = block_statement_inner(&context);
+        token_advance(&context);
+        ketl_statement_info statement_info = parse_block_statement_inner(&context);
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
             (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (statement_info.return_info & KETL_RETURN_ALWAYS_VALUE))) {
-            error("Not all control returns value.");
+            // TODO POS?
+            error(0, 1, "Not all control returns value.");
         }
 
         if (!(statement_info.return_info & KETL_RETURN_ALWAYS)) {
@@ -772,8 +839,6 @@ void ketl_simple_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const 
         }
 
         _ketl_parse_argument_stack_t_deinit(&context.v_argument_stack);
-
-        ketl_free(p_allocator, p_tokens);
     }
 
     ketl_hir_builder_flush(p_state, &context.hir_builder, p_hir);

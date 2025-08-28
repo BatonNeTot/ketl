@@ -6,10 +6,10 @@
 KETL_VECTOR_DEFINITION(objects, void*)
 KETL_TREE_MAP_DEFINITION(object_info_map, void*, ketl_gc_info, ANN_LESS)
 
-void ketl_gc_init(ketl_gc* pGc, const ketl_allocator *pAllocator) {
-    objects_init(&pGc->vRootObjects, 16, pAllocator);
-    objects_init(&pGc->vCollectBuffer, 16, pAllocator);
-    object_info_map_init(&pGc->mObjectInfo, 16, pAllocator);
+void ketl_gc_init(ketl_gc* pGc, const ketl_allocator *p_allocator) {
+    objects_init(&pGc->vRootObjects, 16, p_allocator);
+    objects_init(&pGc->vCollectBuffer, 16, p_allocator);
+    object_info_map_init(&pGc->mObjectInfo, 16, p_allocator);
     pGc->flagUsage = false;
 }
 
@@ -20,7 +20,7 @@ void ketl_gc_deinit(ketl_gc* pGc) {
 }
 
 void* ketl_gc_create(ketl_gc* pGc, ketl_type* pType, uint8_t flags) {
-    void* pObject = ketl_alloc(pGc->pAllocator, pType->size);
+    void* pObject = ketl_alloc(pGc->p_allocator, pType->size);
     ketl_gc_reg(pGc, pObject, pType, flags | KETL_GC_FREE_AFTER_USE);
     return pObject;
 }
@@ -68,9 +68,9 @@ static void* find_object_start(ketl_gc* pGc, const void* pInsideObject, ketl_gc_
 static void mark_objects(ketl_gc* pGc) {
     bool flagUsage = (pGc->flagUsage ^= true);
     objects_resize(&pGc->vCollectBuffer, pGc->vRootObjects.size);
-    ketl_memcpy(pGc->vCollectBuffer.pData, pGc->vRootObjects.pData, pGc->vRootObjects.size * sizeof(void*));
+    ketl_memcpy(pGc->vCollectBuffer.p_data, pGc->vRootObjects.p_data, pGc->vRootObjects.size * sizeof(void*));
     while (pGc->vCollectBuffer.size) {
-        void* pObject = pGc->vRootObjects.pData[--pGc->vCollectBuffer.size];
+        void* pObject = pGc->vRootObjects.p_data[--pGc->vCollectBuffer.size];
         ketl_gc_info* pInfo;
         void* pRoot = find_object_start(pGc, pObject, &pInfo);
         if (pRoot && pInfo->flagUsage != flagUsage) {
@@ -94,7 +94,7 @@ static uint32_t visit_node_and_swipe(ketl_gc* pGc, uint32_t nodeOffset) {
     if (pNode->value.flagUsage != pGc->flagUsage) {
         // TODO place for destructor if needed
         if (pNode->value.freeAfterUse) {
-            ketl_free(pGc->pAllocator, pNode->key);
+            ketl_free(pGc->p_allocator, pNode->key);
         }
         return (uint32_t)(-1);
     }

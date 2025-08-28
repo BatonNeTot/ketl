@@ -60,9 +60,9 @@ do {\
     stackUsage = ANN_ALIGN_FORWARD(stackUsage, 16); /* 16 bites aligned */\
 } while(false)
 
-uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* pAllocator) {
+uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* p_allocator) {
     opcodes_t opcodes;
-    opcodes_t_init(&opcodes, bytecode.instructionsCount, pAllocator);
+    opcodes_t_init(&opcodes, bytecode.instructionsCount, p_allocator);
 
     bool hasCalls = false;
 
@@ -237,5 +237,5 @@ uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, 
     if (pOpcodesSize != NULL) {
         *pOpcodesSize = opcodes.size;
     }
-    return opcodes.pData;
+    return opcodes.p_data;
 }

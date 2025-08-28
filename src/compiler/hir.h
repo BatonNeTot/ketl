@@ -70,10 +70,6 @@ typedef uint16_t ketl_hir_symbol_offset_t;
 ANN_DEFINE(ketl_hir_header_t) {
     ketl_hir_tag_t tag;
     ketl_hir_symbol_offset_t file_symbol;
-    uint32_t start_line_index;
-    uint32_t end_line_index;
-    uint16_t start_col_index;
-    uint16_t end_col_index;
 };
 
 ANN_DEFINE(ketl_hir_binary_op_t) {
