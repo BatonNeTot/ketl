@@ -67,102 +67,30 @@ static arg_info hir_get_arg_stack_offset(bytecoder_context* pContext, ketl_hir_v
 }
 
 static ketl_bytecode_instr get_binary_bytecode(ketl_hir_tag_t hir_tag) {
-    ANN_SWITCH_STRICT (hir_tag) {
-        case KETL_HIR_PLUS_I8:
-            return KETL_BYTECODE_8IADD;
-        case KETL_HIR_MINUS_I8:
-            return KETL_BYTECODE_8ISUB;
-        case KETL_HIR_MULTY_I8:
-            return KETL_BYTECODE_8IMULTIPLY;
-        case KETL_HIR_DIV_I8:
-            return KETL_BYTECODE_8IDIVIDE;
-        case KETL_HIR_MOD_I8:
-            return KETL_BYTECODE_8IMODULO;
+    ANN_SWITCH_STRICT (hir_tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_PLUS:
+            return KETL_BYTECODE_8UADD + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_MINUS:
+            return KETL_BYTECODE_8USUB + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_MULTY:
+            return KETL_BYTECODE_8UMULTIPLY + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_DIV:
+            return KETL_BYTECODE_8UDIVIDE + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_MOD:
+            return KETL_BYTECODE_8UMODULO + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
 
-        case KETL_HIR_EQUAL_I8:
-            return KETL_BYTECODE_8IEQUAL;
-        case KETL_HIR_NOT_EQUAL_I8:
-            return KETL_BYTECODE_8INOT_EQUAL;
-        case KETL_HIR_LESS_I8:
-            return KETL_BYTECODE_8ILESS;
-        case KETL_HIR_LESS_OR_EQUAL_I8:
-            return KETL_BYTECODE_8ILESS_OR_EQUAL;
-        case KETL_HIR_GREATER_I8:
-            return KETL_BYTECODE_8IGREATER;
-        case KETL_HIR_GREATER_OR_EQUAL_I8:
-            return KETL_BYTECODE_8IGREATER_OR_EQUAL;
-            
-        case KETL_HIR_PLUS_I16:
-            return KETL_BYTECODE_16IADD;
-        case KETL_HIR_MINUS_I16:
-            return KETL_BYTECODE_16ISUB;
-        case KETL_HIR_MULTY_I16:
-            return KETL_BYTECODE_16IMULTIPLY;
-        case KETL_HIR_DIV_I16:
-            return KETL_BYTECODE_16IDIVIDE;
-        case KETL_HIR_MOD_I16:
-            return KETL_BYTECODE_16IMODULO;
-
-        case KETL_HIR_EQUAL_I16:
-            return KETL_BYTECODE_16IEQUAL;
-        case KETL_HIR_NOT_EQUAL_I16:
-            return KETL_BYTECODE_16INOT_EQUAL;
-        case KETL_HIR_LESS_I16:
-            return KETL_BYTECODE_16ILESS;
-        case KETL_HIR_LESS_OR_EQUAL_I16:
-            return KETL_BYTECODE_16ILESS_OR_EQUAL;
-        case KETL_HIR_GREATER_I16:
-            return KETL_BYTECODE_16IGREATER;
-        case KETL_HIR_GREATER_OR_EQUAL_I16:
-            return KETL_BYTECODE_16IGREATER_OR_EQUAL;
-        
-        case KETL_HIR_PLUS_I32:
-            return KETL_BYTECODE_32IADD;
-        case KETL_HIR_MINUS_I32:
-            return KETL_BYTECODE_32ISUB;
-        case KETL_HIR_MULTY_I32:
-            return KETL_BYTECODE_32IMULTIPLY;
-        case KETL_HIR_DIV_I32:
-            return KETL_BYTECODE_32IDIVIDE;
-        case KETL_HIR_MOD_I32:
-            return KETL_BYTECODE_32IMODULO;
-
-        case KETL_HIR_EQUAL_I32:
-            return KETL_BYTECODE_32IEQUAL;
-        case KETL_HIR_NOT_EQUAL_I32:
-            return KETL_BYTECODE_32INOT_EQUAL;
-        case KETL_HIR_LESS_I32:
-            return KETL_BYTECODE_32ILESS;
-        case KETL_HIR_LESS_OR_EQUAL_I32:
-            return KETL_BYTECODE_32ILESS_OR_EQUAL;
-        case KETL_HIR_GREATER_I32:
-            return KETL_BYTECODE_32IGREATER;
-        case KETL_HIR_GREATER_OR_EQUAL_I32:
-            return KETL_BYTECODE_32IGREATER_OR_EQUAL;
-
-        case KETL_HIR_PLUS_I64:
-            return KETL_BYTECODE_64IADD;
-        case KETL_HIR_MINUS_I64:
-            return KETL_BYTECODE_64ISUB;
-        case KETL_HIR_MULTY_I64:
-            return KETL_BYTECODE_64IMULTIPLY;
-        case KETL_HIR_DIV_I64:
-            return KETL_BYTECODE_64IDIVIDE;
-        case KETL_HIR_MOD_I64:
-            return KETL_BYTECODE_64IMODULO;
-
-        case KETL_HIR_EQUAL_I64:
-            return KETL_BYTECODE_64IEQUAL;
-        case KETL_HIR_NOT_EQUAL_I64:
-            return KETL_BYTECODE_64INOT_EQUAL;
-        case KETL_HIR_LESS_I64:
-            return KETL_BYTECODE_64ILESS;
-        case KETL_HIR_LESS_OR_EQUAL_I64:
-            return KETL_BYTECODE_64ILESS_OR_EQUAL;
-        case KETL_HIR_GREATER_I64:
-            return KETL_BYTECODE_64IGREATER;
-        case KETL_HIR_GREATER_OR_EQUAL_I64:
-            return KETL_BYTECODE_64IGREATER_OR_EQUAL;
+        case KETL_HIR_EQUAL:
+            return KETL_BYTECODE_8UEQUAL + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_NOT_EQUAL:
+            return KETL_BYTECODE_8UNOT_EQUAL + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_LESS:
+            return KETL_BYTECODE_8ULESS + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_LESS_OR_EQUAL:
+            return KETL_BYTECODE_8ULESS_OR_EQUAL + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_GREATER:
+            return KETL_BYTECODE_8UGREATER + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
+        case KETL_HIR_GREATER_OR_EQUAL:
+            return KETL_BYTECODE_8UGREATER_OR_EQUAL + ((hir_tag & KETL_HIR_TYPE_MASK) - KETL_HIR_U8);
     }
 } 
 
@@ -269,58 +197,19 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
         ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
         p_instr += sizeof(ketl_hir_header_t);
 
-        ANN_SWITCH_STRICT (header.tag) {
-            case KETL_HIR_PLUS_I8:
-            case KETL_HIR_MINUS_I8:
-            case KETL_HIR_MULTY_I8:
-            case KETL_HIR_DIV_I8:
-            case KETL_HIR_MOD_I8:
+        switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+            case KETL_HIR_PLUS:
+            case KETL_HIR_MINUS:
+            case KETL_HIR_MULTY:
+            case KETL_HIR_DIV:
+            case KETL_HIR_MOD:
 
-            case KETL_HIR_EQUAL_I8:
-            case KETL_HIR_NOT_EQUAL_I8:
-            case KETL_HIR_LESS_I8:
-            case KETL_HIR_LESS_OR_EQUAL_I8:
-            case KETL_HIR_GREATER_I8:
-            case KETL_HIR_GREATER_OR_EQUAL_I8:
-            
-            case KETL_HIR_PLUS_I16:
-            case KETL_HIR_MINUS_I16:
-            case KETL_HIR_MULTY_I16:
-            case KETL_HIR_DIV_I16:
-            case KETL_HIR_MOD_I16:
-
-            case KETL_HIR_EQUAL_I16:
-            case KETL_HIR_NOT_EQUAL_I16:
-            case KETL_HIR_LESS_I16:
-            case KETL_HIR_LESS_OR_EQUAL_I16:
-            case KETL_HIR_GREATER_I16:
-            case KETL_HIR_GREATER_OR_EQUAL_I16:
-            
-            case KETL_HIR_PLUS_I32:
-            case KETL_HIR_MINUS_I32:
-            case KETL_HIR_MULTY_I32:
-            case KETL_HIR_DIV_I32:
-            case KETL_HIR_MOD_I32:
-
-            case KETL_HIR_EQUAL_I32:
-            case KETL_HIR_NOT_EQUAL_I32:
-            case KETL_HIR_LESS_I32:
-            case KETL_HIR_LESS_OR_EQUAL_I32:
-            case KETL_HIR_GREATER_I32:
-            case KETL_HIR_GREATER_OR_EQUAL_I32:
-
-            case KETL_HIR_PLUS_I64:
-            case KETL_HIR_MINUS_I64:
-            case KETL_HIR_MULTY_I64:
-            case KETL_HIR_DIV_I64:
-            case KETL_HIR_MOD_I64:
-
-            case KETL_HIR_EQUAL_I64:
-            case KETL_HIR_NOT_EQUAL_I64:
-            case KETL_HIR_LESS_I64:
-            case KETL_HIR_LESS_OR_EQUAL_I64:
-            case KETL_HIR_GREATER_I64:
-            case KETL_HIR_GREATER_OR_EQUAL_I64: {
+            case KETL_HIR_EQUAL:
+            case KETL_HIR_NOT_EQUAL:
+            case KETL_HIR_LESS:
+            case KETL_HIR_LESS_OR_EQUAL:
+            case KETL_HIR_GREATER:
+            case KETL_HIR_GREATER_OR_EQUAL: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
 
                 arg_info args[] = {
@@ -336,106 +225,110 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 PUSH_CONSTANT(&context.vInstructions, args[2].stackOffset);
                 break;
             }
-            case KETL_HIR_CALL: {
-                ketl_hir_call_t* p_hir_info = (ketl_hir_call_t*)p_instr;
 
-                arg_info output_arg = hir_get_arg_stack_offset(&context, p_hir_info->output_var);
-                arg_info callee_arg = hir_get_arg_stack_offset(&context, p_hir_info->callee);
+            default:
+            ANN_SWITCH_STRICT (header.tag) {
+                case KETL_HIR_CALL: {
+                    ketl_hir_call_t* p_hir_info = (ketl_hir_call_t*)p_instr;
 
-                // TODO FIX allow other types to be called
-                ANN_ASSERT(callee_arg.p_type->type == KETL_TYPE_CFUNCTION);
+                    arg_info output_arg = hir_get_arg_stack_offset(&context, p_hir_info->output_var);
+                    arg_info callee_arg = hir_get_arg_stack_offset(&context, p_hir_info->callee);
 
-                for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
-                    arg_info arg = hir_get_arg_stack_offset(&context, p_hir_info->arguments[i]);
+                    // TODO FIX allow other types to be called
+                    ANN_ASSERT(callee_arg.p_type->type == KETL_TYPE_CFUNCTION);
 
+                    for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
+                        arg_info arg = hir_get_arg_stack_offset(&context, p_hir_info->arguments[i]);
+
+                        // TODO FIX
+                        // get type size and use appropriate push arg bytecode
+                        instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64PUSH_ARG);
+                        PUSH_CONSTANT(&context.vInstructions, arg.stackOffset);
+                    }
+
+                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
+                    PUSH_CONSTANT(&context.vInstructions, output_arg.stackOffset);
+                    PUSH_CONSTANT(&context.vInstructions, callee_arg.stackOffset);
+                    break;
+                }
+                case KETL_HIR_ASSIGN: {
+                    
+                    ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
+
+                    arg_info args[] = {
+                        hir_get_arg_stack_offset(&context, p_hir_info->dest_var),
+                        hir_get_arg_stack_offset(&context, p_hir_info->source_var),
+                    };
+                    
                     // TODO FIX
                     // get type size and use appropriate push arg bytecode
-                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64PUSH_ARG);
-                    PUSH_CONSTANT(&context.vInstructions, arg.stackOffset);
+                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64ASSIGN);
+
+                    PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
+                    PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
+                    break;
                 }
+                case KETL_HIR_JUMP: {
+                    ketl_hir_jump_t* p_hir_info = (ketl_hir_jump_t*)p_instr;
 
-                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_CALL);
-                PUSH_CONSTANT(&context.vInstructions, output_arg.stackOffset);
-                PUSH_CONSTANT(&context.vInstructions, callee_arg.stackOffset);
-                break;
-            }
-            case KETL_HIR_ASSIGN: {
-                
-                ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
+                    if (!first_instr_in_block) {
+                        ketl_hir_block_index_t dest = get_first_non_empty_block(p_hir, p_hir_info->block_index);
+                        
+                        if (p_hir->p_block_offsets[dest] != i + ketl_hir_decode_size(p_hir, i)) {
+                            instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_JUMP);
 
-                arg_info args[] = {
-                    hir_get_arg_stack_offset(&context, p_hir_info->dest_var),
-                    hir_get_arg_stack_offset(&context, p_hir_info->source_var),
-                };
-                
-                // TODO FIX
-                // get type size and use appropriate push arg bytecode
-                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64ASSIGN);
-
-                PUSH_CONSTANT(&context.vInstructions, args[0].stackOffset);
-                PUSH_CONSTANT(&context.vInstructions, args[1].stackOffset);
-                break;
-            }
-            case KETL_HIR_JUMP: {
-                ketl_hir_jump_t* p_hir_info = (ketl_hir_jump_t*)p_instr;
-
-                if (!first_instr_in_block) {
-                    ketl_hir_block_index_t dest = get_first_non_empty_block(p_hir, p_hir_info->block_index);
+                            _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
+                            ketl_bytecode_jump_offset placeholder = dest;
+                            PUSH_CONSTANT(&context.vInstructions, placeholder);
+                        }
+                    }
                     
-                    if (p_hir->p_block_offsets[dest] != i + ketl_hir_decode_size(p_hir, i)) {
+                    first_instr_in_block = true;
+                    break;
+                }
+                case KETL_HIR_JUMP_IF_TRUE: {
+                    ketl_hir_jump_if_t* p_hir_info = (ketl_hir_jump_if_t*)p_instr;
+
+                    ketl_hir_block_index_t true_dest = get_first_non_empty_block(p_hir, p_hir_info->true_block);
+                    ketl_hir_block_index_t false_dest = get_first_non_empty_block(p_hir, p_hir_info->false_block);
+                    arg_info expr = hir_get_arg_stack_offset(&context, p_hir_info->expr_var);
+                    
+                    // TODO FIX
+                    // get type size and use appropriate return bytecode
+                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64JUMP_IF);
+
+                    _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
+                    ketl_bytecode_jump_offset placeholder = true_dest;
+                    PUSH_CONSTANT(&context.vInstructions, placeholder);
+                    PUSH_CONSTANT(&context.vInstructions, expr.stackOffset);
+
+                    if (p_hir->p_block_offsets[false_dest] != i + ketl_hir_decode_size(p_hir, i)) {
                         instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_JUMP);
 
-                        _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
-                        ketl_bytecode_jump_offset placeholder = dest;
+                        placeholder = false_dest;
                         PUSH_CONSTANT(&context.vInstructions, placeholder);
                     }
+                    
+                    first_instr_in_block = true;
+                    break;
                 }
-                
-                first_instr_in_block = true;
-                break;
-            }
-            case KETL_HIR_JUMP_IF: {
-                ketl_hir_jump_if_t* p_hir_info = (ketl_hir_jump_if_t*)p_instr;
-
-                ketl_hir_block_index_t true_dest = get_first_non_empty_block(p_hir, p_hir_info->true_block);
-                ketl_hir_block_index_t false_dest = get_first_non_empty_block(p_hir, p_hir_info->false_block);
-                arg_info expr = hir_get_arg_stack_offset(&context, p_hir_info->expr_var);
-                
-                // TODO FIX
-                // get type size and use appropriate return bytecode
-                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64JUMP_IF);
-
-                _Static_assert(sizeof(ketl_bytecode_jump_offset) == sizeof(ketl_hir_block_index_t), "");
-                ketl_bytecode_jump_offset placeholder = true_dest;
-                PUSH_CONSTANT(&context.vInstructions, placeholder);
-                PUSH_CONSTANT(&context.vInstructions, expr.stackOffset);
-
-                if (p_hir->p_block_offsets[false_dest] != i + ketl_hir_decode_size(p_hir, i)) {
-                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_JUMP);
-
-                    placeholder = false_dest;
-                    PUSH_CONSTANT(&context.vInstructions, placeholder);
+                case KETL_HIR_RETURN: {
+                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_RETURN);
+                    PUSH_CONSTANT(&context.vInstructions, stackReservedSize);
+                    break;
                 }
-                
-                first_instr_in_block = true;
-                break;
-            }
-            case KETL_HIR_RETURN: {
-                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_RETURN);
-                PUSH_CONSTANT(&context.vInstructions, stackReservedSize);
-                break;
-            }
-            case KETL_HIR_RETURN_VALUE: {
-                ketl_hir_return_value_t* p_hir_info = (ketl_hir_return_value_t*)p_instr;
+                case KETL_HIR_RETURN_VALUE: {
+                    ketl_hir_return_value_t* p_hir_info = (ketl_hir_return_value_t*)p_instr;
 
-                arg_info arg0 = hir_get_arg_stack_offset(&context, p_hir_info->value_var);
-                
-                // TODO FIX
-                // get type size and use appropriate return bytecode
-                instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64RETURN);
-                PUSH_CONSTANT(&context.vInstructions, stackReservedSize);
-                PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
-                break;
+                    arg_info arg0 = hir_get_arg_stack_offset(&context, p_hir_info->value_var);
+                    
+                    // TODO FIX
+                    // get type size and use appropriate return bytecode
+                    instructions_push_back_copy(&context.vInstructions, KETL_BYTECODE_64RETURN);
+                    PUSH_CONSTANT(&context.vInstructions, stackReservedSize);
+                    PUSH_CONSTANT(&context.vInstructions, arg0.stackOffset);
+                    break;
+                }
             }
         }
     }

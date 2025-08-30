@@ -34,5 +34,7 @@ ANN_DEFINE(ketl_state) {
     
     function_types_map mFunctionTypes;
 
-    operator_overloading_map amHIROperatorOverloading[KETL_HIR_LAST_UNDEF_OPERATOR + 1 - KETL_HIR_FIRST_UNDEF_OPERATOR];
+    operator_overloading_map amHIROperatorOverloading[
+        ((KETL_HIR_LAST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT) + 1) - (KETL_HIR_FIRST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT)
+    ];
 };

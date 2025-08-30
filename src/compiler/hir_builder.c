@@ -260,15 +260,12 @@ void ketl_hir_builder_replace_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_h
 void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, uint8_t* p_instr) {
     on_instr_inserted(p_hir_builder, hir_header);
 
-    ANN_ASSERT(hir_header.tag != KETL_HIR_NONE_STMT);
-    printf("inserting %02x of size %u\n", hir_header.tag, ketl_hir_get_instr_size(hir_header.tag, p_instr));
-
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->v_instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->v_instrs, p_instr, ketl_hir_get_instr_size(hir_header.tag, p_instr));
 }
 
 void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op) {
-    if (hir_header.tag >= KETL_HIR_FIRST_UNDEF_OPERATOR && hir_header.tag <= KETL_HIR_LAST_UNDEF_OPERATOR) {
+    if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
         // TODO FIX
         // for now we just hash search exact function, later we should take into acount possible implicit casts
 
@@ -285,7 +282,8 @@ void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* 
                 .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)
             };
 
-            operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(p_state->amHIROperatorOverloading + (hir_header.tag - KETL_HIR_FIRST_UNDEF_OPERATOR), parameters);
+            operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
+                p_state->amHIROperatorOverloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
             if (p_operator_bucket == NULL) {
                 ANN_ASSERT(false); // TODO ERROR
             }
@@ -325,8 +323,6 @@ void ketl_hir_builder_insert_call(ketl_state* p_state, ketl_hir_builder_t* p_hir
     // do template instantiation if needed
 
     on_instr_inserted(p_hir_builder, hir_header);
-
-    ANN_ASSERT(hir_header.tag != KETL_HIR_NONE_STMT);
 
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->v_instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->v_instrs, (uint8_t*)p_call, sizeof(ketl_hir_call_t));

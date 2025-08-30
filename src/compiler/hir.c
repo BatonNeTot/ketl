@@ -4,7 +4,30 @@
 #include <stdio.h>
 
 bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag) {
-    return tag >= KETL_HIR_JUMP;
+    switch(tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_JUMP_IF_EQUAL:
+        case KETL_HIR_JUMP_IF_NOT_EQAUL:
+        
+        case KETL_HIR_JUMP_IF_LESS:
+        case KETL_HIR_JUMP_IF_LESS_OR_EQAUL:
+        
+        case KETL_HIR_JUMP_IF_GREATER:
+        case KETL_HIR_JUMP_IF_GREATER_OR_EQAUL:
+
+        case KETL_HIR_RETURN_VALUE:
+            return true;
+    }
+
+    switch (tag) {
+        case KETL_HIR_JUMP:
+
+        case KETL_HIR_JUMP_IF_TRUE:
+        case KETL_HIR_JUMP_IF_FALSE:
+
+        case KETL_HIR_RETURN:
+            return true;
+    }
+    return false;
 }
 
 void ketl_hir_deinit(ketl_hir_t* p_hir) {
@@ -22,43 +45,41 @@ void ketl_hir_deinit(ketl_hir_t* p_hir) {
 #define HIR_SUPPORTED_TYPES UNDEF, I8, I16, I32, I64
 
 ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_instr) {
+    switch (tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_PLUS:
+        case KETL_HIR_MINUS:
+        case KETL_HIR_MULTY:
+        case KETL_HIR_DIV:
+        case KETL_HIR_MOD:
+
+        case KETL_HIR_EQUAL:
+        case KETL_HIR_NOT_EQUAL:
+        case KETL_HIR_LESS:
+        case KETL_HIR_LESS_OR_EQUAL:
+        case KETL_HIR_GREATER:
+        case KETL_HIR_GREATER_OR_EQUAL:
+            return sizeof(ketl_hir_binary_op_t);
+
+        case KETL_HIR_ASSIGN:
+            return sizeof(ketl_hir_assign_t);
+    
+        case KETL_HIR_JUMP_IF_EQUAL:
+        case KETL_HIR_JUMP_IF_NOT_EQAUL:
+    
+        case KETL_HIR_JUMP_IF_LESS:
+        case KETL_HIR_JUMP_IF_LESS_OR_EQAUL:
+    
+        case KETL_HIR_JUMP_IF_GREATER:
+        case KETL_HIR_JUMP_IF_GREATER_OR_EQAUL:
+            return sizeof(ketl_hir_jump_if_cmp_t);
+
+        case KETL_HIR_RETURN_VALUE:
+            return sizeof(ketl_hir_return_value_t);
+    }
+
     ANN_SWITCH_STRICT (tag) {
         case KETL_HIR_NONE_STMT:
             return 0;
-        #define HIR_CASE_PREFIX KETL_HIR_PLUS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_MINUS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_MULTY_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_DIV_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_MOD_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_NOT_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_LESS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_LESS_OR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_GREATER_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        #define HIR_CASE_PREFIX KETL_HIR_GREATER_OR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-            return sizeof(ketl_hir_binary_op_t);
 
         case KETL_HIR_CALL_VOID: {
             ketl_hir_call_void_t* hir_info = (ketl_hir_call_void_t*)p_instr;
@@ -69,18 +90,14 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
             return sizeof(ketl_hir_call_t) + hir_info->arguments_count * sizeof(*hir_info->arguments);
         }
 
-        case KETL_HIR_ASSIGN:
-            return sizeof(ketl_hir_assign_t);
-
         case KETL_HIR_JUMP:
             return sizeof(ketl_hir_jump_t);
-        case KETL_HIR_JUMP_IF:
+        case KETL_HIR_JUMP_IF_TRUE:
+        case KETL_HIR_JUMP_IF_FALSE:
             return sizeof(ketl_hir_jump_if_t);
     
         case KETL_HIR_RETURN:
             return 0;
-        case KETL_HIR_RETURN_VALUE:
-            return sizeof(ketl_hir_return_value_t);
     }
 }
 
@@ -150,131 +167,173 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
 #define FORMAT_VAR(var_id, buffer) (ketl_hir_format_var(p_hir, var_id, buffer, ANN_ARRAY_SIZE(buffer)))
 #define FORMAT_BLOCK(block_index, buffer) (snprintf(buffer, ANN_ARRAY_SIZE(buffer), "BB%"PRIu16, block_index))
 
-    ANN_SWITCH_STRICT (header.tag) {
-        case KETL_HIR_NONE_STMT:
-            return snprintf(buffer, bufferSize, "wat;");
-
-        #define HIR_CASE_PREFIX KETL_HIR_PLUS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+    switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_PLUS: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s + %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_MINUS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_MINUS: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s - %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_MULTY_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_MULTY: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s * %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_DIV_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_DIV: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s / %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_MOD_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_MOD: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s %% %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+
+        case KETL_HIR_EQUAL: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s == %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_NOT_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_NOT_EQUAL: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s != %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_LESS_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_LESS: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s < %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_LESS_OR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_LESS_OR_EQUAL: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s <= %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_GREATER_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_GREATER: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s > %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
-        #define HIR_CASE_PREFIX KETL_HIR_GREATER_OR_EQUAL_
-        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
-        #undef HIR_CASE_PREFIX
-        {
+        }
+        case KETL_HIR_GREATER_OR_EQUAL: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->rhs_var, var_buffer[2]);
             return snprintf(buffer, bufferSize, "%s = %s >= %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
-            }
+        }
+
+        case KETL_HIR_ASSIGN: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, bufferSize, "%s = %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+    
+        case KETL_HIR_JUMP_IF_EQUAL: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s == %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+        case KETL_HIR_JUMP_IF_NOT_EQAUL: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s != %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+    
+        case KETL_HIR_JUMP_IF_LESS: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s < %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+        case KETL_HIR_JUMP_IF_LESS_OR_EQAUL: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s <= %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+    
+        case KETL_HIR_JUMP_IF_GREATER: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s > %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+        case KETL_HIR_JUMP_IF_GREATER_OR_EQAUL: {
+            INIT_HIR_INFO(ketl_hir_jump_if_cmp_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->lhs_var, var_buffer[2]);
+            FORMAT_VAR(p_hir_info->rhs_var, var_buffer[3]);
+            return snprintf(buffer, bufferSize, "if (%s >= %s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[3], var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_RETURN_VALUE: {
+            INIT_HIR_INFO(ketl_hir_return_value_t);
+            FORMAT_VAR(p_hir_info->value_var, var_buffer[0]);
+            return snprintf(buffer, bufferSize, "return %s;",
+                var_buffer[0]);
+        }
+    }
+
+    ANN_SWITCH_STRICT (header.tag) {
+        case KETL_HIR_NONE_STMT:
+            return snprintf(buffer, bufferSize, "none;");        
 
         case KETL_HIR_CALL_VOID: {
             INIT_HIR_INFO(ketl_hir_call_void_t);
@@ -306,14 +365,6 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return count;
         }
 
-        case KETL_HIR_ASSIGN: {
-            INIT_HIR_INFO(ketl_hir_assign_t);
-            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
-            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
-            return snprintf(buffer, bufferSize, "%s = %s;",
-                var_buffer[0], var_buffer[1]);
-        }
-
         case KETL_HIR_JUMP: {
             INIT_HIR_INFO(ketl_hir_jump_t);
             FORMAT_BLOCK(p_hir_info->block_index, var_buffer[0]);
@@ -321,7 +372,7 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
                 var_buffer[0]);
         }
 
-        case KETL_HIR_JUMP_IF: {
+        case KETL_HIR_JUMP_IF_TRUE: {
             INIT_HIR_INFO(ketl_hir_jump_if_t);
             FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
             FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
@@ -329,15 +380,18 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "if (%s) goto %s; else goto %s;",
                 var_buffer[2], var_buffer[0], var_buffer[1]);
         }
+
+        case KETL_HIR_JUMP_IF_FALSE: {
+            INIT_HIR_INFO(ketl_hir_jump_if_t);
+            FORMAT_BLOCK(p_hir_info->true_block, var_buffer[0]);
+            FORMAT_BLOCK(p_hir_info->false_block, var_buffer[1]);
+            FORMAT_VAR(p_hir_info->expr_var, var_buffer[2]);
+            return snprintf(buffer, bufferSize, "if (!%s) goto %s; else goto %s;",
+                var_buffer[2], var_buffer[0], var_buffer[1]);
+        }
     
         case KETL_HIR_RETURN:
             return snprintf(buffer, bufferSize, "return;");
-        case KETL_HIR_RETURN_VALUE: {
-            INIT_HIR_INFO(ketl_hir_return_value_t);
-            FORMAT_VAR(p_hir_info->value_var, var_buffer[0]);
-            return snprintf(buffer, bufferSize, "return %s;",
-                var_buffer[0]);
-        }
     }
 }
 

@@ -8,103 +8,76 @@
 
 #include "ketl/utils.h"
 
-typedef uint8_t ketl_hir_tag_t;
+
+typedef uint16_t ketl_hir_tag_t;
 
 enum {
-    KETL_HIR_NONE_STMT,
+    // types
 
-    KETL_HIR_PLUS_UNDEF,
-    KETL_HIR_MINUS_UNDEF,
-    KETL_HIR_MULTY_UNDEF,
-    KETL_HIR_DIV_UNDEF,
-    KETL_HIR_MOD_UNDEF,
+#define KETL_HIR_TYPE_MASK              0x000F
 
-    KETL_HIR_EQUAL_UNDEF,
-    KETL_HIR_NOT_EQUAL_UNDEF,
-    KETL_HIR_LESS_UNDEF,
-    KETL_HIR_LESS_OR_EQUAL_UNDEF,
-    KETL_HIR_GREATER_UNDEF,
-    KETL_HIR_GREATER_OR_EQUAL_UNDEF,
+    KETL_HIR_UNDEF                    = 0x0000,
 
-    KETL_HIR_PLUS_I8,
-    KETL_HIR_MINUS_I8,
-    KETL_HIR_MULTY_I8,
-    KETL_HIR_DIV_I8,
-    KETL_HIR_MOD_I8,
+    KETL_HIR_U8                       = 0x0004,
+    KETL_HIR_U16,
+    KETL_HIR_U32,
+    KETL_HIR_U64,
+    
+    KETL_HIR_I8,
+    KETL_HIR_I16,
+    KETL_HIR_I32,
+    KETL_HIR_I64,
 
-    KETL_HIR_EQUAL_I8,
-    KETL_HIR_NOT_EQUAL_I8,
-    KETL_HIR_LESS_I8,
-    KETL_HIR_LESS_OR_EQUAL_I8,
-    KETL_HIR_GREATER_I8,
-    KETL_HIR_GREATER_OR_EQUAL_I8,
+    KETL_HIR_F32                      = 0x000E,
+    KETL_HIR_F64,
 
-    KETL_HIR_PLUS_I16,
-    KETL_HIR_MINUS_I16,
-    KETL_HIR_MULTY_I16,
-    KETL_HIR_DIV_I16,
-    KETL_HIR_MOD_I16,
+    // type independent instructions
 
-    KETL_HIR_EQUAL_I16,
-    KETL_HIR_NOT_EQUAL_I16,
-    KETL_HIR_LESS_I16,
-    KETL_HIR_LESS_OR_EQUAL_I16,
-    KETL_HIR_GREATER_I16,
-    KETL_HIR_GREATER_OR_EQUAL_I16,
-
-    KETL_HIR_PLUS_I32,
-    KETL_HIR_MINUS_I32,
-    KETL_HIR_MULTY_I32,
-    KETL_HIR_DIV_I32,
-    KETL_HIR_MOD_I32,
-
-    KETL_HIR_EQUAL_I32,
-    KETL_HIR_NOT_EQUAL_I32,
-    KETL_HIR_LESS_I32,
-    KETL_HIR_LESS_OR_EQUAL_I32,
-    KETL_HIR_GREATER_I32,
-    KETL_HIR_GREATER_OR_EQUAL_I32,
-
-    KETL_HIR_PLUS_I64,
-    KETL_HIR_MINUS_I64,
-    KETL_HIR_MULTY_I64,
-    KETL_HIR_DIV_I64,
-    KETL_HIR_MOD_I64,
-
-    KETL_HIR_EQUAL_I64,
-    KETL_HIR_NOT_EQUAL_I64,
-    KETL_HIR_LESS_I64,
-    KETL_HIR_LESS_OR_EQUAL_I64,
-    KETL_HIR_GREATER_I64,
-    KETL_HIR_GREATER_OR_EQUAL_I64,
+    KETL_HIR_NONE_STMT                = 0x0000,
 
     KETL_HIR_CALL_VOID,
     KETL_HIR_CALL,
 
-    KETL_HIR_ASSIGN,
-
     KETL_HIR_JUMP,
 
-    KETL_HIR_JUMP_IF,
-    
-    KETL_HIR_RETURN,
-    KETL_HIR_RETURN_VALUE,
+    KETL_HIR_JUMP_IF_TRUE,
+    KETL_HIR_JUMP_IF_FALSE,
 
-    // only count binary operators for now
-    KETL_HIR_FIRST_UNDEF_OPERATOR = KETL_HIR_PLUS_UNDEF,
-    KETL_HIR_LAST_UNDEF_OPERATOR = KETL_HIR_GREATER_OR_EQUAL_UNDEF,
+    KETL_HIR_RETURN,
+
+    // type dependent instructions
+
+#define KETL_HIR_TYPE_INSTR_MASK        0xFFF0
+#define KETL_HIR_TYPE_INSTR_SHIFT       4
+
+    KETL_HIR_PLUS                     = 0x0010,
+    KETL_HIR_MINUS                    = 0x0020,
+    KETL_HIR_MULTY                    = 0x0030,
+    KETL_HIR_DIV                      = 0x0040,
+    KETL_HIR_MOD                      = 0x0050,
+
+    KETL_HIR_EQUAL                    = 0x0060,
+    KETL_HIR_NOT_EQUAL                = 0x0070,
+    KETL_HIR_LESS                     = 0x0080,
+    KETL_HIR_LESS_OR_EQUAL            = 0x0090,
+    KETL_HIR_GREATER                  = 0x00A0,
+    KETL_HIR_GREATER_OR_EQUAL         = 0x00B0,
+
+    KETL_HIR_ASSIGN                   = 0x00C0,
     
-    KETL_HIR_FIRST_I8_OPERATOR = KETL_HIR_PLUS_I8,
-    KETL_HIR_LAST_I8_OPERATOR = KETL_HIR_GREATER_OR_EQUAL_I8,
+    KETL_HIR_JUMP_IF_EQUAL            = 0x00D0,
+    KETL_HIR_JUMP_IF_NOT_EQAUL        = 0x00E0,
     
-    KETL_HIR_FIRST_I16_OPERATOR = KETL_HIR_PLUS_I16,
-    KETL_HIR_LAST_I16_OPERATOR = KETL_HIR_GREATER_OR_EQUAL_I16,
+    KETL_HIR_JUMP_IF_LESS             = 0x00F0,
+    KETL_HIR_JUMP_IF_LESS_OR_EQAUL    = 0x0100,
     
-    KETL_HIR_FIRST_I32_OPERATOR = KETL_HIR_PLUS_I32,
-    KETL_HIR_LAST_I32_OPERATOR = KETL_HIR_GREATER_OR_EQUAL_I32,
-    
-    KETL_HIR_FIRST_I64_OPERATOR = KETL_HIR_PLUS_I64,
-    KETL_HIR_LAST_I64_OPERATOR = KETL_HIR_GREATER_OR_EQUAL_I64,
+    KETL_HIR_JUMP_IF_GREATER          = 0x0110,
+    KETL_HIR_JUMP_IF_GREATER_OR_EQAUL = 0x0120,
+
+    KETL_HIR_RETURN_VALUE             = 0x0130,
+
+    KETL_HIR_FIRST_BI_OPERATOR = KETL_HIR_PLUS,
+    KETL_HIR_LAST_BI_OPERATOR = KETL_HIR_GREATER_OR_EQUAL,
 };
 
 bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag);
@@ -155,6 +128,13 @@ ANN_DEFINE(ketl_hir_jump_if_t) {
     ketl_hir_block_index_t true_block;
     ketl_hir_block_index_t false_block;
     ketl_hir_var_id_t expr_var;
+};
+
+ANN_DEFINE(ketl_hir_jump_if_cmp_t) {
+    ketl_hir_block_index_t true_block;
+    ketl_hir_block_index_t false_block;
+    ketl_hir_var_id_t lhs_var;
+    ketl_hir_var_id_t rhs_var;
 };
 
 ANN_DEFINE(ketl_hir_return_value_t) {

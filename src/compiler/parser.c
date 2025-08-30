@@ -316,7 +316,7 @@ static void push_hir_if(ketl_parser_context* p_context, ketl_parse_pos_info* p_p
     
     (void)p_pos_info;
     ketl_hir_header_t if_header = {
-        .tag = KETL_HIR_JUMP_IF,
+        .tag = KETL_HIR_JUMP_IF_TRUE,
         .file_symbol = p_context->a_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
@@ -483,11 +483,11 @@ static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_h
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
 
     ANN_SWITCH_STRICT (token_type) {
-        case KETL_TOKEN_TYPE_PLUS: return push_hir_binary_op(p_context, NULL, KETL_HIR_PLUS_UNDEF, lhs, rhs);
-        case KETL_TOKEN_TYPE_MINUS: return push_hir_binary_op(p_context, NULL, KETL_HIR_MINUS_UNDEF, lhs, rhs);
-        case KETL_TOKEN_TYPE_MULTIPLY: return push_hir_binary_op(p_context, NULL, KETL_HIR_MULTY_UNDEF, lhs, rhs);
-        case KETL_TOKEN_TYPE_DIVIDE: return push_hir_binary_op(p_context, NULL, KETL_HIR_DIV_UNDEF, lhs, rhs);
-        case KETL_TOKEN_TYPE_REMAINDER: return push_hir_binary_op(p_context, NULL, KETL_HIR_MOD_UNDEF, lhs, rhs);
+        case KETL_TOKEN_TYPE_PLUS: return push_hir_binary_op(p_context, NULL, KETL_HIR_PLUS, lhs, rhs);
+        case KETL_TOKEN_TYPE_MINUS: return push_hir_binary_op(p_context, NULL, KETL_HIR_MINUS, lhs, rhs);
+        case KETL_TOKEN_TYPE_MULTIPLY: return push_hir_binary_op(p_context, NULL, KETL_HIR_MULTY, lhs, rhs);
+        case KETL_TOKEN_TYPE_DIVIDE: return push_hir_binary_op(p_context, NULL, KETL_HIR_DIV, lhs, rhs);
+        case KETL_TOKEN_TYPE_REMAINDER: return push_hir_binary_op(p_context, NULL, KETL_HIR_MOD, lhs, rhs);
     }
 }
 

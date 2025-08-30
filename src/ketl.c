@@ -155,7 +155,7 @@ ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);\
     CREATE_PRIMITIVE_TYPE(tInt32, "i32",  4, true,  true);
     CREATE_PRIMITIVE_TYPE(tInt64, "i64",  8, true,  true);
 
-#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _argType, _returnType, _hir_tag_typed_op)\
+#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _argType, _returnType, _hir_type)\
 do {\
     ketl_type_parameter parametersArray[] = { {.p_type = _returnType}, {.p_type = _argType}, {.p_type = _argType} };\
     ketl_function_parameters parameters = {\
@@ -166,29 +166,30 @@ do {\
     const function_type_composite* pFuncTypeComposite = get_function_type_composite(pState, &parameters);\
     parameters.pParameters = pFuncTypeComposite->pSignature->aParameters;\
 \
-    operator_overloading_map_get_or_insert_copy(pState->amHIROperatorOverloading + (_hir_tag_op - KETL_HIR_FIRST_UNDEF_OPERATOR), parameters, _hir_tag_typed_op);\
+    operator_overloading_map_get_or_insert_copy(pState->amHIROperatorOverloading + \
+        ((_hir_tag_op - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
 } while (false)
 
-#define REGISTER_PRIMITIVE_BINARY_OPERATORS(_argType, _hir_first_typed_op)\
+#define REGISTER_PRIMITIVE_BINARY_OPERATORS(_argType, _hir_type)\
 do {\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 0,  _argType, _argType, _hir_first_typed_op + 0);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 1,  _argType, _argType, _hir_first_typed_op + 1);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 2,  _argType, _argType, _hir_first_typed_op + 2);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 3,  _argType, _argType, _hir_first_typed_op + 3);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 4,  _argType, _argType, _hir_first_typed_op + 4);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,             _argType, _argType, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,            _argType, _argType, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MULTY,            _argType, _argType, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_DIV,              _argType, _argType, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MOD,              _argType, _argType, _hir_type);\
 \
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 5,  _argType, tBool, _hir_first_typed_op + 5);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 6,  _argType, tBool, _hir_first_typed_op + 6);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 7,  _argType, tBool, _hir_first_typed_op + 7);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 8,  _argType, tBool, _hir_first_typed_op + 8);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 9,  _argType, tBool, _hir_first_typed_op + 9);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 10, _argType, tBool, _hir_first_typed_op + 10);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_EQUAL,            _argType, tBool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_NOT_EQUAL,        _argType, tBool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS,             _argType, tBool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_OR_EQUAL,    _argType, tBool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER,          _argType, tBool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL, _argType, tBool, _hir_type);\
 } while (false)
 
-    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt8,  KETL_HIR_FIRST_I8_OPERATOR);
-    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt16, KETL_HIR_FIRST_I16_OPERATOR);
-    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt32, KETL_HIR_FIRST_I32_OPERATOR);
-    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt64, KETL_HIR_FIRST_I64_OPERATOR);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt8,  KETL_HIR_I8);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt16, KETL_HIR_I16);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt32, KETL_HIR_I32);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt64, KETL_HIR_I64);
 
     return pState;
 }
