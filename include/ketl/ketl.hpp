@@ -13,12 +13,35 @@ extern "C" {
 namespace KETL {
 
 	class State;
+	class Type;
+	class Value;
 
 	ketl_state* __get_state_impl(const State& state);
 	
 	namespace {
 		template <class T>
 		struct __TypeHelper;
+
+		template <>
+		struct __TypeHelper<int8_t> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_i8(pState);
+			}
+		};
+
+		template <>
+		struct __TypeHelper<int16_t> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_i16(pState);
+			}
+		};
+
+		template <>
+		struct __TypeHelper<int32_t> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_i32(pState);
+			}
+		};
 
 		template <>
 		struct __TypeHelper<int64_t> {
@@ -31,6 +54,27 @@ namespace KETL {
 		struct __ValueGetter;
 
 		template <>
+		struct __ValueGetter<int8_t> {
+			static int8_t as(ketl_state* p_state, ketl_value* p_value) {
+				return ketl_value_as_i8(p_state, p_value);
+			}
+		};
+
+		template <>
+		struct __ValueGetter<int16_t> {
+			static int16_t as(ketl_state* p_state, ketl_value* p_value) {
+				return ketl_value_as_i16(p_state, p_value);
+			}
+		};
+
+		template <>
+		struct __ValueGetter<int32_t> {
+			static int32_t as(ketl_state* p_state, ketl_value* p_value) {
+				return ketl_value_as_i32(p_state, p_value);
+			}
+		};
+
+		template <>
 		struct __ValueGetter<int64_t> {
 			static int64_t as(ketl_state* p_state, ketl_value* p_value) {
 				return ketl_value_as_i64(p_state, p_value);
@@ -39,9 +83,39 @@ namespace KETL {
 
 	}
 
+	class Type {
+	private:
+		Type(ketl_type* p_type, const State& state)
+			: _p_type(p_type), _state(state) {}
+
+		Type(const Type& other)
+			: _p_type(other._p_type), _state(other._state) {}
+
+	public:
+		~Type() = default;
+
+		size_t get_size() const {
+			return ketl_type_get_size(_p_type);
+		}
+
+		friend bool operator==(const Type& lhs, const Type& rhs) {
+			return lhs._p_type == rhs._p_type;
+		}
+
+		const State& get_state() const {
+			return _state;
+		}
+
+	private:
+		ketl_type* _p_type;
+		const State& _state;
+		friend State;
+		friend Value;
+	};
+
 	class Value {
 	private:
-		Value(ketl_value* p_value, State& state)
+		Value(ketl_value* p_value, const State& state)
 			: _p_value(p_value), _state(state) {}
 
 		Value(const Value& other) = delete;
@@ -61,8 +135,8 @@ namespace KETL {
 			return !ketl_value_is_none(__get_state_impl(_state), _p_value);
 		}
 
-		ketl_type* get_type() const {
-			return ketl_value_get_type(__get_state_impl(_state), _p_value);
+		Type get_type() const {
+			return { ketl_value_get_type(__get_state_impl(_state), _p_value), _state };
 		}
 
 		template<class T>
@@ -70,13 +144,13 @@ namespace KETL {
 			return __ValueGetter<T>::as(__get_state_impl(_state), _p_value);
 		}
 
-		State& get_state() const {
+		const State& get_state() const {
 			return _state;
 		}
 
 	private:
 		ketl_value* _p_value;
-		State& _state;
+		const State& _state;
 		friend State;
 	};
 
@@ -109,8 +183,8 @@ namespace KETL {
 		}
 
 		template <class T>
-		ketl_type* get_type() const {
-			return __TypeHelper<T>::getType(_p_state);
+		Type get_type() const {
+			return { __TypeHelper<T>::getType(_p_state), *this };
 		}
 
 		Value eval(const std::string_view& filename, const std::string_view& source) {
@@ -131,7 +205,13 @@ namespace KETL {
 std::ostream& operator<<(std::ostream& os, const KETL::Value& ketl_value)
 {
 	// TODO replace later to a to_string call or something
-	if (ketl_value.get_type() == ketl_value.get_state().get_type<int64_t>()) {
+	if (ketl_value.get_type() == ketl_value.get_state().get_type<int8_t>()) {
+		os << (int64_t)ketl_value.as<int8_t>();
+	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int16_t>()) {
+		os << ketl_value.as<int16_t>();
+	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int32_t>()) {
+		os << ketl_value.as<int32_t>();
+	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int64_t>()) {
 		os << ketl_value.as<int64_t>();
 	} else {
 		ANN_ASSERT(false);

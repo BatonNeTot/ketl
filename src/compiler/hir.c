@@ -16,32 +16,48 @@ void ketl_hir_deinit(ketl_hir_t* p_hir) {
     ketl_free(p_hir->p_allocator, p_hir->p_instrs);
 }
 
+#define HIR_CASE_CREATE(val) case ANN_CONCAT(HIR_CASE_PREFIX, val): 
+#define HIR_CASE_CLAUSES(...) ANN_JOIN(, ANN_FOR_EACH(HIR_CASE_CREATE, __VA_ARGS__))
+
+#define HIR_SUPPORTED_TYPES UNDEF, I8, I16, I32, I64
+
 ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_instr) {
     ANN_SWITCH_STRICT (tag) {
         case KETL_HIR_NONE_STMT:
             return 0;
-
-        case KETL_HIR_PLUS_UNDEF:
-        case KETL_HIR_MINUS_UNDEF:
-        case KETL_HIR_MULTY_UNDEF:
-        case KETL_HIR_DIV_UNDEF:
-        case KETL_HIR_EQUAL_UNDEF:
-        case KETL_HIR_NOT_EQUAL_UNDEF:
-        case KETL_HIR_LESS_UNDEF:
-        case KETL_HIR_LESS_OR_EQUAL_UNDEF:
-        case KETL_HIR_GREATER_UNDEF:
-        case KETL_HIR_GREATER_OR_EQUAL_UNDEF:
-        case KETL_HIR_PLUS_I64:
-        case KETL_HIR_MINUS_I64:
-        case KETL_HIR_MULTY_I64:
-        case KETL_HIR_DIV_I64:
-        case KETL_HIR_MOD_I64:
-        case KETL_HIR_EQUAL_I64:
-        case KETL_HIR_NOT_EQUAL_I64:
-        case KETL_HIR_LESS_I64:
-        case KETL_HIR_LESS_OR_EQUAL_I64:
-        case KETL_HIR_GREATER_I64:
-        case KETL_HIR_GREATER_OR_EQUAL_I64:
+        #define HIR_CASE_PREFIX KETL_HIR_PLUS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_MINUS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_MULTY_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_DIV_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_MOD_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_NOT_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_LESS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_LESS_OR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_GREATER_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        #define HIR_CASE_PREFIX KETL_HIR_GREATER_OR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
             return sizeof(ketl_hir_binary_op_t);
 
         case KETL_HIR_CALL_VOID: {
@@ -82,19 +98,43 @@ ketl_hir_instr_offset_t ketl_hir_decode_size(ketl_hir_t* p_hir, ketl_hir_instr_o
 static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id, char* buffer, uint32_t bufferSize) {
     ketl_hir_var_t* p_var = p_hir->p_vars + var_id;
     if (p_var->uid == KETL_HIR_VAR_UID_LITERAL) {
-        return snprintf(buffer, bufferSize, "%s", KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var->literal));
+        return snprintf(buffer, bufferSize, "%s|%"PRIu16, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var->literal), 
+        p_hir->p_used_types[p_var->type]->size);
     } else if (p_var->info == KETL_HIR_VAR_INFO_TEMP) {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "~%"PRIu16"|undef" : "~%"PRIu16;
-        return snprintf(buffer, bufferSize, format, p_var->uid);
+        uint32_t printed = 0;
+        printed += snprintf(buffer + printed, bufferSize - printed, "~%"PRIu16, p_var->uid);
+        if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|undef");
+        } else {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|%"PRIu16,
+                p_hir->p_used_types[p_var->type]->size);
+        }
+        return printed;
     } 
     
     ketl_hir_var_info_t* p_var_info = p_hir->p_vars_infos + p_var->info;
     if (p_var_info->p_global != NULL) {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "%s|undef" : "%s";
-        return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
+        uint32_t printed = 0;
+        printed += snprintf(buffer + printed, bufferSize - printed, "%s", 
+            KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
+        if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|undef");
+        } else {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|%"PRIu16,
+                p_hir->p_used_types[p_var->type]->size);
+        }
+        return printed;
     } else {
-        const char* format = p_var->type == KETL_HIR_USED_TYPE_UNKNOWN ? "%s#%"PRIu16"undef" : "%s#%"PRIu16;
-        return snprintf(buffer, bufferSize, format, KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
+        uint32_t printed = 0;
+        printed += snprintf(buffer + printed, bufferSize - printed, "%s#%"PRIu16, 
+            KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
+        if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|undef");
+        } else {
+            printed += snprintf(buffer + printed, bufferSize - printed, "|%"PRIu16,
+                p_hir->p_used_types[p_var->type]->size);
+        }
+        return printed;
     }
 } 
 
@@ -112,10 +152,12 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
 
     ANN_SWITCH_STRICT (header.tag) {
         case KETL_HIR_NONE_STMT:
-            return snprintf(buffer, bufferSize, ";");
+            return snprintf(buffer, bufferSize, "wat;");
 
-        case KETL_HIR_PLUS_UNDEF:
-        case KETL_HIR_PLUS_I64:{
+        #define HIR_CASE_PREFIX KETL_HIR_PLUS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -123,8 +165,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s + %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_MINUS_UNDEF:
-        case KETL_HIR_MINUS_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_MINUS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -132,8 +176,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s - %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_MULTY_UNDEF:
-        case KETL_HIR_MULTY_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_MULTY_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -141,8 +187,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s * %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_DIV_UNDEF:
-        case KETL_HIR_DIV_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_DIV_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -150,8 +198,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s / %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_MOD_UNDEF:
-        case KETL_HIR_MOD_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_MOD_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -159,8 +209,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s %% %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_EQUAL_UNDEF:
-        case KETL_HIR_EQUAL_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -168,8 +220,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s == %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_NOT_EQUAL_UNDEF:
-        case KETL_HIR_NOT_EQUAL_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_NOT_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -177,8 +231,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s != %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_LESS_UNDEF:
-        case KETL_HIR_LESS_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_LESS_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -186,8 +242,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s < %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_LESS_OR_EQUAL_UNDEF:
-        case KETL_HIR_LESS_OR_EQUAL_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_LESS_OR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -195,8 +253,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s <= %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_GREATER_UNDEF:
-        case KETL_HIR_GREATER_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_GREATER_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -204,8 +264,10 @@ static uint32_t ketl_hir_format_instr(ketl_hir_t* p_hir, ketl_hir_instr_offset_t
             return snprintf(buffer, bufferSize, "%s = %s > %s;",
                 var_buffer[0], var_buffer[1], var_buffer[2]);
             }
-        case KETL_HIR_GREATER_OR_EQUAL_UNDEF:
-        case KETL_HIR_GREATER_OR_EQUAL_I64: {
+        #define HIR_CASE_PREFIX KETL_HIR_GREATER_OR_EQUAL_
+        HIR_CASE_CLAUSES(HIR_SUPPORTED_TYPES)
+        #undef HIR_CASE_PREFIX
+        {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->lhs_var, var_buffer[1]);
@@ -287,21 +349,16 @@ uint32_t ketl_hir_format(ketl_hir_t* p_hir, char* p_buffer, uint32_t buffer_size
         printed_count += tab_size;
 
         uint32_t i = p_hir->p_block_offsets[block];
-        for (; i < p_hir->instrs_count && !ketl_hir_is_terminator_tag(p_hir->p_instrs[i]); i += ketl_hir_decode_size(p_hir, i)) {
+        for (; i < p_hir->instrs_count; i += ketl_hir_decode_size(p_hir, i)) {
             if (i != p_hir->p_block_offsets[block]) {
                 printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "%*s", tab_size, "");
             }
             printed_count += ketl_hir_format_instr(p_hir, i, p_buffer + printed_count, buffer_size - printed_count);
             printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "\n");
-        }
 
-        // print terminator instr
-        if (i < p_hir->instrs_count) {
-            if (i != p_hir->p_block_offsets[block]) {
-                printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "%*s", tab_size, "");
+            if (ketl_hir_is_terminator_tag(p_hir->p_instrs[i])) {
+                break;
             }
-            printed_count += ketl_hir_format_instr(p_hir, i, p_buffer + printed_count, buffer_size - printed_count);
-            printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "\n");
         }
     }
 

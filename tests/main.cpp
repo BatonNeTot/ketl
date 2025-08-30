@@ -24,11 +24,14 @@ int main(int argc, char** argv) {
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
     const char* p_source = ""
-        "return 3 || 2;"
+        "var a : i8 = 40;\n"
+        "var b : i8 = 2;\n"
+        "return a + b;"
     ;
 
     auto result = ketl.eval(__FILE__ "$<eval>", p_source);
     if (result) {
+        std::cout << "size = " << result.get_type().get_size() << std::endl;
         std::cout << "result = " << result << std::endl;
     }
 }

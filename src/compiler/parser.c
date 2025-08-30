@@ -146,8 +146,11 @@ static ketl_hir_var_id_t push_literal_number(ketl_parser_context* p_context, ket
 }
 
 
+static ketl_hir_var_id_t push_temp_var_type(ketl_parser_context* p_context, ketl_hir_used_type_index_t type) {
+    return ketl_hir_builder_create_temp_var(&p_context->hir_builder, type);
+}
 static ketl_hir_var_id_t push_temp_var(ketl_parser_context* p_context) {
-    return ketl_hir_builder_create_temp_var(&p_context->hir_builder, KETL_HIR_USED_TYPE_UNKNOWN);
+    return push_temp_var_type(p_context, KETL_HIR_USED_TYPE_UNKNOWN);
 }
 
 static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs) {
@@ -517,7 +520,9 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
     
     // TODO find common type, set temp var to common type
-    ketl_hir_var_id_t output_var = push_temp_var(p_context); 
+    ANN_ASSERT(p_context->hir_builder.v_vars.p_data[lhs].type == p_context->hir_builder.v_vars.p_data[rhs].type);
+    ANN_ASSERT(p_context->hir_builder.v_vars.p_data[lhs].type != KETL_HIR_USED_TYPE_UNKNOWN);
+    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, p_context->hir_builder.v_vars.p_data[lhs].type); 
     // TODO do casting if necessary
     push_hir_assign_impl(p_context, NULL, output_var, rhs);
     push_hir_jump(p_context, NULL, after_block);
@@ -834,13 +839,22 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
     }
     if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
         initial_value = parse_expression(p_context);
+        
+        // TODO conversion!!!;
+        if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            type = p_context->hir_builder.v_vars.p_data[initial_value].type;
+        }
     } else {
         if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
             uint32_t decl_end = CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length;
             error(decl_start, decl_end - decl_start, "Variable declaration without a type expects an initial expression.");
+
+            initial_value = push_temp_var(p_context);
         } else {
             // TODO do default contructor or smth
             initial_value = push_literal_number_symbol(p_context, push_symbol_string(p_context, "0", 1));
+            
+            type = p_context->hir_builder.v_vars.p_data[initial_value].type;
         }
     }
     push_hir_variable_declaration(p_context, NULL, id_literal, type, initial_value);

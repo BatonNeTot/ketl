@@ -6,6 +6,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_TARGET "ketljit")
 
+#set(PROJECT_SANITIZE_OPTION -fsanitize=address)
+
 ###############################
 
 if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
@@ -18,7 +20,7 @@ else()
     endif() 
 
     if (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
-        add_compile_options(-fsanitize=address)
+        add_compile_options(${PROJECT_SANITIZE_OPTION})
     endif()
 endif()
 
@@ -39,7 +41,7 @@ set_target_properties(${PROJECT_TARGET}
 target_compile_definitions(${PROJECT_TARGET} PRIVATE _AMD64_)
 
 if (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
-    target_link_options(${PROJECT_TARGET} BEFORE PUBLIC -fsanitize=address)
+    target_link_options(${PROJECT_TARGET} BEFORE PUBLIC ${PROJECT_SANITIZE_OPTION})
 endif()
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")
@@ -66,7 +68,7 @@ set_target_properties(${PROJECT_EXE_TARGET}
 target_compile_definitions(${PROJECT_EXE_TARGET} PRIVATE _AMD64_)
 
 if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
-    target_link_options(${PROJECT_EXE_TARGET} BEFORE PUBLIC -fsanitize=address)
+    target_link_options(${PROJECT_EXE_TARGET} BEFORE PUBLIC ${PROJECT_SANITIZE_OPTION})
 endif()
 
 target_link_directories(${PROJECT_EXE_TARGET} PRIVATE "lib")
@@ -98,7 +100,7 @@ set_target_properties(${PROJECT_TEST_TARGET}
 target_compile_definitions(${PROJECT_TEST_TARGET} PRIVATE _AMD64_)
 
 if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
-    target_link_options(${PROJECT_TEST_TARGET} BEFORE PUBLIC -fsanitize=address)
+    target_link_options(${PROJECT_TEST_TARGET} BEFORE PUBLIC ${PROJECT_SANITIZE_OPTION})
 endif()
 
 target_link_directories(${PROJECT_TEST_TARGET} PRIVATE "lib")

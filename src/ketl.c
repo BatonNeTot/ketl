@@ -19,7 +19,7 @@ static uint64_t func_signature_hash(const ketl_function_parameters* pParameters)
     uint64_t hash = 0u;
     uint16_t parametersCount = pParameters->parametersCount;
     for (uint16_t i = 0u; i < parametersCount; ++i) {
-        hash = ((uint64_t)pParameters->pParameters[i].pType) ^ (hash << 1);
+        hash = ((uint64_t)pParameters->pParameters[i].p_type) ^ (hash << 1);
     }
     return hash;
 }
@@ -32,7 +32,7 @@ static bool is_func_signatures_equal(const ketl_function_parameters* pLhsParamet
     }
     uint16_t parametersCount = pLhsParameters->parametersCount;
     for (uint16_t i = 0u; i < parametersCount; ++i) {
-        if (pLhsParameters->pParameters[i].pType != pRhsParameters->pParameters[i].pType) {
+        if (pLhsParameters->pParameters[i].p_type != pRhsParameters->pParameters[i].p_type) {
             return false;
         }
     }
@@ -46,7 +46,7 @@ static uint64_t func_parameters_hash(const ketl_function_parameters* pParameters
     uint16_t parametersCount = pParameters->parametersCount;
     // first is return type, ignore it for parameters
     for (uint16_t i = 1u; i < parametersCount; ++i) {
-        hash = ((uint64_t)pParameters->pParameters[i].pType) ^ (hash << 1);
+        hash = ((uint64_t)pParameters->pParameters[i].p_type) ^ (hash << 1);
     }
     return hash;
 }
@@ -60,7 +60,7 @@ static bool is_func_parameters_equal(const ketl_function_parameters* pLhsParamet
     uint16_t parametersCount = pLhsParameters->parametersCount;
     // first is return type, ignore it for parameters
     for (uint16_t i = 1u; i < parametersCount; ++i) {
-        if (pLhsParameters->pParameters[i].pType != pRhsParameters->pParameters[i].pType) {
+        if (pLhsParameters->pParameters[i].p_type != pRhsParameters->pParameters[i].p_type) {
             return false;
         }
     }
@@ -142,19 +142,22 @@ INIT_TYPE(_varName, ketl_type_primitive) {\
         };\
 ketl_variable namespaceVariable = {\
     .type = KETL_VARIABLE_TYPE,\
-    .pType = NULL,\
+    .p_type = NULL,\
     .pointer = _varName,\
 };\
 ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);\
 } while(0)
 
-    CREATE_PRIMITIVE_TYPE(tVoid, "none", 0, false, false);
-    CREATE_PRIMITIVE_TYPE(tBool, "bool", 1, false, false);
-    CREATE_PRIMITIVE_TYPE(tInt64, "i64", 8, true, true);
+    CREATE_PRIMITIVE_TYPE(tNone,  "none", 0, false, false);
+    CREATE_PRIMITIVE_TYPE(tBool,  "bool", 1, false, false);
+    CREATE_PRIMITIVE_TYPE(tInt8,  "i8",   1, true,  true);
+    CREATE_PRIMITIVE_TYPE(tInt16, "i16",  2, true,  true);
+    CREATE_PRIMITIVE_TYPE(tInt32, "i32",  4, true,  true);
+    CREATE_PRIMITIVE_TYPE(tInt64, "i64",  8, true,  true);
 
 #define REGISTER_BINARY_OPERATOR(_hir_tag_op, _argType, _returnType, _hir_tag_typed_op)\
 do {\
-    ketl_type_parameter parametersArray[] = { {.pType = _returnType}, {.pType = _argType}, {.pType = _argType} };\
+    ketl_type_parameter parametersArray[] = { {.p_type = _returnType}, {.p_type = _argType}, {.p_type = _argType} };\
     ketl_function_parameters parameters = {\
         .pParameters = parametersArray,\
         .parametersCount = sizeof(parametersArray) / sizeof(*parametersArray)\
@@ -166,18 +169,26 @@ do {\
     operator_overloading_map_get_or_insert_copy(pState->amHIROperatorOverloading + (_hir_tag_op - KETL_HIR_FIRST_UNDEF_OPERATOR), parameters, _hir_tag_typed_op);\
 } while (false)
 
-    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS_UNDEF,               tInt64, tInt64, KETL_HIR_PLUS_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS_UNDEF,              tInt64, tInt64, KETL_HIR_MINUS_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MULTY_UNDEF,              tInt64, tInt64, KETL_HIR_MULTY_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_DIV_UNDEF,                tInt64, tInt64, KETL_HIR_DIV_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MOD_UNDEF,                tInt64, tInt64, KETL_HIR_MOD_I64);
+#define REGISTER_PRIMITIVE_BINARY_OPERATORS(_argType, _hir_first_typed_op)\
+do {\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 0,  _argType, _argType, _hir_first_typed_op + 0);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 1,  _argType, _argType, _hir_first_typed_op + 1);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 2,  _argType, _argType, _hir_first_typed_op + 2);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 3,  _argType, _argType, _hir_first_typed_op + 3);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 4,  _argType, _argType, _hir_first_typed_op + 4);\
+\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 5,  _argType, tBool, _hir_first_typed_op + 5);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 6,  _argType, tBool, _hir_first_typed_op + 6);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 7,  _argType, tBool, _hir_first_typed_op + 7);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 8,  _argType, tBool, _hir_first_typed_op + 8);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 9,  _argType, tBool, _hir_first_typed_op + 9);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_FIRST_UNDEF_OPERATOR + 10, _argType, tBool, _hir_first_typed_op + 10);\
+} while (false)
 
-    REGISTER_BINARY_OPERATOR(KETL_HIR_EQUAL_UNDEF,              tInt64, tBool, KETL_HIR_EQUAL_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_NOT_EQUAL_UNDEF,          tInt64, tBool, KETL_HIR_NOT_EQUAL_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_UNDEF,               tInt64, tBool, KETL_HIR_LESS_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_OR_EQUAL_UNDEF,      tInt64, tBool, KETL_HIR_LESS_OR_EQUAL_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_UNDEF,            tInt64, tBool, KETL_HIR_GREATER_I64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL_UNDEF,   tInt64, tBool, KETL_HIR_GREATER_OR_EQUAL_I64);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt8,  KETL_HIR_FIRST_I8_OPERATOR);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt16, KETL_HIR_FIRST_I16_OPERATOR);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt32, KETL_HIR_FIRST_I32_OPERATOR);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(tInt64, KETL_HIR_FIRST_I64_OPERATOR);
 
     return pState;
 }
@@ -217,6 +228,18 @@ ketl_type* ketl_state_get_none_type(ketl_state* pState) {
     return ketl_state_get_type(pState, "none", 4);
 }
 
+ketl_type* ketl_state_get_i8(ketl_state* pState) {
+    return ketl_state_get_type(pState, "i8", 2);
+}
+
+ketl_type* ketl_state_get_i16(ketl_state* pState) {
+    return ketl_state_get_type(pState, "i16", 3);
+}
+
+ketl_type* ketl_state_get_i32(ketl_state* pState) {
+    return ketl_state_get_type(pState, "i32", 3);
+}
+
 ketl_type* ketl_state_get_i64(ketl_state* pState) {
     return ketl_state_get_type(pState, "i64", 3);
 }
@@ -236,11 +259,11 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* pState, const ketl_function
     return (ketl_type*)get_function_type_composite(pState, pParameters)->pCFuncType;
 }
 
-void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t length, ketl_type* pType, void* pFunc) {
+void ketl_state_define_function(ketl_state* pState, const char* pName, uint32_t length, ketl_type* p_type, void* pFunc) {
     ketl_atomic_string sName = ketl_atomic_strings_get(&pState->atomicStrings, pName, length);
     ketl_variable namespaceVariable = {
         .type = KETL_VARIABLE_POINTER,
-        .pType = pType,
+        .p_type = p_type,
         .pointer = pFunc,
     };
     ketl_namespace_put(&pState->globalNamespace, sName, namespaceVariable);
@@ -275,6 +298,16 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
         uint32_t length = ketl_hir_format(&hir, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
         printf("%.*s", length, arr_buffer);
     }
+    
+#if ANN_IS_DEBUG
+    for (uint32_t i = 0u; i < hir.vars_count; ++i) {
+        if (hir.p_vars[i].type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            // TODO error debug only
+            // cause in release we want it to finish building and show all of the errors
+            ANN_ASSERT(false);
+        } 
+    }
+#endif
 
     printf("-------------------------------\n");
 
@@ -315,7 +348,7 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
 
     ketl_executable_memory_deinit(&ex_memory);
 
-    string_builder_t_deinit(&pState->error_stream);
+    pState->error_stream.size = 0;
 
     return ketl_value_from_variable(output_variable, pState->p_allocator);
 }

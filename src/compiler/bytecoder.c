@@ -20,7 +20,7 @@ KETL_HASH_MAP_DECLARATION(instr_to_bytecode_offsets, ketl_hir_instr_offset_t, ui
 KETL_HASH_MAP_DEFINITION(instr_to_bytecode_offsets, ketl_hir_instr_offset_t, uint32_t, ANN_HASH, ANN_EQUAL)
 
 ANN_DEFINE(arg_info) {
-    ketl_type* pType;
+    ketl_type* p_type;
     ketl_bytecode_stack_offset stackOffset;
 };
 
@@ -61,13 +61,85 @@ static arg_info hir_get_arg_stack_offset(bytecoder_context* pContext, ketl_hir_v
     ANN_ASSERT(false);
         
     return (arg_info){
-        .pType = NULL,
+        .p_type = NULL,
         .stackOffset = 0
     };
 }
 
 static ketl_bytecode_instr get_binary_bytecode(ketl_hir_tag_t hir_tag) {
     ANN_SWITCH_STRICT (hir_tag) {
+        case KETL_HIR_PLUS_I8:
+            return KETL_BYTECODE_8IADD;
+        case KETL_HIR_MINUS_I8:
+            return KETL_BYTECODE_8ISUB;
+        case KETL_HIR_MULTY_I8:
+            return KETL_BYTECODE_8IMULTIPLY;
+        case KETL_HIR_DIV_I8:
+            return KETL_BYTECODE_8IDIVIDE;
+        case KETL_HIR_MOD_I8:
+            return KETL_BYTECODE_8IMODULO;
+
+        case KETL_HIR_EQUAL_I8:
+            return KETL_BYTECODE_8IEQUAL;
+        case KETL_HIR_NOT_EQUAL_I8:
+            return KETL_BYTECODE_8INOT_EQUAL;
+        case KETL_HIR_LESS_I8:
+            return KETL_BYTECODE_8ILESS;
+        case KETL_HIR_LESS_OR_EQUAL_I8:
+            return KETL_BYTECODE_8ILESS_OR_EQUAL;
+        case KETL_HIR_GREATER_I8:
+            return KETL_BYTECODE_8IGREATER;
+        case KETL_HIR_GREATER_OR_EQUAL_I8:
+            return KETL_BYTECODE_8IGREATER_OR_EQUAL;
+            
+        case KETL_HIR_PLUS_I16:
+            return KETL_BYTECODE_16IADD;
+        case KETL_HIR_MINUS_I16:
+            return KETL_BYTECODE_16ISUB;
+        case KETL_HIR_MULTY_I16:
+            return KETL_BYTECODE_16IMULTIPLY;
+        case KETL_HIR_DIV_I16:
+            return KETL_BYTECODE_16IDIVIDE;
+        case KETL_HIR_MOD_I16:
+            return KETL_BYTECODE_16IMODULO;
+
+        case KETL_HIR_EQUAL_I16:
+            return KETL_BYTECODE_16IEQUAL;
+        case KETL_HIR_NOT_EQUAL_I16:
+            return KETL_BYTECODE_16INOT_EQUAL;
+        case KETL_HIR_LESS_I16:
+            return KETL_BYTECODE_16ILESS;
+        case KETL_HIR_LESS_OR_EQUAL_I16:
+            return KETL_BYTECODE_16ILESS_OR_EQUAL;
+        case KETL_HIR_GREATER_I16:
+            return KETL_BYTECODE_16IGREATER;
+        case KETL_HIR_GREATER_OR_EQUAL_I16:
+            return KETL_BYTECODE_16IGREATER_OR_EQUAL;
+        
+        case KETL_HIR_PLUS_I32:
+            return KETL_BYTECODE_32IADD;
+        case KETL_HIR_MINUS_I32:
+            return KETL_BYTECODE_32ISUB;
+        case KETL_HIR_MULTY_I32:
+            return KETL_BYTECODE_32IMULTIPLY;
+        case KETL_HIR_DIV_I32:
+            return KETL_BYTECODE_32IDIVIDE;
+        case KETL_HIR_MOD_I32:
+            return KETL_BYTECODE_32IMODULO;
+
+        case KETL_HIR_EQUAL_I32:
+            return KETL_BYTECODE_32IEQUAL;
+        case KETL_HIR_NOT_EQUAL_I32:
+            return KETL_BYTECODE_32INOT_EQUAL;
+        case KETL_HIR_LESS_I32:
+            return KETL_BYTECODE_32ILESS;
+        case KETL_HIR_LESS_OR_EQUAL_I32:
+            return KETL_BYTECODE_32ILESS_OR_EQUAL;
+        case KETL_HIR_GREATER_I32:
+            return KETL_BYTECODE_32IGREATER;
+        case KETL_HIR_GREATER_OR_EQUAL_I32:
+            return KETL_BYTECODE_32IGREATER_OR_EQUAL;
+
         case KETL_HIR_PLUS_I64:
             return KETL_BYTECODE_64IADD;
         case KETL_HIR_MINUS_I64:
@@ -134,7 +206,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
             ketl_type* p_type = context.p_hir->p_used_types[var.type];
 
             arg_info argInfo = {
-                .pType = p_type,
+                .p_type = p_type,
                 .stackOffset = stackReservedSize
             };
             variables_get_or_insert_copy(&context.mVariables, var_id, argInfo);
@@ -154,7 +226,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
             ketl_variable* p_value = p_hir->p_vars_infos[var.info].p_global;
 
             arg_info argInfo = {
-                .pType = p_value->pType,
+                .p_type = p_value->p_type,
                 .stackOffset = stackReservedSize
             };
             variables_get_or_insert_copy(&context.mVariables, var_id, argInfo);
@@ -171,7 +243,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
 
         // temprorary variable
         arg_info argInfo = {
-            .pType = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
+            .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
             .stackOffset = stackReservedSize
         };
 
@@ -198,6 +270,45 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
         p_instr += sizeof(ketl_hir_header_t);
 
         ANN_SWITCH_STRICT (header.tag) {
+            case KETL_HIR_PLUS_I8:
+            case KETL_HIR_MINUS_I8:
+            case KETL_HIR_MULTY_I8:
+            case KETL_HIR_DIV_I8:
+            case KETL_HIR_MOD_I8:
+
+            case KETL_HIR_EQUAL_I8:
+            case KETL_HIR_NOT_EQUAL_I8:
+            case KETL_HIR_LESS_I8:
+            case KETL_HIR_LESS_OR_EQUAL_I8:
+            case KETL_HIR_GREATER_I8:
+            case KETL_HIR_GREATER_OR_EQUAL_I8:
+            
+            case KETL_HIR_PLUS_I16:
+            case KETL_HIR_MINUS_I16:
+            case KETL_HIR_MULTY_I16:
+            case KETL_HIR_DIV_I16:
+            case KETL_HIR_MOD_I16:
+
+            case KETL_HIR_EQUAL_I16:
+            case KETL_HIR_NOT_EQUAL_I16:
+            case KETL_HIR_LESS_I16:
+            case KETL_HIR_LESS_OR_EQUAL_I16:
+            case KETL_HIR_GREATER_I16:
+            case KETL_HIR_GREATER_OR_EQUAL_I16:
+            
+            case KETL_HIR_PLUS_I32:
+            case KETL_HIR_MINUS_I32:
+            case KETL_HIR_MULTY_I32:
+            case KETL_HIR_DIV_I32:
+            case KETL_HIR_MOD_I32:
+
+            case KETL_HIR_EQUAL_I32:
+            case KETL_HIR_NOT_EQUAL_I32:
+            case KETL_HIR_LESS_I32:
+            case KETL_HIR_LESS_OR_EQUAL_I32:
+            case KETL_HIR_GREATER_I32:
+            case KETL_HIR_GREATER_OR_EQUAL_I32:
+
             case KETL_HIR_PLUS_I64:
             case KETL_HIR_MINUS_I64:
             case KETL_HIR_MULTY_I64:
@@ -232,7 +343,7 @@ ketl_bytecode ketl_bytecode_compile_from_hir(ketl_state* pState, ketl_hir_t* p_h
                 arg_info callee_arg = hir_get_arg_stack_offset(&context, p_hir_info->callee);
 
                 // TODO FIX allow other types to be called
-                ANN_ASSERT(callee_arg.pType->type == KETL_TYPE_CFUNCTION);
+                ANN_ASSERT(callee_arg.p_type->type == KETL_TYPE_CFUNCTION);
 
                 for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
                     arg_info arg = hir_get_arg_stack_offset(&context, p_hir_info->arguments[i]);

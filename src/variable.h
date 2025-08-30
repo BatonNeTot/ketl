@@ -55,7 +55,7 @@ ANN_DEFINE(ketl_variable) {
 		double float64;
 	};
 	ketl_variable_type type;
-	ketl_type* pType;
+	ketl_type* p_type;
 };
 
 void ketl_variable_set_type(ketl_variable* p_variable, ketl_type* p_type);

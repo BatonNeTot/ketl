@@ -5,7 +5,7 @@
 
 
 void ketl_variable_set_type(ketl_variable* p_variable, ketl_type* p_type) {
-    p_variable->pType = p_type;
+    p_variable->p_type = p_type;
     ANN_SWITCH_STRICT (p_type->type) {
         case KETL_TYPE_PRIMITIVE: {
             ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;

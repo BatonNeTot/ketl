@@ -19,15 +19,15 @@ void ketl_gc_deinit(ketl_gc* pGc) {
     objects_deinit(&pGc->vRootObjects);
 }
 
-void* ketl_gc_create(ketl_gc* pGc, ketl_type* pType, uint8_t flags) {
-    void* pObject = ketl_alloc(pGc->p_allocator, pType->size);
-    ketl_gc_reg(pGc, pObject, pType, flags | KETL_GC_FREE_AFTER_USE);
+void* ketl_gc_create(ketl_gc* pGc, ketl_type* p_type, uint8_t flags) {
+    void* pObject = ketl_alloc(pGc->p_allocator, p_type->size);
+    ketl_gc_reg(pGc, pObject, p_type, flags | KETL_GC_FREE_AFTER_USE);
     return pObject;
 }
 
-void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* pType, uint8_t flags) {
+void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* p_type, uint8_t flags) {
     ketl_gc_info info = {
-        .pType = pType,
+        .p_type = p_type,
         .flagUsage = pGc->flagUsage,
         .freeAfterUse = flags & KETL_GC_FREE_AFTER_USE,
     };
@@ -75,7 +75,7 @@ static void mark_objects(ketl_gc* pGc) {
         void* pRoot = find_object_start(pGc, pObject, &pInfo);
         if (pRoot && pInfo->flagUsage != flagUsage) {
             pInfo->flagUsage = flagUsage;
-            objects_push_back_copy(&pGc->vRootObjects, pInfo->pType);
+            objects_push_back_copy(&pGc->vRootObjects, pInfo->p_type);
             // TODO collect fields to vCollectBuffer
         }
     }

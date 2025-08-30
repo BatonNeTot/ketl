@@ -11,7 +11,7 @@
 #include "ketl/utils.h"
 
 ANN_DEFINE(ketl_gc_info) {
-    ketl_type* pType;
+    ketl_type* p_type;
     bool flagUsage;
     bool freeAfterUse;
 };
@@ -34,9 +34,9 @@ void ketl_gc_deinit(ketl_gc* pGc);
 #define KETL_GC_ROOT            0x01
 #define KETL_GC_FREE_AFTER_USE  0x02
 
-void* ketl_gc_create(ketl_gc* pGc, ketl_type* pType, uint8_t flags);
+void* ketl_gc_create(ketl_gc* pGc, ketl_type* p_type, uint8_t flags);
 
-void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* pType, uint8_t flags);
+void ketl_gc_reg(ketl_gc* pGc, void* pObject, ketl_type* p_type, uint8_t flags);
 
 void ketl_gc_collect(ketl_gc* pGc);
 
