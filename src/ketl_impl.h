@@ -1,6 +1,5 @@
 #include "ketl/ketl.h"
 
-#include "bytecode.h"
 #include "compiler/hir.h"
 
 #include "type_impl.h"
@@ -23,7 +22,7 @@ KETL_HASH_MAP_DECLARATION(function_types_map, ketl_function_parameters, function
 KETL_VECTOR_DECLARATION(types, ketl_type*)
 KETL_VECTOR_DECLARATION(string_builder_t, char)
 
-KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr)
+KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t)
 
 ANN_DEFINE(ketl_state) {
     const ketl_allocator* p_allocator;

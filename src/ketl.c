@@ -3,8 +3,8 @@
 
 #include "compiler/lexer.h"
 #include "compiler/parser.h"
-#include "compiler/bytecoder.h"
 #include "compiler/assembler.h"
+#include "compiler/assembler_builder.h"
 
 #include "executable_memory.h"
 #include "value_impl.h"
@@ -72,7 +72,7 @@ KETL_HASH_MAP_DEFINITION(function_types_map, ketl_function_parameters, function_
 KETL_VECTOR_DEFINITION(types, ketl_type*)
 KETL_VECTOR_DEFINITION(string_builder_t, char)
 
-KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_bytecode_instr, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
+KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
 static const function_type_composite* get_function_type_composite(ketl_state* pState, const ketl_function_parameters* pParameters) {
     uint16_t parametersCount = pParameters->parametersCount;
@@ -200,7 +200,7 @@ void ketl_state_destroy(ketl_state* pState) {
     }
 
     KETL_HASH_MAP_FOREACH(function_types_map, &pState->mFunctionTypes,
-        ketl_free(pState->p_allocator, __pBucket->value.pSignature);    
+        ketl_free(pState->p_allocator, __p_bucket->value.pSignature);    
     );
     function_types_map_deinit(&pState->mFunctionTypes);
 
@@ -300,7 +300,7 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
         printf("%.*s", length, arr_buffer);
     }
     
-#if ANN_IS_DEBUG
+#if ANN_BUILD_DEBUG
     for (uint32_t i = 0u; i < hir.vars_count; ++i) {
         if (hir.p_vars[i].type == KETL_HIR_USED_TYPE_UNKNOWN) {
             // TODO error debug only
@@ -312,27 +312,30 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
 
     printf("-------------------------------\n");
 
-    ketl_bytecode bytecode = ketl_bytecode_compile_from_hir(pState, &hir, pState->p_allocator);
-    ketl_hir_deinit(&hir);
+    ketl_asm_x86_builder_t asm_builder;
+    ketl_asm_x86_builder_init(&asm_builder, pState->p_allocator);
+    
+    ketl_asm_x86_t asm_x86;
+    ketl_asm_x86_build(&hir, &asm_builder, &asm_x86);
 
-    for (uint32_t i = 0u; i < bytecode.instructionsCount; 
-            i += ketl_bytecode_decode_instruction_length(bytecode.pInstructions[i])) {
-        char arr_buffer[256];
-        uint32_t length = ketl_bytecode_format(bytecode.pInstructions + i, bytecode.pLabels, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
-        printf("%d: %.*s\n", i, length, arr_buffer);
+    {
+        char arr_buffer[2048];
+        uint32_t length = ketl_asm_x86_format(&asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
+        printf("%.*s", length, arr_buffer);
     }
+    ketl_asm_x86_builder_deinit(&asm_builder);
 
     printf("-------------------------------\n");
 
     uint32_t opcodesSize = 0u;
-    uint8_t* pOpcodes = ketl_assembler_compile(bytecode, &opcodesSize, pState->p_allocator);
-    ketl_free(pState->p_allocator, bytecode.pInstructions);
-
+    uint8_t* pOpcodes = ketl_asm_x86_compile(&asm_x86, &opcodesSize, pState->p_allocator);
+    ketl_asm_x86_deinit(&asm_x86);
     {
         char arr_buffer[2048];
-        uint32_t length = ketl_assembler_format(pOpcodes, opcodesSize, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
+        uint32_t length = ketl_asm_x86_format_opcodes(pOpcodes, opcodesSize, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
         printf("%.*s\n", length, arr_buffer);
     }
+
 
     ketl_executable_memory ex_memory;
     ketl_executable_memory_init(&ex_memory, pState->p_allocator);
@@ -340,10 +343,14 @@ ketl_value* ketl_state_eval(ketl_state* pState, const char* p_filename, const ch
     uint8_t* executableOpcodes = ketl_executable_memory_allocate(&ex_memory, pOpcodes, opcodesSize);
     ketl_free(pState->p_allocator, pOpcodes);
 
+#if ANN_COMPILER_GCC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#endif
     uint64_t(*func)(void) = (uint64_t(*)(void))executableOpcodes;
+#if ANN_COMPILER_GCC
 #pragma GCC diagnostic pop
+#endif
 
     output_variable.uint64 = func();
 

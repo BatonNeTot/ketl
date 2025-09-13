@@ -6,7 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_TARGET "ketljit")
 
-#set(PROJECT_SANITIZE_OPTION -fsanitize=address)
+set(PROJECT_SANITIZE_OPTION -fsanitize=address)
 
 ###############################
 

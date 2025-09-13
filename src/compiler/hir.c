@@ -27,6 +27,7 @@ bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag) {
         case KETL_HIR_RETURN:
             return true;
     }
+
     return false;
 }
 
@@ -407,10 +408,11 @@ uint32_t ketl_hir_format(ketl_hir_t* p_hir, char* p_buffer, uint32_t buffer_size
             if (i != p_hir->p_block_offsets[block]) {
                 printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "%*s", tab_size, "");
             }
+
             printed_count += ketl_hir_format_instr(p_hir, i, p_buffer + printed_count, buffer_size - printed_count);
             printed_count += snprintf(p_buffer + printed_count, buffer_size - printed_count, "\n");
 
-            if (ketl_hir_is_terminator_tag(p_hir->p_instrs[i])) {
+            if (ketl_hir_is_terminator_tag((*(ketl_hir_header_t*)&p_hir->p_instrs[i]).tag)) {
                 break;
             }
         }

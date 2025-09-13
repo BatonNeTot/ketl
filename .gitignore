@@ -3,11 +3,8 @@
 /lib
 /out
 
-/src/generated
-
 /.cache
 /.vscode
 /*.bak
-/*/__pycache__/*
 /CMakePresets.json
 /*.code-workspace

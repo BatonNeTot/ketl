@@ -2,16 +2,25 @@
 #ifndef ketl_compiler_assembler_h
 #define ketl_compiler_assembler_h
 
-#include "bytecode.h"
-
 #include "ketl/memory.h"
 #include "ketl/utils.h"
 
-#include <stdio.h>
 
+typedef uint32_t ketl_asm_x86_offset_t;
 
-uint8_t* ketl_assembler_compile(ketl_bytecode bytecode, uint32_t* pOpcodesSize, const ketl_allocator* p_allocator);
+ANN_FORWARD(ketl_asm_x86_instr_t);
 
-uint32_t ketl_assembler_format(uint8_t* pOpcodes, uint32_t opcodesSize, char* buffer, uint32_t bufferSize);
+ANN_DEFINE(ketl_asm_x86_t) {
+    const ketl_allocator* p_allocator;
+    
+    ketl_asm_x86_instr_t* p_instrs;
+    ketl_asm_x86_offset_t size;
+};
+
+void ketl_asm_x86_deinit(ketl_asm_x86_t* p_asm_x86);
+
+uint32_t ketl_asm_x86_format(ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t buffer_size);
+
+uint32_t ketl_asm_x86_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size);
 
 #endif // ketl_compiler_assembler_h

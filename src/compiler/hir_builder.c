@@ -61,19 +61,20 @@ void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_build
     p_hir->p_symbols = p_hir_builder->symbols.vStorage.p_data;
     ketl_atomic_strings_map_deinit(&p_hir_builder->symbols.mStrMap);
 
-    (void)p_state;
-    // ANN_ASSERT(p_hir_builder->v_return_offsets.size > 0);
-    // uint8_t* p_return = p_hir->p_instrs + p_hir_builder->v_return_offsets.p_data[0];
-    // if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
-    //     ketl_type* p_none_type = ketl_state_get_none_type(p_state);
-    //     p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
-    // } else if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN_VALUE) {
-    //     ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
-    //     ketl_hir_var_t* p_return_var = &p_hir->p_vars[p_return_info->value_var];
-    //     p_hir->return_type = p_return_var->type;
-    // } else {
-    //     ANN_ASSERT(false);
-    // }
+    p_hir->has_calls = p_hir_builder->has_calls;
+
+    ANN_ASSERT(p_hir_builder->v_return_offsets.size > 0);
+    uint8_t* p_return = p_hir->p_instrs + p_hir_builder->v_return_offsets.p_data[0];
+    if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
+        ketl_type* p_none_type = ketl_state_get_none_type(p_state);
+        p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
+    } else if ((((ketl_hir_header_t*)p_return)->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
+        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
+        ketl_hir_var_t* p_return_var = &p_hir->p_vars[p_return_info->value_var];
+        p_hir->return_type = p_return_var->type;
+    } else {
+        ANN_ASSERT(false);
+    }
 
     hir_builder_offset_to_block_t_deinit(&p_hir_builder->m_offset_to_block);
     hir_builder_blocks_infos_t_deinit(&p_hir_builder->v_blocks_infos);
@@ -85,8 +86,10 @@ void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_build
 }
 
 static void on_instr_inserted(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header) {
-    if (hir_header.tag == KETL_HIR_RETURN || hir_header.tag == KETL_HIR_RETURN_VALUE) {
+    if (hir_header.tag == KETL_HIR_RETURN || (hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
         hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->v_return_offsets, p_hir_builder->v_instrs.size);
+    } else if (hir_header.tag == KETL_HIR_CALL || hir_header.tag == KETL_HIR_CALL_VOID) {
+        p_hir_builder->has_calls = true;
     }
 }
 

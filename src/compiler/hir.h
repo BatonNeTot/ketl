@@ -182,6 +182,7 @@ ANN_DEFINE(ketl_hir_t) {
     ketl_hir_used_type_index_t used_types_count;
 
     ketl_hir_used_type_index_t return_type;
+    bool has_calls;
 };
 
 void ketl_hir_deinit(ketl_hir_t* p_hir);
