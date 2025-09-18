@@ -4,18 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void* ketl_default_alloc(size_t size, void* userInfo) {
-	(void)userInfo;
+static void* ketl_default_alloc(size_t size, void* user_info) {
+	(void)user_info;
 	return malloc(size);
 }
 
-static void* ketl_default_realloc(void* ptr, size_t size, void* userInfo) {
-	(void)userInfo;
+static void* ketl_default_realloc(void* ptr, size_t size, void* user_info) {
+	(void)user_info;
 	return realloc(ptr, size);
 }
 
-static void ketl_default_free(void* ptr, void* userInfo) {
-	(void)userInfo;
+static void ketl_default_free(void* ptr, void* user_info) {
+	(void)user_info;
 	free(ptr);
 }
 
@@ -28,15 +28,15 @@ const ketl_allocator ketl_default_allocator = {
 
 
 void* ketl_alloc(const ketl_allocator* allocator, size_t size) {
-	return allocator->alloc(size, allocator->userInfo);
+	return allocator->alloc(size, allocator->user_info);
 }
 
 void* ketl_realloc(const ketl_allocator* allocator, void* ptr, size_t size) {
-	return allocator->realloc(ptr, size, allocator->userInfo);
+	return allocator->realloc(ptr, size, allocator->user_info);
 }
 
 void ketl_free(const ketl_allocator* allocator, void* ptr) {
-	allocator->free(ptr, allocator->userInfo);
+	allocator->free(ptr, allocator->user_info);
 }
 
 void ketl_memset(void* dest, unsigned char val, size_t size) {

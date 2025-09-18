@@ -133,12 +133,16 @@ static ketl_hir_symbol_offset_t push_symbol(ketl_parser_context* p_context, ketl
     return push_symbol_string(p_context, TOKEN_STRING(literal), TOKEN_LENGTH(literal));
 }
 
+static ketl_hir_var_id_t push_literal_number_symbol_of_type(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal, ketl_hir_used_type_index_t type) {
+    ketl_hir_var_id_t literal_var = ketl_hir_builder_get_literal(&p_context->hir_builder, literal, type);
+    return literal_var;
+}
+
 static ketl_hir_var_id_t push_literal_number_symbol(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal) {
     // TODO determine correct type
     ketl_type* p_type = ketl_state_get_i64(p_context->p_state);
     ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
-    ketl_hir_var_id_t literal_var = ketl_hir_builder_get_literal(&p_context->hir_builder, literal, type);
-    return literal_var;
+    return push_literal_number_symbol_of_type(p_context, literal, type);
 }
 
 static ketl_hir_var_id_t push_literal_number(ketl_parser_context* p_context, ketl_token_t literal) {
@@ -295,6 +299,31 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_pars
     };
 
     ketl_hir_builder_insert_call(p_context->p_state, &p_context->hir_builder, header, &instr,
+        // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
+        p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
+    return output_var;
+}
+
+static ketl_hir_var_id_t push_hir_create(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_used_type_index_t type, uint16_t arguments_count) {
+    (void)p_pos_info;
+    ketl_hir_header_t header = {
+        .tag = KETL_HIR_CREATE,
+        .file_symbol = p_context->a_filename,
+        /*
+        .start_line_index = p_pos_info->start_pos_line,
+        .end_line_index = p_pos_info->end_pos_line,
+        .start_col_index = p_pos_info->start_pos_col,
+        .end_col_index = p_pos_info->end_pos_col,
+        */
+    };
+    ketl_hir_var_id_t output_var = push_temp_var(p_context); 
+    ketl_hir_create_t instr = {
+        .output_var = output_var,
+        .type = type,
+        .arguments_count = arguments_count,
+    };
+
+    ketl_hir_builder_insert_create(p_context->p_state, &p_context->hir_builder, header, &instr,
         // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
         p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
     return output_var;
@@ -476,7 +505,13 @@ static uint16_t parse_argument_list(ketl_parser_context* p_context) {
 
 static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee) {
     uint16_t argument_count = parse_argument_list(p_context);
-    return push_hir_call(p_context, NULL, callee, argument_count);
+    ketl_hir_var_t* p_callee = &p_context->hir_builder.v_vars.p_data[callee];
+    if (p_callee->type == KETL_HIR_USED_TYPE_META) {
+        return push_hir_create(p_context, NULL, 
+            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_context->hir_builder.v_vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
+    } else {
+        return push_hir_call(p_context, NULL, callee, argument_count);
+    }
 }
 
 static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
@@ -861,7 +896,12 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
             initial_value = push_temp_var(p_context);
         } else {
             // TODO do default contructor or smth
-            initial_value = push_literal_number_symbol(p_context, push_symbol_string(p_context, "0", 1));
+            ketl_type* p_type = p_context->hir_builder.v_used_types.p_data[type];
+            if (p_type->type == KETL_TYPE_PRIMITIVE) {
+                initial_value = push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, "0", 1), type);
+            } else {
+                initial_value = push_literal_number_symbol_of_type(p_context, KETL_HIR_LITERAL_NULL, type);
+            }
             
             type = p_context->hir_builder.v_vars.p_data[initial_value].type;
         }

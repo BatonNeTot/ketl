@@ -3,11 +3,11 @@
 
 double ketl_str_to_f64(const char* str, size_t length) {
 	// TODO
-	uint64_t wholePart = 0;
+	uint64_t whole_part = 0;
 
 	size_t i = 0u;
 	for (; i < length && str[i] >= '0' && str[i] <= '9'; ++i) {
-		wholePart = wholePart * 10 + str[i] - '0';
+		whole_part = whole_part * 10 + str[i] - '0';
 	}
 
 	return 0.0;

@@ -118,7 +118,9 @@ ANN_DEFINE(ketl_asm_x86_builder_t) {
 void ketl_asm_x86_builder_init(ketl_asm_x86_builder_t* p_builder, const ketl_allocator* p_allocator);
 void ketl_asm_x86_builder_deinit(ketl_asm_x86_builder_t* p_builder);
 
-void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86);
+ANN_FORWARD(ketl_state);
+
+void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86);
 uint8_t* ketl_asm_x86_compile(ketl_asm_x86_t* p_asm_x86, uint32_t* p_opcodes_size, const ketl_allocator* p_allocator);
 
 #endif

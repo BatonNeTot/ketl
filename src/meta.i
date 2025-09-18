@@ -1,0 +1,19 @@
+//🫖ketl
+#ifdef KETL_POINTER_CONVERTER
+
+#if ANN_COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
+KETL_POINTER_CONVERTER_VAR = (KETL_POINTER_CONVERTER_TYPE)KETL_POINTER_CONVERTER_ARG;
+
+#if ANN_COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
+
+#undef KETL_POINTER_CONVERTER_ARG
+#undef KETL_POINTER_CONVERTER_VAR
+#undef KETL_POINTER_CONVERTER_TYPE
+#undef KETL_POINTER_CONVERTER
+#endif

@@ -24,11 +24,8 @@ int main(int argc, char** argv) {
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
     const char* p_source = ""
-        "var value : i64 = 5;\n"
-        "if (value == 4) {\n"
-        "   return 2;\n"
-        "}\n"
-        "return value;\n"
+        "var test = TEST();\n"
+        "return;\n"
     ;
 
     auto result = ketl.eval(__FILE__ "$<eval>", p_source);

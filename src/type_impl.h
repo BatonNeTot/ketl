@@ -4,12 +4,15 @@
 
 #include "ketl/type.h"
 
+#include "variable.h"
+
 #include "atomic_strings.h"
 
 enum {
     KETL_TYPE_PRIMITIVE,
     KETL_TYPE_FUNCTION,
     KETL_TYPE_CFUNCTION,
+    KETL_TYPE_CLASS,
 };
 
 #define KETL_TYPE_BODY \
@@ -23,21 +26,44 @@ ANN_DEFINE(ketl_type) {
 
 ANN_DEFINE(ketl_type_primitive) {
     KETL_TYPE_BODY;
-    ketl_atomic_string sName;
-    bool isInteger;
-    bool isSigned;
+    ketl_atomic_string s_name;
+    bool is_integer;
+    bool is_signed;
 };
 
 ANN_DEFINE(ketl_type_signature) {
-    uint16_t parametersCount;
-	//ketl_type* pReturnType; return type is first parameter for now
-    ketl_type_parameter aParameters[]; // size of 'parametersCount'
+    uint16_t parameters_count;
+	//ketl_type* p_return_type; return type is first parameter for now
+    ketl_type_parameter a_parameters[]; // size of 'parameters_count'
 };
 
 ANN_DEFINE(ketl_type_function) {
     KETL_TYPE_BODY;
-    ketl_type_signature* pTypeSignature;
+    ketl_type_signature* p_type_signature;
 };
+
+ANN_DEFINE(ketl_class_field) {
+    ketl_type_parameter p_type;
+    ketl_atomic_string s_name;
+};
+
+ANN_DEFINE(ketl_type_class) {
+    KETL_TYPE_BODY;
+    ketl_atomic_string s_name;
+    uint16_t fields_count;
+    uint16_t methods_count;
+    ketl_class_field* p_fields;
+    ketl_variable* p_methods;
+};
+
+ANN_DEFINE(ketl_type_size_pair_t) {
+    uint8_t align;
+    uint16_t size;
+};
+
+uint16_t ketl_type_get_stack_size(ketl_type* p_type);
+
+ketl_type_size_pair_t ketl_type_calc_class_size(ketl_class_field* p_fields, uint16_t fields_count);
 
 
 #endif // ketl_type_impl_h

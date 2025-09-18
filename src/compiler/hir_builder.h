@@ -72,4 +72,6 @@ void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* 
 
 void ketl_hir_builder_insert_call(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_call_t* p_call, ketl_hir_var_id_t* p_arguments);
 
+void ketl_hir_builder_insert_create(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments);
+
 #endif

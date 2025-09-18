@@ -10,7 +10,7 @@ static const uint32_t m2 = 1000000009;
 
 #define MAX_STRING_LENGTH 100
 
-static const uint64_t powP1[MAX_STRING_LENGTH] = {
+static const uint64_t pow_p1[MAX_STRING_LENGTH] = {
 	1ULL, 31ULL, 961ULL, 29791ULL, 923521ULL, 28629151ULL, 
 	887503681ULL, 512613922ULL, 891031477ULL, 621975598ULL, 
 	281243405ULL, 718545499ULL, 274910315ULL, 522219709ULL, 
@@ -37,7 +37,7 @@ static const uint64_t powP1[MAX_STRING_LENGTH] = {
 	451875419ULL, 8137891ULL, 252274621ULL, 820513202ULL, 
 	435909087ULL, 513181606ULL
 };
-static const uint64_t powP2[MAX_STRING_LENGTH] = {
+static const uint64_t pow_p2[MAX_STRING_LENGTH] = {
 	1ULL, 37ULL, 1369ULL, 50653ULL, 1874161ULL, 69343957ULL, 
 	565726391ULL, 931876287ULL, 479422313ULL, 738625428ULL, 
 	329140593ULL, 178201833ULL, 593467767ULL, 958307190ULL, 
@@ -65,78 +65,78 @@ static const uint64_t powP2[MAX_STRING_LENGTH] = {
 	351315841ULL, 998686009ULL
 };
 
-uint64_t ketl_str_hash(const char* pStr) {
-	if (pStr == NULL) {
+uint64_t ketl_str_hash(const char* p_str) {
+	if (p_str == NULL) {
 		return 0;
 	}
 
-	uint32_t firstPart = 0;
-	uint32_t secondPart = 0;
+	uint32_t first_part = 0;
+	uint32_t second_part = 0;
 
 	uint64_t counter = 0;
 
 	ANN_FOREVER {
-		char symbol = pStr[counter];
+		char symbol = p_str[counter];
 		if (symbol == '\0') {
-			return (((uint64_t)firstPart) << 32) + secondPart;
+			return (((uint64_t)first_part) << 32) + second_part;
 		}
 
 		if (counter >= MAX_STRING_LENGTH) {
 			return 0;
 		}
 
-		firstPart = (firstPart + (symbol - ' ') * powP1[counter]) % m1;
-		secondPart = (secondPart + (symbol - ' ') * powP2[counter]) % m2;
+		first_part = (first_part + (symbol - ' ') * pow_p1[counter]) % m1;
+		second_part = (second_part + (symbol - ' ') * pow_p2[counter]) % m2;
 
 		++counter;
 	}
 }
 
-uint64_t ketl_str_hash_n(const char* pStr, uint32_t length) {
-	if (pStr == NULL) {
+uint64_t ketl_str_hash_n(const char* p_str, uint32_t length) {
+	if (p_str == NULL) {
 		return 0;
 	}
 	if (length != KETL_NULL_TERMINATED_LENGTH_32 && length > MAX_STRING_LENGTH) {
 		return 0;
 	}
 
-	uint32_t firstPart = 0;
-	uint32_t secondPart = 0;
+	uint32_t first_part = 0;
+	uint32_t second_part = 0;
 
 	uint64_t counter = 0;
 
 	ANN_FOREVER {
-		char symbol = pStr[counter];
+		char symbol = p_str[counter];
 		if (symbol == '\0' || counter >= length) {
-			return (((uint64_t)firstPart) << 32) + secondPart;
+			return (((uint64_t)first_part) << 32) + second_part;
 		}
 
 		if (counter >= MAX_STRING_LENGTH) {
 			return 0;
 		}
 
-		firstPart = (firstPart + (symbol - ' ') * powP1[counter]) % m1;
-		secondPart = (secondPart + (symbol - ' ') * powP2[counter]) % m2;
+		first_part = (first_part + (symbol - ' ') * pow_p1[counter]) % m1;
+		second_part = (second_part + (symbol - ' ') * pow_p2[counter]) % m2;
 
 		++counter;
 	}
 }
 
-bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsStr) {
-	if (pLhsStr == NULL || pRhsStr == NULL) {
+bool ketl_str_is_equal(const char* restrict p_lhs_str, const char* restrict p_rhs_str) {
+	if (p_lhs_str == NULL || p_rhs_str == NULL) {
 		return false;
 	}
 
 	uint64_t counter = 0;
 	ANN_FOREVER {
-		char lhs = pLhsStr[counter];
-		char rhs = pRhsStr[counter];
+		char lhs = p_lhs_str[counter];
+		char rhs = p_rhs_str[counter];
 
-		bool endLhs = lhs == '\0';
-		bool endRhs = rhs == '\0';
+		bool end_lhs = lhs == '\0';
+		bool end_rhs = rhs == '\0';
 
-		if (endLhs || endRhs) {
-			return endLhs == endRhs;
+		if (end_lhs || end_rhs) {
+			return end_lhs == end_rhs;
 		}
 
 		if (lhs != rhs) {
@@ -148,21 +148,21 @@ bool ketl_str_is_equal(const char* restrict pLhsStr, const char* restrict pRhsSt
 }
 
 bool 
-ketl_str_is_equal_n(const char* restrict pLhsStr, const char* restrict pRhsStr, uint32_t length) {
-	if (pLhsStr == NULL || pRhsStr == NULL) {
+ketl_str_is_equal_n(const char* restrict p_lhs_str, const char* restrict p_rhs_str, uint32_t length) {
+	if (p_lhs_str == NULL || p_rhs_str == NULL) {
 		return false;
 	}
 
 	uint64_t counter = 0;
 	ANN_FOREVER {
-		char lhs = pLhsStr[counter];
-		char rhs = pRhsStr[counter];
+		char lhs = p_lhs_str[counter];
+		char rhs = p_rhs_str[counter];
 
-		bool endLhs = lhs == '\0';
-		bool endRhs = rhs == '\0' || length <= counter;
+		bool end_lhs = lhs == '\0';
+		bool end_rhs = rhs == '\0' || length <= counter;
 
-		if (endLhs || endRhs) {
-			return endLhs == endRhs;
+		if (end_lhs || end_rhs) {
+			return end_lhs == end_rhs;
 		}
 
 		if (lhs != rhs) {

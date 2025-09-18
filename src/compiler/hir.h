@@ -38,6 +38,8 @@ enum {
     KETL_HIR_CALL_VOID,
     KETL_HIR_CALL,
 
+    KETL_HIR_CREATE,
+
     KETL_HIR_JUMP,
 
     KETL_HIR_JUMP_IF_TRUE,
@@ -50,31 +52,61 @@ enum {
 #define KETL_HIR_TYPE_INSTR_MASK        0xFFF0
 #define KETL_HIR_TYPE_INSTR_SHIFT       4
 
-    KETL_HIR_PLUS                     = 0x0010,
-    KETL_HIR_MINUS                    = 0x0020,
-    KETL_HIR_MULTY                    = 0x0030,
-    KETL_HIR_DIV                      = 0x0040,
-    KETL_HIR_MOD                      = 0x0050,
+    // pre-shifted instructions
 
-    KETL_HIR_EQUAL                    = 0x0060,
-    KETL_HIR_NOT_EQUAL                = 0x0070,
-    KETL_HIR_LESS                     = 0x0080,
-    KETL_HIR_LESS_OR_EQUAL            = 0x0090,
-    KETL_HIR_GREATER                  = 0x00A0,
-    KETL_HIR_GREATER_OR_EQUAL         = 0x00B0,
+    __KETL_HIR_PLUS                     = 1,
+    __KETL_HIR_MINUS,
+    __KETL_HIR_MULTY,
+    __KETL_HIR_DIV,
+    __KETL_HIR_MOD,
 
-    KETL_HIR_ASSIGN                   = 0x00C0,
-    
-    KETL_HIR_JUMP_IF_EQUAL            = 0x00D0,
-    KETL_HIR_JUMP_IF_NOT_EQAUL        = 0x00E0,
-    
-    KETL_HIR_JUMP_IF_LESS             = 0x00F0,
-    KETL_HIR_JUMP_IF_LESS_OR_EQAUL    = 0x0100,
-    
-    KETL_HIR_JUMP_IF_GREATER          = 0x0110,
-    KETL_HIR_JUMP_IF_GREATER_OR_EQAUL = 0x0120,
+    __KETL_HIR_EQUAL,
+    __KETL_HIR_NOT_EQUAL,
+    __KETL_HIR_LESS,
+    __KETL_HIR_LESS_OR_EQUAL,
+    __KETL_HIR_GREATER,
+    __KETL_HIR_GREATER_OR_EQUAL,
 
-    KETL_HIR_RETURN_VALUE             = 0x0130,
+    __KETL_HIR_ASSIGN,
+    
+    __KETL_HIR_JUMP_IF_EQUAL,
+    __KETL_HIR_JUMP_IF_NOT_EQAUL,
+    
+    __KETL_HIR_JUMP_IF_LESS,
+    __KETL_HIR_JUMP_IF_LESS_OR_EQAUL,
+    
+    __KETL_HIR_JUMP_IF_GREATER,
+    __KETL_HIR_JUMP_IF_GREATER_OR_EQAUL,
+
+    __KETL_HIR_RETURN_VALUE,
+
+    // shifted instructions
+
+    KETL_HIR_PLUS                     = __KETL_HIR_PLUS << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_MINUS                    = __KETL_HIR_MINUS << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_MULTY                    = __KETL_HIR_MULTY << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_DIV                      = __KETL_HIR_DIV << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_MOD                      = __KETL_HIR_MOD << KETL_HIR_TYPE_INSTR_SHIFT,
+
+    KETL_HIR_EQUAL                    = __KETL_HIR_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_NOT_EQUAL                = __KETL_HIR_NOT_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_LESS                     = __KETL_HIR_LESS << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_LESS_OR_EQUAL            = __KETL_HIR_LESS_OR_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_GREATER                  = __KETL_HIR_GREATER << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_GREATER_OR_EQUAL         = __KETL_HIR_GREATER_OR_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
+
+    KETL_HIR_ASSIGN                   = __KETL_HIR_ASSIGN << KETL_HIR_TYPE_INSTR_SHIFT,
+    
+    KETL_HIR_JUMP_IF_EQUAL            = __KETL_HIR_JUMP_IF_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_JUMP_IF_NOT_EQAUL        = __KETL_HIR_JUMP_IF_NOT_EQAUL << KETL_HIR_TYPE_INSTR_SHIFT,
+    
+    KETL_HIR_JUMP_IF_LESS             = __KETL_HIR_JUMP_IF_LESS << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_JUMP_IF_LESS_OR_EQAUL    = __KETL_HIR_JUMP_IF_LESS_OR_EQAUL << KETL_HIR_TYPE_INSTR_SHIFT,
+    
+    KETL_HIR_JUMP_IF_GREATER          = __KETL_HIR_JUMP_IF_GREATER << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_JUMP_IF_GREATER_OR_EQAUL = __KETL_HIR_JUMP_IF_GREATER_OR_EQAUL << KETL_HIR_TYPE_INSTR_SHIFT,
+
+    KETL_HIR_RETURN_VALUE             = __KETL_HIR_RETURN_VALUE << KETL_HIR_TYPE_INSTR_SHIFT,
 
     KETL_HIR_FIRST_BI_OPERATOR = KETL_HIR_PLUS,
     KETL_HIR_LAST_BI_OPERATOR = KETL_HIR_GREATER_OR_EQUAL,
@@ -115,6 +147,13 @@ ANN_DEFINE(ketl_hir_call_t) {
     ketl_hir_var_id_t arguments[];
 };
 
+ANN_DEFINE(ketl_hir_create_t) {
+    ketl_hir_var_id_t output_var;
+    ketl_hir_used_type_index_t type;
+    uint16_t arguments_count;
+    ketl_hir_var_id_t arguments[];
+};
+
 ANN_DEFINE(ketl_hir_assign_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
@@ -146,7 +185,9 @@ ANN_DEFINE(ketl_hir_return_value_t) {
 typedef uint16_t ketl_hir_var_uid_t;
 
 #define KETL_HIR_VAR_UID_LITERAL ((ketl_hir_var_uid_t)-1)
+#define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
+#define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 
@@ -191,6 +232,8 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
 
 ketl_hir_instr_offset_t ketl_hir_decode_size(ketl_hir_t* p_hir, ketl_hir_instr_offset_t instr_offset);
 
-uint32_t ketl_hir_format(ketl_hir_t* p_hir, char* p_buffer, uint32_t buffer_size);
+ANN_FORWARD(ketl_state);
+
+uint32_t ketl_hir_format(ketl_state* p_state, ketl_hir_t* p_hir, char* p_buffer, uint32_t buffer_size);
 
 #endif

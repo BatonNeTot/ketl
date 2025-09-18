@@ -44,15 +44,15 @@ static char ketl_lexer_get_symbol(ketl_lexer_t* p_lexer) {
     return symbol;
 }
 
-static bool ketl_lexer_parse_next_line(ketl_lexer_t* p_lexer, char nextSymbol) {
-    if (nextSymbol == '\r') {
+static bool ketl_lexer_parse_next_line(ketl_lexer_t* p_lexer, char next_symbol) {
+    if (next_symbol == '\r') {
         uint32_t offset = p_lexer->offset;
         p_lexer->offset += offset + 1 < p_lexer->length && p_lexer->p_source[offset + 1] == '\n' ? 2 : 1;
         ketl_lexer_increment_line(p_lexer);
         return true;
     }
 
-    if (nextSymbol == '\n') {
+    if (next_symbol == '\n') {
         p_lexer->offset += 1;
         ketl_lexer_increment_line(p_lexer);
         return true;
@@ -61,20 +61,20 @@ static bool ketl_lexer_parse_next_line(ketl_lexer_t* p_lexer, char nextSymbol) {
     return false;
 }
 
-static bool ketl_lexer_parse_comments(ketl_lexer_t* p_lexer, char nextSymbol) {
+static bool ketl_lexer_parse_comments(ketl_lexer_t* p_lexer, char next_symbol) {
     uint32_t offset = p_lexer->offset;
-    if (nextSymbol != '/' || offset + 1 >= p_lexer->length) {
+    if (next_symbol != '/' || offset + 1 >= p_lexer->length) {
         return false;
     }
 
-    nextSymbol = p_lexer->p_source[offset + 1];
+    next_symbol = p_lexer->p_source[offset + 1];
 
     // single line comment
-    if (nextSymbol == '/') {
+    if (next_symbol == '/') {
         p_lexer->offset += 2;
         ANN_FOREVER {
-            nextSymbol = ketl_lexer_get_symbol(p_lexer);
-            if (nextSymbol == '\0' || ketl_lexer_parse_next_line(p_lexer, nextSymbol)) {
+            next_symbol = ketl_lexer_get_symbol(p_lexer);
+            if (next_symbol == '\0' || ketl_lexer_parse_next_line(p_lexer, next_symbol)) {
                 break;
             }
             p_lexer->offset += 1;
@@ -83,20 +83,20 @@ static bool ketl_lexer_parse_comments(ketl_lexer_t* p_lexer, char nextSymbol) {
     }
 
     // multiline comment
-    if (nextSymbol == '*') {
+    if (next_symbol == '*') {
         p_lexer->offset += 2;
         ANN_FOREVER {
-            nextSymbol = ketl_lexer_get_symbol(p_lexer);
-            if (ketl_lexer_parse_next_line(p_lexer, nextSymbol)) {
+            next_symbol = ketl_lexer_get_symbol(p_lexer);
+            if (ketl_lexer_parse_next_line(p_lexer, next_symbol)) {
                 continue;
             }
 
-            if (nextSymbol == '\0') {
+            if (next_symbol == '\0') {
                 // TODO ERROR
                 break;
             }
 
-            if (nextSymbol == '*' && p_lexer->offset + 1 < p_lexer->length && p_lexer->p_source[p_lexer->offset + 1] == '/') {
+            if (next_symbol == '*' && p_lexer->offset + 1 < p_lexer->length && p_lexer->p_source[p_lexer->offset + 1] == '/') {
                 p_lexer->offset += 2;
                 break;
             }
@@ -110,165 +110,165 @@ static bool ketl_lexer_parse_comments(ketl_lexer_t* p_lexer, char nextSymbol) {
     return false;
 }
 
-static bool ketl_lexer_parse_literal_char(ketl_lexer_t* p_lexer, char nextSymbol) {
-    if (nextSymbol != '\'') {
+static bool ketl_lexer_parse_literal_char(ketl_lexer_t* p_lexer, char next_symbol) {
+    if (next_symbol != '\'') {
         return false;
     }
 
-    uint32_t charLength = 1;
-    uint32_t charOffset = p_lexer->offset += 1;
+    uint32_t char_length = 1;
+    uint32_t char_offset = p_lexer->offset += 1;
 
     if (ketl_lexer_get_symbol(p_lexer) == '\\') {
-        ++charLength;
+        ++char_length;
     }
 
-    if (ketl_lexer_parse_next_line(p_lexer, nextSymbol)) {
+    if (ketl_lexer_parse_next_line(p_lexer, next_symbol)) {
         // TODO ERROR and decide how to cleverly restore lexing
         ANN_ASSERT(false);
     }
 
 
-    uint32_t endMarkOffset = charOffset + charLength;
+    uint32_t end_mark_offset = char_offset + char_length;
 
     // error correction
-    if (endMarkOffset >= p_lexer->length || p_lexer->p_source[endMarkOffset] != '\'') {
+    if (end_mark_offset >= p_lexer->length || p_lexer->p_source[end_mark_offset] != '\'') {
         // TODO ERROR
-        if (endMarkOffset >= p_lexer->length) {
-            charLength = p_lexer->length - charOffset;
+        if (end_mark_offset >= p_lexer->length) {
+            char_length = p_lexer->length - char_offset;
         }
-        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_CHAR, charLength);
+        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_CHAR, char_length);
         return true;
     }
 
-    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_CHAR, charLength);
+    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_CHAR, char_length);
     p_lexer->offset += 1;
     return true;
 }
 
-static bool ketl_lexer_parse_literal_string(ketl_lexer_t* p_lexer, char nextSymbol) {
-    if (nextSymbol != '"') {
+static bool ketl_lexer_parse_literal_string(ketl_lexer_t* p_lexer, char next_symbol) {
+    if (next_symbol != '"') {
         return false;
     }
 
-    uint32_t literalStartOffset = p_lexer->offset += 1;
+    uint32_t literal_start_offset = p_lexer->offset += 1;
     ANN_FOREVER {
-        nextSymbol = ketl_lexer_get_symbol(p_lexer);
-        if (ketl_lexer_parse_next_line(p_lexer, nextSymbol)) {
+        next_symbol = ketl_lexer_get_symbol(p_lexer);
+        if (ketl_lexer_parse_next_line(p_lexer, next_symbol)) {
             // TODO ERROR
             continue;
         }
 
-        if (nextSymbol == '\0') {
+        if (next_symbol == '\0') {
             // TODO ERROR
             break;
         }
         
-        if (nextSymbol == '"') {
+        if (next_symbol == '"') {
             break;
         }
 
         p_lexer->offset += 1;
     }
 
-    uint32_t literalLength = p_lexer->offset - literalStartOffset;
-    p_lexer->offset = literalStartOffset;
-    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_STRING, literalLength);
+    uint32_t literal_length = p_lexer->offset - literal_start_offset;
+    p_lexer->offset = literal_start_offset;
+    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_STRING, literal_length);
     p_lexer->offset += 1;
     return true;
 }
 
-static bool ketl_lexer_parse_literal_integer(ketl_lexer_t* p_lexer, char nextSymbol) {
-    if (!ketl_lexer_is_numeric(nextSymbol)) {
+static bool ketl_lexer_parse_literal_integer(ketl_lexer_t* p_lexer, char next_symbol) {
+    if (!ketl_lexer_is_numeric(next_symbol)) {
         return false;
     }
 
-    uint32_t literalStartOffset = p_lexer->offset;
+    uint32_t literal_start_offset = p_lexer->offset;
     p_lexer->offset += 1;
 
 
     ANN_FOREVER {
-        nextSymbol = ketl_lexer_get_symbol(p_lexer);
-        if (!ketl_lexer_is_numeric(nextSymbol)) {
+        next_symbol = ketl_lexer_get_symbol(p_lexer);
+        if (!ketl_lexer_is_numeric(next_symbol)) {
             break;
         }
         
         p_lexer->offset += 1;
     }
 
-    uint32_t literalLength = p_lexer->offset - literalStartOffset;
-    p_lexer->offset = literalStartOffset;
-    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_INTEGER, literalLength);
+    uint32_t literal_length = p_lexer->offset - literal_start_offset;
+    p_lexer->offset = literal_start_offset;
+    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_INTEGER, literal_length);
     return true;
 }
 
-static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char nextSymbol) {
-    if (nextSymbol != '_' && !ketl_lexer_is_alpha(nextSymbol)) {
+static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
+    if (next_symbol != '_' && !ketl_lexer_is_alpha(next_symbol)) {
         return false;
     }
 
-    uint32_t idStartOffset = p_lexer->offset;
-    p_lexer->offset = idStartOffset + 1;
+    uint32_t id_start_offset = p_lexer->offset;
+    p_lexer->offset = id_start_offset + 1;
 
     ANN_FOREVER {
-        nextSymbol = ketl_lexer_get_symbol(p_lexer);
-        if (nextSymbol != '_' && !ketl_lexer_is_alpha(nextSymbol) && !ketl_lexer_is_numeric(nextSymbol)) {
+        next_symbol = ketl_lexer_get_symbol(p_lexer);
+        if (next_symbol != '_' && !ketl_lexer_is_alpha(next_symbol) && !ketl_lexer_is_numeric(next_symbol)) {
             break;
         }
         
         p_lexer->offset += 1;
     }
 
-    uint32_t idLength = p_lexer->offset - idStartOffset;
-    p_lexer->offset = idStartOffset;
+    uint32_t id_length = p_lexer->offset - id_start_offset;
+    p_lexer->offset = id_start_offset;
 
-    char firstSymbol = ketl_lexer_get_symbol(p_lexer);
-    switch (firstSymbol) {
+    char first_symbol = ketl_lexer_get_symbol(p_lexer);
+    switch (first_symbol) {
         case 'd': {
-            if (ketl_str_is_equal_n("do", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DO, idLength);
+            if (ketl_str_is_equal_n("do", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DO, id_length);
                 return true;
             }
             break;
         }
         case 'e': {
-            if (ketl_str_is_equal_n("else", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ELSE, idLength);
+            if (ketl_str_is_equal_n("else", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ELSE, id_length);
                 return true;
             }
             break;
         }
         case 'i': {
-            if (ketl_str_is_equal_n("if", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_IF, idLength);
+            if (ketl_str_is_equal_n("if", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_IF, id_length);
                 return true;
             }
-            if (ketl_str_is_equal_n("i64", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_I64, idLength);
+            if (ketl_str_is_equal_n("i64", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_I64, id_length);
                 return true;
             }
             break;
         }
         case 'r': {
-            if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, idLength);
+            if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
                 return true;
             }
             break;
         }
         case 'v': {
-            if (ketl_str_is_equal_n("var", p_lexer->p_source + p_lexer->offset, idLength)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_VAR, idLength);
+            if (ketl_str_is_equal_n("var", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_VAR, id_length);
                 return true;
             }
             break;
         }
     }
-    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ID, idLength);
+    ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ID, id_length);
     return true;
 }
 
-static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
-    switch (nextSymbol) {  
+static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
+    switch (next_symbol) {  
     case '(': {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, 1);
         return true;
@@ -319,10 +319,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '=': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
 
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_EQUAL, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN, 1);
@@ -331,10 +331,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '^': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BITWISE_XOR, 1);
@@ -343,10 +343,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '*': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_MULTIPLY, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_MULTIPLY, 1);
@@ -355,10 +355,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '/': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_DIVIDE, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DIVIDE, 1);
@@ -367,10 +367,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '%': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_REMAINDER, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_REMAINDER, 1);
@@ -379,10 +379,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '!': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_NOT_EQUAL, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LOGICAL_NOT, 1);
@@ -391,12 +391,12 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '+': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_PLUS, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_INCREMENT, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_PLUS, 1);
@@ -405,12 +405,12 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '-': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_MINUS, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DECREMENT, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_MINUS, 1);
@@ -419,12 +419,12 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '&': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LOGICAL_AND, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BITWISE_AND, 1);
@@ -433,12 +433,12 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '|': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LOGICAL_OR, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BITWISE_OR, 1);
@@ -447,17 +447,17 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '<': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LESS_OR_EQUAL, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             p_lexer->offset += 2;
-            char thirdSymbol = ketl_lexer_get_symbol(p_lexer);
+            char third_symbol = ketl_lexer_get_symbol(p_lexer);
             p_lexer->offset -= 2;
 
-            if (thirdSymbol == '=') {
+            if (third_symbol == '=') {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT, 3);
             } else {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT, 2);
@@ -469,17 +469,17 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char nextSymbol) {
     } 
 	case '>': {
         p_lexer->offset += 1;
-        char secondSymbol = ketl_lexer_get_symbol(p_lexer);
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
         p_lexer->offset -= 1;
         
-        if (secondSymbol == '=') {
+        if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_GREATER_OR_EQUAL, 2);
-        } else if (secondSymbol == nextSymbol) {
+        } else if (second_symbol == next_symbol) {
             p_lexer->offset += 2;
-            char thirdSymbol = ketl_lexer_get_symbol(p_lexer);
+            char third_symbol = ketl_lexer_get_symbol(p_lexer);
             p_lexer->offset -= 2;
 
-            if (thirdSymbol == '=') {
+            if (third_symbol == '=') {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT, 3);
             } else {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT, 2);
@@ -503,42 +503,42 @@ void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_source, uint32
     ketl_lexer_lines_t_push_back_copy(&p_lexer->v_lines, 0);
 
     ANN_FOREVER {
-        char nextSymbol = ketl_lexer_get_symbol(p_lexer);
+        char next_symbol = ketl_lexer_get_symbol(p_lexer);
 
-        if (nextSymbol == '\0') {
+        if (next_symbol == '\0') {
             break;
         }
 
-        if (ketl_lexer_parse_next_line(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_next_line(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_is_space(nextSymbol)) {
+        if (ketl_lexer_is_space(next_symbol)) {
             ++p_lexer->offset;
             continue;
         }
 
-        if (ketl_lexer_parse_comments(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_comments(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_parse_literal_char(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_literal_char(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_parse_literal_string(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_literal_string(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_parse_literal_integer(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_literal_integer(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_parse_id(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_id(p_lexer, next_symbol)) {
             continue;
         }
 
-        if (ketl_lexer_parse_operator(p_lexer, nextSymbol)) {
+        if (ketl_lexer_parse_operator(p_lexer, next_symbol)) {
             continue;
         }
 

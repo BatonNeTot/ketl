@@ -6,238 +6,238 @@
 
 #include "memory_impl.h"
 
-#define KETL_TREE_MAP_DECLARATION(name, kType, vType)\
+#define KETL_TREE_MAP_DECLARATION(name, k_type, v_type)\
 ANN_DEFINE(ANN_CONCAT(name,_node)) {\
     union {\
-    uint32_t leftOffset;\
-    uint32_t nextOffset;\
+    uint32_t left_offset;\
+    uint32_t next_offset;\
     };\
-    uint32_t rightOffset;\
+    uint32_t right_offset;\
 	uint16_t height;\
-	kType key;\
-	vType value;\
+	k_type key;\
+	v_type value;\
 };\
 ANN_DEFINE(name) {\
     const ketl_allocator* p_allocator;\
-	ANN_CONCAT(name,_node)* pNodes;\
-	uint32_t freeNodeOffset;\
-	uint32_t rootOffset;\
+	ANN_CONCAT(name,_node)* p_nodes;\
+	uint32_t free_node_offset;\
+	uint32_t root_offset;\
 	uint32_t size;\
 	uint32_t capacity;\
 };\
-void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* p_allocator);\
-void ANN_CONCAT(name,_deinit)(name* pMap);\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value);\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue);\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* pMap, kType key);\
+void ANN_CONCAT(name,_init)(name* p_map, uint32_t initial_capacity, const ketl_allocator* p_allocator);\
+void ANN_CONCAT(name,_deinit)(name* p_map);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* p_map, k_type key, v_type value);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* p_map, k_type key, v_type const* p_value);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* p_map, k_type key);\
 
-#define KETL_TREE_MAP_DEFINITION(name, kType, vType, kLess)\
-void ANN_CONCAT(name,_init)(name* pMap, uint32_t initialCapacity, const ketl_allocator* p_allocator) {\
-    const uint32_t arraySize = sizeof(ANN_CONCAT(name,_node)) * initialCapacity;\
+#define KETL_TREE_MAP_DEFINITION(name, k_type, v_type, k_less)\
+void ANN_CONCAT(name,_init)(name* p_map, uint32_t initial_capacity, const ketl_allocator* p_allocator) {\
+    const uint32_t array_size = sizeof(ANN_CONCAT(name,_node)) * initial_capacity;\
     \
-    ANN_CONCAT(name,_node)* pNodes = ketl_alloc(p_allocator, arraySize);\
+    ANN_CONCAT(name,_node)* p_nodes = ketl_alloc(p_allocator, array_size);\
     \
-    *pMap = (name){\
+    *p_map = (name){\
         .p_allocator = p_allocator,\
-        .pNodes = pNodes,\
-        .freeNodeOffset = 0,\
-        .rootOffset = (uint32_t)(-1),\
+        .p_nodes = p_nodes,\
+        .free_node_offset = 0,\
+        .root_offset = (uint32_t)(-1),\
         .size = 0,\
-        .capacity = initialCapacity};\
+        .capacity = initial_capacity};\
     \
-    --initialCapacity;\
-    for (uint32_t i = 0u; i < initialCapacity; ++i) {\
-        pNodes[i].nextOffset = i + 1;\
+    --initial_capacity;\
+    for (uint32_t i = 0u; i < initial_capacity; ++i) {\
+        p_nodes[i].next_offset = i + 1;\
     }\
-    pNodes[initialCapacity].nextOffset = (uint32_t)(-1);\
+    p_nodes[initial_capacity].next_offset = (uint32_t)(-1);\
 }\
-void ANN_CONCAT(name,_deinit)(name* pMap) {\
-    ketl_free(pMap->p_allocator, pMap->pNodes);\
+void ANN_CONCAT(name,_deinit)(name* p_map) {\
+    ketl_free(p_map->p_allocator, p_map->p_nodes);\
 }\
-static uint16_t ANN_CONCAT(__,name,_height)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    if (nodeOffset == (uint32_t)(-1)) {\
+static uint16_t ANN_CONCAT(__,name,_height)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset) {\
+    if (node_offset == (uint32_t)(-1)) {\
         return 0;\
     }\
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    return pNode->height;\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    return p_node->height;\
 }\
-static int64_t ANN_CONCAT(__,name,_get_balance)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    if (nodeOffset == (uint32_t)(-1)) {\
+static int64_t ANN_CONCAT(__,name,_get_balance)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset) {\
+    if (node_offset == (uint32_t)(-1)) {\
         return 0;\
     }\
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    return ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset) - ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset);\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    return ANN_CONCAT(__,name,_height)(p_nodes, p_node->right_offset) - ANN_CONCAT(__,name,_height)(p_nodes, p_node->left_offset);\
 }\
-static uint32_t ANN_CONCAT(__,name,_rotate_left)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    ANN_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
-    uint32_t pYOffset = pX->rightOffset;\
-    ANN_CONCAT(name,_node) *pY = pNodes + pYOffset;\
-    uint32_t T2Offset = pY->leftOffset;\
+static uint32_t ANN_CONCAT(__,name,_rotate_left)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset) {\
+    ANN_CONCAT(name,_node) *p_x = p_nodes + node_offset;\
+    uint32_t p_yoffset = p_x->right_offset;\
+    ANN_CONCAT(name,_node) *p_y = p_nodes + p_yoffset;\
+    uint32_t T2Offset = p_y->left_offset;\
 \
-    pY->leftOffset = nodeOffset;\
-    pX->rightOffset = T2Offset;\
+    p_y->left_offset = node_offset;\
+    p_x->right_offset = T2Offset;\
 \
-    pX->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pX->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
-    pY->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pY->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
+    p_x->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_x->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_x->right_offset));\
+    p_y->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_y->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_y->right_offset));\
 \
-    return pYOffset;\
+    return p_yoffset;\
 }\
-static uint32_t ANN_CONCAT(__,name,_rotate_right)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    ANN_CONCAT(name,_node) *pX = pNodes + nodeOffset;\
-    uint32_t pYOffset = pX->leftOffset;\
-    ANN_CONCAT(name,_node) *pY = pNodes + pYOffset;\
-    uint32_t T2Offset = pY->rightOffset;\
+static uint32_t ANN_CONCAT(__,name,_rotate_right)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset) {\
+    ANN_CONCAT(name,_node) *p_x = p_nodes + node_offset;\
+    uint32_t p_yoffset = p_x->left_offset;\
+    ANN_CONCAT(name,_node) *p_y = p_nodes + p_yoffset;\
+    uint32_t T2Offset = p_y->right_offset;\
 \
-    pY->rightOffset = nodeOffset;\
-    pX->leftOffset = T2Offset;\
+    p_y->right_offset = node_offset;\
+    p_x->left_offset = T2Offset;\
 \
-    pX->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pX->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pX->rightOffset));\
-    pY->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pY->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pY->rightOffset));\
+    p_x->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_x->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_x->right_offset));\
+    p_y->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_y->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_y->right_offset));\
 \
-    return pYOffset;\
+    return p_yoffset;\
 }\
-static uint32_t ANN_CONCAT(__,name,_balance)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset) {\
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    int32_t balance = (int32_t)ANN_CONCAT(__,name,_get_balance)(pNodes, nodeOffset);\
+static uint32_t ANN_CONCAT(__,name,_balance)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset) {\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    int32_t balance = (int32_t)ANN_CONCAT(__,name,_get_balance)(p_nodes, node_offset);\
     \
     if (balance < -1) {\
-        if (ANN_CONCAT(__,name,_get_balance)(pNodes, pNode->leftOffset) <= 0) {\
-            return ANN_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
+        if (ANN_CONCAT(__,name,_get_balance)(p_nodes, p_node->left_offset) <= 0) {\
+            return ANN_CONCAT(__,name,_rotate_right)(p_nodes, node_offset);\
         } else {\
-            pNode->leftOffset = ANN_CONCAT(__,name,_rotate_left)(pNodes, pNode->leftOffset);\
-            return ANN_CONCAT(__,name,_rotate_right)(pNodes, nodeOffset);\
+            p_node->left_offset = ANN_CONCAT(__,name,_rotate_left)(p_nodes, p_node->left_offset);\
+            return ANN_CONCAT(__,name,_rotate_right)(p_nodes, node_offset);\
         }\
     }\
 \
     if (balance > 1) {\
-        if (ANN_CONCAT(__,name,_get_balance)(pNodes, pNode->rightOffset) >= 0) {\
-            return ANN_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
+        if (ANN_CONCAT(__,name,_get_balance)(p_nodes, p_node->right_offset) >= 0) {\
+            return ANN_CONCAT(__,name,_rotate_left)(p_nodes, node_offset);\
         } else {\
-            pNode->rightOffset = ANN_CONCAT(__,name,_rotate_right)(pNodes, pNode->rightOffset);\
-            return ANN_CONCAT(__,name,_rotate_left)(pNodes, nodeOffset);\
+            p_node->right_offset = ANN_CONCAT(__,name,_rotate_right)(p_nodes, p_node->right_offset);\
+            return ANN_CONCAT(__,name,_rotate_left)(p_nodes, node_offset);\
         }\
     }\
 \
-    return nodeOffset;\
+    return node_offset;\
 }\
-static uint32_t ANN_CONCAT(__,name,_get_or_insert_impl)(name* pMap, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
-    ANN_CONCAT(name,_node)* pNodes = pMap->pNodes;\
-    if (nodeOffset == (uint32_t)(-1)) {\
-        if (pMap->freeNodeOffset == (uint32_t)(-1)) {\
+static uint32_t ANN_CONCAT(__,name,_get_or_insert_impl)(name* p_map, uint32_t node_offset, k_type key, uint32_t* p_found_offset) {\
+    ANN_CONCAT(name,_node)* p_nodes = p_map->p_nodes;\
+    if (node_offset == (uint32_t)(-1)) {\
+        if (p_map->free_node_offset == (uint32_t)(-1)) {\
             /* TODO allocate more */\
         }\
 \
-        uint32_t newNodeOffset = pMap->freeNodeOffset;\
-        ANN_CONCAT(name,_node)* pNewNode = pNodes + newNodeOffset;\
-        pMap->freeNodeOffset = pNewNode->nextOffset;\
+        uint32_t new_node_offset = p_map->free_node_offset;\
+        ANN_CONCAT(name,_node)* p_new_node = p_nodes + new_node_offset;\
+        p_map->free_node_offset = p_new_node->next_offset;\
 \
-        pNewNode->leftOffset = (uint32_t)(-1);\
-        pNewNode->rightOffset = (uint32_t)(-1);\
-        pNewNode->height = 1;\
-        pNewNode->key = key;\
+        p_new_node->left_offset = (uint32_t)(-1);\
+        p_new_node->right_offset = (uint32_t)(-1);\
+        p_new_node->height = 1;\
+        p_new_node->key = key;\
 \
-        return *pFoundOffset = newNodeOffset;\
+        return *p_found_offset = new_node_offset;\
     }\
 \
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->leftOffset, key, pFoundOffset);\
-    } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pNode->rightOffset, key, pFoundOffset);\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    if (k_less(key, p_node->key)) {\
+        p_node->left_offset = ANN_CONCAT(__,name,_get_or_insert_impl)(p_map, p_node->left_offset, key, p_found_offset);\
+    } else if (k_less(p_node->key, key)) {\
+        p_node->right_offset = ANN_CONCAT(__,name,_get_or_insert_impl)(p_map, p_node->right_offset, key, p_found_offset);\
     } else {\
-        return *pFoundOffset = nodeOffset;\
+        return *p_found_offset = node_offset;\
     }\
 \
-    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    p_node->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_node->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_node->right_offset));\
 \
-    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(p_nodes, node_offset);\
 }\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* pMap, kType key, vType value) {\
-    uint32_t freeNodeOffset = pMap->freeNodeOffset;\
-    uint32_t foundOffset;\
-    pMap->rootOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* p_map, k_type key, v_type value) {\
+    uint32_t free_node_offset = p_map->free_node_offset;\
+    uint32_t found_offset;\
+    p_map->root_offset = ANN_CONCAT(__,name,_get_or_insert_impl)(p_map, p_map->root_offset, key, &found_offset);\
 \
-    ANN_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
-    if (freeNodeOffset == foundOffset) {\
-        pFoundNode->value = value;\
+    ANN_CONCAT(name,_node)* p_found_node = p_map->p_nodes + found_offset;\
+    if (free_node_offset == found_offset) {\
+        p_found_node->value = value;\
     }\
     \
-    return pFoundNode;\
+    return p_found_node;\
 }\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* pMap, kType key, vType const* pValue) {\
-    uint32_t freeNodeOffset = pMap->freeNodeOffset;\
-    uint32_t foundOffset;\
-    pMap->rootOffset = ANN_CONCAT(__,name,_get_or_insert_impl)(pMap, pMap->rootOffset, key, &foundOffset);\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* p_map, k_type key, v_type const* p_value) {\
+    uint32_t free_node_offset = p_map->free_node_offset;\
+    uint32_t found_offset;\
+    p_map->root_offset = ANN_CONCAT(__,name,_get_or_insert_impl)(p_map, p_map->root_offset, key, &found_offset);\
 \
-    ANN_CONCAT(name,_node)* pFoundNode = pMap->pNodes + foundOffset;\
-    if (freeNodeOffset == foundOffset) {\
-        pFoundNode->value = *pValue;\
+    ANN_CONCAT(name,_node)* p_found_node = p_map->p_nodes + found_offset;\
+    if (free_node_offset == found_offset) {\
+        p_found_node->value = *p_value;\
     }\
     \
-    return pFoundNode;\
+    return p_found_node;\
 }\
-static uint64_t ANN_CONCAT(__,name,_erase_leftmost_impl)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, uint32_t* pFoundOffset) {\
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    if (pNode->leftOffset == (uint32_t)(-1)) {\
-        *pFoundOffset = nodeOffset;\
-        return pNode->rightOffset;\
+static uint64_t ANN_CONCAT(__,name,_erase_leftmost_impl)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset, uint32_t* p_found_offset) {\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    if (p_node->left_offset == (uint32_t)(-1)) {\
+        *p_found_offset = node_offset;\
+        return p_node->right_offset;\
     } else {\
-        pNode->leftOffset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->leftOffset, pFoundOffset);\
+        p_node->left_offset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(p_nodes, p_node->left_offset, p_found_offset);\
     }\
 \
-    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    p_node->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_node->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_node->right_offset));\
 \
-    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(p_nodes, node_offset);\
 }\
-static uint64_t ANN_CONCAT(__,name,_erase_impl)(ANN_CONCAT(name,_node)* pNodes, uint32_t nodeOffset, kType key, uint32_t* pFoundOffset) {\
-    if (nodeOffset == (uint32_t)(-1)) {\
-        return nodeOffset;\
+static uint64_t ANN_CONCAT(__,name,_erase_impl)(ANN_CONCAT(name,_node)* p_nodes, uint32_t node_offset, k_type key, uint32_t* p_found_offset) {\
+    if (node_offset == (uint32_t)(-1)) {\
+        return node_offset;\
     }\
 \
-    ANN_CONCAT(name,_node)* pNode = pNodes + nodeOffset;\
-    if (kLess(key, pNode->key)) {\
-        pNode->leftOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pNode->leftOffset, key, pFoundOffset);\
-    } else if (kLess(pNode->key, key)) {\
-        pNode->rightOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pNode->rightOffset, key, pFoundOffset);\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + node_offset;\
+    if (k_less(key, p_node->key)) {\
+        p_node->left_offset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(p_nodes, p_node->left_offset, key, p_found_offset);\
+    } else if (k_less(p_node->key, key)) {\
+        p_node->right_offset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(p_nodes, p_node->right_offset, key, p_found_offset);\
     } else {\
-        if (pNode->leftOffset == (uint32_t)(-1)) {\
-            *pFoundOffset = nodeOffset;\
-            return pNode->rightOffset;\
+        if (p_node->left_offset == (uint32_t)(-1)) {\
+            *p_found_offset = node_offset;\
+            return p_node->right_offset;\
         } \
-        if (pNode->rightOffset == (uint32_t)(-1)) {\
-            *pFoundOffset = nodeOffset;\
-            return pNode->leftOffset;\
+        if (p_node->right_offset == (uint32_t)(-1)) {\
+            *p_found_offset = node_offset;\
+            return p_node->left_offset;\
         }\
 \
-        uint32_t leftOffset = pNode->leftOffset;\
-        uint32_t rightOffset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(pNodes, pNode->rightOffset, pFoundOffset);\
+        uint32_t left_offset = p_node->left_offset;\
+        uint32_t right_offset = (uint32_t)ANN_CONCAT(__,name,_erase_leftmost_impl)(p_nodes, p_node->right_offset, p_found_offset);\
 \
-        uint32_t replacementOffset = *pFoundOffset;\
-        *pFoundOffset = nodeOffset;\
+        uint32_t replacement_offset = *p_found_offset;\
+        *p_found_offset = node_offset;\
 \
-        nodeOffset = replacementOffset;\
-        pNode = pNodes + replacementOffset;\
+        node_offset = replacement_offset;\
+        p_node = p_nodes + replacement_offset;\
 \
-        pNode->rightOffset = rightOffset;\
-        pNode->leftOffset = leftOffset;\
+        p_node->right_offset = right_offset;\
+        p_node->left_offset = left_offset;\
     }\
 \
-    pNode->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(pNodes, pNode->leftOffset), ANN_CONCAT(__,name,_height)(pNodes, pNode->rightOffset));\
+    p_node->height = 1 + ANN_MAX(ANN_CONCAT(__,name,_height)(p_nodes, p_node->left_offset), ANN_CONCAT(__,name,_height)(p_nodes, p_node->right_offset));\
 \
-    return ANN_CONCAT(__,name,_balance)(pNodes, nodeOffset);\
+    return ANN_CONCAT(__,name,_balance)(p_nodes, node_offset);\
 }\
-ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* pMap, kType key) {\
-    uint32_t foundOffset = (uint32_t)(-1);\
-    ANN_CONCAT(name,_node)* pNodes = pMap->pNodes; \
-    pMap->rootOffset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(pNodes, pMap->rootOffset, key, &foundOffset);\
-    if (foundOffset == (uint32_t)(-1)) {\
+ANN_CONCAT(name,_node)* ANN_CONCAT(name,_erase)(name* p_map, k_type key) {\
+    uint32_t found_offset = (uint32_t)(-1);\
+    ANN_CONCAT(name,_node)* p_nodes = p_map->p_nodes; \
+    p_map->root_offset = (uint32_t)ANN_CONCAT(__,name,_erase_impl)(p_nodes, p_map->root_offset, key, &found_offset);\
+    if (found_offset == (uint32_t)(-1)) {\
         return NULL;\
     }\
     \
-    ANN_CONCAT(name,_node)* pNode = pNodes + foundOffset;\
-    pNode->nextOffset = pMap->freeNodeOffset;\
-    pMap->freeNodeOffset = foundOffset;\
-    return pNode;\
+    ANN_CONCAT(name,_node)* p_node = p_nodes + found_offset;\
+    p_node->next_offset = p_map->free_node_offset;\
+    p_map->free_node_offset = found_offset;\
+    return p_node;\
 }\
 
 #endif // ketl_containers_tree_map_h

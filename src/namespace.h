@@ -17,18 +17,18 @@ KETL_VECTOR_DECLARATION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DECLARATION(namespace_map, ketl_atomic_string, uint32_t)
 
 ANN_DEFINE(ketl_namespace) {
-    namespace_nodes vNodes;
-    namespace_map mVars;
+    namespace_nodes v_nodes;
+    namespace_map m_vars;
 };
 
-void ketl_namespace_init(ketl_namespace* pNamespace, const ketl_allocator* p_allocator);
+void ketl_namespace_init(ketl_namespace* p_namespace, const ketl_allocator* p_allocator);
 
-void ketl_namespace_deinit(ketl_namespace* pNamespace);
+void ketl_namespace_deinit(ketl_namespace* p_namespace);
 
-void ketl_namespace_copy(ketl_namespace* pDstNamespace, ketl_namespace* pSrcNamespace);
+void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
 
-void ketl_namespace_put(ketl_namespace* pNamespace, ketl_atomic_string sKey, ketl_variable variable);
+void ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable);
 
-ketl_namespace_node* ketl_namespace_find(ketl_namespace* pNamespace, ketl_atomic_string sKey);
+ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomic_string s_key);
 
 #endif // ketl_namespace_h

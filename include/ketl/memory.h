@@ -4,15 +4,15 @@
 
 #include "ketl/utils.h"
 
-typedef void* (*ketl_allocator_alloc_f)(size_t size, void* userInfo);
-typedef void* (*ketl_allocator_realloc_f)(void* ptr, size_t size, void* userInfo);
-typedef void (*ketl_allocator_free_f)(void* ptr, void* userInfo);
+typedef void* (*ketl_allocator_alloc_f)(size_t size, void* user_info);
+typedef void* (*ketl_allocator_realloc_f)(void* ptr, size_t size, void* user_info);
+typedef void (*ketl_allocator_free_f)(void* ptr, void* user_info);
 
 ANN_DEFINE(ketl_allocator) {
 	ketl_allocator_alloc_f alloc;
 	ketl_allocator_realloc_f realloc;
 	ketl_allocator_free_f free;
-	void* userInfo;
+	void* user_info;
 };
 
 extern const ketl_allocator ketl_default_allocator;

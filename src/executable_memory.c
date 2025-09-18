@@ -12,8 +12,8 @@ inline static uint32_t ketl_get_page_size(void) {
 	return getpagesize();
 }
 
-inline static void* ketl_allocate_exe_memory(void* pMemHint, uint32_t size) {
-	return mmap(pMemHint, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+inline static void* ketl_allocate_exe_memory(void* p_mem_hint, uint32_t size) {
+	return mmap(p_mem_hint, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 }
 
 inline static void ketl_deallocate_exe_memory(void* ptr, uint32_t size) {
@@ -40,8 +40,11 @@ inline static uint32_t ketl_get_page_size(void) {
 	return system_info.dwPageSize;
 }
 
-inline static void* ketl_allocate_exe_memory(void* pMemHint, uint32_t size) {
-	return VirtualAlloc(pMemHint, size, MEM_COMMIT, PAGE_READWRITE);
+inline static void* ketl_allocate_exe_memory(void* p_mem_hint, uint32_t size) {
+	// hinting is not an option in windows
+	// I could specify an implicit address, but not currently possible alongside random malloc
+	(void)p_mem_hint; 
+	return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
 inline static void ketl_deallocate_exe_memory(void* ptr, uint32_t size) {
@@ -64,67 +67,76 @@ inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 KETL_VECTOR_DEFINITION(ketl_executable_memory_page_vector, ketl_executable_memory_page)
 
 static uint32_t ketl_get_static_page_size(void) {
-	static uint32_t pageSize = 0;
-	if (pageSize == 0) {
-		pageSize = ketl_get_page_size();
+	static uint32_t page_size = 0;
+	if (page_size == 0) {
+		page_size = ketl_get_page_size();
 	}
-	return pageSize;
+	return page_size;
 }
 
 static uint32_t ketl_get_static_page_size_log(void) {
-	static uint32_t pageSizeLog = -1;
-	if (pageSizeLog == (uint32_t)(-1)) {
-		uint32_t pageSize = ketl_get_page_size();
-		while (pageSize > 0) {
-			pageSize >>= 1;
-			++pageSizeLog;
+	static uint32_t page_size_log = -1;
+	if (page_size_log == (uint32_t)(-1)) {
+		uint32_t page_size = ketl_get_page_size();
+		while (page_size > 0) {
+			page_size >>= 1;
+			++page_size_log;
 		}
 	}
-	return pageSizeLog;
+	return page_size_log;
 }
 
-void ketl_executable_memory_init(ketl_executable_memory* exeMemory, const ketl_allocator* p_allocator) {
-	*exeMemory = (ketl_executable_memory) {
-		.currentOffset = 0,
+void ketl_executable_memory_init(ketl_executable_memory* exe_memory, const ketl_allocator* p_allocator) {
+	*exe_memory = (ketl_executable_memory) {
+		.current_offset = 0,
 	};
-	ketl_executable_memory_page_vector_init(&exeMemory->vPages, 1, p_allocator);
-	exeMemory->vPages.p_data[0].pPage = NULL;
+	ketl_executable_memory_page_vector_init(&exe_memory->v_pages, 1, p_allocator);
+	exe_memory->v_pages.p_data[0].p_page = NULL;
 }
 
-void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory) {
-	ketl_executable_memory_page_vector vPages = exeMemory->vPages;
-	for (uint32_t i = 0u; i < vPages.size; ++i) {
-		ketl_executable_memory_page page = vPages.p_data[i];
-		ketl_deallocate_exe_memory(page.pPage, page.pageSize);
+void ketl_executable_memory_deinit(ketl_executable_memory* exe_memory) {
+	ketl_executable_memory_page_vector v_pages = exe_memory->v_pages;
+	for (uint32_t i = 0u; i < v_pages.size; ++i) {
+		ketl_executable_memory_page page = v_pages.p_data[i];
+		ketl_deallocate_exe_memory(page.p_page, page.page_size);
 	}
 
-	ketl_executable_memory_page_vector_deinit(&vPages);
+	ketl_executable_memory_page_vector_deinit(&v_pages);
 }
 
-uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, const uint8_t* opcodes, uint64_t length) {
-	uint32_t currentPageIndex = exeMemory->vPages.size;
-	uint32_t currentOffset = exeMemory->currentOffset;
-	ketl_executable_memory_page currentPage = exeMemory->vPages.p_data[currentPageIndex];
-	if (currentPage.pPage == NULL || currentOffset + length > currentPage.pageSize) {
-		uint32_t pageSize = ketl_get_static_page_size();
-		uint32_t requestedPageCount = (uint32_t)((length + (pageSize - 1)) >> ketl_get_static_page_size_log());
+uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exe_memory, const uint8_t* opcodes, uint64_t length) {
+	uint32_t current_page_index = exe_memory->v_pages.size;
+	uint32_t current_offset = exe_memory->current_offset;
+	ketl_executable_memory_page current_page = exe_memory->v_pages.p_data[current_page_index];
+	if (current_page.p_page == NULL || current_offset + length > current_page.page_size) {
+		uint32_t page_size = ketl_get_static_page_size();
+		uint32_t requested_page_count = (uint32_t)((length + (page_size - 1)) >> ketl_get_static_page_size_log());
 
-		currentPage.pageSize = pageSize * requestedPageCount;
-		currentPage.pPage = ketl_allocate_exe_memory(currentPage.pPage, currentPage.pageSize);
+		void* p_mem_hint = current_page.p_page + current_page.page_size;
+		if (p_mem_hint == NULL) {
+			#define KETL_POINTER_CONVERTER
+			#define KETL_POINTER_CONVERTER_ARG  &ketl_executable_memory_allocate
+			#define KETL_POINTER_CONVERTER_VAR  p_mem_hint
+			#define KETL_POINTER_CONVERTER_TYPE void*
+			#include "meta.i"
+		}
+
+		current_page.page_size = page_size * requested_page_count;
+		current_page.p_page = ketl_allocate_exe_memory(p_mem_hint, current_page.page_size);
 		
-		ketl_executable_memory_page_vector_push_back_ref(&exeMemory->vPages, &currentPage);
-		currentOffset = 0;
+		ketl_executable_memory_page_vector_push_back_ref(&exe_memory->v_pages, &current_page);
+		current_offset = 0;
 	} else {
-		ketl_unprotect_exe_memory(currentPage.pPage, currentPage.pageSize);
+		ketl_unprotect_exe_memory(current_page.p_page, current_page.page_size);
 	}
 
-	uint32_t requestedMemory = (length + 15) & (-16);
-	uint8_t* resultMemory = currentPage.pPage + currentOffset;
+	uint32_t requested_memory = (length + 15) & (-16);
+	uint8_t* result_memory = current_page.p_page + current_offset;
 
-	memcpy(resultMemory, opcodes, length);
-	exeMemory->currentOffset = currentOffset + requestedMemory;
+	memcpy(result_memory, opcodes, length);
+	exe_memory->current_offset = current_offset + requested_memory;
 
-	ketl_protect_exe_memory(currentPage.pPage, currentPage.pageSize);
+	ketl_protect_exe_memory(current_page.p_page, current_page.page_size);
 
-	return resultMemory;
+	return result_memory;
 }
