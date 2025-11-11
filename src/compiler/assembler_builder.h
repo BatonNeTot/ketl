@@ -14,6 +14,7 @@ enum {
     KETL_ASM_X86_MOV,
     KETL_ASM_X86_ADD,
     KETL_ASM_X86_SUB,
+    KETL_ASM_X86_IMUL,
 
     KETL_ASM_X86_CMP,
     KETL_ASM_X86_TEST,
@@ -106,16 +107,29 @@ ANN_DEFINE(ketl_asm_x86_arg_info_t) {
 
 KETL_HASH_MAP_DECLARATION(ketl_asm_x86_variables_t, ketl_hir_var_id_t, ketl_asm_x86_arg_info_t)
 
+typedef uint8_t ketl_asm_x86_abi_type_t;
+enum {
+    KETL_ASM_X86_ABI_WINDOWS,
+    KETL_ASM_X86_ABI_SYSTEM_V,
+#if ANN_OS_WINDOWS
+    KETL_ASM_X86_ABI_DEFAULT = KETL_ASM_X86_ABI_WINDOWS,
+#else
+    KETL_ASM_X86_ABI_DEFAULT = KETL_ASM_X86_ABI_SYSTEM_V,
+#endif
+};
+
 ANN_DEFINE(ketl_asm_x86_builder_t) {
     const ketl_allocator* p_allocator;
 
+    ketl_asm_x86_abi_type_t abi_type;
+    
     ketl_asm_x86_instrs_t v_instrs;
     ketl_hir_to_asm_offsets_t m_hir_to_asm_offsets;
     ketl_asm_x86_variables_t m_variables;
     ketl_hir_t* p_hir;
 };
 
-void ketl_asm_x86_builder_init(ketl_asm_x86_builder_t* p_builder, const ketl_allocator* p_allocator);
+void ketl_asm_x86_builder_init(ketl_asm_x86_builder_t* p_builder, const ketl_allocator* p_allocator, ketl_asm_x86_abi_type_t abi_type);
 void ketl_asm_x86_builder_deinit(ketl_asm_x86_builder_t* p_builder);
 
 ANN_FORWARD(ketl_state);

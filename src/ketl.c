@@ -7,6 +7,7 @@
 #include "compiler/assembler_builder.h"
 
 #include "executable_memory.h"
+#include "dynamic_library.h"
 #include "value_impl.h"
 #include "type_impl.h"
 #include "memory_impl.h"
@@ -353,7 +354,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
     printf("-------------------------------\n");
 
     ketl_asm_x86_builder_t asm_builder;
-    ketl_asm_x86_builder_init(&asm_builder, p_state->p_allocator);
+    ketl_asm_x86_builder_init(&asm_builder, p_state->p_allocator, KETL_ASM_X86_ABI_DEFAULT);
     
     ketl_asm_x86_t asm_x86;
     ketl_asm_x86_build(p_state, &hir, &asm_builder, &asm_x86);
@@ -371,10 +372,10 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
     uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
     ketl_asm_x86_deinit(&asm_x86);
 
-
     ketl_executable_memory ex_memory;
     ketl_executable_memory_init(&ex_memory, p_state->p_allocator);
 
+#if 0
     uint8_t* executable_opcodes = ketl_executable_memory_allocate(&ex_memory, p_opcodes, opcodes_size);
     ketl_free(p_state->p_allocator, p_opcodes);
 
@@ -393,6 +394,14 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
     #include "meta.i"
 
     output_variable.uint64 = func();
+#else
+    ketl_dynamic_library_flush_function("temp.dll", "<eval>", p_opcodes, opcodes_size);
+    ketl_free(p_state->p_allocator, p_opcodes);
+
+    uint64_t(*func)(void) = (uint64_t(*)(void))ketl_dynamic_library_load_function("temp.dll", "<eval>");
+
+    output_variable.uint64 = func();
+#endif
 
     ketl_executable_memory_deinit(&ex_memory);
 

@@ -23,9 +23,12 @@ int main(int argc, char** argv) {
     //ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t)>(&test));
     ketl.defineCFunction("test", static_cast<int64_t(*)(int64_t, int64_t)>(&test));
 
+    // const char* p_source = ""
+    //     "var test = TEST();\n"
+    //     "return;\n"
+    // ;
     const char* p_source = ""
-        "var test = TEST();\n"
-        "return;\n"
+        "return 5 * 6 + 3 * 4;"
     ;
 
     auto result = ketl.eval(__FILE__ "$<eval>", p_source);
