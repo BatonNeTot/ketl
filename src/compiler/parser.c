@@ -190,6 +190,10 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
     
     // TODO casting if needed
 
+    if (p_lhs_var->type != p_rhs_var->type) {
+        ANN_ASSERT(false && "Incompatible assignment types.");
+    }
+
     if (p_rhs_var->uid != KETL_HIR_VAR_UID_LITERAL && p_rhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
         ketl_hir_builder_replace_temp_var(&p_context->hir_builder, lhs_var, rhs_var);
         return;

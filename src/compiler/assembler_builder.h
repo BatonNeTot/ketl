@@ -100,9 +100,12 @@ KETL_HASH_MAP_DECLARATION(ketl_hir_to_asm_offsets_t, ketl_hir_instr_offset_t, ke
 
 ANN_FORWARD(ketl_type);
 
+#define KETL_ASM_X86_ARG_PARENT_NONE ((ketl_hir_var_id_t)-1)
+
 ANN_DEFINE(ketl_asm_x86_arg_info_t) {
     ketl_type* p_type;
     ketl_asm_x86_offset_t stack_offset;
+    ketl_hir_var_id_t parent;
 };
 
 KETL_HASH_MAP_DECLARATION(ketl_asm_x86_variables_t, ketl_hir_var_id_t, ketl_asm_x86_arg_info_t)
