@@ -1,0 +1,10 @@
+class TEST {
+    value1 : i64;
+    value2 : i64;
+}
+
+var test = TEST();
+test.value1 = 4;
+test.value2 = 2;
+var raw_pointer : raw = test;
+return raw_pointer;

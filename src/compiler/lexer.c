@@ -223,6 +223,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
 
     char first_symbol = ketl_lexer_get_symbol(p_lexer);
     switch (first_symbol) {
+        case 'c': {
+            if (ketl_str_is_equal_n("class", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CLASS, id_length);
+                return true;
+            }
+            break;
+        }
         case 'd': {
             if (ketl_str_is_equal_n("do", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DO, id_length);

@@ -289,7 +289,7 @@ void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t l
     ketl_class_field_impl* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_class_field_impl) * field_count); 
     for (uint32_t i = 0u; i < field_count; ++i) {
         p_fields_impl[i].p_type.p_type = p_fields[i].p_type;
-        p_fields_impl[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, KETL_NULL_TERMINATED_LENGTH_32);
+        p_fields_impl[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
     }
 
     ketl_type_size_pair_t class_size_pair = ketl_type_calc_class_size(p_fields_impl, field_count);

@@ -223,7 +223,7 @@ namespace KETL {
 		template <class... Fields>
 		void define_class(const std::string_view& name, Fields&&... fields) {
 			ketl_class_field a_class_fields[] = {
-				ketl_class_field{fields._p_type, fields._name.c_str()}...
+				ketl_class_field{fields._p_type, fields._name.c_str(), static_cast<uint32_t>(fields._name.length())}...
 			};
 			ketl_state_define_class(_p_state, name.data(), static_cast<uint32_t>(name.length()), a_class_fields, sizeof...(fields));
 		}

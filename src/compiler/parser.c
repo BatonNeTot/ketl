@@ -941,14 +941,47 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
         }
     }
     push_hir_variable_declaration(p_context, NULL, id_literal, type, initial_value);
-    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after variable parse_declaration.");
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
+static ketl_statement_info parse_class_declaration(ketl_parser_context* p_context) {
+    token_advance(p_context); // class
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after class name.");
+
+    ketl_class_field a_class_fields[256] = {0};
+    uint32_t class_field_count = 0;
+
+    if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
+        do {
+            ketl_token_t field_literal = CURRENT_TOKEN(0);
+            a_class_fields[class_field_count].p_name = TOKEN_STRING(field_literal);
+            a_class_fields[class_field_count].name_length = TOKEN_LENGTH(field_literal);
+            token_advance(p_context); // id
+
+            token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after field name.");
+
+            a_class_fields[class_field_count].p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+
+            token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");
+
+            ++class_field_count;
+        } while (token_check(p_context, KETL_TOKEN_TYPE_ID));
+    }
+    
+    ketl_state_define_class(p_context->p_state, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), a_class_fields, class_field_count);
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' in the end of a class declaration.");
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_VAR: return parse_var_declaration(p_context); break;
-        default                 : return parse_statement      (p_context); break;
+        case KETL_TOKEN_TYPE_VAR  : return parse_var_declaration  (p_context); break;
+        case KETL_TOKEN_TYPE_CLASS: return parse_class_declaration(p_context); break;
+        default                   : return parse_statement        (p_context); break;
     }
 }
 
