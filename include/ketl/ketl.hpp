@@ -14,6 +14,7 @@ namespace KETL {
 
 	class State;
 	class Type;
+	class Field;
 	class Value;
 
 	ketl_state* __get_state_impl(const State& state);
@@ -113,6 +114,29 @@ namespace KETL {
 		friend Value;
 	};
 
+	class Field {
+	private:
+		Field(ketl_type* p_type, const std::string_view& name, const State& state)
+			: _p_type(p_type), _state(state), _name(name) {}
+
+		Field(const Field& other)
+			: _p_type(other._p_type), _state(other._state), _name(other._name) {}
+
+	public:
+		~Field() = default;
+
+		const State& get_state() const {
+			return _state;
+		}
+
+	private:
+		ketl_type* _p_type;
+		const State& _state;
+		std::string _name;
+
+		friend State;
+	};
+
 	class Value {
 	private:
 		Value(ketl_value* p_value, const State& state)
@@ -171,7 +195,7 @@ namespace KETL {
 		State& operator=(State&& other) = delete;
 
 		template <class R, class... Args>
-		void defineCFunction(const std::string_view& name, R (*pFunc)(Args...)) {
+		void define_cfunction(const std::string_view& name, R (*pFunc)(Args...)) {
 			ketl_type_parameter aParameters[] = {
 				ketl_type_parameter{__TypeHelper<R>::getType(_p_state)}, (ketl_type_parameter{__TypeHelper<Args>::getType(_p_state)})...
 			};
@@ -182,9 +206,22 @@ namespace KETL {
 			ketl_state_define_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void*>(pFunc));
 		}
 
+		template <class... Fields>
+		void define_class(const std::string_view& name, Fields&&... fields) {
+			ketl_class_field a_class_fields[] = {
+				ketl_class_field{fields._p_type, fields._name.c_str()}...
+			};
+			ketl_state_define_class(_p_state, name.data(), static_cast<uint32_t>(name.length()), a_class_fields, sizeof...(fields));
+		}
+
 		template <class T>
 		Type get_type() const {
 			return { __TypeHelper<T>::getType(_p_state), *this };
+		}
+
+		template <class T>
+		Field create_field(const std::string_view& name) const {
+			return { __TypeHelper<T>::getType(_p_state), name, *this };
 		}
 
 		Value eval(const std::string_view& filename, const std::string_view& source) {
@@ -198,6 +235,7 @@ namespace KETL {
 			return state._p_state;
 		}
 
+		friend Field;
 		friend Value;
 	};
 }

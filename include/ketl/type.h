@@ -16,6 +16,11 @@ ANN_DEFINE(ketl_function_parameters) {
     uint16_t parameters_count;
 };
 
+ANN_DEFINE(ketl_class_field) {
+	ketl_type* p_type;
+    const char* p_name;
+};
+
 size_t ketl_type_get_size(ketl_type* p_type);
 
 size_t ketl_type_get_align(ketl_type* p_type);

@@ -122,10 +122,19 @@ ketl_hir_var_id_t ketl_hir_builder_get_literal(ketl_hir_builder_t* p_hir_builder
     return p_bucket->value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
     hir_builder_symbol_to_var_map_t_bucket* p_bucket = hir_builder_symbol_to_var_map_t_get_or_insert_copy(&p_hir_builder->m_symbol_to_var, name, (ketl_hir_var_id_t)-1);
     // if size didn't change, var already exists
     if (p_bucket->value != (ketl_hir_var_id_t)-1) {
+        ANN_ASSERT(false);
+        // TODO error redifinition
+    }
+    
+    const char* p_symbol = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
+
+    ketl_atomic_string s_symbol = ketl_atomic_strings_get(&p_state->atomic_strings, p_symbol, KETL_NULL_TERMINATED_LENGTH_32);
+    ketl_namespace_node* p_symbol_node = ketl_namespace_find(&p_state->global_namespace, s_symbol);
+    if (p_symbol_node != NULL) {
         ANN_ASSERT(false);
         // TODO error redifinition
     }
@@ -133,7 +142,6 @@ ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_hir_builder_t* p_hir_builde
     ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->v_vars_infos.size;
     hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->v_vars_infos, (ketl_hir_var_info_t){
         .name = p_bucket->key,
-        .p_global = NULL,
     });
 
     p_bucket->value = (ketl_hir_var_id_t)p_hir_builder->v_vars.size;
@@ -178,7 +186,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_state* p_state, ketl_hir_builder
         hir_builder_vars_t_push_back_copy(&p_hir_builder->v_vars, (ketl_hir_var_t){
             .info = var_info,
             .type = global_type,
-            .uid = 0u,
+            .uid = KETL_HIR_VAR_UID_GLOBAL,
         });
 
         return p_bucket->value;
@@ -189,9 +197,11 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_state* p_state, ketl_hir_builder
 
 ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t var_id) {
     ketl_hir_var_t* p_var = p_hir_builder->v_vars.p_data + var_id;
-    ANN_ASSERT(p_var->uid != KETL_HIR_VAR_UID_LITERAL && p_var->info != KETL_HIR_VAR_INFO_TEMP);
+    ANN_ASSERT(p_var->uid != KETL_HIR_VAR_UID_LITERAL 
+        && p_var->uid != KETL_HIR_VAR_UID_GLOBAL 
+        && p_var->uid != KETL_HIR_VAR_UID_FIELD 
+        && p_var->info != KETL_HIR_VAR_INFO_TEMP);
     ketl_hir_var_info_t* p_var_info = p_hir_builder->v_vars_infos.p_data + p_var->info;
-    ANN_ASSERT(p_var_info->p_global == NULL);
 
     hir_builder_symbol_to_var_map_t_bucket* p_bucket = hir_builder_symbol_to_var_map_t_get_or_null(&p_hir_builder->m_symbol_to_var, p_var_info->name);
 
@@ -203,6 +213,38 @@ ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_b
     });
 
     return p_bucket->value;
+}
+
+ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+    ketl_type* p_object_type = p_hir_builder->v_used_types.p_data[p_hir_builder->v_vars.p_data[object_id].type];
+    
+    const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
+
+    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+    ketl_type* p_field_type = ketl_type_find_class_field_type(p_object_type, s_field_name);
+
+    if (p_field_type == NULL) {
+        ANN_ASSERT(false);
+        // TODO error unknown field
+    }
+
+    ketl_hir_used_type_index_t field_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_field_type);
+    ANN_ASSERT(type == KETL_HIR_USED_TYPE_UNKNOWN || type == field_type);
+    
+    ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->v_vars_infos.size;
+    hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->v_vars_infos, (ketl_hir_var_info_t){
+        .name = name,
+        .field_parent = object_id,
+    });
+
+    ketl_hir_var_id_t value = (ketl_hir_var_id_t)p_hir_builder->v_vars.size;
+    hir_builder_vars_t_push_back_copy(&p_hir_builder->v_vars, (ketl_hir_var_t){
+        .info = var_info,
+        .type = field_type,
+        .uid = KETL_HIR_VAR_UID_FIELD,
+    });
+
+    return value;
 }
 
 ketl_hir_var_id_t ketl_hir_builder_create_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_used_type_index_t type) {
@@ -234,9 +276,11 @@ void ketl_hir_builder_replace_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_h
     ketl_hir_var_t* p_donor_var = p_hir_builder->v_vars.p_data + donor_var;
     ketl_hir_var_t* p_temp_var = p_hir_builder->v_vars.p_data + temp_var;
     ANN_ASSERT(p_donor_var->uid != KETL_HIR_VAR_UID_LITERAL && p_donor_var->info != KETL_HIR_VAR_INFO_TEMP);
-    ANN_ASSERT(p_temp_var->uid != KETL_HIR_VAR_UID_LITERAL && p_temp_var->info == KETL_HIR_VAR_INFO_TEMP);
+    ANN_ASSERT(p_temp_var->uid != KETL_HIR_VAR_UID_LITERAL 
+        && p_temp_var->uid != KETL_HIR_VAR_UID_GLOBAL
+        && p_temp_var->uid != KETL_HIR_VAR_UID_FIELD
+        && p_temp_var->info == KETL_HIR_VAR_INFO_TEMP);
     ketl_hir_var_info_t* p_donor_info = p_hir_builder->v_vars_infos.p_data + p_donor_var->info;
-    ANN_ASSERT(p_donor_info->p_global == NULL);
 
     // update symbol map for temp
     hir_builder_symbol_to_var_map_t_bucket* p_bucket = hir_builder_symbol_to_var_map_t_get_or_null(&p_hir_builder->m_symbol_to_var, KETL_HIR_VAR_NAME_TEMP);

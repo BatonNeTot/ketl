@@ -222,8 +222,9 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_pa
         return push_temp_var(p_context);
     }
 
-    if (p_lhs_var->info != KETL_HIR_VAR_INFO_TEMP &&
-        p_context->hir_builder.v_vars_infos.p_data[p_lhs_var->info].p_global == NULL) {
+    if (p_lhs_var->info != KETL_HIR_VAR_INFO_TEMP 
+        && p_lhs_var->uid != KETL_HIR_VAR_UID_GLOBAL
+        && p_lhs_var->uid != KETL_HIR_VAR_UID_FIELD) {
         // TODO will not work in a looping scenario without phi instruction at the begining of the block
         //lhs_var = ketl_hir_builder_increment_var_uid(&p_context->hir_builder, lhs_var);
         // TODO should not run during debug compilation
@@ -252,12 +253,24 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_parse_pos
     ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
 }
 
-static uint16_t push_literal_id(ketl_parser_context* p_context, ketl_token_t literal) {
+static ketl_hir_var_id_t push_literal_id(ketl_parser_context* p_context, ketl_token_t literal) {
     // TODO decide how to update uids
     ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(p_context->p_state, &p_context->hir_builder, 
         push_symbol(p_context, literal), KETL_HIR_USED_TYPE_UNKNOWN);
     if (id_var == (ketl_hir_var_id_t)-1) {
         errorf(literal.offset, literal.length, "Use of undeclared variable '%.*s'.", TOKEN_LENGTH(literal), TOKEN_STRING(literal));
+        id_var = push_temp_var(p_context);
+    }
+    return id_var;
+}
+
+static ketl_hir_var_id_t push_object_field(ketl_parser_context* p_context, ketl_hir_var_id_t object_id, ketl_token_t literal) {
+    push_symbol(p_context, CURRENT_TOKEN(1));
+    // TODO decide how to update uids
+    ketl_hir_var_id_t id_var = ketl_hir_builder_create_field_var(p_context->p_state, &p_context->hir_builder, object_id,
+        push_symbol(p_context, literal), KETL_HIR_USED_TYPE_UNKNOWN);
+    if (id_var == (ketl_hir_var_id_t)-1) {
+        errorf(literal.offset, literal.length, "Use of undeclared field '%.*s'.", TOKEN_LENGTH(literal), TOKEN_STRING(literal));
         id_var = push_temp_var(p_context);
     }
     return id_var;
@@ -269,7 +282,7 @@ static ketl_hir_used_type_index_t find_type(ketl_parser_context* p_context, ketl
 }
 
 static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_token_t id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
-    ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(&p_context->hir_builder, 
+    ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(p_context->p_state, &p_context->hir_builder, 
         push_symbol(p_context, id_literal), type_index);
 
     push_hir_assign_impl(p_context, p_pos_info, id_var, init_var);
@@ -508,10 +521,17 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
     ketl_hir_var_t* p_callee = &p_context->hir_builder.v_vars.p_data[callee];
     if (p_callee->type == KETL_HIR_USED_TYPE_META) {
         return push_hir_create(p_context, NULL, 
-            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_context->hir_builder.v_vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
+            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, 
+                p_context->hir_builder.v_vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
     } else {
         return push_hir_call(p_context, NULL, callee, argument_count);
     }
+}
+
+static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
+    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after access operator.");
+
+    return push_object_field(p_context, lhs, CURRENT_TOKEN(1));
 }
 
 static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
@@ -590,7 +610,7 @@ static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_h
 }
 
 ketl_parse_rule parse_rules[] = {
-    [KETL_TOKEN_TYPE_ID]                         = { parse_identificator, NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ID]                         = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { parse_number,        NULL,                NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -600,7 +620,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_CURLY_RIGHT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_SQUARE_LEFT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_SQUARE_RIGHT]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DOT]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DOT]                        = { NULL,                parse_dot_operator,  NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},

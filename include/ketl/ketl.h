@@ -30,6 +30,8 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* p_state, const ketl_functio
 
 void ketl_state_define_function(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func);
 
+void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_class_field* p_fields, uint16_t field_count);
+
 ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const char* p_source, uint32_t length);
 
 #endif // ketl_ketl_h

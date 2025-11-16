@@ -642,8 +642,11 @@ void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_bui
             continue;
         }
 
-        if (var.info != KETL_HIR_VAR_INFO_TEMP &&
-            p_hir->p_vars_infos[var.info].p_global != NULL) {
+        if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_GLOBAL) {
+            if (var.type == KETL_HIR_USED_TYPE_META) {
+                continue;
+            }
+
             ketl_variable* p_value = p_hir->p_vars_infos[var.info].p_global;
 
             ketl_asm_x86_arg_info_t arg_info = {
@@ -661,7 +664,26 @@ void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_bui
             continue;
         }
 
-        // temprorary variable
+        if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
+            ketl_hir_var_id_t object = p_hir->p_vars_infos[var.info].field_parent;
+
+            ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->m_variables, object);
+            ANN_ASSERT(object_bucket != NULL);
+
+            const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name);
+
+            ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+            ketl_asm_x86_offset_t field_offset = ketl_type_get_class_field_offset(object_bucket->value.p_type, s_field_name);
+
+            ketl_asm_x86_arg_info_t arg_info = {
+                .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
+                .stack_offset = object_bucket->value.stack_offset + field_offset
+            };
+
+            ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->m_variables, var_id, arg_info);
+        }
+
+        // local or temporary variable
         ketl_asm_x86_arg_info_t arg_info = {
             .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
             .stack_offset = stack_reserved_size

@@ -67,7 +67,7 @@ enum {
     __KETL_HIR_GREATER,
     __KETL_HIR_GREATER_OR_EQUAL,
 
-    __KETL_HIR_ASSIGN,
+    __KETL_HIR_ASSIGN,    
     
     __KETL_HIR_JUMP_IF_EQUAL,
     __KETL_HIR_JUMP_IF_NOT_EQAUL,
@@ -185,6 +185,8 @@ ANN_DEFINE(ketl_hir_return_value_t) {
 typedef uint16_t ketl_hir_var_uid_t;
 
 #define KETL_HIR_VAR_UID_LITERAL ((ketl_hir_var_uid_t)-1)
+#define KETL_HIR_VAR_UID_GLOBAL ((ketl_hir_var_uid_t)-2)
+#define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-3)
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
@@ -202,7 +204,10 @@ ANN_DEFINE(ketl_hir_var_t) {
 
 ANN_DEFINE(ketl_hir_var_info_t) {
     ketl_hir_symbol_offset_t name;
-    ketl_variable* p_global;
+    union {
+        ketl_variable* p_global;
+        ketl_hir_var_id_t field_parent;
+    };
     // TODO declaration info
 };
 

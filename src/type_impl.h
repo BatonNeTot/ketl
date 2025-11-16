@@ -42,7 +42,7 @@ ANN_DEFINE(ketl_type_function) {
     ketl_type_signature* p_type_signature;
 };
 
-ANN_DEFINE(ketl_class_field) {
+ANN_DEFINE(ketl_class_field_impl) {
     ketl_type_parameter p_type;
     ketl_atomic_string s_name;
 };
@@ -52,7 +52,7 @@ ANN_DEFINE(ketl_type_class) {
     ketl_atomic_string s_name;
     uint16_t fields_count;
     uint16_t methods_count;
-    ketl_class_field* p_fields;
+    ketl_class_field_impl* p_fields;
     ketl_variable* p_methods;
 };
 
@@ -63,7 +63,11 @@ ANN_DEFINE(ketl_type_size_pair_t) {
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type);
 
-ketl_type_size_pair_t ketl_type_calc_class_size(ketl_class_field* p_fields, uint16_t fields_count);
+ketl_type_size_pair_t ketl_type_calc_class_size(ketl_class_field_impl* p_fields, uint16_t fields_count);
+
+ketl_type* ketl_type_find_class_field_type(ketl_type* p_type, ketl_atomic_string s_name);
+
+uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string s_name);
 
 
 #endif // ketl_type_impl_h

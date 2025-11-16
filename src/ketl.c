@@ -196,37 +196,6 @@ do {\
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i32, KETL_HIR_I32);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i64, KETL_HIR_I64);
 
-#define CREATE_CLASS_TYPE(_var_name, _name, _a_fields)\
-ketl_type_size_pair_t ANN_CONCAT(_var_name, _pair) = ketl_type_calc_class_size(_a_fields, ANN_ARRAY_SIZE(_a_fields));\
-ketl_type* _var_name = ketl_alloc(p_allocator, sizeof(ketl_type_class)); \
-do {\
-ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, _name, sizeof(_name) - 1);\
-INIT_TYPE(_var_name, ketl_type_class) {\
-        .s_name = s_name,\
-        .type = KETL_TYPE_CLASS,\
-        .align = ANN_CONCAT(_var_name, _pair).align,\
-        .size = ANN_CONCAT(_var_name, _pair).size,\
-        .fields_count = ANN_ARRAY_SIZE(_a_fields),\
-        .methods_count = 0u,\
-        .p_fields = _a_fields,\
-        .p_methods = NULL,\
-        };\
-ketl_variable namespace_variable = {\
-    .type = KETL_VARIABLE_TYPE,\
-    .p_type = NULL,\
-    .pointer = _var_name,\
-};\
-ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);\
-} while(0)
-
-    ketl_class_field a_test_parameters[] = {
-        {
-            .p_type = { p_i64 },
-            .s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("value"))
-        },
-    };
-    CREATE_CLASS_TYPE(tTest, "TEST", a_test_parameters);
-
     return p_state;
 }
 
@@ -311,6 +280,34 @@ void ketl_state_define_function(ketl_state* p_state, const char* p_name, uint32_
     ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);
 }
 
+void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_class_field* p_fields, uint16_t field_count) {
+    ketl_class_field_impl* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_class_field_impl) * field_count); 
+    for (uint32_t i = 0u; i < field_count; ++i) {
+        p_fields_impl[i].p_type.p_type = p_fields[i].p_type;
+        p_fields_impl[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, KETL_NULL_TERMINATED_LENGTH_32);
+    }
+
+    ketl_type_size_pair_t class_size_pair = ketl_type_calc_class_size(p_fields_impl, field_count);
+    ketl_type* p_class = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_class));
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
+    INIT_TYPE(p_class, ketl_type_class) {
+            .s_name = s_name,
+            .type = KETL_TYPE_CLASS,
+            .align = class_size_pair.align,
+            .size = class_size_pair.size,
+            .fields_count = field_count,
+            .methods_count = 0u,
+            .p_fields = p_fields_impl,
+            .p_methods = NULL,
+            };
+    ketl_variable namespace_variable = {
+        .type = KETL_VARIABLE_TYPE,
+        .p_type = NULL,
+        .pointer = p_class,
+    };
+    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);
+}
+
 ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const char* p_source, uint32_t length) {
     ketl_variable output_variable;
 
@@ -375,7 +372,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
     ketl_executable_memory ex_memory;
     ketl_executable_memory_init(&ex_memory, p_state->p_allocator);
 
-#if 0
+#if 1
     uint8_t* executable_opcodes = ketl_executable_memory_allocate(&ex_memory, p_opcodes, opcodes_size);
     ketl_free(p_state->p_allocator, p_opcodes);
 

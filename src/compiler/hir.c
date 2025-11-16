@@ -138,28 +138,49 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
     } 
     
     ketl_hir_var_info_t* p_var_info = p_hir->p_vars_infos + p_var->info;
-    if (p_var_info->p_global != NULL) {
-        uint32_t printed = 0;
-        printed += snprintf(buffer + printed, buffer_size - printed, "%s", 
-            KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
-        if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
-            printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
-        } else {
-            printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
-                ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+    switch (p_var->uid) {
+        case KETL_HIR_VAR_UID_GLOBAL: {
+            uint32_t printed = 0;
+            printed += snprintf(buffer + printed, buffer_size - printed, "%s", 
+                KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
+            if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
+            } else {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
+                    ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+            }
+            return printed;
+        } 
+        case KETL_HIR_VAR_UID_FIELD: {
+            uint32_t printed = 0;
+
+            printed += snprintf(buffer + printed, buffer_size - printed, "(");
+            printed += ketl_hir_format_var(p_hir, p_var_info->field_parent, buffer + printed, buffer_size - printed);
+            printed += snprintf(buffer + printed, buffer_size - printed, ").");
+
+            printed += snprintf(buffer + printed, buffer_size - printed, "%s", 
+                KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
+            if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
+            } else {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
+                    ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+            }
+            return printed;
         }
-        return printed;
-    } else {
-        uint32_t printed = 0;
-        printed += snprintf(buffer + printed, buffer_size - printed, "%s#%"PRIu16, 
-            KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
-        if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
-            printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
-        } else {
-            printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
-                ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+        default: {
+            uint32_t printed = 0;
+
+            printed += snprintf(buffer + printed, buffer_size - printed, "%s#%"PRIu16, 
+                KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name), p_var->uid);
+            if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
+            } else {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
+                    ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+            }
+            return printed;
         }
-        return printed;
     }
 } 
 
