@@ -31,7 +31,8 @@ int main(int argc, char** argv) {
         "var test = TEST();\n"
         "test.value1 = 4;"
         "test.value2 = 2;"
-        "return;\n"
+        "var raw_pointer : raw = test;"
+        "return raw_pointer;\n"
     ;
     //const char* p_source = ""
     //    "return 5 * 6 + 3 * 4;"

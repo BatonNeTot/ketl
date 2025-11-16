@@ -187,11 +187,20 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         ANN_ASSERT(false && "Can't assign to an r-value.");
     }
-    
-    // TODO casting if needed
 
+    // TODO casting if needed
     if (p_lhs_var->type != p_rhs_var->type) {
-        ANN_ASSERT(false && "Incompatible assignment types.");
+        ketl_type* p_lhs_type = p_context->hir_builder.v_used_types.p_data[p_lhs_var->type];
+        ketl_type* p_rhs_type = p_context->hir_builder.v_used_types.p_data[p_rhs_var->type];
+
+        if (!((p_lhs_type->type == KETL_TYPE_FUNCTION || p_lhs_type->type == KETL_TYPE_CFUNCTION || p_lhs_type->type == KETL_TYPE_CLASS) &&
+            // hack to check for raw type
+            p_rhs_type->type == KETL_TYPE_PRIMITIVE && p_rhs_type->size == sizeof(void*)) &&
+            !((p_rhs_type->type == KETL_TYPE_FUNCTION || p_rhs_type->type == KETL_TYPE_CFUNCTION || p_rhs_type->type == KETL_TYPE_CLASS) &&
+            // hack to check for raw type
+            p_lhs_type->type == KETL_TYPE_PRIMITIVE && p_lhs_type->size == sizeof(void*))) {
+            ANN_ASSERT(false && "Incompatible assignment types.");
+        }
     }
 
     if (p_rhs_var->uid != KETL_HIR_VAR_UID_LITERAL && p_rhs_var->info == KETL_HIR_VAR_INFO_TEMP) {
@@ -686,6 +695,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_NONE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_RAW]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_RETURN]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_STRUCT]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_SWITCH]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},

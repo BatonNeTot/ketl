@@ -151,9 +151,10 @@ ketl_variable namespace_variable = {\
 ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);\
 } while(0)
 
-    CREATE_PRIMITIVE_TYPE(t_none,  "none", 0, false, false);
-    CREATE_PRIMITIVE_TYPE(t_bool,  "bool", 1, false, false);
-    CREATE_PRIMITIVE_TYPE(t_char,  "char", 1, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_none,  "none", 0, false, false);
+    CREATE_PRIMITIVE_TYPE(p_bool,  "bool", 1, false, false);
+    CREATE_PRIMITIVE_TYPE(p_char,  "char", 1, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_raw,   "raw",  8, false, false);
 
     CREATE_PRIMITIVE_TYPE(p_i8,  "i8",   1, true,  true);
     CREATE_PRIMITIVE_TYPE(p_i16, "i16",  2, true,  true);
@@ -183,12 +184,12 @@ do {\
     REGISTER_BINARY_OPERATOR(KETL_HIR_DIV,              _arg_type, _arg_type, _hir_type);\
     REGISTER_BINARY_OPERATOR(KETL_HIR_MOD,              _arg_type, _arg_type, _hir_type);\
 \
-    REGISTER_BINARY_OPERATOR(KETL_HIR_EQUAL,            _arg_type, t_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_NOT_EQUAL,        _arg_type, t_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS,             _arg_type, t_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_OR_EQUAL,    _arg_type, t_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER,          _arg_type, t_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL, _arg_type, t_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_EQUAL,            _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_NOT_EQUAL,        _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS,             _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_OR_EQUAL,    _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER,          _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL, _arg_type, p_bool, _hir_type);\
 } while (false)
 
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i8,  KETL_HIR_I8);
@@ -237,6 +238,10 @@ ketl_free(p_state->p_allocator, p_type_node->variable.pointer);\
 // TODO FIX might be called often, replace allocation on heap with field in ketl_state
 ketl_type* ketl_state_get_none_type(ketl_state* p_state) {
     return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("none"));
+}
+
+ketl_type* ketl_state_get_raw_type(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("raw"));
 }
 
 ketl_type* ketl_state_get_i8(ketl_state* p_state) {

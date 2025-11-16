@@ -249,6 +249,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             break;
         }
         case 'r': {
+            if (ketl_str_is_equal_n("raw", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RAW, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
                 return true;

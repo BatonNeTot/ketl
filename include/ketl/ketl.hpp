@@ -24,6 +24,13 @@ namespace KETL {
 		struct __TypeHelper;
 
 		template <>
+		struct __TypeHelper<void*> {
+			static ketl_type* getType(ketl_state* pState) {
+				return ketl_state_get_raw_type(pState);
+			}
+		};
+
+		template <>
 		struct __TypeHelper<int8_t> {
 			static ketl_type* getType(ketl_state* pState) {
 				return ketl_state_get_i8(pState);
@@ -53,6 +60,13 @@ namespace KETL {
 	
 		template <class T>
 		struct __ValueGetter;
+
+		template <>
+		struct __ValueGetter<void*> {
+			static void* as(ketl_state* p_state, ketl_value* p_value) {
+				return ketl_value_as_raw(p_state, p_value);
+			}
+		};
 
 		template <>
 		struct __ValueGetter<int8_t> {
@@ -243,7 +257,9 @@ namespace KETL {
 std::ostream& operator<<(std::ostream& os, const KETL::Value& ketl_value)
 {
 	// TODO replace later to a to_string call or something
-	if (ketl_value.get_type() == ketl_value.get_state().get_type<int8_t>()) {
+	if (ketl_value.get_type() == ketl_value.get_state().get_type<void*>()) {
+		os << (int64_t)ketl_value.as<void*>();
+	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int8_t>()) {
 		os << (int64_t)ketl_value.as<int8_t>();
 	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int16_t>()) {
 		os << ketl_value.as<int16_t>();

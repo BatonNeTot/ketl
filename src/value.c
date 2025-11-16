@@ -17,6 +17,14 @@ ketl_type* ketl_value_get_type(ketl_state* p_state, ketl_value* p_value) {
     return p_variable->p_type;
 }
 
+void* ketl_value_as_raw(ketl_state* p_state, ketl_value* p_value) {
+    (void)p_state;
+
+    ANN_ASSERT(ketl_value_get_type(p_state, p_value) == ketl_state_get_raw_type(p_state));
+    ketl_variable* p_variable = (ketl_variable*)p_value;
+    return p_variable->pointer;
+}
+
 int8_t ketl_value_as_i8(ketl_state* p_state, ketl_value* p_value) {
     (void)p_state;
 
