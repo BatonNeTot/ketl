@@ -5,6 +5,9 @@
 
 #include "compiler/lexer.h"
 
+#include "executable_memory.h"
+#include "compiler/assembler.h"
+
 #include "containers/vector.h"
 #include "containers/hash_map.h"
 #include "memory_impl.h"
@@ -28,7 +31,6 @@ KETL_VECTOR_DEFINITION(_ketl_parse_argument_stack_t, ketl_hir_var_id_t)
 ANN_DEFINE(ketl_parser_context) {
     ketl_state* p_state;
     ketl_lexer_t* p_lexer;
-    ketl_token_iterator_t token_iterator;
     ketl_hir_symbol_offset_t a_filename;
     ketl_hir_builder_t hir_builder;
 
@@ -57,7 +59,7 @@ ANN_DEFINE(ketl_statement_info) {
 #define TOKEN_STRING(token) ((token).length > 0 ? (p_context)->p_lexer->p_source + (token).offset : EOF_STR)
 
 #define TOKEN(index) ((p_context)->p_lexer->v_tokens.p_data[(index)])
-#define CURRENT_TOKEN(offset) (TOKEN((p_context)->token_iterator - (offset)))
+#define CURRENT_TOKEN(offset) (TOKEN((p_context)->p_lexer->token_iterator - (offset)))
 
 #define GET_SYMBOL_SOURCE(symbol_offset) (ketl_atomic_strings_get_pointer(&p_context->hir_builder.symbols, (symbol_offset)))
 
@@ -472,7 +474,7 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
 
 static void token_advance(ketl_parser_context* p_context) {
     ANN_FOREVER {
-        uint32_t current = ++p_context->token_iterator;
+        uint32_t current = ++p_context->p_lexer->token_iterator;
 
         if (TOKEN(current).type != KETL_TOKEN_TYPE_ERROR) break;
 
@@ -637,6 +639,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,                parse_short_circuit, NULL,             KETL_PREC_LOGICAL_AND},
@@ -692,6 +695,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_ELSE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ENUM]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FALSE]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_FN]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_NONE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -743,7 +747,7 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     }
 
     // looking for the rtl operator
-    ketl_token_iterator_t start_pos = p_context->token_iterator;
+    ketl_token_iterator_t start_pos = p_context->p_lexer->token_iterator;
     ketl_parse_rule* p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
     ketl_precedence token_precedence = p_parse_rule->precedence;
     while (precedence < token_precedence) {
@@ -754,7 +758,7 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
 
     // we coudln't find rtl operator, restoring token iterator and do simple ltr
     if (precedence != token_precedence) {
-        p_context->token_iterator = start_pos;
+        p_context->p_lexer->token_iterator = start_pos;
         
         ketl_hir_var_id_t lhs = parse_lhs_operand(p_context, precedence);
         return lhs;
@@ -764,8 +768,8 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     ketl_hir_var_id_t rhs = parse_precedence(p_context, precedence);
 
     // saving end of the rhs operand for restoring later
-    ketl_token_iterator_t end_pos = p_context->token_iterator;
-    p_context->token_iterator = start_pos;
+    ketl_token_iterator_t end_pos = p_context->p_lexer->token_iterator;
+    p_context->p_lexer->token_iterator = start_pos;
 
     ketl_hir_var_id_t lhs = parse_lhs_operand(p_context, precedence);
         
@@ -777,7 +781,7 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     lhs = f_rtl_infix(p_context, lhs, rhs);
 
     // restore token iterator
-    p_context->token_iterator = end_pos;
+    p_context->p_lexer->token_iterator = end_pos;
     return lhs;
 }
 
@@ -945,6 +949,76 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
+static ketl_statement_info parse_function_declaration(ketl_parser_context* p_context) {
+    token_advance(p_context); // fn
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after function name.");
+
+    ketl_named_variable_type_info_t a_function_parameters_named[256] = {0};
+    ketl_variable_type_info_t a_function_parameters[256] = {0};
+    ketl_function_parameters function_parameters = {
+        .p_parameters = a_function_parameters,
+        .parameters_count = 0,
+    };
+
+    if (!token_check(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT)) {
+        do {
+            ketl_token_t parameter_literal = CURRENT_TOKEN(0);
+            a_function_parameters_named[function_parameters.parameters_count].p_name = TOKEN_STRING(parameter_literal);
+            a_function_parameters_named[function_parameters.parameters_count].name_length = TOKEN_LENGTH(parameter_literal);
+            token_advance(p_context); // id
+
+            token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after parameter name.");
+
+            a_function_parameters_named[function_parameters.parameters_count].info.p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+            a_function_parameters[function_parameters.parameters_count + 1] = a_function_parameters_named[function_parameters.parameters_count].info;
+
+            ++function_parameters.parameters_count;
+        } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
+    }
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after parameters.");
+
+    ketl_type* return_type = NULL;
+    if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+        return_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+    }
+    if (return_type == NULL) {
+        return_type = ketl_state_get_none_type(p_context->p_state);
+    }
+
+    uint32_t parameters_count = function_parameters.parameters_count;
+    a_function_parameters[0].p_type = return_type;
+    ++function_parameters.parameters_count;
+    
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
+
+    ketl_type* function_type =  ketl_state_get_function_type(p_context->p_state, &function_parameters);
+    
+    ketl_state_define_function_impl(p_context->p_state, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, false);
+
+    ketl_variable output_variable;
+    uint32_t opcodes_size = 0u;
+    uint8_t* p_opcodes = ketl_state_compile_function(p_context->p_state, p_context->p_lexer, &opcodes_size, a_function_parameters_named, parameters_count, &output_variable);
+
+    uint8_t* executable_opcodes = ketl_executable_memory_allocate(&p_context->p_state->executable_memory, p_opcodes, opcodes_size);
+    ketl_free(p_context->p_state->p_allocator, p_opcodes);
+
+    {
+        char arr_buffer[4096];
+        printf("at location 0x%08"PRIx64" of length %"PRIu32"\n", (uint64_t)executable_opcodes, opcodes_size);
+        uint32_t length = ketl_asm_x86_format_opcodes(executable_opcodes, opcodes_size, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
+        printf("%.*s\n", length, arr_buffer);
+    }
+
+    ketl_state_define_function_impl(p_context->p_state, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, executable_opcodes, true);
+
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after function body.");
+
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_class_declaration(ketl_parser_context* p_context) {
     token_advance(p_context); // class
     ketl_token_t id_literal = CURRENT_TOKEN(0);
@@ -952,7 +1026,7 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after class name.");
 
-    ketl_class_field a_class_fields[256] = {0};
+    ketl_named_variable_type_info_t a_class_fields[256] = {0};
     uint32_t class_field_count = 0;
 
     if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
@@ -964,7 +1038,7 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
             token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after field name.");
 
-            a_class_fields[class_field_count].p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+            a_class_fields[class_field_count].info.p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
 
             token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
@@ -979,13 +1053,14 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_VAR  : return parse_var_declaration  (p_context); break;
-        case KETL_TOKEN_TYPE_CLASS: return parse_class_declaration(p_context); break;
-        default                   : return parse_statement        (p_context); break;
+        case KETL_TOKEN_TYPE_VAR  : return parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_FN   : return parse_function_declaration(p_context); break;
+        case KETL_TOKEN_TYPE_CLASS: return parse_class_declaration   (p_context); break;
+        default                   : return parse_statement           (p_context); break;
     }
 }
 
-void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p_filename, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator) {
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t* p_lexer, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, const ketl_allocator* p_allocator) {
     *p_hir = (ketl_hir_t){0};
 
     ketl_parser_context context = {0};
@@ -995,13 +1070,15 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, const char* p
         .p_lexer = p_lexer
     };
     ketl_hir_builder_init(&context.hir_builder, p_allocator);
-    context.a_filename = push_symbol_string(&context, p_filename, KETL_NULL_TERMINATED_LENGTH_32);
-    context.token_iterator = (ketl_token_iterator_t)-1;
+    context.a_filename = push_symbol_string(&context, p_lexer->p_filename, KETL_NULL_TERMINATED_LENGTH_32);
+
+    for (uint32_t i = 0u; i < parameter_count; ++i) {
+        ketl_hir_builder_add_parameter(&context.hir_builder, &p_parameters[i]);
+    }
     
     if (p_lexer->v_tokens.size > 0) {
         _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 4, p_allocator);
 
-        token_advance(&context);
         ketl_statement_info statement_info = parse_block_statement_inner(&context);
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
             (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (statement_info.return_info & KETL_RETURN_ALWAYS_VALUE))) {

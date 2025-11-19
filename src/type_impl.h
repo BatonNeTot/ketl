@@ -34,7 +34,7 @@ ANN_DEFINE(ketl_type_primitive) {
 ANN_DEFINE(ketl_type_signature) {
     uint16_t parameters_count;
 	//ketl_type* p_return_type; return type is first parameter for now
-    ketl_type_parameter a_parameters[]; // size of 'parameters_count'
+    ketl_variable_type_info_t a_parameters[]; // size of 'parameters_count'
 };
 
 ANN_DEFINE(ketl_type_function) {
@@ -42,8 +42,8 @@ ANN_DEFINE(ketl_type_function) {
     ketl_type_signature* p_type_signature;
 };
 
-ANN_DEFINE(ketl_class_field_impl) {
-    ketl_type_parameter p_type;
+ANN_DEFINE(ketl_symboled_variable_type_info_t) {
+    ketl_variable_type_info_t info;
     ketl_atomic_string s_name;
 };
 
@@ -52,7 +52,7 @@ ANN_DEFINE(ketl_type_class) {
     ketl_atomic_string s_name;
     uint16_t fields_count;
     uint16_t methods_count;
-    ketl_class_field_impl* p_fields;
+    ketl_symboled_variable_type_info_t* p_fields;
     ketl_variable* p_methods;
 };
 
@@ -63,7 +63,7 @@ ANN_DEFINE(ketl_type_size_pair_t) {
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type);
 
-ketl_type_size_pair_t ketl_type_calc_class_size(ketl_class_field_impl* p_fields, uint16_t fields_count);
+ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info_t* p_fields, uint16_t fields_count);
 
 ketl_type* ketl_type_find_class_field_type(ketl_type* p_type, ketl_atomic_string s_name);
 

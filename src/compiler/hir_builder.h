@@ -44,11 +44,14 @@ ANN_DEFINE(ketl_hir_builder_t) {
     hir_builder_symbol_to_var_map_t m_symbol_to_var;
     hir_builder_type_to_used_type_map_t m_type_to_used_type;
     hir_builder_offset_to_block_t m_offset_to_block;
-    
+   
+    ketl_hir_var_id_t parameter_count; 
     bool has_calls;
 };
 
 void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocator* p_allocator);
+
+void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_named_variable_type_info_t* p_parameter_info);
 
 void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir);
 

@@ -91,7 +91,6 @@ void ketl_executable_memory_init(ketl_executable_memory* exe_memory, const ketl_
 		.current_offset = 0,
 	};
 	ketl_executable_memory_page_vector_init(&exe_memory->v_pages, 1, p_allocator);
-	exe_memory->v_pages.p_data[0].p_page = NULL;
 }
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exe_memory) {
@@ -105,20 +104,19 @@ void ketl_executable_memory_deinit(ketl_executable_memory* exe_memory) {
 }
 
 uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exe_memory, const uint8_t* opcodes, uint64_t length) {
-	uint32_t current_page_index = exe_memory->v_pages.size;
+	if (length == 0) {
+		return NULL;
+	}
+
 	uint32_t current_offset = exe_memory->current_offset;
-	ketl_executable_memory_page current_page = exe_memory->v_pages.p_data[current_page_index];
-	if (current_page.p_page == NULL || current_offset + length > current_page.page_size) {
+	ketl_executable_memory_page current_page;
+	if (exe_memory->v_pages.size == 0 || current_offset + length > current_page.page_size) {
 		uint32_t page_size = ketl_get_static_page_size();
 		uint32_t requested_page_count = (uint32_t)((length + (page_size - 1)) >> ketl_get_static_page_size_log());
 
-		void* p_mem_hint = current_page.p_page + current_page.page_size;
-		if (p_mem_hint == NULL) {
-			#define KETL_POINTER_CONVERTER
-			#define KETL_POINTER_CONVERTER_ARG  &ketl_executable_memory_allocate
-			#define KETL_POINTER_CONVERTER_VAR  p_mem_hint
-			#define KETL_POINTER_CONVERTER_TYPE void*
-			#include "meta.i"
+		void* p_mem_hint = NULL;
+		if (exe_memory->v_pages.size != 0) {
+			p_mem_hint = current_page.p_page + current_page.page_size;
 		}
 
 		current_page.page_size = page_size * requested_page_count;
@@ -127,6 +125,7 @@ uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exe_memory, con
 		ketl_executable_memory_page_vector_push_back_ref(&exe_memory->v_pages, &current_page);
 		current_offset = 0;
 	} else {
+		current_page = exe_memory->v_pages.p_data[exe_memory->v_pages.size - 1];
 		ketl_unprotect_exe_memory(current_page.p_page, current_page.page_size);
 	}
 

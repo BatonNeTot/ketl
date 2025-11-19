@@ -139,6 +139,7 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
     
     ketl_hir_var_info_t* p_var_info = p_hir->p_vars_infos + p_var->info;
     switch (p_var->uid) {
+        case KETL_HIR_VAR_UID_PARAMETER:
         case KETL_HIR_VAR_UID_GLOBAL: {
             uint32_t printed = 0;
             printed += snprintf(buffer + printed, buffer_size - printed, "%s", 

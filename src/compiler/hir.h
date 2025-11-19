@@ -187,6 +187,7 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_UID_LITERAL ((ketl_hir_var_uid_t)-1)
 #define KETL_HIR_VAR_UID_GLOBAL ((ketl_hir_var_uid_t)-2)
 #define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-3)
+#define KETL_HIR_VAR_UID_PARAMETER ((ketl_hir_var_uid_t)-4)
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
@@ -228,6 +229,7 @@ ANN_DEFINE(ketl_hir_t) {
     ketl_hir_used_type_index_t used_types_count;
 
     ketl_hir_used_type_index_t return_type;
+    ketl_hir_var_id_t parameter_count;
     bool has_calls;
 };
 

@@ -210,8 +210,8 @@ namespace KETL {
 
 		template <class R, class... Args>
 		void define_cfunction(const std::string_view& name, R (*pFunc)(Args...)) {
-			ketl_type_parameter aParameters[] = {
-				ketl_type_parameter{__TypeHelper<R>::getType(_p_state)}, (ketl_type_parameter{__TypeHelper<Args>::getType(_p_state)})...
+			ketl_variable_type_info_t aParameters[] = {
+				ketl_variable_type_info_t{__TypeHelper<R>::getType(_p_state)}, (ketl_variable_type_info_t{__TypeHelper<Args>::getType(_p_state)})...
 			};
 			ketl_function_parameters funcParameters = {
 				aParameters, 1 + sizeof...(Args)
@@ -222,8 +222,8 @@ namespace KETL {
 
 		template <class... Fields>
 		void define_class(const std::string_view& name, Fields&&... fields) {
-			ketl_class_field a_class_fields[] = {
-				ketl_class_field{fields._p_type, fields._name.c_str(), static_cast<uint32_t>(fields._name.length())}...
+			ketl_named_variable_type_info_t a_class_fields[] = {
+				ketl_named_variable_type_info_t{fields._p_type, fields._name.c_str(), static_cast<uint32_t>(fields._name.length())}...
 			};
 			ketl_state_define_class(_p_state, name.data(), static_cast<uint32_t>(name.length()), a_class_fields, sizeof...(fields));
 		}

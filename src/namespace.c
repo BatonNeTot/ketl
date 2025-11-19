@@ -16,20 +16,25 @@ void ketl_namespace_deinit(ketl_namespace* p_namespace) {
 
 //void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
 
-void ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable) {
+void ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, bool force) {
     // TODO insert into vector uninitialized or something
     ketl_namespace_node new_node = {
         .variable = variable
     };
     uint32_t new_node_offset = p_namespace->v_nodes.size;
-    namespace_nodes_push_back_ref(&p_namespace->v_nodes, &new_node);
 
     namespace_map_bucket* p_bucket = namespace_map_get_or_insert_copy(&p_namespace->m_vars, s_key, new_node_offset);
     if (p_bucket->value != new_node_offset) {
-        // TODO check const stuff
-        // replace if replacement possible
-        // do error if not
-        ANN_ASSERT(false);
+        if (!force) {
+            // TODO check const stuff
+            // replace if replacement possible
+            // do error if not
+            ANN_ASSERT(false);
+        }
+        
+        p_namespace->v_nodes.p_data[p_bucket->value] = new_node;
+    } else {
+        namespace_nodes_push_back_ref(&p_namespace->v_nodes, &new_node);
     }
 }
 

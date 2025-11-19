@@ -244,6 +244,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             break;
         }
+        case 'f': {
+            if (ketl_str_is_equal_n("fn", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FN, id_length);
+                return true;
+            }
+            break;
+        }
         case 'i': {
             if (ketl_str_is_equal_n("if", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_IF, id_length);
@@ -407,7 +414,7 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         
         if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_PLUS, 2);
-        } else if (second_symbol == next_symbol) {
+        } else if (second_symbol == '+') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_INCREMENT, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_PLUS, 1);
@@ -421,8 +428,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         
         if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_MINUS, 2);
-        } else if (second_symbol == next_symbol) {
+        } else if (second_symbol == '-') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DECREMENT, 2);
+        } else if (second_symbol == '>') {
+            ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ARROW_RIGHT, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_MINUS, 1);
         }
@@ -505,10 +514,12 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
     }
 }
 
-void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_source, uint32_t length) {
+void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_filename, const char* p_source, uint32_t length) {
+    p_lexer->p_filename = p_filename;
     p_lexer->p_source = p_source;
     p_lexer->length = length;
     p_lexer->offset = 0;
+    p_lexer->token_iterator = 0;
     p_lexer->v_tokens.size = 0;
     p_lexer->v_lines.size = 0;
     ketl_lexer_lines_t_push_back_copy(&p_lexer->v_lines, 0);

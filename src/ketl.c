@@ -1,7 +1,6 @@
 //🫖ketl
 #include "ketl_impl.h"
 
-#include "compiler/lexer.h"
 #include "compiler/parser.h"
 #include "compiler/assembler.h"
 #include "compiler/assembler_builder.h"
@@ -79,7 +78,7 @@ static const function_type_composite* get_function_type_composite(ketl_state* p_
     uint16_t parameters_count = p_parameters->parameters_count;
     function_types_map_bucket* p_bucket = function_types_map_get_or_insert_copy(&p_state->m_function_types, *p_parameters, (function_type_composite){NULL, NULL, NULL});
     if (p_bucket->value.p_signature == NULL) {
-        uint64_t signature_size = sizeof(ketl_type_signature) + parameters_count * sizeof(ketl_type_parameter);
+        uint64_t signature_size = sizeof(ketl_type_signature) + parameters_count * sizeof(ketl_variable_type_info_t);
         uint64_t functions_offset = ANN_ALIGN_FORWARD(signature_size, _Alignof(ketl_type_function));
         uint64_t total_alloc_size = functions_offset + 2 * sizeof(ketl_type_function);
         void* p_alloc_mem = ketl_alloc(p_state->p_allocator, total_alloc_size);
@@ -88,7 +87,7 @@ static const function_type_composite* get_function_type_composite(ketl_state* p_
         *p_signature = (ketl_type_signature){
             .parameters_count = parameters_count
         };
-        ketl_memcpy(p_signature->a_parameters, p_parameters->p_parameters, parameters_count * sizeof(ketl_type_parameter));
+        ketl_memcpy(p_signature->a_parameters, p_parameters->p_parameters, parameters_count * sizeof(ketl_variable_type_info_t));
 
         p_bucket->key.p_parameters = p_signature->a_parameters;
         p_bucket->value.p_signature = p_signature;
@@ -123,6 +122,7 @@ ketl_state* ketl_state_create(const ketl_allocator* p_allocator) {
     ketl_gc_init(&p_state->gc, p_allocator);
     string_builder_t_init(&p_state->error_stream, 16, p_state->p_allocator);
     ketl_atomic_strings_init(&p_state->atomic_strings, p_allocator);
+    ketl_executable_memory_init(&p_state->executable_memory, p_allocator);
     ketl_namespace_init(&p_state->global_namespace, p_allocator);
     function_types_map_init(&p_state->m_function_types, p_allocator);
 
@@ -148,7 +148,7 @@ ketl_variable namespace_variable = {\
     .p_type = NULL,\
     .pointer = _var_name,\
 };\
-ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);\
+ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, false);\
 } while(0)
 
     CREATE_PRIMITIVE_TYPE(p_none,  "none", 0, false, false);
@@ -163,7 +163,7 @@ ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);\
 
 #define REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
 do {\
-    ketl_type_parameter parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type}, {.p_type = _arg_type} };\
+    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type}, {.p_type = _arg_type} };\
     ketl_function_parameters parameters = {\
         .p_parameters = parameters_array,\
         .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)\
@@ -228,6 +228,7 @@ ketl_free(p_state->p_allocator, p_type_node->variable.pointer);\
     FREE_PRIMITIVE_TYPE("i64");
 
     ketl_namespace_deinit(&p_state->global_namespace);
+    ketl_executable_memory_deinit(&p_state->executable_memory);
     ketl_atomic_strings_deinit(&p_state->atomic_strings);
     string_builder_t_deinit(&p_state->error_stream);
     ketl_gc_deinit(&p_state->gc);
@@ -275,20 +276,24 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* p_state, const ketl_functio
     return (ketl_type*)get_function_type_composite(p_state, p_parameters)->p_cfunc_type;
 }
 
-void ketl_state_define_function(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func) {
+void ketl_state_define_function_impl(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func, bool force) {
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
     ketl_variable namespace_variable = {
         .type = KETL_VARIABLE_POINTER,
         .p_type = p_type,
         .pointer = p_func,
     };
-    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);
+    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, force);
 }
 
-void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_class_field* p_fields, uint16_t field_count) {
-    ketl_class_field_impl* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_class_field_impl) * field_count); 
+void ketl_state_define_function(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func) {
+    ketl_state_define_function_impl(p_state, p_name, length, p_type, p_func, false);
+}
+
+void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
+    ketl_symboled_variable_type_info_t* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
     for (uint32_t i = 0u; i < field_count; ++i) {
-        p_fields_impl[i].p_type.p_type = p_fields[i].p_type;
+        p_fields_impl[i].info = p_fields[i].info;
         p_fields_impl[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
     }
 
@@ -310,32 +315,21 @@ void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t l
         .p_type = NULL,
         .pointer = p_class,
     };
-    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable);
+    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, false);
 }
 
-ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const char* p_source, uint32_t length) {
-    ketl_variable output_variable;
-
-    ////////////////////////////////
-
-    ketl_lexer_t lexer;
-    ketl_lexer_init(&lexer, p_state->p_allocator);
-    ketl_lexer_build_tokens(&lexer, p_source, length);
-
-    ////////////////////////////////
-
+void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable) {
     ketl_hir_t hir;
-    ketl_parser_build_hir(p_state, &hir, p_filename, &lexer, p_state->p_allocator);
-    ketl_lexer_deinit(&lexer);
+    ketl_parser_build_hir(p_state, &hir, p_lexer, p_parameters, parameter_count, p_state->p_allocator);
     if (p_state->error_stream.size > 0) {
         // TODO return error
         printf("%.*s", p_state->error_stream.size, p_state->error_stream.p_data);
         p_state->error_stream.size = 0;
 
-        ketl_variable_set_type(&output_variable, ketl_state_get_none_type(p_state));
-        return ketl_value_from_variable(output_variable, p_state->p_allocator);
+        ketl_variable_set_type(p_output_variable, ketl_state_get_none_type(p_state));
+        return NULL;
     }
-    ketl_variable_set_type(&output_variable, hir.p_used_types[hir.return_type]);
+    ketl_variable_set_type(p_output_variable, hir.p_used_types[hir.return_type]);
 
     {
         char arr_buffer[1024];
@@ -362,7 +356,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
     ketl_asm_x86_build(p_state, &hir, &asm_builder, &asm_x86);
 
     {
-        char arr_buffer[2048];
+        char arr_buffer[4096];
         uint32_t length = ketl_asm_x86_format(&asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
         printf("%.*s", length, arr_buffer);
     }
@@ -370,15 +364,33 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
 
     printf("-------------------------------\n");
 
-    uint32_t opcodes_size = 0u;
-    uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
+    uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, p_opcodes_size, p_state->p_allocator);
     ketl_asm_x86_deinit(&asm_x86);
 
-    ketl_executable_memory ex_memory;
-    ketl_executable_memory_init(&ex_memory, p_state->p_allocator);
+    return p_opcodes;
+}
+
+ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const char* p_source, uint32_t length) {
+    ketl_variable output_variable;
+
+    ////////////////////////////////
+
+    ketl_lexer_t lexer;
+    ketl_lexer_init(&lexer, p_state->p_allocator);
+    ketl_lexer_build_tokens(&lexer, p_filename, p_source, length);
+
+    ////////////////////////////////
+
+    uint32_t opcodes_size = 0u;
+    uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, &opcodes_size, NULL, 0, &output_variable);
+    ketl_lexer_deinit(&lexer);
+
+    if (p_opcodes == NULL) {
+        return ketl_value_from_variable(output_variable, p_state->p_allocator);
+    }
 
 #if 1
-    uint8_t* executable_opcodes = ketl_executable_memory_allocate(&ex_memory, p_opcodes, opcodes_size);
+    uint8_t* executable_opcodes = ketl_executable_memory_allocate(&p_state->executable_memory, p_opcodes, opcodes_size);
     ketl_free(p_state->p_allocator, p_opcodes);
 
     {
@@ -404,8 +416,6 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_filename, const c
 
     output_variable.uint64 = func();
 #endif
-
-    ketl_executable_memory_deinit(&ex_memory);
 
     p_state->error_stream.size = 0;
 

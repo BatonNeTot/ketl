@@ -7,17 +7,17 @@
 
 ANN_FORWARD(ketl_type);
 
-ANN_DEFINE(ketl_type_parameter) {
+ANN_DEFINE(ketl_variable_type_info_t) {
 	ketl_type* p_type;
 };
 
 ANN_DEFINE(ketl_function_parameters) {
-    ketl_type_parameter* p_parameters;
+    ketl_variable_type_info_t* p_parameters;
     uint16_t parameters_count;
 };
 
-ANN_DEFINE(ketl_class_field) {
-	ketl_type* p_type;
+ANN_DEFINE(ketl_named_variable_type_info_t) {
+	ketl_variable_type_info_t info;
     const char* p_name;
     uint32_t name_length;
 };

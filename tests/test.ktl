@@ -1,10 +1,20 @@
-class TEST {
-    value1 : i64;
-    value2 : i64;
+
+fn fibbonachi(value : i64) -> i64 {
+    if (value <= 0) return 0;
+    if (value == 1) return 1;
+    return fibbonachi(value - 1) + fibbonachi(value - 2);
 }
 
-var test = TEST();
-test.value1 = 4;
-test.value2 = 2;
-var raw_pointer : raw = test;
-return raw_pointer;
+return fibbonachi(8);
+
+/*
+fn test(value : i64) -> i64 {
+    if (value == 1) {
+        return 42;
+    } else {
+        return 69;
+    }
+}
+
+return test(1);
+*/
