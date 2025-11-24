@@ -25,6 +25,8 @@ ketl_type* ketl_state_get_i64(ketl_state* p_state);
 
 ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uint32_t length);
 
+ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type);
+
 ketl_type* ketl_state_get_function_type(ketl_state* p_state, const ketl_function_parameters* p_parameters);
 
 ketl_type* ketl_state_get_cfunction_type(ketl_state* p_state, const ketl_function_parameters* p_parameters);

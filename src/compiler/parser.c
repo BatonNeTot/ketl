@@ -54,6 +54,13 @@ ANN_DEFINE(ketl_statement_info) {
     ketl_parse_return_info return_info;
 };
 
+typedef uint8_t ketl_parser_bracket_t;
+enum {
+    KETL_PARSER_BRACKET_PARENTHESIS,
+    KETL_PARSER_BRACKET_CURLY,
+    KETL_PARSER_BRACKET_SQUARE,
+};
+
 #define EOF_STR "EOF"
 #define TOKEN_LENGTH(token) ((int)((token).length > 0 ? (token).length : sizeof(EOF_STR) - 1))
 #define TOKEN_STRING(token) ((token).length > 0 ? (p_context)->p_lexer->p_source + (token).offset : EOF_STR)
@@ -106,7 +113,8 @@ static void report_error(string_builder_t* p_error_stream, ketl_error_info* p_er
     string_builder_t_push_back_copy(p_error_stream, '\n');
 }
 
-#define error(__offset, __length, message) \
+
+#define errorf(__offset, __length, ...) \
 do {\
     ketl_error_info error_info = {\
         .p_lexer = p_context->p_lexer,\
@@ -114,17 +122,7 @@ do {\
         .offset = (__offset),\
         .length = (__length),\
     };\
-    report_error(&p_context->p_state->error_stream, &error_info, message);\
-} while (0)
-#define errorf(__offset, __length, format, ...) \
-do {\
-    ketl_error_info error_info = {\
-        .p_lexer = p_context->p_lexer,\
-        .p_filename = GET_SYMBOL_SOURCE(p_context->a_filename),\
-        .offset = (__offset),\
-        .length = (__length),\
-    };\
-    report_error(&p_context->p_state->error_stream, &error_info, format, __VA_ARGS__);\
+    report_error(&p_context->p_state->error_stream, &error_info, __VA_ARGS__);\
 } while (0)
 
 static ketl_hir_symbol_offset_t push_symbol_string(ketl_parser_context* p_context, const char* p_str, uint32_t length) {
@@ -195,10 +193,10 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
         ketl_type* p_lhs_type = p_context->hir_builder.v_used_types.p_data[p_lhs_var->type];
         ketl_type* p_rhs_type = p_context->hir_builder.v_used_types.p_data[p_rhs_var->type];
 
-        if (!((p_lhs_type->type == KETL_TYPE_FUNCTION || p_lhs_type->type == KETL_TYPE_CFUNCTION || p_lhs_type->type == KETL_TYPE_CLASS) &&
+        if (!((p_lhs_type->type == KETL_TYPE_ARRAY || p_lhs_type->type == KETL_TYPE_FUNCTION || p_lhs_type->type == KETL_TYPE_CFUNCTION || p_lhs_type->type == KETL_TYPE_CLASS) &&
             // hack to check for raw type
             p_rhs_type->type == KETL_TYPE_PRIMITIVE && p_rhs_type->size == sizeof(void*)) &&
-            !((p_rhs_type->type == KETL_TYPE_FUNCTION || p_rhs_type->type == KETL_TYPE_CFUNCTION || p_rhs_type->type == KETL_TYPE_CLASS) &&
+            !((p_rhs_type->type == KETL_TYPE_ARRAY || p_rhs_type->type == KETL_TYPE_FUNCTION || p_rhs_type->type == KETL_TYPE_CFUNCTION || p_rhs_type->type == KETL_TYPE_CLASS) &&
             // hack to check for raw type
             p_lhs_type->type == KETL_TYPE_PRIMITIVE && p_lhs_type->size == sizeof(void*))) {
             ANN_ASSERT(false && "Incompatible assignment types.");
@@ -233,7 +231,7 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_pa
     ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         // TODO POS
-        error(0, 1, "Can't assign to an l-value.");
+        errorf(0, 1, "Can't assign to an l-value.");
         return push_temp_var(p_context);
     }
 
@@ -279,8 +277,13 @@ static ketl_hir_var_id_t push_literal_id(ketl_parser_context* p_context, ketl_to
     return id_var;
 }
 
+static ketl_hir_var_id_t push_array_index(ketl_parser_context* p_context, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id) {
+    // TODO decide how to update uids
+    ketl_hir_var_id_t id_var = ketl_hir_builder_create_index_var(p_context->p_state, &p_context->hir_builder, array_id, arg_id);
+    return id_var;
+}
+
 static ketl_hir_var_id_t push_object_field(ketl_parser_context* p_context, ketl_hir_var_id_t object_id, ketl_token_t literal) {
-    push_symbol(p_context, CURRENT_TOKEN(1));
     // TODO decide how to update uids
     ketl_hir_var_id_t id_var = ketl_hir_builder_create_field_var(p_context->p_state, &p_context->hir_builder, object_id,
         push_symbol(p_context, literal), KETL_HIR_USED_TYPE_UNKNOWN);
@@ -344,7 +347,7 @@ static ketl_hir_var_id_t push_hir_create(ketl_parser_context* p_context, ketl_pa
         .end_col_index = p_pos_info->end_pos_col,
         */
     };
-    ketl_hir_var_id_t output_var = push_temp_var(p_context); 
+    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, type); 
     ketl_hir_create_t instr = {
         .output_var = output_var,
         .type = type,
@@ -354,6 +357,29 @@ static ketl_hir_var_id_t push_hir_create(ketl_parser_context* p_context, ketl_pa
     ketl_hir_builder_insert_create(p_context->p_state, &p_context->hir_builder, header, &instr,
         // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
         p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
+    return output_var;
+}
+
+static ketl_hir_var_id_t push_hir_create_array(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_used_type_index_t array_type, ketl_hir_var_id_t count_var_id) {
+    (void)p_pos_info;
+    ketl_hir_header_t header = {
+        .tag = KETL_HIR_CREATE_ARRAY,
+        .file_symbol = p_context->a_filename,
+        /*
+        .start_line_index = p_pos_info->start_pos_line,
+        .end_line_index = p_pos_info->end_pos_line,
+        .start_col_index = p_pos_info->start_pos_col,
+        .end_col_index = p_pos_info->end_pos_col,
+        */
+    };
+    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, array_type); 
+    ketl_hir_create_array_t instr = {
+        .output_var = output_var,
+        .type = array_type,
+        .count_var_id = count_var_id,
+    };
+
+    ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
     return output_var;
 }
 
@@ -478,8 +504,8 @@ static void token_advance(ketl_parser_context* p_context) {
 
         if (TOKEN(current).type != KETL_TOKEN_TYPE_ERROR) break;
 
-        // TODO move error to the lexer, make it informative
-        error(TOKEN(current).offset, TOKEN(current).length, "Error in lexer.");
+        // TODO move errorf to the lexer, make it informative
+        errorf(TOKEN(current).offset, TOKEN(current).length, "Error in lexer.");
         ANN_ASSERT(false);
     }
 }
@@ -547,6 +573,20 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
     token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after access operator.");
 
     return push_object_field(p_context, lhs, CURRENT_TOKEN(1));
+}
+
+static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
+    ketl_hir_var_id_t expr_id = parse_expression(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT, "Expected ']' after expression.");
+
+    ketl_hir_var_t* p_var = &p_context->hir_builder.v_vars.p_data[var_id];
+    if (p_var->type == KETL_HIR_USED_TYPE_META) {
+        ketl_type* p_value_type = p_context->hir_builder.v_vars_infos.p_data[p_var->info].p_global->pointer;
+        return push_hir_create_array(p_context, NULL, 
+            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)), expr_id);
+    } else {
+        return push_array_index(p_context, var_id, expr_id);
+    }
 }
 
 static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
@@ -633,7 +673,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CURLY_LEFT]                 = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CURLY_RIGHT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_SQUARE_LEFT]                = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_SQUARE_LEFT]                = { NULL,                parse_indexing,      NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_SQUARE_RIGHT]               = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DOT]                        = { NULL,                parse_dot_operator,  NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -674,16 +714,16 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND]         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR]          = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR]         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I8]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I16]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_I64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U8]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U16]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_U64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_F32]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_F64]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_I8]                         = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_I16]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_I32]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_I64]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_U8]                         = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_U16]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_U32]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_U64]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_F32]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_F64]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_BOOL]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_BREAK]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CASE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -718,7 +758,7 @@ static ketl_parse_rule* get_parse_rule(ketl_token_type token_type) {
 static ketl_hir_var_id_t parse_lhs_operand(ketl_parser_context* p_context, ketl_precedence precedence) {    
     ketl_parse_prefix f_prefix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_prefix;
     if (f_prefix_rule == NULL) {
-        error(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected expression.");
+        errorf(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected expression.");
         return push_temp_var(p_context);
     }
 
@@ -729,13 +769,50 @@ static ketl_hir_var_id_t parse_lhs_operand(ketl_parser_context* p_context, ketl_
         token_advance(p_context);
         ketl_parse_ltr_infix f_ltr_infix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_ltr_infix;
         if (f_ltr_infix_rule == NULL) {
-            error(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected operator.");
+            errorf(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected operator.");
             return push_temp_var(p_context);
         }
         lhs = f_ltr_infix_rule(p_context, lhs);
     }
    
     return lhs;
+}
+
+static bool parse_brackets(ketl_token_type token_type, ketl_parser_bracket_t* p_brackets_stack, uint32_t* bracket_stack_count) {
+    ketl_parser_bracket_t bracket;
+    switch (token_type) {
+        case KETL_TOKEN_TYPE_PARENTHESIS_LEFT:
+            p_brackets_stack[(*bracket_stack_count)++] = KETL_PARSER_BRACKET_PARENTHESIS;
+            return false;
+        case KETL_TOKEN_TYPE_CURLY_LEFT:
+            p_brackets_stack[(*bracket_stack_count)++] = KETL_PARSER_BRACKET_CURLY;
+            return false;
+        case KETL_TOKEN_TYPE_SQUARE_LEFT:
+            p_brackets_stack[(*bracket_stack_count)++] = KETL_PARSER_BRACKET_SQUARE;
+            return false;
+        case KETL_TOKEN_TYPE_PARENTHESIS_RIGHT:
+            if (*bracket_stack_count <= 0) {
+                return false;
+            }
+            bracket = p_brackets_stack[--(*bracket_stack_count)];
+            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_PARENTHESIS);
+            return true;
+        case KETL_TOKEN_TYPE_CURLY_RIGHT:
+            if (*bracket_stack_count <= 0) {
+                return false;
+            }
+            bracket = p_brackets_stack[--(*bracket_stack_count)];
+            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_CURLY);
+            return true;
+        case KETL_TOKEN_TYPE_SQUARE_RIGHT:
+            if (*bracket_stack_count <= 0) {
+                return false;
+            }
+            bracket = p_brackets_stack[--(*bracket_stack_count)];
+            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_SQUARE);
+            return true;
+    }
+    return false;
 }
 
 static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_precedence precedence) {
@@ -748,12 +825,18 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
 
     // looking for the rtl operator
     ketl_token_iterator_t start_pos = p_context->p_lexer->token_iterator;
+    ketl_parser_bracket_t a_brackets_stack[32];
+    uint32_t bracket_stack_count = 0;
+
+    parse_brackets(CURRENT_TOKEN(1).type, a_brackets_stack, &bracket_stack_count);
     ketl_parse_rule* p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
     ketl_precedence token_precedence = p_parse_rule->precedence;
     while (precedence < token_precedence) {
         token_advance(p_context);
         p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
-        token_precedence = p_parse_rule->precedence;
+        if (!parse_brackets(CURRENT_TOKEN(1).type, a_brackets_stack, &bracket_stack_count)) {
+            token_precedence = p_parse_rule->precedence;
+        }
     }
 
     // we coudln't find rtl operator, restoring token iterator and do simple ltr
@@ -803,7 +886,7 @@ static ketl_statement_info parse_block_statement_inner(ketl_parser_context* p_co
             ketl_parse_return_info decl_return_info = parse_declaration(p_context).return_info;
             uint32_t statement_end = CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length;
 
-            error(statement_start, statement_end - statement_start, "Unreachable statement.");
+            errorf(statement_start, statement_end - statement_start, "Unreachable statement.");
 
             return_info |= decl_return_info;
         } else {
@@ -929,7 +1012,7 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
     } else {
         if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
             uint32_t decl_end = CURRENT_TOKEN(1).offset + CURRENT_TOKEN(1).length;
-            error(decl_start, decl_end - decl_start, "Variable declaration without a type expects an initial expression.");
+            errorf(decl_start, decl_end - decl_start, "Variable declaration without a type expects an initial expression.");
 
             initial_value = push_temp_var(p_context);
         } else {
@@ -1083,7 +1166,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
             (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (statement_info.return_info & KETL_RETURN_ALWAYS_VALUE))) {
             // TODO POS?
-            error(0, 1, "Not all control returns value.");
+            errorf(0, 1, "Not all control returns value.");
         }
 
         if (!(statement_info.return_info & KETL_RETURN_ALWAYS)) {

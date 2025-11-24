@@ -39,6 +39,7 @@ enum {
     KETL_HIR_CALL,
 
     KETL_HIR_CREATE,
+    KETL_HIR_CREATE_ARRAY,
 
     KETL_HIR_JUMP,
 
@@ -154,6 +155,12 @@ ANN_DEFINE(ketl_hir_create_t) {
     ketl_hir_var_id_t arguments[];
 };
 
+ANN_DEFINE(ketl_hir_create_array_t) {
+    ketl_hir_var_id_t output_var;
+    ketl_hir_used_type_index_t type;
+    ketl_hir_var_id_t count_var_id;
+};
+
 ANN_DEFINE(ketl_hir_assign_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
@@ -188,6 +195,7 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_UID_GLOBAL ((ketl_hir_var_uid_t)-2)
 #define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-3)
 #define KETL_HIR_VAR_UID_PARAMETER ((ketl_hir_var_uid_t)-4)
+#define KETL_HIR_VAR_UID_INDEX ((ketl_hir_var_uid_t)-5)
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
@@ -204,10 +212,13 @@ ANN_DEFINE(ketl_hir_var_t) {
 };
 
 ANN_DEFINE(ketl_hir_var_info_t) {
-    ketl_hir_symbol_offset_t name;
+    union {
+        ketl_hir_symbol_offset_t name;
+        ketl_hir_var_id_t arg_id;
+    };
     union {
         ketl_variable* p_global;
-        ketl_hir_var_id_t field_parent;
+        ketl_hir_var_id_t parent_id;
     };
     // TODO declaration info
 };

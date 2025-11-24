@@ -68,6 +68,7 @@ static bool is_func_parameters_equal(const ketl_function_parameters* p_lhs_param
 }
 
 KETL_HASH_MAP_DEFINITION(function_types_map, ketl_function_parameters, function_type_composite, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
+KETL_HASH_MAP_DEFINITION(array_types_map_t, ketl_type*, ketl_type*, ANN_HASH, ANN_EQUAL)
 
 KETL_VECTOR_DEFINITION(types, ketl_type*)
 KETL_VECTOR_DEFINITION(string_builder_t, char)
@@ -125,6 +126,7 @@ ketl_state* ketl_state_create(const ketl_allocator* p_allocator) {
     ketl_executable_memory_init(&p_state->executable_memory, p_allocator);
     ketl_namespace_init(&p_state->global_namespace, p_allocator);
     function_types_map_init(&p_state->m_function_types, p_allocator);
+    array_types_map_t_init(&p_state->m_array_types, p_allocator);
 
     for (uint32_t i = 0; i < ANN_ARRAY_SIZE(p_state->am_hiroperator_overloading); ++i) {
         operator_overloading_map_init(p_state->am_hiroperator_overloading + i, p_allocator);
@@ -205,6 +207,10 @@ void ketl_state_destroy(ketl_state* p_state) {
         operator_overloading_map_deinit(p_state->am_hiroperator_overloading + i);
     }
 
+    KETL_HASH_MAP_FOREACH(array_types_map_t, &p_state->m_array_types,
+        ketl_free(p_state->p_allocator, __p_bucket->value);    
+    );
+    array_types_map_t_deinit(&p_state->m_array_types);
     KETL_HASH_MAP_FOREACH(function_types_map, &p_state->m_function_types,
         ketl_free(p_state->p_allocator, __p_bucket->value.p_signature);    
     );
@@ -266,6 +272,17 @@ ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uin
     ketl_namespace_node* p_type_node = ketl_namespace_find(&p_state->global_namespace, a_type_name);
     ANN_ASSERT(p_type_node->variable.type == KETL_VARIABLE_TYPE);
     return p_type_node->variable.pointer;
+}
+
+ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type) {
+    ketl_type_array* p_array_type = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_array));
+    *p_array_type = (ketl_type_array){
+        .type = KETL_TYPE_ARRAY,
+        .align = p_type->align,
+        .size = p_type->size,
+        .p_value_type = p_type,
+    };
+    return (ketl_type*)p_array_type;
 }
 
 ketl_type* ketl_state_get_function_type(ketl_state* p_state, const ketl_function_parameters* p_parameters) {

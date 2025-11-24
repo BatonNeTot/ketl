@@ -1,4 +1,4 @@
-
+/*
 fn fibbonachi(value : i64) -> i64 {
     if (value <= 0) return 0;
     if (value == 1) return 1;
@@ -6,15 +6,10 @@ fn fibbonachi(value : i64) -> i64 {
 }
 
 return fibbonachi(8);
-
-/*
-fn test(value : i64) -> i64 {
-    if (value == 1) {
-        return 42;
-    } else {
-        return 69;
-    }
-}
-
-return test(1);
 */
+
+var arr = i64[10];
+arr[0] = 5;
+arr[1] = 7;
+var pointer : raw = arr;
+return pointer;

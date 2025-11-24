@@ -4,7 +4,7 @@
 
 #include "ketl/utils.h"
 
-
+ANN_FORWARD(ketl_state);
 ANN_FORWARD(ketl_type);
 
 ANN_DEFINE(ketl_variable_type_info_t) {
@@ -25,5 +25,7 @@ ANN_DEFINE(ketl_named_variable_type_info_t) {
 size_t ketl_type_get_size(ketl_type* p_type);
 
 size_t ketl_type_get_align(ketl_type* p_type);
+
+uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer, uint32_t buffer_size);
 
 #endif // ketl_type_h

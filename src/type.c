@@ -1,6 +1,10 @@
 //🫖ketl
 #include "type_impl.h"
 
+#include "ketl_impl.h"
+
+#include <stdio.h>
+
 size_t ketl_type_get_size(ketl_type* p_type) {
     return p_type->size;
 }
@@ -66,4 +70,33 @@ uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string 
     }
 
     return 0;
+}
+
+uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer, uint32_t buffer_size) {
+    ANN_SWITCH_STRICT(p_type->type) {
+        case KETL_TYPE_PRIMITIVE: {
+            ketl_type_primitive* p_primitive_type = ((ketl_type_primitive*)p_type);
+            if (p_primitive_type->is_integer) {
+                ANN_SWITCH_STRICT(p_primitive_type->size) {
+                    case 1: return p_primitive_type->is_signed ? 
+                    snprintf(p_buffer, buffer_size, "i8") : snprintf(p_buffer, buffer_size, "u8");
+                    case 2: return p_primitive_type->is_signed ? 
+                    snprintf(p_buffer, buffer_size, "i16") : snprintf(p_buffer, buffer_size, "u16");
+                    case 4: return p_primitive_type->is_signed ? 
+                    snprintf(p_buffer, buffer_size, "i32") : snprintf(p_buffer, buffer_size, "u32");
+                    case 8: return p_primitive_type->is_signed ? 
+                    snprintf(p_buffer, buffer_size, "i64") : snprintf(p_buffer, buffer_size, "64");
+                }
+            }
+            return 0;
+        }
+        case KETL_TYPE_ARRAY: {
+            uint32_t printed = ketl_type_format(p_state, ((ketl_type_array*)p_type)->p_value_type, p_buffer, buffer_size);
+            return printed + snprintf(p_buffer + printed, buffer_size - printed, "[]");
+        }
+        case KETL_TYPE_CLASS: {
+            return snprintf(p_buffer, buffer_size, "%s", 
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
+        }
+    }
 }

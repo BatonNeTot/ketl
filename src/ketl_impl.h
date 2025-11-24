@@ -20,6 +20,7 @@ ANN_DEFINE(function_type_composite) {
 };
 
 KETL_HASH_MAP_DECLARATION(function_types_map, ketl_function_parameters, function_type_composite)
+KETL_HASH_MAP_DECLARATION(array_types_map_t, ketl_type*, ketl_type*)
 
 KETL_VECTOR_DECLARATION(types, ketl_type*)
 KETL_VECTOR_DECLARATION(string_builder_t, char)
@@ -35,6 +36,7 @@ ANN_DEFINE(ketl_state) {
     ketl_namespace global_namespace;
     
     function_types_map m_function_types;
+    array_types_map_t m_array_types;
 
     operator_overloading_map am_hiroperator_overloading[
         ((KETL_HIR_LAST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT) + 1) - (KETL_HIR_FIRST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT)

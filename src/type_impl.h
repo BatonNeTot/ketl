@@ -10,6 +10,7 @@
 
 enum {
     KETL_TYPE_PRIMITIVE,
+    KETL_TYPE_ARRAY,
     KETL_TYPE_FUNCTION,
     KETL_TYPE_CFUNCTION,
     KETL_TYPE_CLASS,
@@ -29,6 +30,11 @@ ANN_DEFINE(ketl_type_primitive) {
     ketl_atomic_string s_name;
     bool is_integer;
     bool is_signed;
+};
+
+ANN_DEFINE(ketl_type_array) {
+    KETL_TYPE_BODY;
+    ketl_type* p_value_type;
 };
 
 ANN_DEFINE(ketl_type_signature) {

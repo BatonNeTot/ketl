@@ -27,6 +27,12 @@ void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags) {
     return p_object;
 }
 
+void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t size, uint8_t flags) {
+    void* p_object = ketl_alloc(p_gc->p_allocator, ketl_type_get_size(p_type) * size);
+    ketl_gc_reg(p_gc, p_object, p_type, flags | KETL_GC_FREE_AFTER_USE);
+    return p_object;
+}
+
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint8_t flags) {
     ketl_gc_info info = {
         .p_type = p_type,
