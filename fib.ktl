@@ -1,0 +1,5 @@
+fn fibbonachi(value : i64) -> i64 {
+    if (value <= 0) return 0;
+    if (value == 1) return 1;
+    return fibbonachi(value - 1) + fibbonachi(value - 2);
+}

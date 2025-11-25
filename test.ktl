@@ -1,0 +1,11 @@
+import fib
+
+return fib.fibbonachi(8); 
+
+/*
+var arr = i64[10];
+arr[0] = 5;
+arr[1] = 7;
+var pointer : raw = arr;
+return pointer;
+*/
