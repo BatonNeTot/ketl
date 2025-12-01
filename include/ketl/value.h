@@ -22,6 +22,10 @@ int16_t ketl_value_as_i16(ketl_state* p_state, ketl_value* p_value);
 int32_t ketl_value_as_i32(ketl_state* p_state, ketl_value* p_value);
 int64_t ketl_value_as_i64(ketl_state* p_state, ketl_value* p_value);
 
+uint64_t ketl_value_get_array_size(ketl_state* p_state, ketl_value* p_value);
+
+ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t index);
+
 void ketl_value_destroy(ketl_state* p_state, ketl_value* p_value);
 
 #endif

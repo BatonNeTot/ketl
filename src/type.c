@@ -17,6 +17,10 @@ size_t ketl_type_get_align(ketl_type* p_type) {
     return p_type->align;
 }
 
+bool ketl_type_is_array(ketl_type* p_type) {
+    return p_type->type == KETL_TYPE_ARRAY;
+}
+
 ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info_t* p_fields, uint16_t fields_count) {
     ketl_type_size_pair_t pair = {
         .align = 1,

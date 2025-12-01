@@ -57,6 +57,30 @@ int64_t ketl_value_as_i64(ketl_state* p_state, ketl_value* p_value) {
     return p_variable->int64;
 }
 
+uint64_t ketl_value_get_array_size(ketl_state* p_state, ketl_value* p_value) {
+    ketl_variable* p_variable = (ketl_variable*)p_value;
+    ANN_ASSERT(ketl_type_is_array(p_variable->p_type));
+
+    uint64_t allocation_size = ketl_gc_get_allocation_size(&p_state->gc, p_variable->pointer);
+    return allocation_size / ketl_type_get_size(p_variable->p_type);
+}
+
+ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t index) {
+    ketl_variable* p_variable = (ketl_variable*)p_value;
+    ANN_ASSERT(ketl_type_is_array(p_variable->p_type));
+    ketl_type* p_value_type = ((ketl_type_array*)p_variable->p_type)->p_value_type;
+    ANN_ASSERT(p_value_type->type == KETL_TYPE_PRIMITIVE);
+
+    ketl_variable indexed_variable = {
+        .uint64 = ((uint64_t*)p_variable->pointer)[index],
+        .p_type = p_value_type,
+    };
+
+    ketl_variable_set_type(&indexed_variable, p_value_type);
+
+    return ketl_value_from_variable(indexed_variable, p_state->p_allocator);
+}
+
 void ketl_value_destroy(ketl_state* p_state, ketl_value* p_value) {
     ketl_free(p_state->p_allocator, p_value);
 }

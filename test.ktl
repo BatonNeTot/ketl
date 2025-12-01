@@ -1,4 +1,4 @@
-//*
+/*
 import fib
 
 fn get_index() -> i64 {
@@ -14,4 +14,8 @@ arr[0] = 5;
 arr[1] = 7;
 var pointer : raw = arr;
 return pointer;
+//*/
+
+//*
+return i64[10]{ 5, 7 };
 //*/

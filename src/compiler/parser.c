@@ -603,8 +603,29 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
     ketl_hir_var_t* p_var = &p_context->hir_builder.vars.p_data[var_id];
     if (p_var->type == KETL_HIR_USED_TYPE_META) {
         ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->pointer;
-        return push_hir_create_array(p_context, NULL, 
+        ketl_hir_var_id_t id_var = push_hir_create_array(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)), expr_id);
+
+        if (!token_match(p_context, KETL_TOKEN_TYPE_CURLY_LEFT)) {
+            return id_var;
+        }
+
+        uint64_t index = 0;
+        if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
+            do {
+                ketl_hir_var_id_t value_var = parse_expression(p_context);
+                char a_literal_buffer[256] = {0};
+                uint32_t literal_length = snprintf(a_literal_buffer, ANN_ARRAY_SIZE(a_literal_buffer), "%"PRIu64, index);
+                ketl_hir_var_id_t index_literal = push_literal_number_symbol(p_context, push_symbol_string(p_context, a_literal_buffer, literal_length));
+                ketl_hir_var_id_t indexed_var = push_array_index(p_context, id_var, index_literal);
+
+                push_hir_assign(p_context, NULL, indexed_var, value_var);
+                ++index;
+            } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
+        }
+        
+        token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after array initial values.");
+        return id_var;
     } else {
         return push_array_index(p_context, var_id, expr_id);
     }

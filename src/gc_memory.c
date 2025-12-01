@@ -22,20 +22,24 @@ void ketl_gc_deinit(ketl_gc* p_gc) {
 }
 
 void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags) {
-    void* p_object = ketl_alloc(p_gc->p_allocator, ketl_type_get_size(p_type));
-    ketl_gc_reg(p_gc, p_object, p_type, flags | KETL_GC_FREE_AFTER_USE);
+    uint64_t mem_size = ketl_type_get_size(p_type);
+    void* p_object = ketl_alloc(p_gc->p_allocator, mem_size);
+    ketl_gc_reg(p_gc, p_object, p_type, mem_size, flags | KETL_GC_FREE_AFTER_USE);
     return p_object;
 }
 
 void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t size, uint8_t flags) {
-    void* p_object = ketl_alloc(p_gc->p_allocator, ketl_type_get_size(p_type) * size);
-    ketl_gc_reg(p_gc, p_object, p_type, flags | KETL_GC_FREE_AFTER_USE);
-    return p_object;
+    uint64_t mem_size = ketl_type_get_size(p_type) * size;
+    void* p_array = ketl_alloc(p_gc->p_allocator, mem_size);
+    ketl_memset(p_array, 0, mem_size);
+    ketl_gc_reg(p_gc, p_array, p_type, mem_size, flags | KETL_GC_FREE_AFTER_USE);
+    return p_array;
 }
 
-void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint8_t flags) {
+void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t size, uint8_t flags) {
     ketl_gc_info info = {
         .p_type = p_type,
+        .size = size,
         .flag_usage = p_gc->flag_usage,
         .free_after_use = flags & KETL_GC_FREE_AFTER_USE,
     };
@@ -71,6 +75,14 @@ static void* find_object_start(ketl_gc* p_gc, const void* p_inside_object, ketl_
         *pp_info = &p_node->value;
         return p_node->key;
     }
+}
+
+uint64_t ketl_gc_get_allocation_size(ketl_gc* p_gc, void* p_object) {
+    ketl_gc_info *p_info;
+    if (find_object_start(p_gc, p_object, &p_info) == NULL) {
+        return 0;
+    }
+    return p_info->size;
 }
 
 static void mark_objects(ketl_gc* p_gc) {

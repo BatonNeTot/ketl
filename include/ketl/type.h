@@ -26,6 +26,8 @@ size_t ketl_type_get_size(ketl_type* p_type);
 
 size_t ketl_type_get_align(ketl_type* p_type);
 
+bool ketl_type_is_array(ketl_type* p_type);
+
 uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer, uint32_t buffer_size);
 
 #endif // ketl_type_h

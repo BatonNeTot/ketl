@@ -160,6 +160,7 @@ ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_copy)(name* p_map, k_type
     ANN_CONCAT(name,_node)* p_found_node = p_map->p_nodes + found_offset;\
     if (free_node_offset == found_offset) {\
         p_found_node->value = value;\
+        ++p_map->size;\
     }\
     \
     return p_found_node;\
@@ -172,6 +173,7 @@ ANN_CONCAT(name,_node)* ANN_CONCAT(name,_get_or_insert_ref)(name* p_map, k_type 
     ANN_CONCAT(name,_node)* p_found_node = p_map->p_nodes + found_offset;\
     if (free_node_offset == found_offset) {\
         p_found_node->value = *p_value;\
+        ++p_map->size;\
     }\
     \
     return p_found_node;\

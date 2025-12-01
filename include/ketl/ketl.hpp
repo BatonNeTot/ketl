@@ -113,6 +113,10 @@ namespace KETL {
 			return ketl_type_get_size(_p_type);
 		}
 
+		bool is_array() const {
+			return ketl_type_is_array(_p_type);
+		}
+
 		friend bool operator==(const Type& lhs, const Type& rhs) {
 			return lhs._p_type == rhs._p_type;
 		}
@@ -180,6 +184,14 @@ namespace KETL {
 		template<class T>
 		T as() const {
 			return __ValueGetter<T>::as(__get_state_impl(_state), _p_value);
+		}
+
+		uint64_t get_array_size() const {
+			return ketl_value_get_array_size(__get_state_impl(_state), _p_value);
+		}
+
+		Value operator[](int64_t index) const {
+			return Value{ ketl_value_index(__get_state_impl(_state), _p_value, index), _state };
 		}
 
 		const State& get_state() const {
@@ -267,6 +279,20 @@ std::ostream& operator<<(std::ostream& os, const KETL::Value& ketl_value)
 		os << ketl_value.as<int32_t>();
 	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int64_t>()) {
 		os << ketl_value.as<int64_t>();
+	} else if (ketl_value.get_type().is_array()) {
+		int64_t size = static_cast<int64_t>(ketl_value.get_array_size());
+		if (size == 0) {
+			os << "{}";
+		} else {
+			os << "{ ";
+			for (int64_t i = 0; i < size;) {
+				os << ketl_value[i++];
+				if (i < size) {
+					os << ", ";
+				}
+			}
+			os << " }";
+		}
 	} else {
 		ANN_ASSERT(false);
 	}

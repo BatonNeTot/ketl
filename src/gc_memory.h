@@ -12,6 +12,7 @@
 
 ANN_DEFINE(ketl_gc_info) {
     ketl_type* p_type;
+    uint64_t size;
     bool flag_usage;
     bool free_after_use;
 };
@@ -38,7 +39,9 @@ void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags);
 
 void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t size, uint8_t flags);
 
-void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint8_t flags);
+void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t size, uint8_t flags);
+
+uint64_t ketl_gc_get_allocation_size(ketl_gc* p_gc, void* p_object);
 
 void ketl_gc_collect(ketl_gc* p_gc);
 

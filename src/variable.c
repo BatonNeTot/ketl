@@ -42,5 +42,9 @@ void ketl_variable_set_type(ketl_variable* p_variable, ketl_type* p_type) {
             }
             break;
         }
+        case KETL_TYPE_ARRAY: {
+            p_variable->type = KETL_VARIABLE_POINTER;
+            break;
+        }
     }
 }
