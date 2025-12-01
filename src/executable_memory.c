@@ -90,17 +90,17 @@ void ketl_executable_memory_init(ketl_executable_memory* exe_memory, const ketl_
 	*exe_memory = (ketl_executable_memory) {
 		.current_offset = 0,
 	};
-	ketl_executable_memory_page_vector_init(&exe_memory->v_pages, 1, p_allocator);
+	ketl_executable_memory_page_vector_init(&exe_memory->pages, 1, p_allocator);
 }
 
 void ketl_executable_memory_deinit(ketl_executable_memory* exe_memory) {
-	ketl_executable_memory_page_vector v_pages = exe_memory->v_pages;
-	for (uint32_t i = 0u; i < v_pages.size; ++i) {
-		ketl_executable_memory_page page = v_pages.p_data[i];
+	ketl_executable_memory_page_vector pages = exe_memory->pages;
+	for (uint32_t i = 0u; i < pages.size; ++i) {
+		ketl_executable_memory_page page = pages.p_data[i];
 		ketl_deallocate_exe_memory(page.p_page, page.page_size);
 	}
 
-	ketl_executable_memory_page_vector_deinit(&v_pages);
+	ketl_executable_memory_page_vector_deinit(&pages);
 }
 
 uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exe_memory, const uint8_t* opcodes, uint64_t length) {
@@ -110,22 +110,22 @@ uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exe_memory, con
 
 	uint32_t current_offset = exe_memory->current_offset;
 	ketl_executable_memory_page current_page;
-	if (exe_memory->v_pages.size == 0 || current_offset + length > current_page.page_size) {
+	if (exe_memory->pages.size == 0 || current_offset + length > current_page.page_size) {
 		uint32_t page_size = ketl_get_static_page_size();
 		uint32_t requested_page_count = (uint32_t)((length + (page_size - 1)) >> ketl_get_static_page_size_log());
 
 		void* p_mem_hint = NULL;
-		if (exe_memory->v_pages.size != 0) {
+		if (exe_memory->pages.size != 0) {
 			p_mem_hint = current_page.p_page + current_page.page_size;
 		}
 
 		current_page.page_size = page_size * requested_page_count;
 		current_page.p_page = ketl_allocate_exe_memory(p_mem_hint, current_page.page_size);
 		
-		ketl_executable_memory_page_vector_push_back_ref(&exe_memory->v_pages, &current_page);
+		ketl_executable_memory_page_vector_push_back_ref(&exe_memory->pages, &current_page);
 		current_offset = 0;
 	} else {
-		current_page = exe_memory->v_pages.p_data[exe_memory->v_pages.size - 1];
+		current_page = exe_memory->pages.p_data[exe_memory->pages.size - 1];
 		ketl_unprotect_exe_memory(current_page.p_page, current_page.page_size);
 	}
 

@@ -6,6 +6,7 @@
 #include "type_impl.h"
 #include "gc_memory.h"
 #include "executable_memory.h"
+#include "module.h"
 
 #include "namespace.h"
 #include "atomic_strings.h"
@@ -25,7 +26,18 @@ KETL_HASH_MAP_DECLARATION(array_types_map_t, ketl_type*, ketl_type*)
 KETL_VECTOR_DECLARATION(types, ketl_type*)
 KETL_VECTOR_DECLARATION(string_builder_t, char)
 
+KETL_HASH_MAP_DECLARATION(ketl_modules_t, ketl_atomic_string, ketl_module_t)
+
 KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t)
+
+ANN_DEFINE(compile_function_declaration_t) {
+    ketl_atomic_string s_name;
+    ketl_variable* p_variable;
+    uint8_t* p_opcodes;
+    uint64_t opcodes_size;
+};
+
+KETL_VECTOR_DECLARATION(compile_function_declarations_t, compile_function_declaration_t)
 
 ANN_DEFINE(ketl_state) {
     const ketl_allocator* p_allocator;
@@ -34,15 +46,24 @@ ANN_DEFINE(ketl_state) {
     ketl_atomic_strings atomic_strings;
     ketl_executable_memory executable_memory;
     ketl_namespace global_namespace;
+    ketl_modules_t modules;
     
-    function_types_map m_function_types;
-    array_types_map_t m_array_types;
+    function_types_map function_types;
+    array_types_map_t array_types;
 
     operator_overloading_map am_hiroperator_overloading[
         ((KETL_HIR_LAST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT) + 1) - (KETL_HIR_FIRST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT)
     ];
+
+    compile_function_declarations_t compile_function_declarations;
 };
 
-void ketl_state_define_function_impl(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func, bool force);
+void* ketl_state_load(ketl_state* p_state, ketl_namespace* p_namespace, ketl_variable* p_output_variable, uint32_t* p_opcodes_size, const char* p_filename, const char* p_source, uint32_t length);
 
-void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable);
+bool ketl_state_load_module(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace);
+
+ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_type_name, uint32_t length);
+
+ketl_variable* ketl_state_define_function_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func);
+
+void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable);

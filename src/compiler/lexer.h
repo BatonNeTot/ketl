@@ -15,8 +15,8 @@ KETL_VECTOR_DECLARATION(ketl_lexer_lines_t, uint32_t)
 
 ANN_DEFINE(ketl_lexer_t) {
     const ketl_allocator* p_allocator;
-    ketl_lexer_tokens_t v_tokens;
-    ketl_lexer_lines_t v_lines;
+    ketl_lexer_tokens_t tokens;
+    ketl_lexer_lines_t lines;
     const char* p_filename;
     const char* p_source;
     uint32_t length;

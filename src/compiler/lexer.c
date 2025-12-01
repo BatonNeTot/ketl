@@ -23,11 +23,11 @@ static inline bool ketl_lexer_is_alpha(char symbol) {
 }
 
 static void ketl_lexer_increment_line(ketl_lexer_t* p_lexer) {
-    ketl_lexer_lines_t_push_back_copy(&p_lexer->v_lines, p_lexer->offset);
+    ketl_lexer_lines_t_push_back_copy(&p_lexer->lines, p_lexer->offset);
 }
 
 static void ketl_lexer_add_token(ketl_lexer_t* p_lexer, ketl_token_type type, uint32_t length) {
-    ketl_lexer_tokens_t_push_back_copy(&p_lexer->v_tokens, (ketl_token_t){
+    ketl_lexer_tokens_t_push_back_copy(&p_lexer->tokens, (ketl_token_t){
         .type = type, 
         .length = (ketl_token_length_t)length, 
         .offset = p_lexer->offset,
@@ -254,6 +254,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
         case 'i': {
             if (ketl_str_is_equal_n("if", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_IF, id_length);
+                return true;
+            }
+            if (ketl_str_is_equal_n("import", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_IMPORT, id_length);
                 return true;
             }
             if (ketl_str_is_equal_n("i64", p_lexer->p_source + p_lexer->offset, id_length)) {
@@ -520,9 +524,9 @@ void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_filename, cons
     p_lexer->length = length;
     p_lexer->offset = 0;
     p_lexer->token_iterator = 0;
-    p_lexer->v_tokens.size = 0;
-    p_lexer->v_lines.size = 0;
-    ketl_lexer_lines_t_push_back_copy(&p_lexer->v_lines, 0);
+    p_lexer->tokens.size = 0;
+    p_lexer->lines.size = 0;
+    ketl_lexer_lines_t_push_back_copy(&p_lexer->lines, 0);
 
     ANN_FOREVER {
         char next_symbol = ketl_lexer_get_symbol(p_lexer);
@@ -576,28 +580,28 @@ void ketl_lexer_init(ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator) {
     *p_lexer = (ketl_lexer_t){
         .p_allocator = p_allocator,
     };
-    ketl_lexer_tokens_t_init(&p_lexer->v_tokens, 4, p_allocator);
-    ketl_lexer_lines_t_init(&p_lexer->v_lines, 4, p_allocator);
+    ketl_lexer_tokens_t_init(&p_lexer->tokens, 4, p_allocator);
+    ketl_lexer_lines_t_init(&p_lexer->lines, 4, p_allocator);
 }
 
 void ketl_lexer_deinit(ketl_lexer_t* p_lexer) {
-    ketl_lexer_lines_t_deinit(&p_lexer->v_lines);
-    ketl_lexer_tokens_t_deinit(&p_lexer->v_tokens);
+    ketl_lexer_lines_t_deinit(&p_lexer->lines);
+    ketl_lexer_tokens_t_deinit(&p_lexer->tokens);
 }
 
 uint32_t ketl_lexer_get_line_offset(ketl_lexer_t* p_lexer, uint32_t line) {
-    if (line >= p_lexer->v_lines.size) {
+    if (line >= p_lexer->lines.size) {
         return p_lexer->length;
     }
-    return p_lexer->v_lines.p_data[line];
+    return p_lexer->lines.p_data[line];
 }
 
 uint32_t ketl_lexer_find_line(ketl_lexer_t* p_lexer, uint32_t offset) {
-    uint32_t lhs = 0, rhs = p_lexer->v_lines.size;
+    uint32_t lhs = 0, rhs = p_lexer->lines.size;
 
     while (lhs + 1 < rhs) {
         uint32_t mid = (lhs + rhs) / 2;
-        uint32_t mid_offset = p_lexer->v_lines.p_data[mid];
+        uint32_t mid_offset = p_lexer->lines.p_data[mid];
         if (mid_offset < offset) {
             lhs = mid;
         } else if (offset < mid_offset) {

@@ -15,4 +15,6 @@ void ketl_memset(void* dest, unsigned char val, size_t size);
 
 void ketl_memcpy(void* dest, const void* src, size_t size);
 
+uint64_t ketl_strlen(const char* p_str);
+
 #endif // ketl_memory_impl_h

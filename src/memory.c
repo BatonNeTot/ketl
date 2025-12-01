@@ -46,3 +46,10 @@ void ketl_memset(void* dest, unsigned char val, size_t size) {
 void ketl_memcpy(void* dest, const void* src, size_t size) {
 	memcpy(dest, src, size);
 }
+
+uint64_t ketl_strlen(const char* p_str) {
+	if (p_str == NULL) {
+		return 0;
+	}
+	return strlen(p_str);
+}

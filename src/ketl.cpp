@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
     while (std::cin) {
         std::cout << ">> " << std::flush;
         std::getline(std::cin, line);
-        auto result = ketl.eval("<eval>", { line });
+        auto result = ketl.eval( { line });
         if (result) {
             std::cout << result << std::endl;
         }

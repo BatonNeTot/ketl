@@ -14,6 +14,8 @@ enum {
     KETL_VARIABLE_NONE,
 
     KETL_VARIABLE_TYPE,
+    KETL_VARIABLE_NAMESPACE,
+
     KETL_VARIABLE_POINTER,
     KETL_VARIABLE_REFERENCE,
 
@@ -38,6 +40,7 @@ ANN_DEFINE(ketl_variable) {
 	union {
 		uint64_t stack;
 		void* pointer;
+		void (*func)(void);
 
 		bool boolean;
 

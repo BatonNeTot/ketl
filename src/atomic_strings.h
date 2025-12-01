@@ -15,8 +15,8 @@ KETL_VECTOR_DECLARATION(ketl_atomic_strings_storage, char)
 KETL_HASH_MAP_DECLARATION(ketl_atomic_strings_map, const char*, ketl_atomic_string)
 
 ANN_DEFINE(ketl_atomic_strings) {
-    ketl_atomic_strings_storage v_storage;
-    ketl_atomic_strings_map m_str_map;
+    ketl_atomic_strings_storage storage;
+    ketl_atomic_strings_map str_map;
 };
 
 void ketl_atomic_strings_init(ketl_atomic_strings* p_atomic_strings, const ketl_allocator* p_allocator);

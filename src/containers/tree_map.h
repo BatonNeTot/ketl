@@ -15,7 +15,7 @@ ANN_DEFINE(ANN_CONCAT(name,_node)) {\
     uint32_t right_offset;\
 	uint16_t height;\
 	k_type key;\
-	v_type value;\
+    v_type value;\
 };\
 ANN_DEFINE(name) {\
     const ketl_allocator* p_allocator;\

@@ -238,8 +238,8 @@ namespace KETL {
 			return { __TypeHelper<T>::getType(_p_state), name, *this };
 		}
 
-		Value eval(const std::string_view& filename, const std::string_view& source) {
-			return Value{ ketl_state_eval(_p_state, filename.data(), source.data(), static_cast<uint32_t>(source.length())), *this };
+		Value eval(const std::string_view& source) {
+			return Value{ ketl_state_eval(_p_state, source.data(), static_cast<uint32_t>(source.length())), *this };
 		}
 
 	private:
@@ -258,7 +258,7 @@ std::ostream& operator<<(std::ostream& os, const KETL::Value& ketl_value)
 {
 	// TODO replace later to a to_string call or something
 	if (ketl_value.get_type() == ketl_value.get_state().get_type<void*>()) {
-		os << (int64_t)ketl_value.as<void*>();
+		os << "0x" << ketl_value.as<void*>();
 	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int8_t>()) {
 		os << (int64_t)ketl_value.as<int8_t>();
 	} else if (ketl_value.get_type() == ketl_value.get_state().get_type<int16_t>()) {

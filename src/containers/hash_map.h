@@ -13,7 +13,7 @@ ANN_DEFINE(ANN_CONCAT(name,_bucket)) {\
     ANN_CONCAT(name,_bucket)* p_next;\
 	uint64_t hash;\
 	k_type key;\
-	v_type value;\
+    v_type value;\
 };\
 ANN_DEFINE(name) {\
     const ketl_allocator* p_allocator;\

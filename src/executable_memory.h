@@ -15,7 +15,7 @@ ANN_DEFINE(ketl_executable_memory_page) {
 KETL_VECTOR_DECLARATION(ketl_executable_memory_page_vector, ketl_executable_memory_page)
 
 ANN_DEFINE(ketl_executable_memory) {
-	ketl_executable_memory_page_vector v_pages;
+	ketl_executable_memory_page_vector pages;
 	uint32_t current_offset;
 };
 

@@ -131,9 +131,9 @@ ANN_DEFINE(ketl_asm_x86_builder_t) {
 
     ketl_asm_x86_abi_type_t abi_type;
     
-    ketl_asm_x86_instrs_t v_instrs;
-    ketl_hir_to_asm_offsets_t m_hir_to_asm_offsets;
-    ketl_asm_x86_variables_t m_variables;
+    ketl_asm_x86_instrs_t instrs;
+    ketl_hir_to_asm_offsets_t hir_to_asm_offsets;
+    ketl_asm_x86_variables_t variables;
     ketl_hir_t* p_hir;
 };
 

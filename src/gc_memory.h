@@ -21,9 +21,9 @@ KETL_TREE_MAP_DECLARATION(object_info_map, void*, ketl_gc_info)
 
 ANN_DEFINE(ketl_gc) {
     const ketl_allocator *p_allocator;
-    objects v_root_objects;
-    objects v_collect_buffer;
-    object_info_map m_object_info;
+    objects root_objects;
+    objects collect_buffer;
+    object_info_map object_info;
     bool flag_usage;
 };
 

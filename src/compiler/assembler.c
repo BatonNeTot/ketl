@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-uint32_t ketl_asm_x86_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size) {
+uint32_t ketl_asm_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size) {
     uint32_t printed_count = 0u;
     for (uint64_t i = 0; i < opcodes_size; ++i) {
         if (i != 0 && (i & 15) == 0) {

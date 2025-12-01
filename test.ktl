@@ -1,6 +1,12 @@
+//*
 import fib
 
-return fib.fibbonachi(8); 
+fn get_index() -> i64 {
+    return 8;
+}
+
+return fib.fibbonachi(get_index()); 
+//*/
 
 /*
 var arr = i64[10];
@@ -8,4 +14,4 @@ arr[0] = 5;
 arr[1] = 7;
 var pointer : raw = arr;
 return pointer;
-*/
+//*/

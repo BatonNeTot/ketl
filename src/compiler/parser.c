@@ -5,7 +5,10 @@
 
 #include "compiler/lexer.h"
 
+#include "namespace.h"
+
 #include "executable_memory.h"
+#include "dynamic_library.h"
 #include "compiler/assembler.h"
 
 #include "containers/vector.h"
@@ -31,10 +34,11 @@ KETL_VECTOR_DEFINITION(_ketl_parse_argument_stack_t, ketl_hir_var_id_t)
 ANN_DEFINE(ketl_parser_context) {
     ketl_state* p_state;
     ketl_lexer_t* p_lexer;
+    ketl_namespace* p_namespace;
     ketl_hir_symbol_offset_t a_filename;
     ketl_hir_builder_t hir_builder;
 
-    _ketl_parse_argument_stack_t v_argument_stack;
+    _ketl_parse_argument_stack_t argument_stack;
 };
 
 typedef uint8_t ketl_parse_return_info;
@@ -65,12 +69,12 @@ enum {
 #define TOKEN_LENGTH(token) ((int)((token).length > 0 ? (token).length : sizeof(EOF_STR) - 1))
 #define TOKEN_STRING(token) ((token).length > 0 ? (p_context)->p_lexer->p_source + (token).offset : EOF_STR)
 
-#define TOKEN(index) ((p_context)->p_lexer->v_tokens.p_data[(index)])
+#define TOKEN(index) ((p_context)->p_lexer->tokens.p_data[(index)])
 #define CURRENT_TOKEN(offset) (TOKEN((p_context)->p_lexer->token_iterator - (offset)))
 
 #define GET_SYMBOL_SOURCE(symbol_offset) (ketl_atomic_strings_get_pointer(&p_context->hir_builder.symbols, (symbol_offset)))
 
-char error_buffer[256];
+char error_buffer[1024];
 
 ANN_DEFINE(ketl_error_info) {
     ketl_lexer_t* p_lexer;
@@ -181,8 +185,8 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
 
 static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
 
-    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
-    ketl_hir_var_t* p_rhs_var = p_context->hir_builder.v_vars.p_data + rhs_var;
+    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.vars.p_data + lhs_var;
+    ketl_hir_var_t* p_rhs_var = p_context->hir_builder.vars.p_data + rhs_var;
 
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         ANN_ASSERT(false && "Can't assign to an r-value.");
@@ -190,8 +194,8 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
 
     // TODO casting if needed
     if (p_lhs_var->type != p_rhs_var->type) {
-        ketl_type* p_lhs_type = p_context->hir_builder.v_used_types.p_data[p_lhs_var->type];
-        ketl_type* p_rhs_type = p_context->hir_builder.v_used_types.p_data[p_rhs_var->type];
+        ketl_type* p_lhs_type = p_context->hir_builder.used_types.p_data[p_lhs_var->type];
+        ketl_type* p_rhs_type = p_context->hir_builder.used_types.p_data[p_rhs_var->type];
 
         if (!((p_lhs_type->type == KETL_TYPE_ARRAY || p_lhs_type->type == KETL_TYPE_FUNCTION || p_lhs_type->type == KETL_TYPE_CFUNCTION || p_lhs_type->type == KETL_TYPE_CLASS) &&
             // hack to check for raw type
@@ -228,7 +232,7 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
 }
 
 static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
-    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.v_vars.p_data + lhs_var;
+    ketl_hir_var_t* p_lhs_var = p_context->hir_builder.vars.p_data + lhs_var;
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         // TODO POS
         errorf(0, 1, "Can't assign to an l-value.");
@@ -268,7 +272,7 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_parse_pos
 
 static ketl_hir_var_id_t push_literal_id(ketl_parser_context* p_context, ketl_token_t literal) {
     // TODO decide how to update uids
-    ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(p_context->p_state, &p_context->hir_builder, 
+    ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(p_context->p_state, p_context->p_namespace, &p_context->hir_builder, 
         push_symbol(p_context, literal), KETL_HIR_USED_TYPE_UNKNOWN);
     if (id_var == (ketl_hir_var_id_t)-1) {
         errorf(literal.offset, literal.length, "Use of undeclared variable '%.*s'.", TOKEN_LENGTH(literal), TOKEN_STRING(literal));
@@ -295,19 +299,19 @@ static ketl_hir_var_id_t push_object_field(ketl_parser_context* p_context, ketl_
 }
 
 static ketl_hir_used_type_index_t find_type(ketl_parser_context* p_context, ketl_token_t type_literal) {
-    ketl_type* p_type = ketl_state_get_type(p_context->p_state, TOKEN_STRING(type_literal), TOKEN_LENGTH(type_literal));
+    ketl_type* p_type = ketl_state_get_type_impl(p_context->p_state, p_context->p_namespace, TOKEN_STRING(type_literal), TOKEN_LENGTH(type_literal));
     return ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
 }
 
 static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_token_t id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
-    ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(p_context->p_state, &p_context->hir_builder, 
+    ketl_hir_var_id_t id_var = ketl_hir_builder_register_var(p_context->p_state, p_context->p_namespace, &p_context->hir_builder, 
         push_symbol(p_context, id_literal), type_index);
 
     push_hir_assign_impl(p_context, p_pos_info, id_var, init_var);
 }
 
 static void push_hir_argument(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
-    _ketl_parse_argument_stack_t_push_back_copy(&p_context->v_argument_stack, var_id);
+    _ketl_parse_argument_stack_t_push_back_copy(&p_context->argument_stack, var_id);
 }
 
 static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t callee_id, uint16_t arguments_count) {
@@ -331,7 +335,7 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_pars
 
     ketl_hir_builder_insert_call(p_context->p_state, &p_context->hir_builder, header, &instr,
         // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
-        p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
+        p_context->argument_stack.p_data + (p_context->argument_stack.size -= arguments_count));
     return output_var;
 }
 
@@ -356,7 +360,7 @@ static ketl_hir_var_id_t push_hir_create(ketl_parser_context* p_context, ketl_pa
 
     ketl_hir_builder_insert_create(p_context->p_state, &p_context->hir_builder, header, &instr,
         // pass pointer to last 'arguments_count' elements and immidiatly cut 'arguments_count' tail
-        p_context->v_argument_stack.p_data + (p_context->v_argument_stack.size -= arguments_count));
+        p_context->argument_stack.p_data + (p_context->argument_stack.size -= arguments_count));
     return output_var;
 }
 
@@ -384,16 +388,16 @@ static ketl_hir_var_id_t push_hir_create_array(ketl_parser_context* p_context, k
 }
 
 static ketl_hir_block_index_t reserve_hir_blocks(ketl_parser_context* p_context, uint8_t count) {
-    ketl_hir_block_index_t first_block = (ketl_hir_block_index_t)p_context->hir_builder.v_blocks.size;
-    hir_builder_blocks_t_reserve(&p_context->hir_builder.v_blocks, p_context->hir_builder.v_blocks.size + count);
+    ketl_hir_block_index_t first_block = (ketl_hir_block_index_t)p_context->hir_builder.blocks.size;
+    hir_builder_blocks_t_reserve(&p_context->hir_builder.blocks, p_context->hir_builder.blocks.size + count);
     for (uint8_t i = count; i > 0; --i) {
-        hir_builder_blocks_t_push_back_copy(&p_context->hir_builder.v_blocks, 0u);
+        hir_builder_blocks_t_push_back_copy(&p_context->hir_builder.blocks, 0u);
     }
     return first_block;
 }
 static void pull_hir_set_block(ketl_parser_context* p_context, ketl_hir_block_index_t block) {
-    p_context->hir_builder.v_blocks.p_data[block] = p_context->hir_builder.v_instrs.size;
-    hir_builder_offset_to_block_t_get_or_insert_copy(&p_context->hir_builder.m_offset_to_block, p_context->hir_builder.v_instrs.size, block);
+    p_context->hir_builder.blocks.p_data[block] = p_context->hir_builder.instrs.size;
+    hir_builder_offset_to_block_t_get_or_insert_copy(&p_context->hir_builder.offset_to_block, p_context->hir_builder.instrs.size, block);
 }
 
 static void push_hir_if(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_hir_var_id_t bool_expr_var, ketl_hir_block_index_t true_statement, ketl_hir_block_index_t false_statement) {
@@ -559,11 +563,12 @@ static uint16_t parse_argument_list(ketl_parser_context* p_context) {
 
 static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee) {
     uint16_t argument_count = parse_argument_list(p_context);
-    ketl_hir_var_t* p_callee = &p_context->hir_builder.v_vars.p_data[callee];
+    ketl_hir_var_t* p_callee = &p_context->hir_builder.vars.p_data[callee];
     if (p_callee->type == KETL_HIR_USED_TYPE_META) {
+        // TODO check if it is actually type
         return push_hir_create(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, 
-                p_context->hir_builder.v_vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
+                p_context->hir_builder.vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
     } else {
         return push_hir_call(p_context, NULL, callee, argument_count);
     }
@@ -571,17 +576,33 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
 
 static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
     token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after access operator.");
+    ketl_token_t id_literal = CURRENT_TOKEN(1);
 
-    return push_object_field(p_context, lhs, CURRENT_TOKEN(1));
+    ketl_hir_var_t* p_object = &p_context->hir_builder.vars.p_data[lhs];
+    if (p_object->type == KETL_HIR_USED_TYPE_META) {
+        // TODO check if it is actually module
+        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->pointer;
+        
+        ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(p_context->p_state, p_namespace, &p_context->hir_builder, 
+            push_symbol(p_context, id_literal), KETL_HIR_USED_TYPE_UNKNOWN);
+        if (id_var == (ketl_hir_var_id_t)-1) {
+            errorf(id_literal.offset, id_literal.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
+                ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, p_namespace->s_name));
+            id_var = push_temp_var(p_context);
+        }
+        return id_var;
+    } else {
+        return push_object_field(p_context, lhs, id_literal);
+    }
 }
 
 static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
     ketl_hir_var_id_t expr_id = parse_expression(p_context);
     token_consume(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT, "Expected ']' after expression.");
 
-    ketl_hir_var_t* p_var = &p_context->hir_builder.v_vars.p_data[var_id];
+    ketl_hir_var_t* p_var = &p_context->hir_builder.vars.p_data[var_id];
     if (p_var->type == KETL_HIR_USED_TYPE_META) {
-        ketl_type* p_value_type = p_context->hir_builder.v_vars_infos.p_data[p_var->info].p_global->pointer;
+        ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->pointer;
         return push_hir_create_array(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)), expr_id);
     } else {
@@ -639,9 +660,9 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
     
     // TODO find common type, set temp var to common type
-    ANN_ASSERT(p_context->hir_builder.v_vars.p_data[lhs].type == p_context->hir_builder.v_vars.p_data[rhs].type);
-    ANN_ASSERT(p_context->hir_builder.v_vars.p_data[lhs].type != KETL_HIR_USED_TYPE_UNKNOWN);
-    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, p_context->hir_builder.v_vars.p_data[lhs].type); 
+    ANN_ASSERT(p_context->hir_builder.vars.p_data[lhs].type == p_context->hir_builder.vars.p_data[rhs].type);
+    ANN_ASSERT(p_context->hir_builder.vars.p_data[lhs].type != KETL_HIR_USED_TYPE_UNKNOWN);
+    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, p_context->hir_builder.vars.p_data[lhs].type); 
     // TODO do casting if necessary
     push_hir_assign_impl(p_context, NULL, output_var, rhs);
     push_hir_jump(p_context, NULL, after_block);
@@ -738,6 +759,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_FN]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_IMPORT]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_NONE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_RAW]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_RETURN]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -991,6 +1013,21 @@ static ketl_hir_used_type_index_t parse_type(ketl_parser_context* p_context) {
     return type;
 }
 
+static ketl_statement_info parse_import(ketl_parser_context* p_context) {
+    token_advance(p_context); // var
+    ketl_token_t module_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    const char* p_module_name = TOKEN_STRING(module_literal);
+    uint32_t module_name_length = TOKEN_LENGTH(module_literal);
+
+    ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
+
+    ketl_state_load_module(p_context->p_state, s_module_name, p_context->p_namespace);
+
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context) {
     uint32_t decl_start = CURRENT_TOKEN(0).offset;
 
@@ -1007,7 +1044,7 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
         
         // TODO conversion!!!;
         if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
-            type = p_context->hir_builder.v_vars.p_data[initial_value].type;
+            type = p_context->hir_builder.vars.p_data[initial_value].type;
         }
     } else {
         if (type == KETL_HIR_USED_TYPE_UNKNOWN) {
@@ -1017,14 +1054,14 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
             initial_value = push_temp_var(p_context);
         } else {
             // TODO do default contructor or smth
-            ketl_type* p_type = p_context->hir_builder.v_used_types.p_data[type];
+            ketl_type* p_type = p_context->hir_builder.used_types.p_data[type];
             if (p_type->type == KETL_TYPE_PRIMITIVE) {
                 initial_value = push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, "0", 1), type);
             } else {
                 initial_value = push_literal_number_symbol_of_type(p_context, KETL_HIR_LITERAL_NULL, type);
             }
             
-            type = p_context->hir_builder.v_vars.p_data[initial_value].type;
+            type = p_context->hir_builder.vars.p_data[initial_value].type;
         }
     }
     push_hir_variable_declaration(p_context, NULL, id_literal, type, initial_value);
@@ -1055,7 +1092,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
 
             token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after parameter name.");
 
-            a_function_parameters_named[function_parameters.parameters_count].info.p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+            a_function_parameters_named[function_parameters.parameters_count].info.p_type = p_context->hir_builder.used_types.p_data[parse_type(p_context)];
             a_function_parameters[function_parameters.parameters_count + 1] = a_function_parameters_named[function_parameters.parameters_count].info;
 
             ++function_parameters.parameters_count;
@@ -1065,7 +1102,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
 
     ketl_type* return_type = NULL;
     if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
-        return_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+        return_type = p_context->hir_builder.used_types.p_data[parse_type(p_context)];
     }
     if (return_type == NULL) {
         return_type = ketl_state_get_none_type(p_context->p_state);
@@ -1077,25 +1114,28 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
-    ketl_type* function_type =  ketl_state_get_function_type(p_context->p_state, &function_parameters);
-    
-    ketl_state_define_function_impl(p_context->p_state, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, false);
+    ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
+
+    ketl_variable* p_func_variable = ketl_state_define_function_impl(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
+
+    ketl_namespace local_namespace;
+    ketl_namespace_init(&local_namespace, KETL_ATOMIC_STRING_EMPTY, &p_context->p_state->atomic_strings, p_context->p_namespace, p_context->p_state->p_allocator);
 
     ketl_variable output_variable;
     uint32_t opcodes_size = 0u;
-    uint8_t* p_opcodes = ketl_state_compile_function(p_context->p_state, p_context->p_lexer, &opcodes_size, a_function_parameters_named, parameters_count, &output_variable);
+    uint8_t* p_opcodes = ketl_state_compile_function(p_context->p_state, p_context->p_lexer, &local_namespace, &opcodes_size, a_function_parameters_named, parameters_count, &output_variable);
 
-    uint8_t* executable_opcodes = ketl_executable_memory_allocate(&p_context->p_state->executable_memory, p_opcodes, opcodes_size);
-    ketl_free(p_context->p_state->p_allocator, p_opcodes);
+    ketl_atomic_string s_func_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
 
-    {
-        char arr_buffer[4096];
-        printf("at location 0x%08"PRIx64" of length %"PRIu32"\n", (uint64_t)executable_opcodes, opcodes_size);
-        uint32_t length = ketl_asm_x86_format_opcodes(executable_opcodes, opcodes_size, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
-        printf("%.*s\n", length, arr_buffer);
-    }
+    compile_function_declaration_t function_decl = {
+        .s_name = s_func_name,
+        .p_variable = p_func_variable,
+        .p_opcodes = p_opcodes,
+        .opcodes_size = opcodes_size,
+    };
+    compile_function_declarations_t_push_back_ref(&p_context->p_state->compile_function_declarations, &function_decl);
 
-    ketl_state_define_function_impl(p_context->p_state, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, executable_opcodes, true);
+    ketl_namespace_deinit(&local_namespace);
 
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after function body.");
 
@@ -1121,7 +1161,7 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
             token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after field name.");
 
-            a_class_fields[class_field_count].info.p_type = p_context->hir_builder.v_used_types.p_data[parse_type(p_context)];
+            a_class_fields[class_field_count].info.p_type = p_context->hir_builder.used_types.p_data[parse_type(p_context)];
 
             token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
@@ -1136,31 +1176,33 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_VAR  : return parse_var_declaration     (p_context); break;
-        case KETL_TOKEN_TYPE_FN   : return parse_function_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_CLASS: return parse_class_declaration   (p_context); break;
-        default                   : return parse_statement           (p_context); break;
+        case KETL_TOKEN_TYPE_IMPORT: return parse_import              (p_context); break;
+        case KETL_TOKEN_TYPE_VAR   : return parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_FN    : return parse_function_declaration(p_context); break;
+        case KETL_TOKEN_TYPE_CLASS : return parse_class_declaration   (p_context); break;
+        default                    : return parse_statement           (p_context); break;
     }
 }
 
-void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t* p_lexer, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, const ketl_allocator* p_allocator) {
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, const ketl_allocator* p_allocator) {
     *p_hir = (ketl_hir_t){0};
 
     ketl_parser_context context = {0};
     ketl_parser_context* p_context = &context;
     context = (ketl_parser_context){
         .p_state = p_state, 
-        .p_lexer = p_lexer
+        .p_lexer = p_lexer,
+        .p_namespace = p_namespace,
     };
     ketl_hir_builder_init(&context.hir_builder, p_allocator);
     context.a_filename = push_symbol_string(&context, p_lexer->p_filename, KETL_NULL_TERMINATED_LENGTH_32);
 
     for (uint32_t i = 0u; i < parameter_count; ++i) {
-        ketl_hir_builder_add_parameter(&context.hir_builder, &p_parameters[i]);
+        ketl_hir_builder_add_parameter(p_state, p_namespace, &context.hir_builder, &p_parameters[i]);
     }
     
-    if (p_lexer->v_tokens.size > 0) {
-        _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 4, p_allocator);
+    if (p_lexer->tokens.size > 0) {
+        _ketl_parse_argument_stack_t_init(&context.argument_stack, 4, p_allocator);
 
         ketl_statement_info statement_info = parse_block_statement_inner(&context);
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
@@ -1174,7 +1216,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
             push_hir_instr(p_context, NULL, KETL_HIR_RETURN);
         }
 
-        _ketl_parse_argument_stack_t_deinit(&context.v_argument_stack);
+        _ketl_parse_argument_stack_t_deinit(&context.argument_stack);
     }
 
     ketl_hir_builder_flush(p_state, &context.hir_builder, p_hir);

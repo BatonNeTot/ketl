@@ -21,6 +21,6 @@ void ketl_asm_x86_deinit(ketl_asm_x86_t* p_asm_x86);
 
 uint32_t ketl_asm_x86_format(ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t buffer_size);
 
-uint32_t ketl_asm_x86_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size);
+uint32_t ketl_asm_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size);
 
 #endif // ketl_compiler_assembler_h
