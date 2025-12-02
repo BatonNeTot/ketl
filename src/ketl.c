@@ -294,7 +294,7 @@ ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type) {
     *p_array_type = (ketl_type_array){
         .type = KETL_TYPE_ARRAY,
         .align = p_type->align,
-        .size = p_type->size,
+        .size = sizeof(void*) * 2,
         .p_value_type = p_type,
     };
     return (ketl_type*)p_array_type;
@@ -351,15 +351,11 @@ void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t l
 }
 
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable) {    
-    uint32_t error_state = p_state->error_stream.size;
+    uint32_t error_stream_mark = p_state->error_stream.size;
     
     ketl_hir_t hir;
     ketl_parser_build_hir(p_state, &hir, p_lexer, p_namespace, p_parameters, parameter_count, p_state->p_allocator);
-    if (p_state->error_stream.size > error_state) {
-        // TODO return error
-        fprintf(stderr, "%.*s", p_state->error_stream.size - error_state, p_state->error_stream.p_data + error_state);
-        p_state->error_stream.size = error_state;
-
+    if (p_state->error_stream.size > error_stream_mark) {
         if (p_output_variable != NULL) {
             ketl_variable_set_type(p_output_variable, ketl_state_get_none_type(p_state));
         }
@@ -419,7 +415,11 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
     uint32_t opcodes_size = 0u;
     uint8_t* p_opcodes = ketl_state_load(p_state, &local_namespace, &output_variable, &opcodes_size, "<eval>", p_source, length);
 
-    p_state->error_stream.size = error_stream_mark;
+    if (p_state->error_stream.size > error_stream_mark) {
+        // TODO return error
+        fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
+        p_state->error_stream.size = error_stream_mark;
+    }
 
     if (p_opcodes == NULL) {
         return ketl_value_from_variable(output_variable, p_state->p_allocator);

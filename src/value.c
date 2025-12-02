@@ -58,11 +58,13 @@ int64_t ketl_value_as_i64(ketl_state* p_state, ketl_value* p_value) {
 }
 
 uint64_t ketl_value_get_array_size(ketl_state* p_state, ketl_value* p_value) {
+    (void)p_state;
+
     ketl_variable* p_variable = (ketl_variable*)p_value;
     ANN_ASSERT(ketl_type_is_array(p_variable->p_type));
+    ketl_array* p_array = p_variable->pointer;
 
-    uint64_t allocation_size = ketl_gc_get_allocation_size(&p_state->gc, p_variable->pointer);
-    return allocation_size / ketl_type_get_size(p_variable->p_type);
+    return (uint64_t)p_array->size;
 }
 
 ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t index) {
@@ -71,10 +73,22 @@ ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t i
     ketl_type* p_value_type = ((ketl_type_array*)p_variable->p_type)->p_value_type;
     ANN_ASSERT(p_value_type->type == KETL_TYPE_PRIMITIVE);
 
+    ketl_array* p_array = p_variable->pointer;
+    ANN_ASSERT(index < (int64_t)p_array->size);
+    uint8_t* p_pointer = p_array->p_data;
+    uint64_t stack_size = ketl_type_get_stack_size(p_value_type);
+    p_pointer += stack_size * index;
+
     ketl_variable indexed_variable = {
-        .uint64 = ((uint64_t*)p_variable->pointer)[index],
         .p_type = p_value_type,
     };
+
+    ANN_SWITCH_STRICT (stack_size) {
+        case 1: indexed_variable.uint8 = *p_pointer; break;
+        case 2: indexed_variable.uint16 = *(uint16_t*)p_pointer; break;
+        case 4: indexed_variable.uint16 = *(uint32_t*)p_pointer; break;
+        case 8: indexed_variable.uint16 = *(uint64_t*)p_pointer; break;
+    }
 
     ketl_variable_set_type(&indexed_variable, p_value_type);
 

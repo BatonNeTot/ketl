@@ -22,24 +22,29 @@ void ketl_gc_deinit(ketl_gc* p_gc) {
 }
 
 void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags) {
-    uint64_t mem_size = ketl_type_get_size(p_type);
-    void* p_object = ketl_alloc(p_gc->p_allocator, mem_size);
-    ketl_gc_reg(p_gc, p_object, p_type, mem_size, flags | KETL_GC_FREE_AFTER_USE);
+    uint64_t obj_size = ketl_type_get_size(p_type);
+    void* p_object = ketl_alloc(p_gc->p_allocator, obj_size);
+    ketl_gc_reg(p_gc, p_object, p_type, 1, flags | KETL_GC_FREE_AFTER_USE);
     return p_object;
 }
 
-void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t size, uint8_t flags) {
-    uint64_t mem_size = ketl_type_get_size(p_type) * size;
-    void* p_array = ketl_alloc(p_gc->p_allocator, mem_size);
-    ketl_memset(p_array, 0, mem_size);
-    ketl_gc_reg(p_gc, p_array, p_type, mem_size, flags | KETL_GC_FREE_AFTER_USE);
-    return p_array;
+void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags) {
+    ANN_ASSERT(ketl_type_is_array(p_type));
+    ketl_type* p_value_type = ((ketl_type_array*)p_type)->p_value_type;
+    uint64_t obj_size = ketl_type_get_stack_size(p_value_type);
+    uint64_t mem_size = obj_size * count;
+    ketl_array* p_array_obj = ketl_alloc(p_gc->p_allocator, sizeof(ketl_array));
+    p_array_obj->size = count;
+    p_array_obj->p_data = ketl_alloc(p_gc->p_allocator, mem_size);
+    ketl_memset(p_array_obj->p_data, 0, mem_size);
+    ketl_gc_reg(p_gc, p_array_obj, p_type, count, flags | KETL_GC_FREE_AFTER_USE);
+    return p_array_obj;
 }
 
-void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t size, uint8_t flags) {
+void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags) {
     ketl_gc_info info = {
         .p_type = p_type,
-        .size = size,
+        .count = count,
         .flag_usage = p_gc->flag_usage,
         .free_after_use = flags & KETL_GC_FREE_AFTER_USE,
     };
@@ -77,12 +82,12 @@ static void* find_object_start(ketl_gc* p_gc, const void* p_inside_object, ketl_
     }
 }
 
-uint64_t ketl_gc_get_allocation_size(ketl_gc* p_gc, void* p_object) {
+uint64_t ketl_gc_get_allocation_count(ketl_gc* p_gc, void* p_object) {
     ketl_gc_info *p_info;
     if (find_object_start(p_gc, p_object, &p_info) == NULL) {
         return 0;
     }
-    return p_info->size;
+    return p_info->count;
 }
 
 static void mark_objects(ketl_gc* p_gc) {

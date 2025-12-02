@@ -688,7 +688,7 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
         // get argument into rax
         push_mov_from_stack(donor_arg_reg, arg_id, size, p_builder);
         // get type size into rcx
-        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), p_object_type->size);
+        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), ketl_type_get_stack_size(p_object_type));
         // multiply, result in rax
         // TODO use unsigned multiply
         ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IMUL, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg));
@@ -696,6 +696,7 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
         // get array
         // TODO get proper size
         push_mov_from_stack(donor_object_reg, object_id, size, p_builder);
+        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, donor_object_reg, MODRM_INDIR_BASE_DISP(donor_object_reg, 0));
 
         // add multiplication result, result in rax
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, size, donor_arg_reg, MODRM_REG(donor_object_reg));
@@ -750,7 +751,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
         // get argument into rax
         push_mov_from_stack(donor_arg_reg, arg_id, size, p_builder);
         // get type size into rcx
-        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), p_object_type->size);
+        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), ketl_type_get_stack_size(p_object_type));
         // multiply, result in rax
         // TODO use unsigned multiply
         ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IMUL, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg));
@@ -758,6 +759,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
         // get array
         // TODO get proper size
         push_mov_from_stack(donor_object_reg, object_id, size, p_builder);
+        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, donor_object_reg, MODRM_INDIR_BASE_DISP(donor_object_reg, 0));
 
         // add multiplication result, result in rax
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, size, donor_arg_reg, MODRM_REG(donor_object_reg));

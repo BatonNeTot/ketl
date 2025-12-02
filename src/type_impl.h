@@ -37,6 +37,11 @@ ANN_DEFINE(ketl_type_array) {
     ketl_type* p_value_type;
 };
 
+ANN_DEFINE(ketl_array) {
+    void* p_data;
+    uint64_t size;
+};
+
 ANN_DEFINE(ketl_type_signature) {
     uint16_t parameters_count;
 	//ketl_type* p_return_type; return type is first parameter for now
