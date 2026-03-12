@@ -1,0 +1,9 @@
+import b
+
+fn get_other() -> i64 {
+    return b.get_value();
+}
+
+fn get_value() -> i64 {
+    return 2;
+}

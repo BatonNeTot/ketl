@@ -1,8 +1,9 @@
 //*
 import fib
+import a
 
 fn get_index() -> i64 {
-    return 8;
+    return a.get_other();
 }
 
 return fib.fibbonachi(get_index()); 

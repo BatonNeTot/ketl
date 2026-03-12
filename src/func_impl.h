@@ -7,7 +7,7 @@
 #include "type_impl.h"
 
 ANN_DEFINE(ketl_function_header) {
-    void(*p_func)();
+    void(*p_func)(void);
     // TODO hir
 };
 

@@ -30,20 +30,6 @@ KETL_HASH_MAP_DECLARATION(ketl_modules_t, ketl_atomic_string, ketl_module_t)
 
 KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t)
 
-KETL_VECTOR_DECLARATION(ketl_parameters_t, ketl_named_variable_type_info_t)
-
-ANN_DEFINE(compile_function_declaration_t) {
-    ketl_atomic_string s_name;
-    ketl_variable* p_variable;
-    uint8_t* p_opcodes;
-    uint64_t opcodes_size;
-    ketl_token_iterator_t start_pos;
-    ketl_token_iterator_t end_pos;
-    ketl_parameters_t v_parameters;
-};
-
-KETL_VECTOR_DECLARATION(compile_function_declarations_t, compile_function_declaration_t)
-
 ANN_DEFINE(ketl_state) {
     const ketl_allocator* p_allocator;
     ketl_gc gc;
@@ -61,9 +47,10 @@ ANN_DEFINE(ketl_state) {
     ];
 
     compile_function_declarations_t compile_function_declarations;
+    bool loading_modules;
 };
 
-void* ketl_state_load(ketl_state* p_state, ketl_namespace* p_namespace, ketl_variable* p_output_variable, uint32_t* p_opcodes_size, const char* p_filename, const char* p_source, uint32_t length);
+void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations);
 
 bool ketl_state_load_module(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace);
 

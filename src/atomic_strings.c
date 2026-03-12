@@ -44,7 +44,8 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* p_atomic_strings
         if (p_check_data != p_symbols->p_data) {
             p_check_data = p_symbols->p_data;
             KETL_HASH_MAP_FOREACH(ketl_atomic_strings_map, pm_symbols_map, 
-            __p_bucket->key = p_check_data + __p_bucket->value;);
+                __p_bucket->key = p_check_data + __p_bucket->value;
+            );
         }
 
         const char* p_atomic_symbol = ketl_atomic_strings_storage_push_back_ref_n(p_symbols, p_str, length);

@@ -77,10 +77,6 @@ KETL_HASH_MAP_DEFINITION(ketl_modules_t, ketl_atomic_string, ketl_module_t, ANN_
 
 KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
-KETL_VECTOR_DEFINITION(ketl_parameters_t, ketl_named_variable_type_info_t)
-
-KETL_VECTOR_DEFINITION(compile_function_declarations_t, compile_function_declaration_t)
-
 static const function_type_composite* get_function_type_composite(ketl_state* p_state, const ketl_function_parameters* p_parameters) {
     uint16_t parameters_count = p_parameters->parameters_count;
     function_types_map_bucket* p_bucket = function_types_map_get_or_insert_copy(&p_state->function_types, *p_parameters, (function_type_composite){NULL, NULL, NULL});
@@ -141,6 +137,7 @@ ketl_state* ketl_state_create(const ketl_allocator* p_allocator) {
     }
 
     compile_function_declarations_t_init(&p_state->compile_function_declarations, 16, p_allocator);
+    p_state->loading_modules = false;
 
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
 #define CREATE_PRIMITIVE_TYPE(_var_name, _name, _size, _is_integer, _is_signed)\
@@ -413,9 +410,23 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
     uint32_t compile_function_mark = p_state->compile_function_declarations.size;
     uint32_t error_stream_mark = p_state->error_stream.size;
 
+    ketl_lexer_t lexer;
+    ketl_lexer_init(&lexer, p_state->p_allocator);
+    ketl_lexer_build_tokens(&lexer, "<eval>", p_source, length);
+
     ketl_variable output_variable;
     uint32_t opcodes_size = 0u;
-    uint8_t* p_opcodes = ketl_state_load(p_state, &local_namespace, &output_variable, &opcodes_size, "<eval>", p_source, length);
+    uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, lexer.tokens.size, &local_namespace, &opcodes_size, NULL, 0, &output_variable);
+    
+    compile_function_declarations_t compile_function_declarations;
+    compile_function_declarations_t_init(&compile_function_declarations, 4, p_state->p_allocator);
+    for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+        compile_function_declarations_t_push_back_ref(&compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
+    }
+    p_state->compile_function_declarations.size = compile_function_mark;
+
+    ketl_state_postload(p_state, &lexer, &local_namespace, &compile_function_declarations);
+    ketl_lexer_deinit(&lexer);
 
     if (p_state->error_stream.size > error_stream_mark) {
         // TODO return error
@@ -440,13 +451,13 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
             },
         };
 
-        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+        for (uint32_t i = compile_function_mark; i < compile_function_declarations.size; ++i) {
             ANN_ASSERT(export_count < ANN_ARRAY_SIZE(a_export));
 
             a_export[export_count++] = (export_info){
-                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_state->compile_function_declarations.p_data[i].s_name),
-                .p_opcodes = p_state->compile_function_declarations.p_data[i].p_opcodes,
-                .opcodes_size = p_state->compile_function_declarations.p_data[i].opcodes_size,
+                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, compile_function_declarations.p_data[i].s_name),
+                .p_opcodes = compile_function_declarations.p_data[i].p_opcodes,
+                .opcodes_size = compile_function_declarations.p_data[i].opcodes_size,
             };
         }
 
@@ -460,15 +471,15 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
     }
 
     {
-        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
-            ketl_parameters_t_deinit(&p_state->compile_function_declarations.p_data[i].v_parameters);
-            ketl_free(p_state->p_allocator, p_state->compile_function_declarations.p_data[i].p_opcodes);
-            p_state->compile_function_declarations.p_data[i].p_variable->func = ketl_dynamic_library_load_function(p_library_filename, 
-                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_state->compile_function_declarations.p_data[i].s_name));
+        for (uint32_t i = compile_function_mark; i < compile_function_declarations.size; ++i) {
+            ketl_parameters_t_deinit(&compile_function_declarations.p_data[i].v_parameters);
+            ketl_free(p_state->p_allocator, compile_function_declarations.p_data[i].p_opcodes);
+            compile_function_declarations.p_data[i].p_variable->func = ketl_dynamic_library_load_function(p_library_filename, 
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, compile_function_declarations.p_data[i].s_name));
         }
     }
     
-    p_state->compile_function_declarations.size = compile_function_mark;
+    compile_function_declarations_t_deinit(&compile_function_declarations);
 
     ketl_free(p_state->p_allocator, p_opcodes);
     uint64_t(*func)(void) = (uint64_t(*)(void))ketl_dynamic_library_load_function(p_library_filename, p_func_name);
@@ -480,57 +491,60 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
     return ketl_value_from_variable(output_variable, p_state->p_allocator);
 }
 
-void* ketl_state_load(ketl_state* p_state, ketl_namespace* p_namespace, ketl_variable* p_output_variable, uint32_t* p_opcodes_size, const char* p_filename, const char* p_source, uint32_t length) {
-    ketl_lexer_t lexer;
-    ketl_lexer_init(&lexer, p_state->p_allocator);
-    ketl_lexer_build_tokens(&lexer, p_filename, p_source, length);
+void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations) {
+    for (uint32_t i = 0; i < p_compile_function_declarations->size; ++i) {
+        ketl_namespace local_namespace;
+        ketl_namespace_init(&local_namespace, KETL_ATOMIC_STRING_EMPTY, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
 
-    uint32_t compile_function_mark = p_state->compile_function_declarations.size;
+        ketl_named_variable_type_info_t* p_function_parameters_named = p_compile_function_declarations->p_data[i].v_parameters.p_data;
+        uint32_t parameters_count = p_compile_function_declarations->p_data[i].v_parameters.size;
 
-    ////////////////////////////////
+        p_lexer->token_iterator = p_compile_function_declarations->p_data[i].start_pos;
 
-    uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, lexer.tokens.size, p_namespace, p_opcodes_size, NULL, 0, p_output_variable);
+        ketl_variable output_variable;
+        uint32_t opcodes_size = 0u;
+        uint8_t* p_opcodes = ketl_state_compile_function(p_state, p_lexer, p_compile_function_declarations->p_data[i].end_pos, &local_namespace, &opcodes_size, p_function_parameters_named, parameters_count, &output_variable);
 
-    {
-        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
-            ketl_namespace local_namespace;
-            ketl_namespace_init(&local_namespace, KETL_ATOMIC_STRING_EMPTY, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
+        p_compile_function_declarations->p_data[i].p_opcodes = p_opcodes;
+        p_compile_function_declarations->p_data[i].opcodes_size = opcodes_size;
 
-            ketl_named_variable_type_info_t* p_function_parameters_named = p_state->compile_function_declarations.p_data[i].v_parameters.p_data;
-            uint32_t parameters_count = p_state->compile_function_declarations.p_data[i].v_parameters.size;
-
-            lexer.token_iterator = p_state->compile_function_declarations.p_data[i].start_pos;
-
-            ketl_variable output_variable;
-            uint32_t opcodes_size = 0u;
-            uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, p_state->compile_function_declarations.p_data[i].end_pos, &local_namespace, &opcodes_size, p_function_parameters_named, parameters_count, &output_variable);
-
-            p_state->compile_function_declarations.p_data[i].p_opcodes = p_opcodes;
-            p_state->compile_function_declarations.p_data[i].opcodes_size = opcodes_size;
-
-            ketl_namespace_deinit(&local_namespace);
-        }
+        ketl_namespace_deinit(&local_namespace);
     }
-
-    ketl_lexer_deinit(&lexer);
-    
-    return p_opcodes;
 }
 
 bool ketl_state_load_module(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace) {
     uint64_t module_size = p_state->modules.size;
     ketl_modules_t_bucket* p_module_bucket = ketl_modules_t_get_or_insert_copy(&p_state->modules, s_module_name, (ketl_module_t){0});
+    // old insert
     if (module_size == p_state->modules.size) {
-        ketl_module_load(&p_module_bucket->value, p_namespace, p_state);
+        ketl_module_preload(&p_module_bucket->value, p_namespace, p_state);
         return true;
     }
 
+    bool top_loading = !p_state->loading_modules;
+    p_state->loading_modules = true;
+
     ketl_module_init(&p_module_bucket->value, s_module_name, p_state);
 
-    if (!ketl_module_load(&p_module_bucket->value, p_namespace, p_state)) {
+    // preloading
+    if (!ketl_module_preload(&p_module_bucket->value, p_namespace, p_state)) {
         ketl_modules_t_erase(&p_state->modules, p_module_bucket);
         return false;
     }
+
+    if (!top_loading) {
+        return true;
+    }
+
+    // postloading evetything
+    KETL_HASH_MAP_FOREACH(ketl_modules_t, &p_state->modules,
+        ketl_module_t* p_module = &__p_bucket->value;
+        if (p_module->header_loaded && !p_module->body_loaded) {
+            ketl_module_load(p_module, p_state);
+        }
+    );
+
+    p_state->loading_modules = false;
 
     return true;
 }
