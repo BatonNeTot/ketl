@@ -106,6 +106,7 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_namespace* p_namespace, ketl
 
     {
         for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+            ketl_parameters_t_deinit(&p_state->compile_function_declarations.p_data[i].v_parameters);
             ketl_free(p_state->p_allocator, p_state->compile_function_declarations.p_data[i].p_opcodes);
             p_state->compile_function_declarations.p_data[i].p_variable->func = ketl_dynamic_library_load_function(a_library_filename, 
                 ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_state->compile_function_declarations.p_data[i].s_name));

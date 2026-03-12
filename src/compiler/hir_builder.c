@@ -2,6 +2,7 @@
 #include "hir_builder.h"
 
 #include "ketl_impl.h"
+#include "error_stream.h"
 
 #include <stdio.h>
 
@@ -19,9 +20,23 @@ KETL_VECTOR_DEFINITION(hir_builder_return_offsets_t, ketl_hir_instr_offset_t)
 
 KETL_VECTOR_DEFINITION(hir_builder_blocks_infos_t, hir_builder_block_info_t)
 
-void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocator* p_allocator) {
+
+#define errorf(__offset, __length, ...) \
+do {\
+    ketl_error_info error_info = {\
+        .p_lexer = p_hir_builder->p_lexer,\
+        .p_filename = p_hir_builder->p_lexer->p_filename,\
+        .offset = (__offset),\
+        .length = (__length),\
+    };\
+    ketl_error_report(p_hir_builder->p_state, &error_info, __VA_ARGS__);\
+} while (0)
+
+void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator) {
     *p_hir_builder = (ketl_hir_builder_t){0};
     p_hir_builder->p_allocator = p_allocator;
+    p_hir_builder->p_state = p_state;
+    p_hir_builder->p_lexer = p_lexer;
     
     hir_builder_instrs_t_init(&p_hir_builder->instrs, 16, p_allocator);
     hir_builder_vars_t_init(&p_hir_builder->vars, 16, p_allocator);
@@ -43,13 +58,13 @@ void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocat
     hir_builder_offset_to_block_t_get_or_insert_copy(&p_hir_builder->offset_to_block, 0, 0);
 }
 
-void ketl_hir_builder_add_parameter(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_named_variable_type_info_t* p_parameter_info) {
+void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameter_info) {
     ketl_atomic_string s_namespace_name = p_namespace->s_fullname;
 
     ketl_hir_symbol_offset_t name;
 
     {
-        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_namespace_name);
+        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_hir_builder->p_state->atomic_strings, s_namespace_name);
         uint64_t namespace_name_length = ketl_strlen(p_namespace_name);
 
         uint64_t total_length = namespace_name_length + p_parameter_info->name_length + 1;
@@ -87,7 +102,7 @@ void ketl_hir_builder_add_parameter(ketl_state* p_state, ketl_namespace* p_names
     ++p_hir_builder->parameter_count;
 }
 
-void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir) {
+void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir) {
     p_hir->p_allocator = p_hir_builder->p_allocator;
 
     p_hir->p_instrs = p_hir_builder->instrs.p_data;
@@ -111,7 +126,7 @@ void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_build
     ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
     uint8_t* p_return = p_hir->p_instrs + p_hir_builder->return_offsets.p_data[0];
     if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
-        ketl_type* p_none_type = ketl_state_get_none_type(p_state);
+        ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
         p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
     } else if ((((ketl_hir_header_t*)p_return)->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
         ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
@@ -167,14 +182,14 @@ ketl_hir_var_id_t ketl_hir_builder_get_literal(ketl_hir_builder_t* p_hir_builder
     return p_bucket->value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
     const char* p_var_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
     uint64_t var_name_length = ketl_strlen(p_var_name);
     
     ketl_atomic_string s_namespace_name = p_namespace->s_fullname;
 
     {
-        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_namespace_name);
+        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_hir_builder->p_state->atomic_strings, s_namespace_name);
         uint64_t namespace_name_length = ketl_strlen(p_namespace_name);
 
         uint64_t total_length = namespace_name_length + var_name_length + 1;
@@ -201,7 +216,7 @@ ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_state* p_state, ketl_namesp
     
     const char* p_symbol = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
 
-    ketl_atomic_string s_symbol = ketl_atomic_strings_get(&p_state->atomic_strings, p_symbol, KETL_NULL_TERMINATED_LENGTH_32);
+    ketl_atomic_string s_symbol = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_symbol, KETL_NULL_TERMINATED_LENGTH_32);
     ketl_namespace_node* p_symbol_node = ketl_namespace_find(p_namespace, s_symbol);
     if (p_symbol_node != NULL) {
         ANN_ASSERT(false);
@@ -223,14 +238,14 @@ ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_state* p_state, ketl_namesp
     return p_bucket->value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
     const char* p_var_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
     uint64_t var_name_length = ketl_strlen(p_var_name);
     
     ketl_atomic_string s_namespace_name = p_namespace->s_fullname;
 
     {
-        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_namespace_name);
+        const char* p_namespace_name = ketl_atomic_strings_get_pointer(&p_hir_builder->p_state->atomic_strings, s_namespace_name);
         uint64_t namespace_name_length = ketl_strlen(p_namespace_name);
 
         uint64_t total_length = namespace_name_length + var_name_length + 1;
@@ -255,7 +270,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_state* p_state, ketl_namespace* 
         return p_bucket->value;
     }
 
-    ketl_atomic_string s_symbol = ketl_atomic_strings_get(&p_state->atomic_strings, p_var_name, KETL_NULL_TERMINATED_LENGTH_32);
+    ketl_atomic_string s_symbol = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_var_name, KETL_NULL_TERMINATED_LENGTH_32);
     ketl_namespace_node* p_symbol_node = ketl_namespace_find(p_namespace, s_symbol);
     if (p_symbol_node != NULL) {
         ketl_hir_used_type_index_t global_type;
@@ -306,8 +321,7 @@ ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_b
     return p_bucket->value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id) {
-    (void)p_state;
+ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id) {
     ANN_ASSERT(p_hir_builder->vars.p_data[array_id].type != KETL_HIR_USED_TYPE_UNKNOWN);
     ketl_type* p_array_type = p_hir_builder->used_types.p_data[p_hir_builder->vars.p_data[array_id].type];
     ANN_ASSERT(p_array_type->type == KETL_TYPE_ARRAY);
@@ -330,13 +344,13 @@ ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_state* p_state, ketl_hi
     return value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
     ANN_ASSERT(p_hir_builder->vars.p_data[object_id].type != KETL_HIR_USED_TYPE_UNKNOWN);
     ketl_type* p_object_type = p_hir_builder->used_types.p_data[p_hir_builder->vars.p_data[object_id].type];
     
     const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
 
-    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
     ketl_type* p_field_type = ketl_type_find_class_field_type(p_object_type, s_field_name);
 
     if (p_field_type == NULL) {
@@ -434,7 +448,7 @@ void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_h
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, p_instr, ketl_hir_get_instr_size(hir_header.tag, p_instr));
 }
 
-void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op) {
+void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op) {
     if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
         // TODO FIX
         // for now we just hash search exact function, later we should take into acount possible implicit casts
@@ -453,7 +467,7 @@ void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* 
             };
 
             operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
-                p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
+                p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
             if (p_operator_bucket == NULL) {
                 ANN_ASSERT(false); // TODO ERROR
             }
@@ -468,13 +482,13 @@ void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* 
     ketl_hir_builder_insert_instr(p_hir_builder, hir_header, (uint8_t*)p_binary_op);
 }
 
-void ketl_hir_builder_insert_call(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_call_t* p_call, ketl_hir_var_id_t* p_arguments) {
-    // TODO perhaps var content should be enough
-    (void)p_state;
-
+void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_call_t* p_call, ketl_hir_var_id_t* p_arguments) {
     ketl_hir_var_t* p_callee = &p_hir_builder->vars.p_data[p_call->callee];
 
-    ANN_ASSERT(p_callee->type != KETL_HIR_USED_TYPE_UNKNOWN);
+    if (p_callee->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        errorf(7, 14, "Trying to call an undefined entity.");
+        return;
+    }
 
     ketl_type* p_type = p_hir_builder->used_types.p_data[p_callee->type];
 
@@ -506,10 +520,7 @@ void ketl_hir_builder_insert_call(ketl_state* p_state, ketl_hir_builder_t* p_hir
     p_hir_builder->vars.p_data[p_call->output_var].type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_function_signature->a_parameters[0].p_type);
 }
 
-void ketl_hir_builder_insert_create(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments) {
-    // TODO perhaps var content should be enough
-    (void)p_state;
-    
+void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments) {
     ketl_type* p_type = p_hir_builder->used_types.p_data[p_create->type];
 
     switch (p_type->type) {

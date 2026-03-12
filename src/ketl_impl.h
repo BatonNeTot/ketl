@@ -30,11 +30,16 @@ KETL_HASH_MAP_DECLARATION(ketl_modules_t, ketl_atomic_string, ketl_module_t)
 
 KETL_HASH_MAP_DECLARATION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t)
 
+KETL_VECTOR_DECLARATION(ketl_parameters_t, ketl_named_variable_type_info_t)
+
 ANN_DEFINE(compile_function_declaration_t) {
     ketl_atomic_string s_name;
     ketl_variable* p_variable;
     uint8_t* p_opcodes;
     uint64_t opcodes_size;
+    ketl_token_iterator_t start_pos;
+    ketl_token_iterator_t end_pos;
+    ketl_parameters_t v_parameters;
 };
 
 KETL_VECTOR_DECLARATION(compile_function_declarations_t, compile_function_declaration_t)
@@ -66,4 +71,4 @@ ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_names
 
 ketl_variable* ketl_state_define_function_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void* p_func);
 
-void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable);
+void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable);

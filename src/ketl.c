@@ -77,6 +77,8 @@ KETL_HASH_MAP_DEFINITION(ketl_modules_t, ketl_atomic_string, ketl_module_t, ANN_
 
 KETL_HASH_MAP_DEFINITION(operator_overloading_map, ketl_function_parameters, ketl_hir_tag_t, FUNC_PARAMETERS_HASH, IS_FUNC_PARAMETERS_EQUAL)
 
+KETL_VECTOR_DEFINITION(ketl_parameters_t, ketl_named_variable_type_info_t)
+
 KETL_VECTOR_DEFINITION(compile_function_declarations_t, compile_function_declaration_t)
 
 static const function_type_composite* get_function_type_composite(ketl_state* p_state, const ketl_function_parameters* p_parameters) {
@@ -350,11 +352,11 @@ void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t l
     ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, false);
 }
 
-void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable) {    
+void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_variable* p_output_variable) {    
     uint32_t error_stream_mark = p_state->error_stream.size;
     
     ketl_hir_t hir;
-    ketl_parser_build_hir(p_state, &hir, p_lexer, p_namespace, p_parameters, parameter_count, p_state->p_allocator);
+    ketl_parser_build_hir(p_state, &hir, p_lexer, end_pos, p_namespace, p_parameters, parameter_count, p_state->p_allocator);
     if (p_state->error_stream.size > error_stream_mark) {
         if (p_output_variable != NULL) {
             ketl_variable_set_type(p_output_variable, ketl_state_get_none_type(p_state));
@@ -459,6 +461,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
 
     {
         for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+            ketl_parameters_t_deinit(&p_state->compile_function_declarations.p_data[i].v_parameters);
             ketl_free(p_state->p_allocator, p_state->compile_function_declarations.p_data[i].p_opcodes);
             p_state->compile_function_declarations.p_data[i].p_variable->func = ketl_dynamic_library_load_function(p_library_filename, 
                 ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_state->compile_function_declarations.p_data[i].s_name));
@@ -482,9 +485,33 @@ void* ketl_state_load(ketl_state* p_state, ketl_namespace* p_namespace, ketl_var
     ketl_lexer_init(&lexer, p_state->p_allocator);
     ketl_lexer_build_tokens(&lexer, p_filename, p_source, length);
 
+    uint32_t compile_function_mark = p_state->compile_function_declarations.size;
+
     ////////////////////////////////
 
-    uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, p_namespace, p_opcodes_size, NULL, 0, p_output_variable);
+    uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, lexer.tokens.size, p_namespace, p_opcodes_size, NULL, 0, p_output_variable);
+
+    {
+        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+            ketl_namespace local_namespace;
+            ketl_namespace_init(&local_namespace, KETL_ATOMIC_STRING_EMPTY, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
+
+            ketl_named_variable_type_info_t* p_function_parameters_named = p_state->compile_function_declarations.p_data[i].v_parameters.p_data;
+            uint32_t parameters_count = p_state->compile_function_declarations.p_data[i].v_parameters.size;
+
+            lexer.token_iterator = p_state->compile_function_declarations.p_data[i].start_pos;
+
+            ketl_variable output_variable;
+            uint32_t opcodes_size = 0u;
+            uint8_t* p_opcodes = ketl_state_compile_function(p_state, &lexer, p_state->compile_function_declarations.p_data[i].end_pos, &local_namespace, &opcodes_size, p_function_parameters_named, parameters_count, &output_variable);
+
+            p_state->compile_function_declarations.p_data[i].p_opcodes = p_opcodes;
+            p_state->compile_function_declarations.p_data[i].opcodes_size = opcodes_size;
+
+            ketl_namespace_deinit(&local_namespace);
+        }
+    }
+
     ketl_lexer_deinit(&lexer);
     
     return p_opcodes;

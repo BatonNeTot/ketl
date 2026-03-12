@@ -9,6 +9,7 @@
 #include "atomic_strings.h"
 
 ANN_FORWARD(ketl_state);
+ANN_FORWARD(ketl_lexer_t);
 ANN_FORWARD(ketl_namespace);
 
 KETL_VECTOR_DECLARATION(hir_builder_instrs_t, uint8_t)
@@ -31,6 +32,8 @@ KETL_VECTOR_DECLARATION(hir_builder_blocks_infos_t, hir_builder_block_info_t)
 
 ANN_DEFINE(ketl_hir_builder_t) {
     const ketl_allocator* p_allocator;
+    ketl_state* p_state;
+    ketl_lexer_t* p_lexer;
 
     hir_builder_instrs_t instrs;
     hir_builder_vars_t vars;
@@ -50,25 +53,25 @@ ANN_DEFINE(ketl_hir_builder_t) {
     bool has_calls;
 };
 
-void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, const ketl_allocator* p_allocator);
+void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator);
 
-void ketl_hir_builder_add_parameter(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_named_variable_type_info_t* p_parameter_info);
+void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameter_info);
 
-void ketl_hir_builder_flush(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir);
+void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir);
 
 ketl_hir_used_type_index_t ketl_hir_builder_get_used_type_index(ketl_hir_builder_t* p_hir_builder, ketl_type* p_type);
 
 ketl_hir_var_id_t ketl_hir_builder_get_literal(ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t literal, ketl_hir_used_type_index_t type);
 
-ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
+ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
 
-ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_state* p_state, ketl_namespace* p_namespace, ketl_hir_builder_t* p_hir_builder, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
+ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
 
 ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t var_id);
 
-ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id);
+ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id);
 
-ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
+ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type);
 
 ketl_hir_var_id_t ketl_hir_builder_create_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_used_type_index_t type);
 
@@ -76,10 +79,10 @@ void ketl_hir_builder_replace_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_h
 
 void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, uint8_t* p_instr);
 
-void ketl_hir_builder_insert_binary_op(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op);
+void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op);
 
-void ketl_hir_builder_insert_call(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_call_t* p_call, ketl_hir_var_id_t* p_arguments);
+void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_call_t* p_call, ketl_hir_var_id_t* p_arguments);
 
-void ketl_hir_builder_insert_create(ketl_state* p_state, ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments);
+void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments);
 
 #endif
