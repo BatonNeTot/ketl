@@ -37,4 +37,6 @@ void ketl_state_define_class(ketl_state* p_state, const char* p_name, uint32_t l
 
 ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t length);
 
+bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint32_t length, bool print_asm);
+
 #endif // ketl_ketl_h

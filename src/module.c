@@ -35,8 +35,8 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
     ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, false);
 }
 
-bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, ketl_state* p_state) {
-    if (p_module->header_loaded) {
+bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, ketl_state* p_state, bool print_asm) {
+    if (p_module->header_loaded && p_namespace != NULL) {
         ketl_module_add_to_namespace(p_module, p_namespace);
 
         return true;
@@ -50,6 +50,17 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
     char a_module_filename[256] = {0};
     ketl_memcpy(a_module_filename, p_module_name, module_name_length);
     ketl_memcpy(a_module_filename + module_name_length, ".ktl", 5);
+
+    if (print_asm) {
+        printf("    .def	@feat.00;\n");
+        printf("    .scl	3;\n");
+        printf("    .type	0;\n");
+        printf("    .endef\n");
+        printf("    .globl	@feat.00\n");
+        printf("@feat.00 = 0\n");
+        printf("    .intel_syntax noprefix\n");
+        printf("    .file	\"%s\"\n", a_module_filename);
+    }
 
     FILE *p_module_file = fopen(a_module_filename, "rb");
     ANN_ASSERT(p_module_file != NULL);
@@ -74,7 +85,7 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
 
     ketl_variable output_variable;
     p_module->opcodes_size = 0u;
-    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, NULL, 0, &output_variable);
+    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, NULL, 0, &output_variable, print_asm);
 
     for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
         compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
@@ -87,14 +98,19 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
         return false;
     }
 
-    ketl_module_add_to_namespace(p_module, p_namespace);
+    if (p_namespace != NULL) {
+        ketl_module_add_to_namespace(p_module, p_namespace);
+    }
+
     return true;
 }
 
-bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
+bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state, bool print_asm) {
     uint32_t error_stream_mark = p_state->error_stream.size;
 
-    ketl_state_postload(p_state, &p_module->lexer, &p_module->namespace, &p_module->compile_function_declarations);
+    printf("LOAD\n");
+
+    ketl_state_postload(p_state, &p_module->lexer, &p_module->namespace, &p_module->compile_function_declarations, print_asm);
     ketl_lexer_deinit(&p_module->lexer);
     ketl_free(p_state->p_allocator, p_module->p_source);
     

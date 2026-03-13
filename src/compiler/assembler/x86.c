@@ -1468,7 +1468,7 @@ uint32_t ketl_asm_x86_format(ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t
     uint32_t printed = 0;
     
     for (uint32_t i = 0u; i < p_asm_x86->size; ++i) {
-        printed += snprintf(p_buffer + printed, buffer_size - printed, "; 0x%08"PRIx64"\n", p_asm_x86->p_instrs[i].opcode_offset);
+        // printed += snprintf(p_buffer + printed, buffer_size - printed, "; 0x%08"PRIx64"\n", p_asm_x86->p_instrs[i].opcode_offset);
         printed += snprintf(p_buffer + printed, buffer_size - printed, "    ");
         printed += ketl_asm_x86_format_instr(p_asm_x86->p_instrs, i, p_buffer + printed, buffer_size - printed);
         printed += snprintf(p_buffer + printed, buffer_size - printed, "\n");

@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-char error_buffer[2048];
+char error_buffer[4096];
 
 void ketl_error_report(ketl_state* p_state, ketl_error_info* p_error_info, const char* format, ...) {
     uint32_t start_line, start_col;
@@ -53,9 +53,11 @@ void ketl_error_report(ketl_state* p_state, ketl_error_info* p_error_info, const
             select_end = end_line_offset;
         }
 
-        for (uint32_t i = select_start; i != select_end; ++i) {
-            message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
-            "~");
+        if (select_start <= select_end) {
+            for (uint32_t i = select_start; i != select_end; ++i) {
+                message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
+                "~");
+            }
         }
     }
     

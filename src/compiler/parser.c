@@ -1016,7 +1016,7 @@ static ketl_statement_info parse_import(ketl_parser_context* p_context) {
 
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
 
-    ketl_state_load_module(p_context->p_state, s_module_name, p_context->p_namespace);
+    ketl_state_load_module_impl(p_context->p_state, s_module_name, p_context->p_namespace, false);
 
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
