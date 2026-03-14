@@ -16,7 +16,7 @@ void ketl_error_report(ketl_state* p_state, ketl_error_info* p_error_info, const
 
     int message_size = 0;
     message_size += snprintf(error_buffer + message_size, ANN_ARRAY_SIZE(error_buffer) - message_size, 
-        "%s:%"PRIu32":%"PRIu32": error: ", p_error_info->p_filename, start_line + 1, start_col + 1);
+        "%s:%"PRIu32":%"PRIu32": error: ", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_error_info->s_filename), start_line + 1, start_col + 1);
 
     va_list vargs;
     va_start(vargs, format);

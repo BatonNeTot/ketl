@@ -386,11 +386,11 @@ void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ke
     ketl_asm_x86_builder_init(&asm_builder, p_state->p_allocator, KETL_ASM_X86_ABI_DEFAULT);
     
     ketl_asm_x86_t asm_x86;
-    ketl_asm_x86_build(p_state, &hir, &asm_builder, &asm_x86);
+    ketl_asm_x86_build(p_state, &hir, &asm_builder, &asm_x86, 0);
 
     if (print_asm) {
         char arr_buffer[4096];
-        uint32_t length = ketl_asm_x86_format(&asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer));
+        uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), true);
         printf("%.*s", length, arr_buffer);
     }
     ketl_asm_x86_builder_deinit(&asm_builder);
@@ -412,7 +412,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
 
     ketl_lexer_t lexer;
     ketl_lexer_init(&lexer, p_state->p_allocator);
-    ketl_lexer_build_tokens(&lexer, "<eval>", p_source, length);
+    ketl_lexer_build_tokens(&lexer, ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("<eval>")), p_source, length);
 
     ketl_variable output_variable;
     uint32_t opcodes_size = 0u;
@@ -518,11 +518,16 @@ bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint
 }
 
 bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool print_asm) {
+    const char* p_module_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_module_name);
+
+    char a_module_filename[256] = {0};
+    snprintf(a_module_filename, ANN_ARRAY_SIZE(a_module_filename), "%s.ktl", p_module_name);
+
     uint64_t module_size = p_state->modules.size;
     ketl_modules_t_bucket* p_module_bucket = ketl_modules_t_get_or_insert_copy(&p_state->modules, s_module_name, (ketl_module_t){0});
     // old insert
     if (module_size == p_state->modules.size) {
-        ketl_module_preload(&p_module_bucket->value, p_namespace, p_state, print_asm);
+        ketl_module_preload(&p_module_bucket->value, a_module_filename, p_namespace, p_state, print_asm);
         return true;
     }
 
@@ -532,7 +537,7 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     ketl_module_init(&p_module_bucket->value, s_module_name, p_state);
 
     // preloading
-    if (!ketl_module_preload(&p_module_bucket->value, p_namespace, p_state, print_asm)) {
+    if (!ketl_module_preload(&p_module_bucket->value, a_module_filename, p_namespace, p_state, print_asm)) {
         ketl_modules_t_erase(&p_state->modules, p_module_bucket);
         return false;
     }
@@ -552,4 +557,168 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     p_state->loading_modules = false;
 
     return true;
+}
+
+void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name, uint32_t module_name_length) {
+    ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_module_name, module_name_length);
+
+    uint64_t module_size = p_state->modules.size;
+    ketl_modules_t_bucket* p_module_bucket = ketl_modules_t_get_or_insert_copy(&p_state->modules, s_module_name, (ketl_module_t){0});
+
+    // old insert
+    if (module_size == p_state->modules.size) {
+        return;
+    }
+
+    ketl_module_t* p_module = &p_module_bucket->value;
+    ketl_module_init(p_module, s_module_name, p_state);
+
+    char a_module_filename[256] = {0};
+    snprintf(a_module_filename, ANN_ARRAY_SIZE(a_module_filename), "%s.ktl", p_module_name);
+
+    //////////////////////////////////////////
+
+    FILE *p_module_file = fopen(a_module_filename, "rb");
+    ANN_ASSERT(p_module_file != NULL);
+    
+    fseek(p_module_file, 0L, SEEK_END);
+    int64_t filesize = ftell(p_module_file);
+    ANN_ASSERT(filesize >= 0);
+
+    p_module->p_source = ketl_alloc(p_state->p_allocator, (uint64_t)filesize);
+
+    fseek(p_module_file, 0L, SEEK_SET);
+    fread(p_module->p_source, sizeof(*p_module->p_source), filesize, p_module_file);
+    ANN_ASSERT(ferror(p_module_file) == 0);
+
+    fclose(p_module_file);
+
+    ///////////////////////////////////////////
+
+    uint32_t error_stream_mark = p_state->error_stream.size;
+
+    ///////////////////////////////////////////
+    
+    ketl_lexer_init(&p_module->lexer, p_state->p_allocator);
+    ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, a_module_filename, KETL_NULL_TERMINATED_LENGTH_32), p_module->p_source, filesize);
+
+    ///////////////////////////////////////////
+
+    uint32_t compile_function_mark = p_state->compile_function_declarations.size;
+
+    ketl_hir_t hir;
+    ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, NULL, 0, p_state->p_allocator);
+    // for now ignoring global vars and any calls in while module is loading
+    // we interested only in produced compile_function_declarations
+    ketl_hir_deinit(&hir);
+
+    /////////////////////////////////////////////
+
+    if (p_state->error_stream.size > error_stream_mark) {
+        fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
+        p_state->error_stream.size = error_stream_mark;
+        return;
+    }
+
+    for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+        compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
+    }
+
+    p_state->compile_function_declarations.size = compile_function_mark;
+
+    //////////////////////////////////////////////
+
+    printf("    .def	@feat.00;\n");
+    printf("    .scl	3;\n");
+    printf("    .type	0;\n");
+    printf("    .endef\n");
+    printf("    .globl	@feat.00\n");
+    printf("@feat.00 = 0\n");
+    printf("    .intel_syntax noprefix\n");
+    printf("    .file	\"%s\"\n", a_module_filename);
+
+    ///////////////////////////////////////////////
+
+    if (p_module->compile_function_declarations.size > 0) {
+        printf("    .text\n");
+    }
+
+    for (uint32_t i = 0; i < p_module->compile_function_declarations.size; ++i) {
+        compile_function_declaration_t* p_compile_function_declaration = &p_module->compile_function_declarations.p_data[i];
+
+        ketl_namespace local_namespace;
+        ketl_namespace_init(&local_namespace, KETL_ATOMIC_STRING_EMPTY, &p_state->atomic_strings, &p_module->namespace, p_state->p_allocator);
+
+        ketl_named_variable_type_info_t* p_function_parameters_named = p_compile_function_declaration->v_parameters.p_data;
+        uint32_t parameters_count = p_compile_function_declaration->v_parameters.size;
+
+        p_module->lexer.token_iterator = p_compile_function_declaration->start_pos;
+
+        uint32_t error_stream_mark = p_state->error_stream.size;
+
+        //////////////////////////////////
+    
+        ketl_hir_t hir;
+        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, &local_namespace, p_function_parameters_named, parameters_count, p_state->p_allocator);
+        
+        if (p_state->error_stream.size > error_stream_mark) {
+            fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
+            p_state->error_stream.size = error_stream_mark;
+            continue;
+        }
+        
+    #if ANN_BUILD_DEBUG
+        for (uint32_t i = 0u; i < hir.vars_count; ++i) {
+            if (hir.p_vars[i].type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                // TODO error debug only
+                // cause in release we want it to finish building and show all of the errors
+                ANN_ASSERT(false);
+            } 
+        }
+    #endif
+
+        /////////////////////////////////////////
+
+        ketl_asm_x86_builder_t asm_builder;
+        ketl_asm_x86_builder_init(&asm_builder, p_state->p_allocator, KETL_ASM_X86_ABI_DEFAULT);
+        
+        ketl_asm_x86_t asm_x86;
+        ketl_asm_x86_build(p_state, &hir, &asm_builder, &asm_x86, i);
+        ketl_hir_deinit(&hir);
+
+        if (true) {
+            const char* p_func_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_compile_function_declaration->s_name);
+
+            printf("    .def	%s;\n", p_func_name);
+            printf("    .scl	2;\n");
+            printf("    .type	32;\n");
+            printf("    .endef\n");
+            printf("    .text\n");
+            printf("    .globl	%s\n", p_func_name);
+            printf("    .p2align	4\n");
+            printf("%s:\n", p_func_name);
+
+            char arr_buffer[4096];
+            uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
+            printf("%.*s", length, arr_buffer);
+        }
+        ketl_asm_x86_builder_deinit(&asm_builder);
+
+        /////////////////////////
+        
+        uint32_t opcodes_size = 0u;
+        uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
+        ketl_asm_x86_deinit(&asm_x86);
+
+        /////////////////////////
+
+        p_compile_function_declaration->p_opcodes = p_opcodes;
+        p_compile_function_declaration->opcodes_size = opcodes_size;
+
+        ketl_namespace_deinit(&local_namespace);
+    }
+
+    ///////////////////////////////
+
+    // TODO print static data like string literals
 }

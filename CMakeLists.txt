@@ -13,7 +13,7 @@ set(PROJECT_SANITIZE_OPTION -fsanitize=address)
 if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
-	add_compile_options(-Wall -Wextra -Werror -pedantic)
+	add_compile_options(-Wall -Wextra -Werror)
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 	    add_compile_options(-Wno-switch-unreachable)
@@ -24,9 +24,17 @@ else()
     endif()
 endif()
 
+enable_language(ASM)
+
+################################
+
 add_subdirectory ("src")
 
 file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h)
+
+foreach(SOURCE_ASM IN LISTS PROJECT_SOURCES_ASM)
+    set_property(SOURCE ${SOURCE_ASM} APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp")
+endforeach()
 
 add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS})
 set_property(TARGET ${PROJECT_TARGET} PROPERTY C_STANDARD 11)

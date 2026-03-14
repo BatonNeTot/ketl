@@ -35,7 +35,7 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
     ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, false);
 }
 
-bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, ketl_state* p_state, bool print_asm) {
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, ketl_state* p_state, bool print_asm) {
     if (p_module->header_loaded && p_namespace != NULL) {
         ketl_module_add_to_namespace(p_module, p_namespace);
 
@@ -43,26 +43,8 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
     }
 
     p_module->header_loaded = true;
-    
-    const char* p_module_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->s_name);
-    uint32_t module_name_length = ketl_strlen(p_module_name);
 
-    char a_module_filename[256] = {0};
-    ketl_memcpy(a_module_filename, p_module_name, module_name_length);
-    ketl_memcpy(a_module_filename + module_name_length, ".ktl", 5);
-
-    if (print_asm) {
-        printf("    .def	@feat.00;\n");
-        printf("    .scl	3;\n");
-        printf("    .type	0;\n");
-        printf("    .endef\n");
-        printf("    .globl	@feat.00\n");
-        printf("@feat.00 = 0\n");
-        printf("    .intel_syntax noprefix\n");
-        printf("    .file	\"%s\"\n", a_module_filename);
-    }
-
-    FILE *p_module_file = fopen(a_module_filename, "rb");
+    FILE *p_module_file = fopen(p_module_filename, "rb");
     ANN_ASSERT(p_module_file != NULL);
     
     fseek(p_module_file, 0L, SEEK_END);
@@ -79,9 +61,9 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
 
     uint32_t compile_function_mark = p_state->compile_function_declarations.size;
     uint32_t error_stream_mark = p_state->error_stream.size;
-    
+
     ketl_lexer_init(&p_module->lexer, p_state->p_allocator);
-    ketl_lexer_build_tokens(&p_module->lexer, p_module_name, p_module->p_source, filesize);
+    ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, p_module_filename, KETL_NULL_TERMINATED_LENGTH_32), p_module->p_source, filesize);
 
     ketl_variable output_variable;
     p_module->opcodes_size = 0u;
@@ -108,8 +90,6 @@ bool ketl_module_preload(ketl_module_t* p_module, ketl_namespace* p_namespace, k
 bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state, bool print_asm) {
     uint32_t error_stream_mark = p_state->error_stream.size;
 
-    printf("LOAD\n");
-
     ketl_state_postload(p_state, &p_module->lexer, &p_module->namespace, &p_module->compile_function_declarations, print_asm);
     ketl_lexer_deinit(&p_module->lexer);
     ketl_free(p_state->p_allocator, p_module->p_source);
@@ -123,11 +103,9 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state, bool print_a
     const char* p_func_name = ".init";
 
     const char* p_library_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->s_name);
-    uint32_t library_name_length = ketl_strlen(p_library_name);
 
-    char a_library_filename[256] = {0};
-    ketl_memcpy(a_library_filename, p_library_name, library_name_length);
-    ketl_memcpy(a_library_filename + library_name_length, ".dll", 4);
+    char a_library_filename[256] = {'\0'};
+    snprintf(a_library_filename, ANN_ARRAY_SIZE(a_library_filename), "%s.dll", p_library_name);
     
     {
         uint64_t export_count = 1;

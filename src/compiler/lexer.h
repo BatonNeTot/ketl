@@ -5,6 +5,7 @@
 #include "compiler/token.h"
 
 #include "containers/vector.h"
+#include "atomic_strings.h"
 
 #include "ketl/memory.h"
 #include "ketl/utils.h"
@@ -17,7 +18,7 @@ ANN_DEFINE(ketl_lexer_t) {
     const ketl_allocator* p_allocator;
     ketl_lexer_tokens_t tokens;
     ketl_lexer_lines_t lines;
-    const char* p_filename;
+    ketl_atomic_string s_filename;
     const char* p_source;
     uint32_t length;
     uint32_t offset;
@@ -28,7 +29,7 @@ void ketl_lexer_init(ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator);
 
 void ketl_lexer_deinit(ketl_lexer_t* p_lexer);
 
-void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_filename, const char* p_source, uint32_t length);
+void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, ketl_atomic_string s_filename, const char* p_source, uint32_t length);
 
 uint32_t ketl_lexer_get_line_offset(ketl_lexer_t* p_lexer, uint32_t line);
 

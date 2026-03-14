@@ -37,7 +37,7 @@ ANN_DEFINE(ketl_parser_context) {
     ketl_lexer_t* p_lexer;
     ketl_namespace* p_namespace;
     ketl_token_iterator_t end_pos;
-    ketl_hir_symbol_offset_t a_filename;
+    ketl_hir_symbol_offset_t s_filename;
     ketl_hir_builder_t hir_builder;
 
     _ketl_parse_argument_stack_t argument_stack;
@@ -81,7 +81,7 @@ enum {
 do {\
     ketl_error_info error_info = {\
         .p_lexer = p_context->p_lexer,\
-        .p_filename = GET_SYMBOL_SOURCE(p_context->a_filename),\
+        .s_filename = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, GET_SYMBOL_SOURCE(p_context->s_filename), KETL_NULL_TERMINATED_LENGTH_32),\
         .offset = (__offset),\
         .length = (__length),\
     };\
@@ -136,7 +136,7 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = hir_tag,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -187,7 +187,7 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_parse_pos_
     ketl_hir_header_t assign_header = {
         // TODO fix size
         .tag = KETL_HIR_ASSIGN | KETL_HIR_I64,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -227,7 +227,7 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_parse_pos
     ketl_hir_header_t header = {
         // TODO fix size
         .tag = KETL_HIR_RETURN_VALUE | KETL_HIR_I64,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -289,7 +289,7 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_pars
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CALL,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -314,7 +314,7 @@ static ketl_hir_var_id_t push_hir_create(ketl_parser_context* p_context, ketl_pa
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CREATE,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -339,7 +339,7 @@ static ketl_hir_var_id_t push_hir_create_array(ketl_parser_context* p_context, k
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CREATE_ARRAY,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -377,7 +377,7 @@ static void push_hir_if(ketl_parser_context* p_context, ketl_parse_pos_info* p_p
     (void)p_pos_info;
     ketl_hir_header_t if_header = {
         .tag = KETL_HIR_JUMP_IF_TRUE,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -399,7 +399,7 @@ static void push_hir_jump(ketl_parser_context* p_context, ketl_parse_pos_info* p
     (void)p_pos_info;
     ketl_hir_header_t jump_header = {
         .tag = KETL_HIR_JUMP,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -418,7 +418,7 @@ static void push_hir_instr(ketl_parser_context* p_context, ketl_parse_pos_info* 
     (void)p_pos_info;
     ketl_hir_header_t header = {
         .tag = tag,
-        .file_symbol = p_context->a_filename,
+        .file_symbol = p_context->s_filename,
         /*
         .start_line_index = p_pos_info->start_pos_line,
         .end_line_index = p_pos_info->end_pos_line,
@@ -1107,7 +1107,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
-    ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
+    ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
     ketl_variable* p_func_variable = ketl_state_define_function_impl(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
     ketl_atomic_string s_func_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     
@@ -1199,7 +1199,8 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
         .end_pos = end_pos,
     };
     ketl_hir_builder_init(&context.hir_builder, p_state, p_lexer, p_allocator);
-    context.a_filename = push_symbol_string(&context, p_lexer->p_filename, KETL_NULL_TERMINATED_LENGTH_32);
+    context.s_filename = push_symbol_string(&context, 
+        ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_lexer->s_filename), KETL_NULL_TERMINATED_LENGTH_32);
 
     for (uint32_t i = 0u; i < parameter_count; ++i) {
         ketl_hir_builder_add_parameter(&context.hir_builder, p_namespace, &p_parameters[i]);

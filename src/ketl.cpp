@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
         redirect_stdout(a_buffer);
         KETL::State ketl(&ketl_default_allocator);
 
-        ketl.load_module(std::string_view{argv[i], length}, true);
+        ketl.module_print_asm(std::string_view{argv[i], length});
     }
     redirect_restore();
 

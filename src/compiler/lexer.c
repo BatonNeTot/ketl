@@ -518,8 +518,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
     }
 }
 
-void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, const char* p_filename, const char* p_source, uint32_t length) {
-    p_lexer->p_filename = p_filename;
+void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, ketl_atomic_string s_filename, const char* p_source, uint32_t length) {
+    p_lexer->s_filename = s_filename;
     p_lexer->p_source = p_source;
     p_lexer->length = length;
     p_lexer->offset = 0;

@@ -4,12 +4,14 @@
 
 #include "ketl/utils.h"
 
+#include "atomic_strings.h"
+
 ANN_FORWARD(ketl_state);
 ANN_FORWARD(ketl_lexer_t);
 
 ANN_DEFINE(ketl_error_info) {
     ketl_lexer_t* p_lexer;
-    const char* p_filename;
+    ketl_atomic_string s_filename;
     uint32_t offset;
     uint32_t length;
 };

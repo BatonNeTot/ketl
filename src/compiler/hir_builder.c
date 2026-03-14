@@ -25,7 +25,7 @@ KETL_VECTOR_DEFINITION(hir_builder_blocks_infos_t, hir_builder_block_info_t)
 do {\
     ketl_error_info error_info = {\
         .p_lexer = p_hir_builder->p_lexer,\
-        .p_filename = p_hir_builder->p_lexer->p_filename,\
+        .s_filename = p_hir_builder->p_lexer->s_filename,\
         .offset = (__offset),\
         .length = (__length),\
     };\
