@@ -82,7 +82,10 @@ ANN_DEFINE(ketl_asm_x86_modrm_t) {
     ketl_asm_x86_reg_t base;
     ketl_asm_x86_reg_t index;
     ketl_asm_x86_size_t scale;
-    int32_t disp;
+    union {
+        int32_t disp;
+        ketl_atomic_string s_literal;
+    };
 };
 
 ANN_DEFINE(ketl_asm_x86_instr_t) {
@@ -98,7 +101,6 @@ ANN_DEFINE(ketl_asm_x86_instr_t) {
         int32_t imm32;
         int64_t imm64;
         ketl_asm_x86_offset_t goto_offset;
-        ketl_atomic_string s_label_name;
     };
     uint64_t opcode_offset;
 };
@@ -145,7 +147,7 @@ void ketl_asm_x86_builder_deinit(ketl_asm_x86_builder_t* p_builder);
 
 ANN_FORWARD(ketl_state);
 
-void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index);
+void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index, bool all_functions_const);
 uint8_t* ketl_asm_x86_compile(ketl_asm_x86_t* p_asm_x86, uint32_t* p_opcodes_size, const ketl_allocator* p_allocator);
 
 #endif

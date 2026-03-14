@@ -5,6 +5,7 @@
 #include "ketl/type.h"
 
 #include "atomic_strings.h"
+#include "func_impl.h"
 
 #include "ketl/utils.h"
 
@@ -39,8 +40,9 @@ enum {
 ANN_DEFINE(ketl_variable) {
 	union {
 		uint64_t stack;
-		void* pointer;
-		void (*func)(void);
+		void* p_pointer;
+		void (*cfunc)(void);
+		ketl_function_header* p_func;
 
 		bool boolean;
 

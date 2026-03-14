@@ -4,11 +4,12 @@
 
 #include "ketl/function.h"
 
-#include "type_impl.h"
+#include "atomic_strings.h"
 
 ANN_DEFINE(ketl_function_header) {
-    void(*p_func)(void);
+    void(*cfunc)(void);
     // TODO hir
+    ketl_atomic_string s_name;
 };
 
 #endif

@@ -229,7 +229,7 @@ namespace KETL {
 				aParameters, 1 + sizeof...(Args)
 			};
 			ketl_type* pFuncType = ketl_state_get_cfunction_type(_p_state, &funcParameters);
-			ketl_state_define_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void*>(pFunc));
+			ketl_state_define_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void(*)(void)>(pFunc));
 		}
 
 		template <class... Fields>

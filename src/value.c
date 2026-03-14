@@ -22,7 +22,7 @@ void* ketl_value_as_raw(ketl_state* p_state, ketl_value* p_value) {
 
     ANN_ASSERT(ketl_value_get_type(p_state, p_value) == ketl_state_get_raw_type(p_state));
     ketl_variable* p_variable = (ketl_variable*)p_value;
-    return p_variable->pointer;
+    return p_variable->p_pointer;
 }
 
 int8_t ketl_value_as_i8(ketl_state* p_state, ketl_value* p_value) {
@@ -62,7 +62,7 @@ uint64_t ketl_value_get_array_size(ketl_state* p_state, ketl_value* p_value) {
 
     ketl_variable* p_variable = (ketl_variable*)p_value;
     ANN_ASSERT(ketl_type_is_array(p_variable->p_type));
-    ketl_array* p_array = p_variable->pointer;
+    ketl_array* p_array = p_variable->p_pointer;
 
     return (uint64_t)p_array->size;
 }
@@ -73,7 +73,7 @@ ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t i
     ketl_type* p_value_type = ((ketl_type_array*)p_variable->p_type)->p_value_type;
     ANN_ASSERT(p_value_type->type == KETL_TYPE_PRIMITIVE);
 
-    ketl_array* p_array = p_variable->pointer;
+    ketl_array* p_array = p_variable->p_pointer;
     ANN_ASSERT(index < (int64_t)p_array->size);
     uint8_t* p_pointer = p_array->p_data;
     uint64_t stack_size = ketl_type_get_stack_size(p_value_type);

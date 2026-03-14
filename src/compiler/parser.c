@@ -539,7 +539,7 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
         // TODO check if it is actually type
         return push_hir_create(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, 
-                p_context->hir_builder.vars_infos.p_data[p_callee->info].p_global->pointer), argument_count);
+                p_context->hir_builder.vars_infos.p_data[p_callee->info].p_global->p_pointer), argument_count);
     } else {
         return push_hir_call(p_context, NULL, callee, argument_count);
     }
@@ -552,7 +552,7 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
     ketl_hir_var_t* p_object = &p_context->hir_builder.vars.p_data[lhs];
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
         // TODO check if it is actually module
-        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->pointer;
+        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->p_pointer;
         
         ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, 
             push_symbol(p_context, id_literal), KETL_HIR_USED_TYPE_UNKNOWN);
@@ -573,7 +573,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 
     ketl_hir_var_t* p_var = &p_context->hir_builder.vars.p_data[var_id];
     if (p_var->type == KETL_HIR_USED_TYPE_META) {
-        ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->pointer;
+        ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->p_pointer;
         ketl_hir_var_id_t id_var = push_hir_create_array(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)), expr_id);
 
@@ -1107,7 +1107,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
-    ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
+    ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
     ketl_variable* p_func_variable = ketl_state_define_function_impl(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
     ketl_atomic_string s_func_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     

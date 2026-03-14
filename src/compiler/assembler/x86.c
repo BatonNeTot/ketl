@@ -435,6 +435,14 @@ static void ketl_asm_x86_builder_reset(ketl_asm_x86_builder_t* p_builder) {
     .disp = 0,\
 })
 
+#define MODRM_LSTR(s_literal_) ((ketl_asm_x86_modrm_t){\
+    .indir = false,\
+    .base = KETL_ASM_X86_REG_NONE,\
+    .index = KETL_ASM_X86_REG_NONE,\
+    .scale = 1,\
+    .s_literal = (s_literal_),\
+})
+
 #define MODRM_REG(reg) ((ketl_asm_x86_modrm_t){\
     .indir = false,\
     .base = reg,\
@@ -465,8 +473,8 @@ static void ketl_asm_label(ketl_asm_x86_builder_t* p_builder, ketl_atomic_string
         .tag = KETL_ASM_LABEL,
         .size = KETL_ASM_X86_NONESIZE, 
         .arg_type = KETL_ASM_X86_EMPTY,
-        .modrm = MODRM_EMPTY(),
-        .s_label_name = s_label_name,
+        .modrm = MODRM_LSTR(s_label_name),
+        .reg = KETL_ASM_X86_REG_NONE,
     };
     ketl_asm_x86_instrs_t_push_back_ref(&p_builder->instrs, &instr);
 }
@@ -793,7 +801,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
     ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, modrm_stack(p_builder, size, bucket->value.stack_offset), source_reg);     
 }
 
-void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index) {
+void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index, bool all_functions_const) {
     ketl_asm_x86_builder_reset(p_builder);
 
     p_builder->p_hir = p_hir;
@@ -1035,8 +1043,14 @@ void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_bui
                     push_mov_from_stack(get_reg_parameter(p_builder->abi_type, i), p_hir_info->arguments[i], size, p_builder);
                 }
 
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
-                ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                if (all_functions_const) {
+                    ketl_variable* p_value = p_builder->p_hir->p_vars_infos[callee.info].p_global;
+                    ketl_atomic_string s_func_name = p_value->p_func->s_name;
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LSTR(s_func_name));
+                } else {
+                    push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                }
                     
                 // TODO get correct size
                 push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_64B, p_builder);
@@ -1347,7 +1361,7 @@ static uint32_t ketl_asm_x86_format_reg(ketl_asm_x86_reg_t reg, ketl_asm_x86_siz
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r15");
             }
         case KETL_ASM_X86_REG_NONE:
-            return snprintf(p_buffer, buffer_size, "error");
+            return snprintf(p_buffer, buffer_size, "$reg-error");
     }
 }
 
@@ -1360,8 +1374,11 @@ static uint32_t ketl_asm_x86_format_size(ketl_asm_x86_size_t size, char* p_buffe
     }
 }
 
-static uint32_t ketl_asm_x86_format_modrm(ketl_asm_x86_modrm_t modrm, ketl_asm_x86_size_t size, char* p_buffer, uint32_t buffer_size) {
+static uint32_t ketl_asm_x86_format_modrm(ketl_state* p_state, ketl_asm_x86_modrm_t modrm, ketl_asm_x86_size_t size, char* p_buffer, uint32_t buffer_size) {
     if (!modrm.indir) {
+        if (modrm.base == KETL_ASM_X86_REG_NONE && modrm.s_literal != KETL_ATOMIC_STRING_EMPTY) {
+            return snprintf(p_buffer, buffer_size, "%s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, modrm.s_literal));
+        }
         return ketl_asm_x86_format_reg(modrm.base, size, p_buffer, buffer_size);
     }
 
@@ -1396,7 +1413,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
 
     if (p_instr->tag == KETL_ASM_LABEL) {
         printed += snprintf(p_buffer + printed, buffer_size - printed, "%s:",
-            ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->s_label_name));
+            ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
         return printed;
     } else {
         printed += snprintf(p_buffer + printed, buffer_size - printed, "    ");
@@ -1461,20 +1478,20 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
         case KETL_ASM_X86_EMPTY:
             break;
         case KETL_ASM_X86_M:
-            printed += ketl_asm_x86_format_modrm(p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
+            printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
             break;
         case KETL_ASM_X86_RM:
             printed += ketl_asm_x86_format_reg(p_instr->reg, p_instr->size, p_buffer + printed, buffer_size - printed);
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
-            printed += ketl_asm_x86_format_modrm(p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
+            printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
             break;
         case KETL_ASM_X86_MR:
-            printed += ketl_asm_x86_format_modrm(p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
+            printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
             printed += ketl_asm_x86_format_reg(p_instr->reg, p_instr->size, p_buffer + printed, buffer_size - printed);
             break;
         case KETL_ASM_X86_MI:
-            printed += ketl_asm_x86_format_modrm(p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
+            printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
             ANN_SWITCH_STRICT (p_instr->size) {
                 case KETL_ASM_X86_8B:
                     printed += snprintf(p_buffer + printed, buffer_size - printed, ", 0x%"PRIx8, p_instr->imm8);
@@ -1492,7 +1509,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             break;
         case KETL_ASM_X86_JI:
             printed += snprintf(p_buffer + printed, buffer_size - printed, "%s", 
-                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instrs[p_instr->goto_offset].s_label_name));
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instrs[p_instr->goto_offset].modrm.s_literal));
             break;
     }
 
