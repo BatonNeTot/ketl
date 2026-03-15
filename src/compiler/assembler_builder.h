@@ -78,7 +78,8 @@ enum {
 };
 
 ANN_DEFINE(ketl_asm_x86_modrm_t) {
-    bool indir;
+    bool indir : 1;
+    bool label : 1;
     ketl_asm_x86_reg_t base;
     ketl_asm_x86_reg_t index;
     ketl_asm_x86_size_t scale;
@@ -132,9 +133,10 @@ enum {
 };
 
 ANN_DEFINE(ketl_asm_x86_builder_t) {
-    const ketl_allocator* p_allocator;
+    ketl_state* p_state; 
 
     ketl_asm_x86_abi_type_t abi_type;
+    bool inline_symbols;
     
     ketl_asm_x86_instrs_t instrs;
     ketl_hir_to_asm_offsets_t hir_to_asm_offsets;
@@ -142,12 +144,12 @@ ANN_DEFINE(ketl_asm_x86_builder_t) {
     ketl_hir_t* p_hir;
 };
 
-void ketl_asm_x86_builder_init(ketl_asm_x86_builder_t* p_builder, const ketl_allocator* p_allocator, ketl_asm_x86_abi_type_t abi_type);
+void ketl_asm_x86_builder_init(ketl_asm_x86_builder_t* p_builder, ketl_state* p_state, ketl_asm_x86_abi_type_t abi_type, bool inline_symbols);
 void ketl_asm_x86_builder_deinit(ketl_asm_x86_builder_t* p_builder);
 
 ANN_FORWARD(ketl_state);
 
-void ketl_asm_x86_build(ketl_state* p_state, ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index, bool all_functions_const);
+void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index);
 uint8_t* ketl_asm_x86_compile(ketl_asm_x86_t* p_asm_x86, uint32_t* p_opcodes_size, const ketl_allocator* p_allocator);
 
 #endif

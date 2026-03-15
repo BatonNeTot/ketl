@@ -71,7 +71,7 @@ ketl_value* ketl_value_index(ketl_state* p_state, ketl_value* p_value, int64_t i
     ketl_variable* p_variable = (ketl_variable*)p_value;
     ANN_ASSERT(ketl_type_is_array(p_variable->p_type));
     ketl_type* p_value_type = ((ketl_type_array*)p_variable->p_type)->p_value_type;
-    ANN_ASSERT(p_value_type->type == KETL_TYPE_PRIMITIVE);
+    ANN_ASSERT(p_value_type->kind == KETL_TYPE_PRIMITIVE);
 
     ketl_array* p_array = p_variable->p_pointer;
     ANN_ASSERT(index < (int64_t)p_array->size);

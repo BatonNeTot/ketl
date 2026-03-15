@@ -16,9 +16,19 @@ enum {
     KETL_TYPE_CLASS,
 };
 
+enum {
+    KETL_ALIGN_1,
+    KETL_ALIGN_2,
+    KETL_ALIGN_4,
+    KETL_ALIGN_8,
+    KETL_ALIGN_16,
+};
+
+extern uint8_t ketl_align_map[5];
+
 #define KETL_TYPE_BODY \
-uint8_t type;\
-uint8_t align;\
+uint8_t kind;\
+uint8_t align_enum;\
 uint16_t size
 
 ANN_DEFINE(ketl_type) {
@@ -71,6 +81,9 @@ ANN_DEFINE(ketl_type_size_pair_t) {
     uint8_t align;
     uint16_t size;
 };
+
+// align must be power of 2
+uint8_t ketl_align_find(uint8_t align);
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type);
 

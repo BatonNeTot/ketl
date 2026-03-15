@@ -9,7 +9,7 @@
 
 #include "ketl/utils.h"
 
-typedef uint8_t ketl_variable_type;
+typedef uint8_t ketl_variable_kind;
 
 enum {
     KETL_VARIABLE_NONE,
@@ -18,6 +18,8 @@ enum {
     KETL_VARIABLE_NAMESPACE,
 
     KETL_VARIABLE_POINTER,
+    KETL_VARIABLE_CFUNC,
+    KETL_VARIABLE_FUNC,
     KETL_VARIABLE_REFERENCE,
 
     KETL_VARIABLE_BOOL,
@@ -59,10 +61,12 @@ ANN_DEFINE(ketl_variable) {
 		float float32;
 		double float64;
 	};
-	ketl_variable_type type;
+	ketl_variable_kind kind;
 	ketl_type* p_type;
 };
 
 void ketl_variable_set_type(ketl_variable* p_variable, ketl_type* p_type);
+
+ketl_variable_kind ketl_variable_get_kind(ketl_type* p_type);
 
 #endif // ketl_variable_h

@@ -21,7 +21,7 @@ ANN_DEFINE(ketl_asm_x86_t) {
 
 void ketl_asm_x86_deinit(ketl_asm_x86_t* p_asm_x86);
 
-uint32_t ketl_asm_x86_format(ketl_state* p_state, ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t buffer_size, bool print_offsets);
+uint32_t ketl_asm_x86_format(ketl_state* p_state, ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t buffer_size, bool verbose);
 
 uint32_t ketl_asm_format_opcodes(uint8_t* p_opcodes, uint32_t opcodes_size, char* p_buffer, uint32_t buffer_size);
 

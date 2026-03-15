@@ -5,8 +5,8 @@ KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, ANN_HASH, ANN_EQUAL)
 
 void ketl_namespace_init(ketl_namespace* p_namespace, ketl_atomic_string s_name, ketl_atomic_strings* p_atomic_strings, ketl_namespace* p_parent, const ketl_allocator* p_allocator) {
-    namespace_nodes_init(&p_namespace->nodes, 16, p_allocator);
-    namespace_map_init(&p_namespace->vars, p_allocator);
+    namespace_nodes_init(&p_namespace->v_nodes, 16, p_allocator);
+    namespace_map_init(&p_namespace->m_vars, p_allocator);
     p_namespace->p_parent = p_parent;
     p_namespace->s_name = s_name;
 
@@ -33,12 +33,12 @@ void ketl_namespace_init(ketl_namespace* p_namespace, ketl_atomic_string s_name,
 }
 
 void ketl_namespace_deinit(ketl_namespace* p_namespace) {
-    namespace_map_deinit(&p_namespace->vars);
-    namespace_nodes_deinit(&p_namespace->nodes);
+    namespace_map_deinit(&p_namespace->m_vars);
+    namespace_nodes_deinit(&p_namespace->v_nodes);
 }
 
 bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
-    return p_namespace->vars.size == 0 && p_namespace->nodes.size == 0;
+    return p_namespace->m_vars.size == 0 && p_namespace->v_nodes.size == 0;
 }
 
 //void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
@@ -46,11 +46,12 @@ bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
 ketl_variable* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, bool force) {
     // TODO insert into vector uninitialized or something
     ketl_namespace_node new_node = {
-        .variable = variable
+        .variable = variable,
+        .s_name = s_key,
     };
-    uint32_t new_node_offset = p_namespace->nodes.size;
+    uint32_t new_node_offset = p_namespace->v_nodes.size;
 
-    namespace_map_bucket* p_bucket = namespace_map_get_or_insert_copy(&p_namespace->vars, s_key, new_node_offset);
+    namespace_map_bucket* p_bucket = namespace_map_get_or_insert_copy(&p_namespace->m_vars, s_key, new_node_offset);
     if (p_bucket->value != new_node_offset) {
         if (!force) {
             // TODO check const stuff
@@ -59,18 +60,18 @@ ketl_variable* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_strin
             ANN_ASSERT(false);
         }
         
-        p_namespace->nodes.p_data[p_bucket->value] = new_node;
+        p_namespace->v_nodes.p_data[p_bucket->value] = new_node;
     } else {
-        namespace_nodes_push_back_ref(&p_namespace->nodes, &new_node);
+        namespace_nodes_push_back_ref(&p_namespace->v_nodes, &new_node);
     }
 
-    return &p_namespace->nodes.p_data[p_bucket->value].variable;
+    return &p_namespace->v_nodes.p_data[p_bucket->value].variable;
 }
 
 ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomic_string s_key) {
-    namespace_map_bucket* p_bucket = namespace_map_get_or_null(&p_namespace->vars, s_key);
+    namespace_map_bucket* p_bucket = namespace_map_get_or_null(&p_namespace->m_vars, s_key);
     if (p_bucket != NULL) {
-        return p_namespace->nodes.p_data + p_bucket->value;
+        return p_namespace->v_nodes.p_data + p_bucket->value;
     }
 
     if (p_namespace->p_parent != NULL) {

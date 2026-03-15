@@ -11,14 +11,15 @@
 
 ANN_DEFINE(ketl_namespace_node) {
     ketl_variable variable;
+    ketl_atomic_string s_name;
 };
 
 KETL_VECTOR_DECLARATION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DECLARATION(namespace_map, ketl_atomic_string, uint32_t)
 
 ANN_DEFINE(ketl_namespace) {
-    namespace_nodes nodes;
-    namespace_map vars;
+    namespace_nodes v_nodes;
+    namespace_map m_vars;
     ketl_namespace* p_parent;
     ketl_atomic_string s_name;
     ketl_atomic_string s_fullname;

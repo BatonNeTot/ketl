@@ -220,8 +220,14 @@ namespace KETL {
 		State& operator=(const State& other) = delete;
 		State& operator=(State&& other) = delete;
 
+		template <class T>
+		void define_global_var(const std::string_view& name, T& var) {
+			ketl_type* pType = __TypeHelper<T>::getType(_p_state);
+			ketl_state_define_global_var(_p_state, name.data(), static_cast<uint32_t>(name.length()), pType, &var);
+		}
+
 		template <class R, class... Args>
-		void define_cfunction(const std::string_view& name, R (*pFunc)(Args...)) {
+		void define_global_cfunction(const std::string_view& name, R (*pFunc)(Args...)) {
 			ketl_variable_type_info_t aParameters[] = {
 				ketl_variable_type_info_t{__TypeHelper<R>::getType(_p_state)}, (ketl_variable_type_info_t{__TypeHelper<Args>::getType(_p_state)})...
 			};
@@ -229,15 +235,15 @@ namespace KETL {
 				aParameters, 1 + sizeof...(Args)
 			};
 			ketl_type* pFuncType = ketl_state_get_cfunction_type(_p_state, &funcParameters);
-			ketl_state_define_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void(*)(void)>(pFunc));
+			ketl_state_define_global_function(_p_state, name.data(), static_cast<uint32_t>(name.length()), pFuncType, reinterpret_cast<void(*)(void)>(pFunc));
 		}
 
 		template <class... Fields>
-		void define_class(const std::string_view& name, Fields&&... fields) {
+		void define_global_class(const std::string_view& name, Fields&&... fields) {
 			ketl_named_variable_type_info_t a_class_fields[] = {
 				ketl_named_variable_type_info_t{fields._p_type, fields._name.c_str(), static_cast<uint32_t>(fields._name.length())}...
 			};
-			ketl_state_define_class(_p_state, name.data(), static_cast<uint32_t>(name.length()), a_class_fields, sizeof...(fields));
+			ketl_state_define_global_class(_p_state, name.data(), static_cast<uint32_t>(name.length()), a_class_fields, sizeof...(fields));
 		}
 
 		template <class T>

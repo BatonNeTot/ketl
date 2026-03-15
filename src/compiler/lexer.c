@@ -277,6 +277,17 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             break;
         }
+        case 'n': {
+            if (ketl_str_is_equal_n("none", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_NONE, id_length);
+                return true;
+            }
+            if (ketl_str_is_equal_n("null", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_NULL, id_length);
+                return true;
+            }
+            break;
+        }
         case 'v': {
             if (ketl_str_is_equal_n("var", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_VAR, id_length);

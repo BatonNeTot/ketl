@@ -3,6 +3,7 @@
 
 #include "ketl_impl.h"
 #include "error_stream.h"
+#include "str.h"
 
 #include <stdio.h>
 
@@ -275,7 +276,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
     if (p_symbol_node != NULL) {
         ketl_hir_used_type_index_t global_type;
 
-        if (p_symbol_node->variable.type == KETL_VARIABLE_TYPE || p_symbol_node->variable.type == KETL_VARIABLE_NAMESPACE) {
+        if (p_symbol_node->variable.kind == KETL_VARIABLE_TYPE || p_symbol_node->variable.kind == KETL_VARIABLE_NAMESPACE) {
             global_type = KETL_HIR_USED_TYPE_META;
         } else {
             global_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_symbol_node->variable.p_type);
@@ -301,6 +302,30 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
     return -1;
 }
 
+ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_builder, ketl_variable* p_variable, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+    hir_builder_symbol_to_var_map_t_bucket* p_bucket = hir_builder_symbol_to_var_map_t_get_or_insert_copy(&p_hir_builder->symbol_to_var, name, (ketl_hir_var_id_t)-1);
+    // if size didn't change, we found existing var
+    if (p_bucket->value != (ketl_hir_var_id_t)-1) {
+        ANN_ASSERT(type == KETL_HIR_USED_TYPE_UNKNOWN || p_hir_builder->vars.p_data[p_bucket->value].type == type);
+        return p_bucket->value;
+    }
+    
+    ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
+    hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->vars_infos, (ketl_hir_var_info_t){
+        .name = name,
+        .p_global = p_variable,
+    });
+
+    p_bucket->value = (ketl_hir_var_id_t)p_hir_builder->vars.size;
+    hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
+        .info = var_info,
+        .type = type,
+        .uid = KETL_HIR_VAR_UID_GLOBAL,
+    });
+
+    return p_bucket->value;
+}
+
 ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t var_id) {
     ketl_hir_var_t* p_var = p_hir_builder->vars.p_data + var_id;
     ANN_ASSERT(p_var->uid != KETL_HIR_VAR_UID_LITERAL 
@@ -324,7 +349,7 @@ ketl_hir_var_id_t ketl_hir_builder_increment_var_uid(ketl_hir_builder_t* p_hir_b
 ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id) {
     ANN_ASSERT(p_hir_builder->vars.p_data[array_id].type != KETL_HIR_USED_TYPE_UNKNOWN);
     ketl_type* p_array_type = p_hir_builder->used_types.p_data[p_hir_builder->vars.p_data[array_id].type];
-    ANN_ASSERT(p_array_type->type == KETL_TYPE_ARRAY);
+    ANN_ASSERT(p_array_type->kind == KETL_TYPE_ARRAY);
 
     ketl_type* p_value_type = ((ketl_type_array*)p_array_type)->p_value_type;
 
@@ -492,7 +517,7 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
 
     ketl_type* p_type = p_hir_builder->used_types.p_data[p_callee->type];
 
-    if (p_type->type != KETL_TYPE_FUNCTION && p_type->type != KETL_TYPE_CFUNCTION) {
+    if (p_type->kind != KETL_TYPE_FUNCTION && p_type->kind != KETL_TYPE_CFUNCTION) {
         // TODO error
         ANN_ASSERT(false);
     }
@@ -523,7 +548,7 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
 void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments) {
     ketl_type* p_type = p_hir_builder->used_types.p_data[p_create->type];
 
-    switch (p_type->type) {
+    switch (p_type->kind) {
         case KETL_TYPE_ARRAY: {
             // TODO 
             // check argumnets types

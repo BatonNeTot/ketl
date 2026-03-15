@@ -1,5 +1,13 @@
+var pointer : raw = null;
+var f_counter : i64 = 0;
+
 fn fibbonachi(value : i64) -> i64 {
+    f_counter = f_counter + 1;
     if (value <= 0) return 0;
     if (value == 1) return 1;
     return fibbonachi(value - 1) + fibbonachi(value - 2);
+}
+
+fn get_f_counter() -> i64 {
+    return f_counter;
 }

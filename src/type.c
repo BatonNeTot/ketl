@@ -5,20 +5,30 @@
 
 #include <stdio.h>
 
+uint8_t ketl_align_map[5] = { 1, 2, 4, 8, 16 };
+
+uint8_t ketl_align_find(uint8_t align) {
+    uint8_t power = 0;
+    while (align /= 2) {
+        ++power;
+    }
+    return power;
+}
+
 size_t ketl_type_get_size(ketl_type* p_type) {
     return p_type->size;
 }
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type) {
-    return p_type->type == KETL_TYPE_PRIMITIVE ? p_type->size : sizeof(void*);
+    return p_type->kind == KETL_TYPE_PRIMITIVE ? p_type->size : sizeof(void*);
 }
 
 size_t ketl_type_get_align(ketl_type* p_type) {
-    return p_type->align;
+    return ketl_align_map[p_type->align_enum];
 }
 
 bool ketl_type_is_array(ketl_type* p_type) {
-    return p_type->type == KETL_TYPE_ARRAY;
+    return p_type->kind == KETL_TYPE_ARRAY;
 }
 
 ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info_t* p_fields, uint16_t fields_count) {
@@ -77,7 +87,7 @@ uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string 
 }
 
 uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer, uint32_t buffer_size) {
-    ANN_SWITCH_STRICT(p_type->type) {
+    ANN_SWITCH_STRICT(p_type->kind) {
         case KETL_TYPE_PRIMITIVE: {
             ketl_type_primitive* p_primitive_type = ((ketl_type_primitive*)p_type);
             if (p_primitive_type->is_integer) {

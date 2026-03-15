@@ -28,7 +28,7 @@ void ketl_module_deinit(ketl_module_t* p_module) {
 static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace* p_namespace) {
     ketl_variable namespace_var = {
         .p_pointer = &p_module->namespace,
-        .type = KETL_VARIABLE_NAMESPACE,
+        .kind = KETL_VARIABLE_NAMESPACE,
         .p_type = NULL,
     };
 
