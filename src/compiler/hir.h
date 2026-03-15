@@ -211,13 +211,15 @@ ANN_DEFINE(ketl_hir_var_t) {
     ketl_hir_var_uid_t uid;
 };
 
+ANN_FORWARD(ketl_namespace_node);
+
 ANN_DEFINE(ketl_hir_var_info_t) {
     union {
         ketl_hir_symbol_offset_t name;
         ketl_hir_var_id_t arg_id;
     };
     union {
-        ketl_variable* p_global;
+        ketl_namespace_node* p_global;
         ketl_hir_var_id_t parent_id;
     };
     // TODO declaration info

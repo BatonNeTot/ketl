@@ -43,6 +43,7 @@ ANN_DEFINE(ketl_parser_context) {
     _ketl_parse_argument_stack_t argument_stack;
 
     bool vars_in_namespace;
+    bool export;
 };
 
 typedef uint8_t ketl_parse_return_info;
@@ -283,9 +284,10 @@ static ketl_hir_used_type_index_t find_type(ketl_parser_context* p_context, ketl
 static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_parse_pos_info* p_pos_info, ketl_token_t id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var) {
     ketl_hir_var_id_t id_var;
     if (p_context->vars_in_namespace) {
-        ketl_variable* p_variable = ketl_state_define_var(p_context->p_state, p_context->p_namespace, 
+        ketl_namespace_node* p_namespace_node = ketl_state_define_var(p_context->p_state, p_context->p_namespace, 
             TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_context->hir_builder.used_types.p_data[type_index]);
-        id_var = ketl_hir_builder_get_global_var(&p_context->hir_builder, p_variable, push_symbol(p_context, id_literal), type_index);
+        p_namespace_node->export = p_context->export;
+        id_var = ketl_hir_builder_get_global_var(&p_context->hir_builder, p_namespace_node, push_symbol(p_context, id_literal), type_index);
     } else {
         id_var = ketl_hir_builder_register_var(&p_context->hir_builder, p_context->p_namespace, 
             push_symbol(p_context, id_literal), type_index);
@@ -559,7 +561,7 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
         // TODO check if it is actually type
         return push_hir_create(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, 
-                p_context->hir_builder.vars_infos.p_data[p_callee->info].p_global->p_pointer), argument_count);
+                p_context->hir_builder.vars_infos.p_data[p_callee->info].p_global->variable.p_pointer), argument_count);
     } else {
         return push_hir_call(p_context, NULL, callee, argument_count);
     }
@@ -572,7 +574,7 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
     ketl_hir_var_t* p_object = &p_context->hir_builder.vars.p_data[lhs];
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
         // TODO check if it is actually module
-        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->p_pointer;
+        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->variable.p_pointer;
         
         ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, 
             push_symbol(p_context, id_literal), KETL_HIR_USED_TYPE_UNKNOWN);
@@ -593,7 +595,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 
     ketl_hir_var_t* p_var = &p_context->hir_builder.vars.p_data[var_id];
     if (p_var->type == KETL_HIR_USED_TYPE_META) {
-        ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->p_pointer;
+        ketl_type* p_value_type = p_context->hir_builder.vars_infos.p_data[p_var->info].p_global->variable.p_pointer;
         ketl_hir_var_id_t id_var = push_hir_create_array(p_context, NULL, 
             ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)), expr_id);
 
@@ -1129,7 +1131,8 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
     ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
-    ketl_variable* p_func_variable = ketl_state_define_function(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
+    ketl_namespace_node* p_func_node = ketl_state_define_function(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
+    p_func_node->export = p_context->export;
     ketl_atomic_string s_func_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     
     // looking for the end of the function definition
@@ -1151,7 +1154,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
 
     compile_function_declaration_t function_decl = {
         .s_name = s_func_name,
-        .p_variable = p_func_variable,
+        .p_namespace_node = p_func_node,
         .p_opcodes = NULL,
         .opcodes_size = 0,
         .start_pos = start_pos,
@@ -1198,12 +1201,38 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
+static ketl_statement_info parse_export_declaration(ketl_parser_context* p_context) {
+    ketl_token_t literal = CURRENT_TOKEN(0);
+    token_advance(p_context);
+    p_context->export = true;
+
+    ketl_statement_info info;
+    switch (CURRENT_TOKEN(0).type) {
+        case KETL_TOKEN_TYPE_IMPORT: info = parse_import              (p_context); break;
+        case KETL_TOKEN_TYPE_VAR   : info = parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_FN    : info = parse_function_declaration(p_context); break;
+        case KETL_TOKEN_TYPE_CLASS : info = parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_EXPORT: 
+            // TODO do warning instead
+            errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
+            return parse_export_declaration(p_context);
+        default:
+            // TODO do warning instead?
+            errorf(literal.offset, literal.length, "Expected declaration after 'export'.");
+            p_context->export = false;
+            return parse_declaration(p_context);
+    }
+    p_context->export = false;
+    return info;
+}
+
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
         case KETL_TOKEN_TYPE_IMPORT: return parse_import              (p_context); break;
         case KETL_TOKEN_TYPE_VAR   : return parse_var_declaration     (p_context); break;
         case KETL_TOKEN_TYPE_FN    : return parse_function_declaration(p_context); break;
         case KETL_TOKEN_TYPE_CLASS : return parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_EXPORT: return parse_export_declaration  (p_context); break;
         default                    : return parse_statement           (p_context); break;
     }
 }

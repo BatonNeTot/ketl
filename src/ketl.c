@@ -308,7 +308,7 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* p_state, const ketl_functio
     return (ketl_type*)get_function_type_composite(p_state, p_parameters)->p_cfunc_type;
 }
 
-ketl_variable* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type) {
+ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type) {
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
     ketl_variable namespace_variable = {
         .kind = ketl_variable_get_kind(p_type),
@@ -321,11 +321,11 @@ ketl_variable* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_name
 void ketl_state_define_global_var(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_var) {
     // TODO make type a reference, otherwise can't use p_pointer
     ANN_ASSERT(false);
-    ketl_variable* p_variable = ketl_state_define_var(p_state, &p_state->global_namespace, p_name, length, p_type);
-    p_variable->p_pointer = p_var;
+    ketl_namespace_node* p_namespace_node = ketl_state_define_var(p_state, &p_state->global_namespace, p_name, length, p_type);
+    p_namespace_node->variable.p_pointer = p_var;
 }
 
-ketl_variable* ketl_state_define_function(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void)) {
+ketl_namespace_node* ketl_state_define_function(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void)) {
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
     ketl_function_header* p_func_header = ketl_alloc(p_state->p_allocator, sizeof(ketl_function_header));
     *p_func_header = (ketl_function_header){
@@ -497,7 +497,7 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
         for (uint32_t i = compile_function_mark; i < compile_function_declarations.size; ++i) {
             ketl_parameters_t_deinit(&compile_function_declarations.p_data[i].v_parameters);
             ketl_free(p_state->p_allocator, compile_function_declarations.p_data[i].p_opcodes);
-            compile_function_declarations.p_data[i].p_variable->cfunc = ketl_dynamic_library_load_function(p_library_filename, 
+            compile_function_declarations.p_data[i].p_namespace_node->variable.cfunc = ketl_dynamic_library_load_function(p_library_filename, 
                 ketl_atomic_strings_get_pointer(&p_state->atomic_strings, compile_function_declarations.p_data[i].s_name));
         }
     }
@@ -726,6 +726,12 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
         if (true) {
             const char* p_func_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_compile_function_declaration->s_name);
 
+            char a_buffer[256];
+            if (!p_compile_function_declaration->p_namespace_node->export) {
+                snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", p_func_name);
+                p_func_name = a_buffer;
+            }
+
             printf("    .def    %s;\n", p_func_name);
             printf("    .scl    2;\n");
             printf("    .type   32;\n");
@@ -766,10 +772,18 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
         if (variable_is_function(&p_node->variable)) {
             continue;
         }
+        
+        const char* p_variable_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name);
+        
+        char a_buffer[256];
+        if (!p_node->export) {
+            snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", p_variable_name);
+            p_variable_name = a_buffer;
+        }
 
-        printf("    .globl    %s\n", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name));
+        printf("    .globl    %s\n", p_variable_name);
         printf("    .p2align  %d, 0x0\n", p_node->variable.p_type->align_enum);
-        printf("%s:\n", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name));
+        printf("%s:\n", p_variable_name);
         printf("    .%dbyte   0\n", ketl_type_get_stack_size(p_node->variable.p_type));
     }
 

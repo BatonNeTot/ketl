@@ -286,7 +286,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
         ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
         hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->vars_infos, (ketl_hir_var_info_t){
             .name = name,
-            .p_global = &p_symbol_node->variable,
+            .p_global = p_symbol_node,
         });
 
         p_bucket->value = (ketl_hir_var_id_t)p_hir_builder->vars.size;
@@ -302,7 +302,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
     return -1;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_builder, ketl_variable* p_variable, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
+ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace_node* p_namespace_node, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
     hir_builder_symbol_to_var_map_t_bucket* p_bucket = hir_builder_symbol_to_var_map_t_get_or_insert_copy(&p_hir_builder->symbol_to_var, name, (ketl_hir_var_id_t)-1);
     // if size didn't change, we found existing var
     if (p_bucket->value != (ketl_hir_var_id_t)-1) {
@@ -313,7 +313,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_buil
     ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
     hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->vars_infos, (ketl_hir_var_info_t){
         .name = name,
-        .p_global = p_variable,
+        .p_global = p_namespace_node,
     });
 
     p_bucket->value = (ketl_hir_var_id_t)p_hir_builder->vars.size;

@@ -43,7 +43,7 @@ bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
 
 //void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
 
-ketl_variable* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, bool force) {
+ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, bool force) {
     // TODO insert into vector uninitialized or something
     ketl_namespace_node new_node = {
         .variable = variable,
@@ -65,7 +65,7 @@ ketl_variable* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_strin
         namespace_nodes_push_back_ref(&p_namespace->v_nodes, &new_node);
     }
 
-    return &p_namespace->v_nodes.p_data[p_bucket->value].variable;
+    return &p_namespace->v_nodes.p_data[p_bucket->value];
 }
 
 ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomic_string s_key) {

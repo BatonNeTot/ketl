@@ -18,7 +18,7 @@ KETL_VECTOR_DECLARATION(ketl_parameters_t, ketl_named_variable_type_info_t)
 
 ANN_DEFINE(compile_function_declaration_t) {
     ketl_atomic_string s_name;
-    ketl_variable* p_variable;
+    ketl_namespace_node* p_namespace_node;
     uint8_t* p_opcodes;
     uint64_t opcodes_size;
     ketl_token_iterator_t start_pos;

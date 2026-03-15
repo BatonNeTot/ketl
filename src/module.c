@@ -140,7 +140,7 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state, bool print_a
         for (uint32_t i = 0; i < p_module->compile_function_declarations.size; ++i) {
             ketl_parameters_t_deinit(&p_module->compile_function_declarations.p_data[i].v_parameters);
             ketl_free(p_state->p_allocator, p_module->compile_function_declarations.p_data[i].p_opcodes);
-            p_module->compile_function_declarations.p_data[i].p_variable->cfunc = ketl_dynamic_library_load_function(a_library_filename, 
+            p_module->compile_function_declarations.p_data[i].p_namespace_node->variable.cfunc = ketl_dynamic_library_load_function(a_library_filename, 
                 ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].s_name));
         }
     }
