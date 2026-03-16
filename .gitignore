@@ -9,3 +9,8 @@
 /CMakePresets.json
 /*.code-workspace
 /*.dll
+/*.c
+/*.s
+/*.o
+/*.exe
+/*.out
