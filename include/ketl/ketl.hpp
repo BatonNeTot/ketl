@@ -260,8 +260,8 @@ namespace KETL {
 			return Value{ ketl_state_eval(_p_state, source.data(), static_cast<uint32_t>(source.length())), *this };
 		}
 
-		bool load_module(const std::string_view& module_name, bool print_asm) {
-			return ketl_state_load_module(_p_state, module_name.data(), static_cast<uint32_t>(module_name.length()), print_asm);
+		bool load_module(const std::string_view& module_name) {
+			return ketl_state_load_module(_p_state, module_name.data(), static_cast<uint32_t>(module_name.length()));
 		}
 
 		void module_print_asm(const std::string_view& module_name) {

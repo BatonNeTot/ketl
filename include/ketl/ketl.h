@@ -39,7 +39,7 @@ void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uin
 
 ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t length);
 
-bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint32_t length, bool print_asm);
+bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint32_t length);
 
 void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name, uint32_t length);
 

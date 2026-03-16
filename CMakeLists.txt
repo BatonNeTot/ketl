@@ -97,8 +97,6 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT $
 
 add_dependencies(${PROJECT_TEST_TARGET} ${PROJECT_TARGET})
 
-add_subdirectory ("dependencies_tests")
-
 set_target_properties(${PROJECT_TEST_TARGET}
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
@@ -112,9 +110,9 @@ if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHE
 endif()
 
 target_link_directories(${PROJECT_TEST_TARGET} PRIVATE "lib")
-target_link_libraries(${PROJECT_TEST_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES} luajit)
+target_link_libraries(${PROJECT_TEST_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES})
 if (WIN32)
-    target_link_libraries(${PROJECT_TEST_TARGET} lua51)
+    target_link_libraries(${PROJECT_TEST_TARGET})
 endif()
 target_include_directories(${PROJECT_TEST_TARGET} PUBLIC "include")
 target_include_directories(${PROJECT_TEST_TARGET} PRIVATE "src")

@@ -35,7 +35,7 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
     ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, false);
 }
 
-bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, ketl_state* p_state, bool print_asm) {
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, ketl_state* p_state) {
     if (p_module->header_loaded && p_namespace != NULL) {
         ketl_module_add_to_namespace(p_module, p_namespace);
 
@@ -67,7 +67,7 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
 
     ketl_variable output_variable;
     p_module->opcodes_size = 0u;
-    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, NULL, 0, &output_variable, print_asm);
+    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, NULL, 0, true, &output_variable);
 
     for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
         compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
@@ -87,10 +87,10 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     return true;
 }
 
-bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state, bool print_asm) {
+bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
     uint32_t error_stream_mark = p_state->error_stream.size;
 
-    ketl_state_postload(p_state, &p_module->lexer, &p_module->namespace, &p_module->compile_function_declarations, print_asm);
+    ketl_state_postload(p_state, &p_module->lexer, &p_module->namespace, &p_module->compile_function_declarations);
     ketl_lexer_deinit(&p_module->lexer);
     ketl_free(p_state->p_allocator, p_module->p_source);
     
