@@ -13,7 +13,7 @@ set(PROJECT_SANITIZE_OPTION -fsanitize=address)
 if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
-	add_compile_options(-Wall -Wextra -Werror)
+	add_compile_options(-Wall -Wextra -Werror -pedantic)
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 	    add_compile_options(-Wno-switch-unreachable)

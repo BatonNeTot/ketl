@@ -764,6 +764,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_BREAK]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CASE]                       = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CHAR]                       = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_CIMPORT]                    = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CONST]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CONTINUE]                   = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DEFAULT]                    = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -1085,6 +1086,60 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
+// ffi interface
+// TODO works only in asm printout, implement for the runtime
+static ketl_statement_info parse_cimport_declaration(ketl_parser_context* p_context) {
+    token_advance(p_context); // cimport
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after function name.");
+
+    ketl_named_variable_type_info_t a_function_parameters_named[256] = {0};
+    ketl_variable_type_info_t a_function_parameters[256] = {0};
+    ketl_function_parameters function_parameters = {
+        .p_parameters = a_function_parameters,
+        .parameters_count = 0,
+    };
+
+    if (!token_check(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT)) {
+        do {
+            ketl_token_t parameter_literal = CURRENT_TOKEN(0);
+            a_function_parameters_named[function_parameters.parameters_count].p_name = TOKEN_STRING(parameter_literal);
+            a_function_parameters_named[function_parameters.parameters_count].name_length = TOKEN_LENGTH(parameter_literal);
+            token_advance(p_context); // id
+
+            token_consume(p_context, KETL_TOKEN_TYPE_COLON, "Expected ':' after parameter name.");
+
+            a_function_parameters_named[function_parameters.parameters_count].info.p_type = p_context->hir_builder.used_types.p_data[parse_type(p_context)];
+            a_function_parameters[function_parameters.parameters_count + 1] = a_function_parameters_named[function_parameters.parameters_count].info;
+
+            ++function_parameters.parameters_count;
+        } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
+    }
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after parameters.");
+
+    ketl_type* return_type = NULL;
+    if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+        return_type = p_context->hir_builder.used_types.p_data[parse_type(p_context)];
+    }
+    if (return_type == NULL) {
+        return_type = ketl_state_get_none_type(p_context->p_state);
+    }
+
+    a_function_parameters[0].p_type = return_type;
+    ++function_parameters.parameters_count;
+
+    ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
+    ketl_namespace_node* p_func_node = ketl_state_define_function(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL);
+    // TODO fix
+    // export will change asm name of the function
+    // cimport should use asm name as is, but still optionally 'export'able
+    p_func_node->export = true;
+
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_function_declaration(ketl_parser_context* p_context) {
     token_advance(p_context); // fn
     ketl_token_t id_literal = CURRENT_TOKEN(0);
@@ -1208,11 +1263,12 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
 
     ketl_statement_info info;
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_IMPORT: info = parse_import              (p_context); break;
-        case KETL_TOKEN_TYPE_VAR   : info = parse_var_declaration     (p_context); break;
-        case KETL_TOKEN_TYPE_FN    : info = parse_function_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_CLASS : info = parse_class_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_EXPORT: 
+        case KETL_TOKEN_TYPE_IMPORT : info = parse_import              (p_context); break;
+        case KETL_TOKEN_TYPE_CIMPORT: info = parse_cimport_declaration (p_context); break;
+        case KETL_TOKEN_TYPE_VAR    : info = parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_FN     : info = parse_function_declaration(p_context); break;
+        case KETL_TOKEN_TYPE_CLASS  : info = parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_EXPORT : 
             // TODO do warning instead
             errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
             return parse_export_declaration(p_context);
@@ -1228,12 +1284,13 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_IMPORT: return parse_import              (p_context); break;
-        case KETL_TOKEN_TYPE_VAR   : return parse_var_declaration     (p_context); break;
-        case KETL_TOKEN_TYPE_FN    : return parse_function_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_CLASS : return parse_class_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_EXPORT: return parse_export_declaration  (p_context); break;
-        default                    : return parse_statement           (p_context); break;
+        case KETL_TOKEN_TYPE_IMPORT : return parse_import              (p_context); break;
+        case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context); break;
+        case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context); break;
+        case KETL_TOKEN_TYPE_CLASS  : return parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_EXPORT : return parse_export_declaration  (p_context); break;
+        default                     : return parse_statement           (p_context); break;
     }
 }
 

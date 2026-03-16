@@ -1,6 +1,10 @@
 var pointer : raw = null;
 export var f_counter : i64 = 0;
 
+// TODO replace i64 with u64
+// TODO replace u64 with uptr
+cimport malloc(size : i64) -> raw
+
 export fn fibbonachi(value : i64) -> i64 {
     f_counter = f_counter + 1;
     if (value <= 0) return 0;
@@ -10,4 +14,8 @@ export fn fibbonachi(value : i64) -> i64 {
 
 fn get_f_counter() -> i64 {
     return f_counter;
+}
+
+export fn my_malloc_of_4() -> raw {
+    return malloc(4);
 }
