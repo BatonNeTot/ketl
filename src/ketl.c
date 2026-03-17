@@ -630,6 +630,17 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
 
     fclose(p_module_file);
 
+    //////////////////////////////////////////////
+
+    printf("    .def    @feat.00;\n");
+    printf("    .scl    3;\n");
+    printf("    .type   0;\n");
+    printf("    .endef\n");
+    printf("    .globl  @feat.00\n");
+    printf("@feat.00 = 0\n");
+    printf("    .intel_syntax noprefix\n");
+    printf("    .file   \"%s\"\n", a_module_filename);
+
     ///////////////////////////////////////////
 
     uint32_t error_stream_mark = p_state->error_stream.size;
@@ -643,19 +654,71 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
 
     uint32_t compile_function_mark = p_state->compile_function_declarations.size;
 
-    ketl_hir_t hir;
-    ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, NULL, 0, true, p_state->p_allocator);
-    // for now ignoring global vars and any calls in while module is loading
-    // we interested only in produced compile_function_declarations
-    ketl_hir_deinit(&hir);
+    {
+
+        ketl_hir_t hir;
+        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, NULL, 0, true, p_state->p_allocator);
+
+
+        if (p_state->error_stream.size > error_stream_mark) {
+            fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
+            p_state->error_stream.size = error_stream_mark;
+            return;
+        }
+        
+    #if ANN_BUILD_DEBUG
+        for (uint32_t i = 0u; i < hir.vars_count; ++i) {
+            if (hir.p_vars[i].type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                // TODO error debug only
+                // cause in release we want it to finish building and show all of the errors
+                ANN_ASSERT(false);
+            } 
+        }
+    #endif
+    
+    /////////////////////////////////////////
+
+        ketl_asm_x86_builder_t asm_builder;
+        ketl_asm_x86_builder_init(&asm_builder, p_state, KETL_ASM_X86_ABI_DEFAULT, true);
+        
+        ketl_asm_x86_t asm_x86;
+        ketl_asm_x86_build(&hir, &asm_builder, &asm_x86, 0);
+        ketl_hir_deinit(&hir);
+
+        if (true) {
+            char a_buffer[256];
+            snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%s.init", p_module_name);
+
+            printf("    .text                    # -- Functions\n");
+            printf("    .def    %s;                    # @%s\n", a_buffer, a_buffer);
+            printf("    .scl    2;\n");
+            printf("    .type   32;\n");
+            printf("    .endef\n");
+            printf("    .globl	%s\n", a_buffer);
+            printf("    .p2align	4\n");
+            printf("%s:\n", a_buffer);
+
+            char arr_buffer[4096];
+            uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
+            printf("%.*s", length, arr_buffer);
+
+            printf("\n");
+        }
+        ketl_asm_x86_builder_deinit(&asm_builder);
+
+        /////////////////////////
+        
+        //uint32_t opcodes_size = 0u;
+        //uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
+        ketl_asm_x86_deinit(&asm_x86);
+
+        /////////////////////////
+
+        //p_compile_function_declaration->p_opcodes = p_opcodes;
+        //p_compile_function_declaration->opcodes_size = opcodes_size;
+    }
 
     /////////////////////////////////////////////
-
-    if (p_state->error_stream.size > error_stream_mark) {
-        fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
-        p_state->error_stream.size = error_stream_mark;
-        return;
-    }
 
     for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
         compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
@@ -663,22 +726,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
 
     p_state->compile_function_declarations.size = compile_function_mark;
 
-    //////////////////////////////////////////////
-
-    printf("    .def    @feat.00;\n");
-    printf("    .scl    3;\n");
-    printf("    .type   0;\n");
-    printf("    .endef\n");
-    printf("    .globl  @feat.00\n");
-    printf("@feat.00 = 0\n");
-    printf("    .intel_syntax noprefix\n");
-    printf("    .file   \"%s\"\n", a_module_filename);
-
     ///////////////////////////////////////////////
-
-    if (p_module->compile_function_declarations.size > 0) {
-        printf("    .text\n");
-    }
 
     for (uint32_t i = 0; i < p_module->compile_function_declarations.size; ++i) {
         compile_function_declaration_t* p_compile_function_declaration = &p_module->compile_function_declarations.p_data[i];
@@ -720,7 +768,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
         ketl_asm_x86_builder_init(&asm_builder, p_state, KETL_ASM_X86_ABI_DEFAULT, true);
         
         ketl_asm_x86_t asm_x86;
-        ketl_asm_x86_build(&hir, &asm_builder, &asm_x86, i);
+        ketl_asm_x86_build(&hir, &asm_builder, &asm_x86, i + 1);
         ketl_hir_deinit(&hir);
 
         if (true) {
@@ -732,7 +780,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
                 p_func_name = a_buffer;
             }
 
-            printf("    .def    %s;\n", p_func_name);
+            printf("    .def    %s;                    # @%s\n", p_func_name, p_func_name);
             printf("    .scl    2;\n");
             printf("    .type   32;\n");
             printf("    .endef\n");
@@ -744,19 +792,21 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
             char arr_buffer[4096];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
+
+            printf("\n");
         }
         ketl_asm_x86_builder_deinit(&asm_builder);
 
         /////////////////////////
         
-        uint32_t opcodes_size = 0u;
-        uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
+        //uint32_t opcodes_size = 0u;
+        //uint8_t* p_opcodes = ketl_asm_x86_compile(&asm_x86, &opcodes_size, p_state->p_allocator);
         ketl_asm_x86_deinit(&asm_x86);
 
         /////////////////////////
 
-        p_compile_function_declaration->p_opcodes = p_opcodes;
-        p_compile_function_declaration->opcodes_size = opcodes_size;
+        //p_compile_function_declaration->p_opcodes = p_opcodes;
+        //p_compile_function_declaration->opcodes_size = opcodes_size;
 
         ketl_namespace_deinit(&local_namespace);
     }
@@ -764,7 +814,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
     ///////////////////////////////
 
     if (namespace_has_vars(&p_module->namespace)) {
-        printf("    .bss\n");
+        printf("    .bss                    # -- Zero-initialized Variables\n");
     }
 
     for (uint32_t i = 0; i < p_module->namespace.v_nodes.size; ++i) {
@@ -781,7 +831,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
             p_variable_name = a_buffer;
         }
 
-        printf("    .globl    %s\n", p_variable_name);
+        printf("    .globl    %s                    # @%s\n", p_variable_name, p_variable_name);
         printf("    .p2align  %d, 0x0\n", p_node->variable.p_type->align_enum);
         printf("%s:\n", p_variable_name);
         printf("    .%dbyte   0\n", ketl_type_get_stack_size(p_node->variable.p_type));

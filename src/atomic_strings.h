@@ -27,6 +27,6 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* p_atomic_strings
 
 const char* ketl_atomic_strings_get_pointer(ketl_atomic_strings* p_atomic_strings, ketl_atomic_string a_str);
 
-#define KETL_ATOMIC_STRING_GET_POINTER(p_buffer, a_str) ((a_str) == 0 ? KETL_ATOMIC_STRING_EMPTY : (p_buffer) + (a_str) - 1)
+#define KETL_ATOMIC_STRING_GET_POINTER(p_buffer, s_str) ((s_str) == 0 ? KETL_ATOMIC_STRING_EMPTY : (p_buffer) + (s_str) - 1)
 
 #endif // ketl_atomic_strings_h

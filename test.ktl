@@ -2,11 +2,20 @@
 import fib
 import a
 
+class Point {
+    x : i64;
+    y : i64;
+}
+
 fn get_index() -> i64 {
     return a.get_other();
 }
 
-return fib.fibbonachi(get_index()); 
+fn calculate_fib() -> i64 {
+    return fib.fibbonachi(get_index());
+}
+
+return Point.size; 
 //*/
 
 /*

@@ -50,6 +50,10 @@ ketl_variable_kind ketl_variable_get_kind(ketl_type* p_type) {
             return KETL_VARIABLE_POINTER;
             break;
         }
+        case KETL_TYPE_CLASS: {
+            return KETL_VARIABLE_POINTER;
+            break;
+        }
         case KETL_TYPE_FUNCTION: {
             return KETL_VARIABLE_FUNC;
             break;

@@ -104,6 +104,22 @@ void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_name
 }
 
 void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir) {
+    ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
+    uint8_t* p_return = p_hir_builder->instrs.p_data + p_hir_builder->return_offsets.p_data[0];
+
+    if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
+        ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
+        p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
+    } else if ((((ketl_hir_header_t*)p_return)->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
+        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
+        ketl_hir_var_t* p_return_var = &p_hir->p_vars[p_return_info->value_var];
+        p_hir->return_type = p_return_var->type;
+    } else {
+        ANN_ASSERT(false);
+    }
+
+    ////////////
+
     p_hir->p_allocator = p_hir_builder->p_allocator;
 
     p_hir->p_instrs = p_hir_builder->instrs.p_data;
@@ -124,18 +140,7 @@ void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir
     p_hir->parameter_count = p_hir_builder->parameter_count; 
     p_hir->has_calls = p_hir_builder->has_calls;
 
-    ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
-    uint8_t* p_return = p_hir->p_instrs + p_hir_builder->return_offsets.p_data[0];
-    if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
-        ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
-        p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
-    } else if ((((ketl_hir_header_t*)p_return)->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
-        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
-        ketl_hir_var_t* p_return_var = &p_hir->p_vars[p_return_info->value_var];
-        p_hir->return_type = p_return_var->type;
-    } else {
-        ANN_ASSERT(false);
-    }
+    ////////////////////////
 
     hir_builder_offset_to_block_t_deinit(&p_hir_builder->offset_to_block);
     hir_builder_blocks_infos_t_deinit(&p_hir_builder->blocks_infos);
@@ -143,7 +148,6 @@ void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir
 
     hir_builder_symbol_to_var_map_t_deinit(&p_hir_builder->symbol_to_var);
     hir_builder_type_to_used_type_map_t_deinit(&p_hir_builder->type_to_used_type);
-
 }
 
 static void on_instr_inserted(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header) {

@@ -60,20 +60,36 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    redirect_init();
+    if (argc >= 2 && strcmp(argv[1], "-S") == 0) {
+
+        redirect_init();
+        for (int i = 2; i < argc; ++i) {
+            char a_buffer[256] = {'\0'};
+
+            size_t length = strlen(argv[i]);
+            memcpy(a_buffer, argv[i], length);
+            memcpy(a_buffer + length, ".s", 2);
+
+            redirect_stdout(a_buffer);
+            KETL::State ketl(&ketl_default_allocator);
+
+            ketl.module_print_asm(std::string_view{argv[i], length});
+        }
+        redirect_restore();
+
+        return 0;
+    }
+
     for (int i = 1; i < argc; ++i) {
         char a_buffer[256] = {'\0'};
 
         size_t length = strlen(argv[i]);
         memcpy(a_buffer, argv[i], length);
-        memcpy(a_buffer + length, ".s", 2);
 
-        redirect_stdout(a_buffer);
         KETL::State ketl(&ketl_default_allocator);
 
-        ketl.module_print_asm(std::string_view{argv[i], length});
+        ketl.load_module(std::string_view{argv[i], length});
     }
-    redirect_restore();
 
     return 0;
 }

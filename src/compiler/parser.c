@@ -573,17 +573,39 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
 
     ketl_hir_var_t* p_object = &p_context->hir_builder.vars.p_data[lhs];
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
-        // TODO check if it is actually module
-        ketl_namespace* p_namespace = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global->variable.p_pointer;
+        ketl_namespace_node* p_namespace_node = p_context->hir_builder.vars_infos.p_data[p_object->info].p_global;
         
-        ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, 
-            push_symbol(p_context, id_literal), KETL_HIR_USED_TYPE_UNKNOWN);
-        if (id_var == (ketl_hir_var_id_t)-1) {
-            errorf(id_literal.offset, id_literal.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
-                ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, p_namespace->s_name));
-            id_var = push_temp_var(p_context);
+        if (p_namespace_node->variable.kind == KETL_VARIABLE_NAMESPACE) { 
+            ketl_namespace* p_namespace = p_namespace_node->variable.p_pointer;
+            
+            ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, 
+                push_symbol(p_context, id_literal), KETL_HIR_USED_TYPE_UNKNOWN);
+            if (id_var == (ketl_hir_var_id_t)-1) {
+                errorf(id_literal.offset, id_literal.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
+                    ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, p_namespace->s_name));
+                id_var = push_temp_var(p_context);
+            }
+
+            return id_var;
         }
-        return id_var;
+
+        if (p_namespace_node->variable.kind == KETL_VARIABLE_TYPE) {
+            ketl_type* p_type = p_namespace_node->variable.p_pointer;
+            
+            if (ketl_str_is_equal_n("size", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+                uint64_t type_size = ketl_type_get_size(p_type);
+
+                char a_buffer[256];
+                uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
+
+                return push_literal_number_symbol(p_context, push_symbol_string(p_context, a_buffer, length));
+            }
+
+            ANN_ASSERT(false && "This type does not have this field");
+        }
+
+        ANN_ASSERT(false && "Trying to field access no-type and no-namespace");
+        return -1;
     } else {
         return push_object_field(p_context, lhs, id_literal);
     }

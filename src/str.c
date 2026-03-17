@@ -148,7 +148,7 @@ bool ketl_str_is_equal(const char* restrict p_lhs_str, const char* restrict p_rh
 }
 
 bool 
-ketl_str_is_equal_n(const char* restrict p_lhs_str, const char* restrict p_rhs_str, uint32_t length) {
+ketl_str_is_equal_n(const char* restrict p_lhs_str, const char* restrict p_rhs_str, uint32_t rhs_length) {
 	if (p_lhs_str == NULL || p_rhs_str == NULL) {
 		return false;
 	}
@@ -159,7 +159,7 @@ ketl_str_is_equal_n(const char* restrict p_lhs_str, const char* restrict p_rhs_s
 		char rhs = p_rhs_str[counter];
 
 		bool end_lhs = lhs == '\0';
-		bool end_rhs = rhs == '\0' || length <= counter;
+		bool end_rhs = rhs == '\0' || rhs_length <= counter;
 
 		if (end_lhs || end_rhs) {
 			return end_lhs == end_rhs;
