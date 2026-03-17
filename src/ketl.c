@@ -596,7 +596,16 @@ static bool namespace_has_vars(ketl_namespace* p_namespace) {
     return false;
 }
 
-void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name, uint32_t module_name_length) {
+void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, uint32_t length) {
+    size_t after_last_slash_index = length;
+    while (after_last_slash_index != 0 && p_filepath[after_last_slash_index - 1] != '/' && p_filepath[after_last_slash_index - 1] != '\\') {
+        --after_last_slash_index;
+    }
+
+    const char* p_module_name = p_filepath + after_last_slash_index;
+    uint32_t module_name_length = length - after_last_slash_index - sizeof(".ktl");
+
+
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_module_name, module_name_length);
 
     uint64_t module_size = p_state->modules.size;
@@ -610,12 +619,9 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
     ketl_module_t* p_module = &p_module_bucket->value;
     ketl_module_init(p_module, s_module_name, p_state);
 
-    char a_module_filename[256] = {0};
-    snprintf(a_module_filename, ANN_ARRAY_SIZE(a_module_filename), "%s.ktl", p_module_name);
-
     //////////////////////////////////////////
 
-    FILE *p_module_file = fopen(a_module_filename, "rb");
+    FILE *p_module_file = fopen(p_filepath, "rb");
     ANN_ASSERT(p_module_file != NULL);
     
     fseek(p_module_file, 0L, SEEK_END);
@@ -639,7 +645,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
     printf("    .globl  @feat.00\n");
     printf("@feat.00 = 0\n");
     printf("    .intel_syntax noprefix\n");
-    printf("    .file   \"%s\"\n", a_module_filename);
+    printf("    .file   \"%s\"\n", p_filepath + after_last_slash_index);
 
     ///////////////////////////////////////////
 
@@ -648,7 +654,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
     ///////////////////////////////////////////
     
     ketl_lexer_init(&p_module->lexer, p_state->p_allocator);
-    ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, a_module_filename, KETL_NULL_TERMINATED_LENGTH_32), p_module->p_source, filesize);
+    ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, p_filepath, length), p_module->p_source, filesize);
 
     ///////////////////////////////////////////
 
@@ -687,7 +693,7 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
 
         if (true) {
             char a_buffer[256];
-            snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%s.init", p_module_name);
+            snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%.*s.init", module_name_length, p_module_name);
 
             printf("    .text                    # -- Functions\n");
             printf("    .def    %s;                    # @%s\n", a_buffer, a_buffer);
@@ -792,8 +798,6 @@ void ketl_state_module_print_asm(ketl_state* p_state, const char* p_module_name,
             char arr_buffer[4096];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
-
-            printf("\n");
         }
         ketl_asm_x86_builder_deinit(&asm_builder);
 

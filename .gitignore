@@ -14,3 +14,6 @@
 /*.o
 /*.exe
 /*.out
+
+/src_ketl/*/*.s
+/src_ketl/*.s

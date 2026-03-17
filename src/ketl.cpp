@@ -3,6 +3,7 @@
 
 #include <string>
 #include <iostream>
+#include <filesystem>
 
 #include <io.h>
 
@@ -36,6 +37,57 @@ void redirect_stdout(const char* p_target_filename) {
     }
 }
 
+void compile_asm_file(const char* p_filepath) {
+    redirect_init();
+    class _defer{ public: ~_defer() {
+        redirect_restore();
+    }} redirect_deffer;
+
+    char a_buffer[256];
+
+    size_t length = strlen(p_filepath);
+    size_t after_last_dot_index = length;
+    while (after_last_dot_index != 0 && p_filepath[after_last_dot_index - 1] != '.') {
+        --after_last_dot_index;
+    }
+    
+    if (strcmp(p_filepath + after_last_dot_index, "ktl") != 0 || after_last_dot_index == 0) {
+        return;
+    }
+
+    snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%.*ss", (int)after_last_dot_index, p_filepath);
+
+    redirect_stdout(a_buffer);
+    KETL::State ketl(&ketl_default_allocator);
+
+    ketl.print_compile2asm(std::string_view{p_filepath, length});
+}
+
+void compile_asm(const std::filesystem::path& path) {
+    if (!std::filesystem::exists(path)) {
+        return;
+    }
+
+    if (std::filesystem::is_directory(path)) {
+        for (auto it = std::filesystem::directory_iterator(path); it != std::filesystem::directory_iterator(); ++it) {
+            compile_asm(*it);
+        }
+        return;
+    }
+
+    if (std::filesystem::is_regular_file(path)) {
+        compile_asm_file(path.string().c_str());
+    }
+}
+
+void compile_asm_list(int amount, char **pp_paths) {
+    for (int i = 0; i < amount; ++i) {
+        const char* p_path = pp_paths[i]; 
+
+        compile_asm(p_path);
+    }
+}
+
 void repl() {
     KETL::State ketl(&ketl_default_allocator);
 
@@ -61,21 +113,7 @@ int main(int argc, char **argv) {
     }
 
     if (argc >= 2 && strcmp(argv[1], "-S") == 0) {
-
-        redirect_init();
-        for (int i = 2; i < argc; ++i) {
-            char a_buffer[256] = {'\0'};
-
-            size_t length = strlen(argv[i]);
-            memcpy(a_buffer, argv[i], length);
-            memcpy(a_buffer + length, ".s", 2);
-
-            redirect_stdout(a_buffer);
-            KETL::State ketl(&ketl_default_allocator);
-
-            ketl.module_print_asm(std::string_view{argv[i], length});
-        }
-        redirect_restore();
+        compile_asm_list(argc - 2, argv + 2);
 
         return 0;
     }

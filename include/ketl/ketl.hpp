@@ -264,8 +264,8 @@ namespace KETL {
 			return ketl_state_load_module(_p_state, module_name.data(), static_cast<uint32_t>(module_name.length()));
 		}
 
-		void module_print_asm(const std::string_view& module_name) {
-			ketl_state_module_print_asm(_p_state, module_name.data(), static_cast<uint32_t>(module_name.length()));
+		void print_compile2asm(const std::string_view& module_name) {
+			ketl_state_print_compile2asm(_p_state, module_name.data(), static_cast<uint32_t>(module_name.length()));
 		}
 
 	private:
