@@ -202,6 +202,15 @@ static void ketl_asm_x86_push_opcode(opcodes_t* p_opcodes, ketl_asm_x86_instr_t*
                     break;
             }
             break;
+        case KETL_ASM_X86_LEA: ///////////////////////////////////////////// 
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_RM: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, 0x8d);
+                    ketl_asm_x86_push_postfix(p_opcodes, p_instr);
+                    break;
+            }
+            break;
         case KETL_ASM_X86_ADD: ///////////////////////////////////////
             ANN_SWITCH_STRICT (p_instr->arg_type) {
                 case KETL_ASM_X86_RM: 
@@ -680,14 +689,22 @@ static bool try_adapt_stask_size(ketl_asm_x86_abi_type_t abi_type, ketl_asm_x86_
     };
 }
 
-static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t var_id, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder) {
-    ketl_hir_var_t var = p_builder->p_hir->p_vars[var_id];
+ANN_DEFINE(push_mov_arg) {
+    ketl_hir_var_t var;
+    ketl_hir_var_id_t var_id;
+    ketl_hir_var_info_t* p_var_info;
+    const char* p_literal;
+    ketl_type* p_type;
+};
 
-    if (var.uid == KETL_HIR_VAR_UID_LITERAL) {
-        const char* p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, var.literal);
+static void push_mov_from_stack_hir(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t var_id, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder);
+
+static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_arg, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder) {
+    if (p_arg->var.uid == KETL_HIR_VAR_UID_LITERAL) {
+        const char* p_literal = p_arg->p_literal;
 
         int64_t value = p_literal != NULL ? strtoll(p_literal, NULL, 10) : 0;
-        ketl_type* p_type = p_builder->p_hir->p_used_types[var.type];
+        ketl_type* p_type = p_arg->p_type;
         (void)p_type;
 
         // TODO FIX
@@ -696,10 +713,10 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
         return;
     }
 
-    if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_GLOBAL) {
-        ANN_ASSERT(var.type != KETL_HIR_USED_TYPE_META);
+    if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_GLOBAL) {
+        ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
 
-        ketl_namespace_node* p_namespace_node = p_builder->p_hir->p_vars_infos[var.info].p_global;
+        ketl_namespace_node* p_namespace_node = p_arg->p_var_info->p_global;
 
         if (p_builder->inline_symbols) {
             ketl_atomic_string s_name = p_namespace_node->s_name;
@@ -708,7 +725,11 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
                 uint32_t length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, s_name));
                 s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_buffer, length);
             }
-            ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+            if (p_arg->var.type == KETL_HIR_USED_TYPE_LITERAL) {
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_64B, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+            } else {
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+            }
         } else {
             // TODO FIX
             // get type size and use appropriate load global bytecode
@@ -718,32 +739,32 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
         return;
     }
 
-    if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
-        ketl_hir_var_id_t object = p_builder->p_hir->p_vars_infos[var.info].parent_id;
+    if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_FIELD) {
+        ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
 
-        ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object);
+        ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object_id);
         ANN_ASSERT(object_bucket != NULL);
 
-        ketl_asm_x86_reg_t donor_reg = KETL_ASM_X86_AX;
+        ketl_asm_x86_reg_t donor_reg = target_reg != KETL_ASM_X86_R15 ? KETL_ASM_X86_R15 : KETL_ASM_X86_R14;
         // TODO get proper size
-        push_mov_from_stack(donor_reg, object, size, p_builder);
+        push_mov_from_stack_hir(donor_reg, object_id, size, p_builder);
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, target_reg, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset)); 
         return;
     }
 
-    if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_INDEX) {
-        ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
-        ketl_hir_var_id_t arg_id = p_builder->p_hir->p_vars_infos[var.info].arg_id;
+    if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_INDEX) {
+        ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
+        ketl_hir_var_id_t arg_id = p_arg->p_var_info->arg_id;
 
-        ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
-        ANN_ASSERT(object.type != KETL_HIR_USED_TYPE_UNKNOWN);
-        ketl_type* p_object_type = p_builder->p_hir->p_used_types[object.type];
+        ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object_id);
+        ANN_ASSERT(object_bucket != NULL);
+        ketl_type* p_object_type = object_bucket->value.p_type;
 
         ketl_asm_x86_reg_t donor_arg_reg = KETL_ASM_X86_AX;
         ketl_asm_x86_reg_t donor_object_reg = KETL_ASM_X86_DX;
 
         // get argument into rax
-        push_mov_from_stack(donor_arg_reg, arg_id, size, p_builder);
+        push_mov_from_stack_hir(donor_arg_reg, arg_id, size, p_builder);
         // get type size into rcx
         ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), ketl_type_get_stack_size(p_object_type));
         // multiply, result in rax
@@ -752,7 +773,7 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
 
         // get array
         // TODO get proper size
-        push_mov_from_stack(donor_object_reg, object_id, size, p_builder);
+        push_mov_from_stack_hir(donor_object_reg, object_id, size, p_builder);
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, donor_object_reg, MODRM_INDIR_BASE_DISP(donor_object_reg, 0));
 
         // add multiplication result, result in rax
@@ -763,13 +784,31 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t
         return;
     }
 
-    ketl_asm_x86_variables_t_bucket* bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, var_id);
+    ketl_asm_x86_variables_t_bucket* bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, p_arg->var_id);
     ANN_ASSERT(bucket != NULL);
 
     ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, target_reg, modrm_stack(p_builder, size, bucket->value.stack_offset)); 
 }
 
-static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t source_reg, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder) {
+static push_mov_arg arg_from_hir_var_id(ketl_hir_var_id_t var_id, ketl_asm_x86_builder_t* p_builder) {
+    ketl_hir_var_t var = p_builder->p_hir->p_vars[var_id];
+    ketl_hir_var_info_t* p_var_info = var.info != KETL_HIR_VAR_INFO_TEMP ? &p_builder->p_hir->p_vars_infos[var.info] : NULL;
+    
+    return (push_mov_arg){
+        .var = var,
+        .var_id = var_id,
+        .p_var_info = p_var_info,
+        .p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, var.literal),
+        .p_type = p_builder->p_hir->p_used_types[var.type],
+    };
+}
+
+static void push_mov_from_stack_hir(ketl_asm_x86_reg_t target_reg, ketl_hir_var_id_t var_id, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder) {
+    push_mov_arg arg = arg_from_hir_var_id(var_id, p_builder);
+    push_mov_from_stack(target_reg, &arg, size, p_builder);
+}
+
+static void push_mov_to_stack_hir(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t source_reg, ketl_asm_x86_size_t size, ketl_asm_x86_builder_t* p_builder) {
     ketl_hir_var_t var = p_builder->p_hir->p_vars[var_id];
     ANN_ASSERT(var.uid != KETL_HIR_VAR_UID_LITERAL);
 
@@ -787,7 +826,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
             }
             ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_RIP_LABEL(s_name), source_reg); 
         } else {
-            ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_AX ? KETL_ASM_X86_AX : KETL_ASM_X86_CX;
+            ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R15 ? KETL_ASM_X86_R15 : KETL_ASM_X86_R14;
             // TODO get proper size
             ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(donor_reg), (int64_t)&p_namespace_node->variable);
             ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, 0), source_reg); 
@@ -801,9 +840,9 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
         ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object);
         ANN_ASSERT(object_bucket != NULL);
         
-        ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_AX ? KETL_ASM_X86_AX : KETL_ASM_X86_CX;
+        ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R15 ? KETL_ASM_X86_R15 : KETL_ASM_X86_R14;
         // TODO get proper size
-        push_mov_from_stack(donor_reg, object, size, p_builder);
+        push_mov_from_stack_hir(donor_reg, object, size, p_builder);
         ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset), source_reg); 
         return;
     }
@@ -825,7 +864,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, save_reg, MODRM_REG(source_reg));
 
         // get argument into rax
-        push_mov_from_stack(donor_arg_reg, arg_id, size, p_builder);
+        push_mov_from_stack_hir(donor_arg_reg, arg_id, size, p_builder);
         // get type size into rcx
         ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), ketl_type_get_stack_size(p_object_type));
         // multiply, result in rax
@@ -834,7 +873,7 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
 
         // get array
         // TODO get proper size
-        push_mov_from_stack(donor_object_reg, object_id, size, p_builder);
+        push_mov_from_stack_hir(donor_object_reg, object_id, size, p_builder);
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, donor_object_reg, MODRM_INDIR_BASE_DISP(donor_object_reg, 0));
 
         // add multiplication result, result in rax
@@ -849,6 +888,24 @@ static void push_mov_to_stack(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t sourc
     ANN_ASSERT(bucket != NULL);
 
     ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, modrm_stack(p_builder, size, bucket->value.stack_offset), source_reg);     
+}
+
+static void push_function_arguments_hir(ketl_hir_var_id_t* p_arguments, uint32_t arguments_count, ketl_asm_x86_builder_t* p_builder) {
+    for (uint32_t i = arguments_count - 1; i != (uint32_t) -1; --i) {
+        // TODO FIX
+        // get type size and use appropriate
+        ketl_asm_x86_size_t size = KETL_ASM_X86_64B;
+        push_mov_from_stack_hir(get_reg_parameter(p_builder->abi_type, i), p_arguments[i], size, p_builder);
+    }
+}
+
+static void push_function_arguments(push_mov_arg* p_arguments, uint32_t arguments_count, ketl_asm_x86_builder_t* p_builder) {
+    for (uint32_t i = arguments_count - 1; i != (uint32_t) -1; --i) {
+        // TODO FIX
+        // get type size and use appropriate
+        ketl_asm_x86_size_t size = KETL_ASM_X86_64B;
+        push_mov_from_stack(get_reg_parameter(p_builder->abi_type, i), &p_arguments[i], size, p_builder);
+    }
 }
 
 void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ketl_asm_x86_t* p_asm_x86, uint16_t func_index) {
@@ -965,28 +1022,28 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_PLUS: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_MINUS: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_SUB, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_MULTY: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IMUL, size, MODRM_REG(KETL_ASM_X86_CX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_DIV:
@@ -997,76 +1054,76 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_EQUAL: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETE, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_NOT_EQUAL: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETNE, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_LESS: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETL, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_LESS_OR_EQUAL: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETLE, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_GREATER: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETG, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_GREATER_OR_EQUAL: {
                 ketl_hir_binary_op_t* p_hir_info = (ketl_hir_binary_op_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->rhs_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->lhs_var, size, p_builder);
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                 ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETGE, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
 
             case KETL_HIR_ASSIGN: {
                 ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->source_var, size, p_builder);
-                push_mov_to_stack(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->source_var, size, p_builder);
+                push_mov_to_stack_hir(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             
             case KETL_HIR_RETURN_VALUE: {
                 ketl_hir_return_value_t* p_hir_info = (ketl_hir_return_value_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->value_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->value_var, size, p_builder);
                 ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_ADD, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_SP), stack_reserved_size);
                 ketl_asm_x86_insert(p_builder, KETL_ASM_X86_RET);
 
@@ -1086,13 +1143,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 // TODO FIX allow other types to be called
                 ANN_ASSERT(p_callee_type->kind == KETL_TYPE_FUNCTION || p_callee_type->kind == KETL_TYPE_CFUNCTION);
 
-                // push arguments
-                for (uint32_t i = p_hir_info->arguments_count - 1; i != (uint32_t) -1; --i) {
-                    // TODO FIX
-                    // get type size and use appropriate
-                    ketl_asm_x86_size_t size = KETL_ASM_X86_64B;
-                    push_mov_from_stack(get_reg_parameter(p_builder->abi_type, i), p_hir_info->arguments[i], size, p_builder);
-                }
+                push_function_arguments_hir(p_hir_info->a_arguments, p_hir_info->arguments_count, p_builder);
 
                 // call
                 if (p_builder->inline_symbols) {
@@ -1105,38 +1156,69 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     }
                     ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_func_name));
                 } else {
-                    push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                    push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
                     ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
                 }
                     
                 // TODO get correct size
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_64B, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_64B, p_builder);
                 continue;
             }
-            case KETL_HIR_CREATE: {
-                ketl_hir_create_t* p_hir_info = (ketl_hir_create_t*)p_instr;
+            case KETL_HIR_NEW: {
+                ketl_hir_new_t* p_hir_info = (ketl_hir_new_t*)p_instr;
 
-                //ketl_gc_create(&p_builder->p_state->gc, p_hir->p_used_types[p_hir_info->type], 0);
-                
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 2)), 0); // flags
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 1)), (uint64_t)p_hir->p_used_types[p_hir_info->type]);
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 0)), (uint64_t)&p_builder->p_state->gc);
+                if (p_builder->inline_symbols) {
+                    ketl_type* p_type = p_hir->p_used_types[p_hir_info->type]; 
+                    ANN_ASSERT(p_type->kind == KETL_TYPE_CLASS);
 
-                void* func_address;
-                #define KETL_POINTER_CONVERTER
-                #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_create
-                #define KETL_POINTER_CONVERTER_VAR  func_address
-                #define KETL_POINTER_CONVERTER_TYPE void*
-                #include "meta.i"
-                 
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), (uint64_t)func_address);
+                    ketl_type_class* p_class_type = (ketl_type_class*)p_type;
 
-                // call create from gc
-                ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                    ketl_namespace_node dummy_type_node = {
+                        .export = true,
+                        .s_name = p_class_type->s_name,
+                    };
+                    ketl_hir_var_info_t dummy_type_info = {
+                        .p_global = &dummy_type_node,
+                    };
+                    char a_type_name_buffer[256];
+                    ketl_type_format(p_builder->p_state, p_hir->p_used_types[p_hir_info->type], a_type_name_buffer, ANN_ARRAY_SIZE(a_type_name_buffer));
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_GLOBAL, .type = KETL_HIR_USED_TYPE_LITERAL }, .p_var_info = &dummy_type_info},
+                    };
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    // call __ketl_rt_new
+                    ketl_atomic_string s_rt_new_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt_new", KETL_NULL_TERMINATED_LENGTH_32);
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_rt_new_name));
+                } else {
+                    //ketl_gc_create(&p_builder->p_state->gc, p_hir->p_used_types[p_hir_info->type], 0);
+                    char a_gc_address_buffer[16];
+                    snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
+                    char a_type_address_buffer[16];
+                    snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, (uint64_t)p_hir->p_used_types[p_hir_info->type]);
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_type_address_buffer},
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = "0"},
+                    };
+                    
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    void* func_address;
+                    #define KETL_POINTER_CONVERTER
+                    #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_create
+                    #define KETL_POINTER_CONVERTER_VAR  func_address
+                    #define KETL_POINTER_CONVERTER_TYPE void*
+                    #include "meta.i"
+                    
+                    // call create from gc
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), (uint64_t)func_address);
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                }
 
                 // TODO call constructor
 
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_PTRSIZE, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_PTRSIZE, p_builder);
 
                 // ANN_ASSERT(false);
                 // ketl_asm_x86_arg_info_t callee_arg = hir_get_arg_stack_offset(p_builder, p_hir_info->type); // TODO wrong!
@@ -1168,13 +1250,17 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 ketl_hir_create_array_t* p_hir_info = (ketl_hir_create_array_t*)p_instr;
 
                 //ketl_gc_create_array(&p_builder->p_state->gc, p_hir->p_used_types[p_hir_info->type], size, 0);
-                
-                // lets do this first, we might use other registers while getting count
-                // TODO use correct size
-                push_mov_from_stack(get_reg_parameter(p_builder->abi_type, 2), p_hir_info->count_var_id, KETL_ASM_X86_64B, p_builder);
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 3)), 0); // flags
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 1)), (uint64_t)p_hir->p_used_types[p_hir_info->type]);
-                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(get_reg_parameter(p_builder->abi_type, 0)), (uint64_t)&p_builder->p_state->gc);
+                char a_gc_address_buffer[16];
+                snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
+                char a_type_address_buffer[16];
+                snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, (uint64_t)p_hir->p_used_types[p_hir_info->type]);
+                push_mov_arg a_arguments[] = {
+                    {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
+                    {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_type_address_buffer},
+                    arg_from_hir_var_id(p_hir_info->count_var_id, p_builder),
+                    {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = "0"},
+                };
+                push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
 
                 void* func_address;
                 #define KETL_POINTER_CONVERTER
@@ -1190,7 +1276,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
 
                 // TODO call constructor
 
-                push_mov_to_stack(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_PTRSIZE, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_PTRSIZE, p_builder);
 
                 // ANN_ASSERT(false);
                 // ketl_asm_x86_arg_info_t callee_arg = hir_get_arg_stack_offset(p_builder, p_hir_info->type); // TODO wrong!
@@ -1238,7 +1324,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 ketl_hir_block_index_t true_dest = get_first_non_empty_block(p_hir, p_hir_info->true_block);
                 ketl_hir_block_index_t false_dest = get_first_non_empty_block(p_hir, p_hir_info->false_block);
                 
-                push_mov_from_stack(KETL_ASM_X86_AX, p_hir_info->expr_var, KETL_ASM_X86_8B, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->expr_var, KETL_ASM_X86_8B, p_builder);
                 ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_TEST, KETL_ASM_X86_8B, 
                     MODRM_REG(KETL_ASM_X86_AX), KETL_ASM_X86_AX);
                 ketl_asm_x86_insert_jimm(p_builder, KETL_ASM_X86_JNE, KETL_ASM_X86_NONESIZE, true_dest);
@@ -1487,6 +1573,9 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
     ANN_SWITCH_STRICT (p_instr->tag) {
         case KETL_ASM_X86_MOV:
             printed += snprintf(p_buffer + printed, buffer_size - printed, "mov ");
+            break;
+        case KETL_ASM_X86_LEA:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "lea ");
             break;
         case KETL_ASM_X86_ADD:
             printed += snprintf(p_buffer + printed, buffer_size - printed, "add ");

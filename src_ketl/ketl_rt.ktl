@@ -1,0 +1,33 @@
+class __ketl_rt_GC {}
+
+class __ketl_rt_AtomicStrings {}
+
+cimport malloc(size : u64) -> raw
+cimport memset(dest : raw, value : u8, size : u64) -> raw
+cimport memcpy(dest : raw, src : raw, size : u64) -> raw
+
+export fn __ketl_rt_calloc(size : u64) -> raw {
+    var pointer = malloc(size);
+    memset(pointer, 0, size);
+    return pointer;
+}
+
+var __ketl_rt_gc : __ketl_rt_GC = __ketl_rt_calloc(__ketl_rt_GC.size);
+
+var __ketl_rt_atomic_strings : __ketl_rt_AtomicStrings = __ketl_rt_calloc(__ketl_rt_AtomicStrings.size);
+
+class __ketl_rt_Type {
+    kind : u8;
+    align_enum : u8;
+    size : u16;
+}
+
+export fn __ketl_rt_gc_new(gc : __ketl_rt_GC, type : __ketl_rt_Type, flags : u64) -> raw {
+    return __ketl_rt_calloc(type.size);
+}
+
+export fn __ketl_rt_new(type : __ketl_rt_Type) -> raw {
+    return __ketl_rt_gc_new(__ketl_rt_gc, type.size, 0);
+}
+
+var test = __ketl_rt_Type();

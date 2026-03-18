@@ -60,4 +60,6 @@ ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* 
 
 ketl_namespace_node* ketl_state_define_function(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void));
 
+ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count);
+
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool vars_in_namespace, ketl_variable* p_output_variable);

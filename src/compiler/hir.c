@@ -86,15 +86,15 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
 
         case KETL_HIR_CALL_VOID: {
             ketl_hir_call_void_t* hir_info = (ketl_hir_call_void_t*)p_instr;
-            return sizeof(ketl_hir_call_void_t) + hir_info->arguments_count * sizeof(*hir_info->arguments);
+            return sizeof(ketl_hir_call_void_t) + hir_info->arguments_count * sizeof(*hir_info->a_arguments);
         }
         case KETL_HIR_CALL: {
             ketl_hir_call_t* hir_info = (ketl_hir_call_t*)p_instr;
-            return sizeof(ketl_hir_call_t) + hir_info->arguments_count * sizeof(*hir_info->arguments);
+            return sizeof(ketl_hir_call_t) + hir_info->arguments_count * sizeof(*hir_info->a_arguments);
         }
-        case KETL_HIR_CREATE: {
-            ketl_hir_create_t* hir_info = (ketl_hir_create_t*)p_instr;
-            return sizeof(ketl_hir_create_t) + hir_info->arguments_count * sizeof(*hir_info->arguments);
+        case KETL_HIR_NEW: {
+            ketl_hir_new_t* hir_info = (ketl_hir_new_t*)p_instr;
+            return sizeof(ketl_hir_new_t) + hir_info->arguments_count * sizeof(*hir_info->a_arguments);
         }
         case KETL_HIR_CREATE_ARRAY:
             return sizeof(ketl_hir_create_array_t);
@@ -387,7 +387,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
                 if (i != 0) {
                     count += snprintf(buffer + count, buffer_size - count, ", ");
                 }
-                count += ketl_hir_format_var(p_hir, p_hir_info->arguments[i], buffer + count, buffer_size - count);
+                count += ketl_hir_format_var(p_hir, p_hir_info->a_arguments[i], buffer + count, buffer_size - count);
             }
             count += snprintf(buffer + count, buffer_size - count, ");");
             return count;
@@ -402,14 +402,14 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
                 if (i != 0) {
                     count += snprintf(buffer + count, buffer_size - count, ", ");
                 }
-                count += ketl_hir_format_var(p_hir, p_hir_info->arguments[i], buffer + count, buffer_size - count);
+                count += ketl_hir_format_var(p_hir, p_hir_info->a_arguments[i], buffer + count, buffer_size - count);
             }
             count += snprintf(buffer + count, buffer_size - count, ");");
             return count;
         }
 
-        case KETL_HIR_CREATE: {
-            INIT_HIR_INFO(ketl_hir_create_t);
+        case KETL_HIR_NEW: {
+            INIT_HIR_INFO(ketl_hir_new_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             ketl_type_format(p_state, p_hir->p_used_types[p_hir_info->type], var_buffer[1], ANN_ARRAY_SIZE(var_buffer[1]));
             uint32_t count = snprintf(buffer, buffer_size, "%s = %s(", var_buffer[0], var_buffer[1]);
@@ -417,7 +417,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
                 if (i != 0) {
                     count += snprintf(buffer + count, buffer_size - count, ", ");
                 }
-                count += ketl_hir_format_var(p_hir, p_hir_info->arguments[i], buffer + count, buffer_size - count);
+                count += ketl_hir_format_var(p_hir, p_hir_info->a_arguments[i], buffer + count, buffer_size - count);
             }
             count += snprintf(buffer + count, buffer_size - count, ");");
             return count;

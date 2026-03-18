@@ -105,14 +105,14 @@ void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_name
 
 void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir) {
     ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
-    uint8_t* p_return = p_hir_builder->instrs.p_data + p_hir_builder->return_offsets.p_data[0];
+    ketl_hir_header_t* p_return = (ketl_hir_header_t*)(p_hir_builder->instrs.p_data + p_hir_builder->return_offsets.p_data[0]);
 
-    if (((ketl_hir_header_t*)p_return)->tag == KETL_HIR_RETURN) {
+    if (p_return->tag == KETL_HIR_RETURN) {
         ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
         p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
-    } else if ((((ketl_hir_header_t*)p_return)->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
-        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_return + sizeof(ketl_hir_header_t));
-        ketl_hir_var_t* p_return_var = &p_hir->p_vars[p_return_info->value_var];
+    } else if ((p_return->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
+        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(((uint8_t*)p_return) + sizeof(ketl_hir_header_t));
+        ketl_hir_var_t* p_return_var = &p_hir_builder->vars.p_data[p_return_info->value_var];
         p_hir->return_type = p_return_var->type;
     } else {
         ANN_ASSERT(false);
@@ -150,9 +150,14 @@ void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir
     hir_builder_type_to_used_type_map_t_deinit(&p_hir_builder->type_to_used_type);
 }
 
-static void on_instr_inserted(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header) {
-    if (hir_header.tag == KETL_HIR_RETURN || (hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
-        hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->return_offsets, p_hir_builder->instrs.size);
+static void on_instr_inserted(ketl_hir_builder_t* p_hir_builder, ketl_hir_instr_offset_t instr_offset, ketl_hir_header_t hir_header) {
+    if (hir_header.tag == KETL_HIR_RETURN) {
+        hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->return_offsets, instr_offset);
+    } else if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
+        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_hir_builder->instrs.p_data + instr_offset + sizeof(ketl_hir_header_t));
+        ketl_hir_var_t* p_return_var = &p_hir_builder->vars.p_data[p_return_info->value_var];
+        ANN_ASSERT(p_return_var->type != KETL_HIR_USED_TYPE_UNKNOWN);
+        hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->return_offsets, instr_offset);
     } else if (hir_header.tag == KETL_HIR_CALL || hir_header.tag == KETL_HIR_CALL_VOID) {
         p_hir_builder->has_calls = true;
     }
@@ -374,17 +379,20 @@ ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_bu
 }
 
 ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_used_type_index_t type) {
-    ANN_ASSERT(p_hir_builder->vars.p_data[object_id].type != KETL_HIR_USED_TYPE_UNKNOWN);
-    ketl_type* p_object_type = p_hir_builder->used_types.p_data[p_hir_builder->vars.p_data[object_id].type];
+    ketl_type* p_field_type = NULL;
     
-    const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
+    if (p_hir_builder->vars.p_data[object_id].type != KETL_HIR_USED_TYPE_UNKNOWN) {
+        ketl_type* p_object_type = p_hir_builder->used_types.p_data[p_hir_builder->vars.p_data[object_id].type];
+        
+        const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
 
-    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
-    ketl_type* p_field_type = ketl_type_find_class_field_type(p_object_type, s_field_name);
+        ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+        p_field_type = ketl_type_find_class_field_type(p_object_type, s_field_name);
 
-    if (p_field_type == NULL) {
-        ANN_ASSERT(false);
-        // TODO error unknown field
+        if (p_field_type == NULL) {
+            ANN_ASSERT(false);
+            // TODO error unknown field
+        }
     }
 
     ketl_hir_used_type_index_t field_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_field_type);
@@ -471,10 +479,12 @@ void ketl_hir_builder_replace_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_h
 }
 
 void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, uint8_t* p_instr) {
-    on_instr_inserted(p_hir_builder, hir_header);
+    ketl_hir_instr_offset_t instr_offset = p_hir_builder->instrs.size;
 
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, p_instr, ketl_hir_get_instr_size(hir_header.tag, p_instr));
+
+    on_instr_inserted(p_hir_builder, instr_offset, hir_header);
 }
 
 void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op) {
@@ -537,19 +547,22 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
     // check argumnets types
     // do casting if needed
     // do template instantiation if needed
-
-    on_instr_inserted(p_hir_builder, hir_header);
+    
+    ketl_hir_instr_offset_t instr_offset = p_hir_builder->instrs.size;
 
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_call, sizeof(ketl_hir_call_t));
     hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_arguments, p_call->arguments_count * sizeof(*p_arguments));
+
+    on_instr_inserted(p_hir_builder, instr_offset, hir_header);
     
     // TODO FIX
     // check if return argument already has defined type and do casting if necessary
-    p_hir_builder->vars.p_data[p_call->output_var].type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_function_signature->a_parameters[0].p_type);
+    ketl_hir_used_type_index_t return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_function_signature->a_parameters[0].p_type);
+    p_hir_builder->vars.p_data[p_call->output_var].type = return_type;
 }
 
-void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_create_t* p_create, ketl_hir_var_id_t* p_arguments) {
+void ketl_hir_builder_insert_new(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_new_t* p_create, ketl_hir_var_id_t* p_arguments) {
     ketl_type* p_type = p_hir_builder->used_types.p_data[p_create->type];
 
     switch (p_type->kind) {
@@ -559,11 +572,13 @@ void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_
             // do casting if needed
             // do template instantiation if needed
 
-            on_instr_inserted(p_hir_builder, hir_header);
+            ketl_hir_instr_offset_t instr_offset = p_hir_builder->instrs.size;
 
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_create, sizeof(ketl_hir_call_t));
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_arguments, p_create->arguments_count * sizeof(*p_arguments));
+
+            on_instr_inserted(p_hir_builder, instr_offset, hir_header);
             
             // TODO FIX
             // check if return argument already has defined type and do casting if necessary
@@ -579,11 +594,13 @@ void ketl_hir_builder_insert_create(ketl_hir_builder_t* p_hir_builder, ketl_hir_
             // do casting if needed
             // do template instantiation if needed
 
-            on_instr_inserted(p_hir_builder, hir_header);
+            ketl_hir_instr_offset_t instr_offset = p_hir_builder->instrs.size;
 
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)&hir_header, sizeof(ketl_hir_header_t));
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_create, sizeof(ketl_hir_call_t));
             hir_builder_instrs_t_push_back_ref_n(&p_hir_builder->instrs, (uint8_t*)p_arguments, p_create->arguments_count * sizeof(*p_arguments));
+
+            on_instr_inserted(p_hir_builder, instr_offset, hir_header);
             
             // TODO FIX
             // check if return argument already has defined type and do casting if necessary

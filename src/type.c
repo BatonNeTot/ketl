@@ -16,15 +16,18 @@ uint8_t ketl_align_find(uint8_t align) {
 }
 
 size_t ketl_type_get_size(ketl_type* p_type) {
-    return p_type->size;
+    return p_type ? p_type->size : 0;
 }
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type) {
+    if (p_type == NULL) {
+        return 0;
+    }
     return p_type->kind == KETL_TYPE_PRIMITIVE ? p_type->size : sizeof(void*);
 }
 
 size_t ketl_type_get_align(ketl_type* p_type) {
-    return ketl_align_map[p_type->align_enum];
+    return ketl_align_map[ketl_type_get_size(p_type)];
 }
 
 bool ketl_type_is_array(ketl_type* p_type) {
@@ -99,7 +102,7 @@ uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer
                     case 4: return p_primitive_type->is_signed ? 
                     snprintf(p_buffer, buffer_size, "i32") : snprintf(p_buffer, buffer_size, "u32");
                     case 8: return p_primitive_type->is_signed ? 
-                    snprintf(p_buffer, buffer_size, "i64") : snprintf(p_buffer, buffer_size, "64");
+                    snprintf(p_buffer, buffer_size, "i64") : snprintf(p_buffer, buffer_size, "u64");
                 }
             }
             return 0;

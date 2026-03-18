@@ -38,7 +38,7 @@ enum {
     KETL_HIR_CALL_VOID,
     KETL_HIR_CALL,
 
-    KETL_HIR_CREATE,
+    KETL_HIR_NEW,
     KETL_HIR_CREATE_ARRAY,
 
     KETL_HIR_JUMP,
@@ -138,21 +138,21 @@ ANN_DEFINE(ketl_hir_binary_op_t) {
 ANN_DEFINE(ketl_hir_call_void_t) {
     ketl_hir_var_id_t callee;
     uint16_t arguments_count;
-    ketl_hir_var_id_t arguments[];
+    ketl_hir_var_id_t a_arguments[];
 };
 
 ANN_DEFINE(ketl_hir_call_t) {
     ketl_hir_var_id_t output_var;
     ketl_hir_var_id_t callee;
     uint16_t arguments_count;
-    ketl_hir_var_id_t arguments[];
+    ketl_hir_var_id_t a_arguments[];
 };
 
-ANN_DEFINE(ketl_hir_create_t) {
+ANN_DEFINE(ketl_hir_new_t) {
     ketl_hir_var_id_t output_var;
     ketl_hir_used_type_index_t type;
     uint16_t arguments_count;
-    ketl_hir_var_id_t arguments[];
+    ketl_hir_var_id_t a_arguments[];
 };
 
 ANN_DEFINE(ketl_hir_create_array_t) {
@@ -199,6 +199,7 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
+#define KETL_HIR_USED_TYPE_LITERAL ((ketl_hir_used_type_index_t)-3)
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 

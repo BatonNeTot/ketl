@@ -171,6 +171,11 @@ ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, false
     CREATE_PRIMITIVE_TYPE(p_i32, "i32",  4, true,  true);
     CREATE_PRIMITIVE_TYPE(p_i64, "i64",  8, true,  true);
 
+    CREATE_PRIMITIVE_TYPE(p_u8,  "u8",   1, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_u16, "u16",  2, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false);
+
 #define REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
 do {\
     ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type}, {.p_type = _arg_type} };\
@@ -206,6 +211,11 @@ do {\
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i16, KETL_HIR_I16);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i32, KETL_HIR_I32);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i64, KETL_HIR_I64);
+
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u8,  KETL_HIR_I8);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u16, KETL_HIR_I16);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u32, KETL_HIR_I32);
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u64, KETL_HIR_I64);
 
     return p_state;
 }
@@ -285,8 +295,7 @@ ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uin
 ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_type_name, uint32_t length) {
     ketl_atomic_string s_type_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_type_name, length);
     ketl_namespace_node* p_type_node = ketl_namespace_find(p_namespace, s_type_name);
-    ANN_ASSERT(p_type_node->variable.kind == KETL_VARIABLE_TYPE);
-    return p_type_node->variable.p_pointer;
+    return p_type_node && p_type_node->variable.kind == KETL_VARIABLE_TYPE ? p_type_node->variable.p_pointer : NULL;
 }
 
 ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type) {
@@ -344,7 +353,7 @@ void ketl_state_define_global_function(ketl_state* p_state, const char* p_name, 
     ketl_state_define_function(p_state, &p_state->global_namespace, p_name, length, p_type, cfunc);
 }
 
-void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
+ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
     ketl_symboled_variable_type_info_t* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
     for (uint32_t i = 0u; i < field_count; ++i) {
         p_fields_impl[i].info = p_fields[i].info;
@@ -369,7 +378,11 @@ void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uin
         .p_type = NULL,
         .p_pointer = p_class,
     };
-    ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, false);
+    return ketl_namespace_put(p_namespace, s_name, namespace_variable, false);
+}
+
+void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
+    ketl_state_define_class(p_state, &p_state->global_namespace, p_name, length, p_fields, field_count);
 }
 
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool vars_in_namespace, ketl_variable* p_output_variable) {    
@@ -582,14 +595,22 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     return true;
 }
 
+static bool variable_is_class(ketl_variable* p_variable) {
+    return p_variable->kind == KETL_VARIABLE_TYPE && ((ketl_type*)p_variable->p_pointer)->kind == KETL_TYPE_CLASS;
+}
+
 static bool variable_is_function(ketl_variable* p_variable) {
     return p_variable->kind == KETL_VARIABLE_CFUNC || p_variable->kind == KETL_VARIABLE_FUNC;
+}
+
+static bool variable_is_var(ketl_variable* p_variable) {
+    return !variable_is_class(p_variable) && !variable_is_function(p_variable);
 }
 
 static bool namespace_has_vars(ketl_namespace* p_namespace) {
     for (uint32_t i = 0; i < p_namespace->v_nodes.size; ++i) {
         ketl_variable* p_variable = &p_namespace->v_nodes.p_data[i].variable;
-        if (!variable_is_function(p_variable)) {
+        if (variable_is_var(p_variable)) {
             return true;
         }
     }
@@ -707,8 +728,6 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             char arr_buffer[4096];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
-
-            printf("\n");
         }
         ketl_asm_x86_builder_deinit(&asm_builder);
 
@@ -823,7 +842,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
     for (uint32_t i = 0; i < p_module->namespace.v_nodes.size; ++i) {
         ketl_namespace_node* p_node = &p_module->namespace.v_nodes.p_data[i];
-        if (variable_is_function(&p_node->variable)) {
+        if (!variable_is_var(&p_node->variable)) {
             continue;
         }
         
@@ -841,5 +860,42 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
         printf("    .%dbyte   0\n", ketl_type_get_stack_size(p_node->variable.p_type));
     }
 
-    // TODO print static data like string literals
+    ///////////////////////////////
+
+    if (namespace_has_vars(&p_module->namespace)) {
+        printf("    .data                    # -- Initialized Variables\n");
+    }
+
+    for (uint32_t i = 0; i < p_module->namespace.v_nodes.size; ++i) {
+        ketl_namespace_node* p_node = &p_module->namespace.v_nodes.p_data[i];
+        if (!variable_is_class(&p_node->variable)) {
+            continue;
+        }
+        
+        const char* p_variable_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name);
+        
+        /*
+        char a_buffer[256];
+        if (!p_node->export) {
+            snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", p_variable_name);
+            p_variable_name = a_buffer;
+        }
+        */
+
+        printf("    .globl    %s                    # @%s\n", p_variable_name, p_variable_name);
+        printf("    .p2align  %d, 0x0\n", ketl_align_find(sizeof(void*)));
+        printf("%s:\n", p_variable_name);
+
+        ketl_type_class* p_class_type = p_node->variable.p_pointer;
+
+        printf("    .%"PRIuPTR"byte   %d    # kind\n", sizeof(p_class_type->kind), p_class_type->kind);
+        printf("    .%"PRIuPTR"byte   %d    # align_enum\n", sizeof(p_class_type->align_enum), p_class_type->align_enum);
+        printf("    .%"PRIuPTR"byte   %d    # size\n", sizeof(p_class_type->size), p_class_type->size);
+
+        printf("    .%"PRIuPTR"byte   %d    # s_name, TODO\n", sizeof(p_class_type->s_name), 0); // TODO
+        printf("    .%"PRIuPTR"byte   %d    # fields_count\n", sizeof(p_class_type->fields_count), p_class_type->fields_count);
+        printf("    .%"PRIuPTR"byte   %d    # methods_count\n", sizeof(p_class_type->methods_count), p_class_type->methods_count);
+        printf("    .%"PRIuPTR"byte   %d    # p_fields, TODO\n", sizeof(p_class_type->p_fields), 0); // TODO
+        printf("    .%"PRIuPTR"byte   %d    # p_methods, TODO\n", sizeof(p_class_type->p_methods), 0); // TODO
+    }
 }
