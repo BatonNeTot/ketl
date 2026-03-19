@@ -23,6 +23,11 @@ ketl_type* ketl_state_get_i16(ketl_state* p_state);
 ketl_type* ketl_state_get_i32(ketl_state* p_state);
 ketl_type* ketl_state_get_i64(ketl_state* p_state);
 
+ketl_type* ketl_state_get_u8(ketl_state* p_state);
+ketl_type* ketl_state_get_u16(ketl_state* p_state);
+ketl_type* ketl_state_get_u32(ketl_state* p_state);
+ketl_type* ketl_state_get_u64(ketl_state* p_state);
+
 ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uint32_t length);
 
 ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type);

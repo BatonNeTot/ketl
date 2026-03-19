@@ -84,7 +84,7 @@ ANN_DEFINE(ketl_asm_x86_modrm_t) {
     bool label : 1;
     ketl_asm_x86_reg_t base;
     ketl_asm_x86_reg_t index;
-    ketl_asm_x86_size_t scale;
+    ketl_asm_x86_size_t scale_power;
     union {
         int32_t disp;
         ketl_atomic_string s_literal;

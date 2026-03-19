@@ -29,7 +29,7 @@ ANN_DEFINE(MODRMByte) {
 ANN_DEFINE(SIBByte) {
     uint8_t base : 3;
     uint8_t index : 3;
-    uint8_t scale : 2;
+    uint8_t scale_power : 2;
 };
 
 #define SIB_SCALE_1 0x00 // 0b00

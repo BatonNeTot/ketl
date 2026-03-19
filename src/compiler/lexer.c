@@ -246,6 +246,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ELSE, id_length);
                 return true;
             }
+            if (ketl_str_is_equal_n("enum", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ENUM, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("export", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_EXPORT, id_length);
                 return true;
@@ -274,13 +278,9 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             break;
         }
-        case 'r': {
-            if (ketl_str_is_equal_n("raw", p_lexer->p_source + p_lexer->offset, id_length)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RAW, id_length);
-                return true;
-            }
-            if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
+        case 'm': {
+            if (ketl_str_is_equal_n("mimic", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_MIMIC, id_length);
                 return true;
             }
             break;
@@ -292,6 +292,17 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             if (ketl_str_is_equal_n("null", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_NULL, id_length);
+                return true;
+            }
+            break;
+        }
+        case 'r': {
+            if (ketl_str_is_equal_n("raw", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RAW, id_length);
+                return true;
+            }
+            if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
                 return true;
             }
             break;

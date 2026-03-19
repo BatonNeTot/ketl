@@ -14,6 +14,7 @@ enum {
     KETL_TYPE_FUNCTION,
     KETL_TYPE_CFUNCTION,
     KETL_TYPE_CLASS,
+    KETL_TYPE_ENUM,
 };
 
 enum {
@@ -75,6 +76,19 @@ ANN_DEFINE(ketl_type_class) {
     uint16_t methods_count;
     ketl_symboled_variable_type_info_t* p_fields;
     ketl_variable* p_methods;
+};
+
+ANN_DEFINE(ketl_type_enum_pair) {
+    ketl_variable literal;
+    ketl_atomic_string s_name;
+};
+
+ANN_DEFINE(ketl_type_enum) {
+    KETL_TYPE_BODY;
+    ketl_type_primitive* p_parent_primitive;
+    uint64_t constants_count;
+    ketl_type_enum_pair* p_contants;
+    ketl_atomic_string s_name;
 };
 
 ANN_DEFINE(ketl_type_size_pair_t) {

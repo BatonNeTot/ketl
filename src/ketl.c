@@ -288,6 +288,22 @@ ketl_type* ketl_state_get_i64(ketl_state* p_state) {
     return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("i64"));
 }
 
+ketl_type* ketl_state_get_u8(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("u8"));
+}
+
+ketl_type* ketl_state_get_u16(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("u16"));
+}
+
+ketl_type* ketl_state_get_u32(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("u32"));
+}
+
+ketl_type* ketl_state_get_u64(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("u64"));
+}
+
 ketl_type* ketl_state_get_type(ketl_state* p_state, const char* p_type_name, uint32_t length) {
     return ketl_state_get_type_impl(p_state, &p_state->global_namespace, p_type_name, length);
 }
@@ -377,6 +393,43 @@ ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace
         .kind = KETL_VARIABLE_TYPE,
         .p_type = NULL,
         .p_pointer = p_class,
+    };
+    return ketl_namespace_put(p_namespace, s_name, namespace_variable, false);
+}
+
+ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type_primitive* p_parent_primitive, ketl_type_enum_pair* p_constants, uint64_t constant_count) {
+    ketl_type_enum_pair* p_constants_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_enum_pair) * constant_count); 
+    ketl_memcpy(p_constants_impl, p_constants, sizeof(ketl_type_enum_pair) * constant_count);
+
+    ketl_type* p_enum = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_enum));
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
+    INIT_TYPE(p_enum, ketl_type_enum) {
+            .s_name = s_name,
+            .kind = KETL_TYPE_ENUM,
+            .align_enum = p_parent_primitive->align_enum,
+            .size = p_parent_primitive->size,
+            .p_parent_primitive = p_parent_primitive,
+            .constants_count = constant_count,
+            .p_contants = p_constants_impl,
+            };
+    ketl_variable namespace_variable = {
+        .kind = KETL_VARIABLE_TYPE,
+        .p_type = NULL,
+        .p_pointer = p_enum,
+    };
+    return ketl_namespace_put(p_namespace, s_name, namespace_variable, false);
+}
+
+// TODO must create a full copy of a type - so they will be same, but distinct
+// for now works just like alias and would work only with primitives
+ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type) {
+    ANN_ASSERT(p_type && p_type->kind == KETL_TYPE_PRIMITIVE);
+
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
+    ketl_variable namespace_variable = {
+        .kind = KETL_VARIABLE_TYPE,
+        .p_type = NULL,
+        .p_pointer = p_type,
     };
     return ketl_namespace_put(p_namespace, s_name, namespace_variable, false);
 }
@@ -595,8 +648,12 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     return true;
 }
 
+static bool variable_is_type(ketl_variable* p_variable) {
+    return p_variable->kind == KETL_VARIABLE_TYPE;
+}
+
 static bool variable_is_class(ketl_variable* p_variable) {
-    return p_variable->kind == KETL_VARIABLE_TYPE && ((ketl_type*)p_variable->p_pointer)->kind == KETL_TYPE_CLASS;
+    return variable_is_type(p_variable) && ((ketl_type*)p_variable->p_pointer)->kind == KETL_TYPE_CLASS;
 }
 
 static bool variable_is_function(ketl_variable* p_variable) {
@@ -604,7 +661,7 @@ static bool variable_is_function(ketl_variable* p_variable) {
 }
 
 static bool variable_is_var(ketl_variable* p_variable) {
-    return !variable_is_class(p_variable) && !variable_is_function(p_variable);
+    return !variable_is_type(p_variable) && !variable_is_function(p_variable);
 }
 
 static bool namespace_has_vars(ketl_namespace* p_namespace) {

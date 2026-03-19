@@ -1,0 +1,11 @@
+//import token TODO uses not the path of the module, but the launch path -> doesn't work
+
+export class Lexer {
+    //tokens : vector; TODO vector
+    //lines : vector; TODO vector 
+    //filename : astr; TODO atomic string
+    //source : str; TODO string = array[char]
+    length : u32;
+    offset : u32;
+    //token_iterator : token.TokenIterator; TODO fix importing
+}

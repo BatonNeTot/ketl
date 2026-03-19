@@ -19,6 +19,7 @@
 #include "str.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 ANN_DEFINE(ketl_parse_pos_info) {
     uint32_t start_pos_line;
@@ -214,6 +215,10 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_pa
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         // TODO POS
         errorf(0, 1, "Can't assign to an l-value.");
+        return push_temp_var(p_context);
+    }
+
+    if (p_lhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN || p_context->hir_builder.vars.p_data[rhs_var].type == KETL_HIR_USED_TYPE_UNKNOWN) {
         return push_temp_var(p_context);
     }
 
@@ -808,6 +813,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IMPORT]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_MIMIC]                      = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_NONE]                       = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_RAW]                        = { parse_identificator, NULL,                NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_RETURN]                     = { NULL,                NULL,                NULL,             KETL_PREC_NONE},
@@ -1070,6 +1076,66 @@ static ketl_type* index_to_type(ketl_parser_context* p_context, ketl_hir_used_ty
     return type != KETL_HIR_USED_TYPE_UNKNOWN ? p_context->hir_builder.used_types.p_data[type] : NULL; 
 }
 
+static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context) {
+    token_advance(p_context); // enum
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    ketl_type_primitive* p_parent_primitive = (ketl_type_primitive*) ketl_state_get_u8(p_context->p_state);
+    bool defined_type = token_match(p_context, KETL_TOKEN_TYPE_COLON);
+    if (defined_type) {
+        ketl_type* p_type = index_to_type(p_context, parse_type(p_context));
+        if (!p_type || p_type->kind != KETL_TYPE_PRIMITIVE) {
+            errorf(id_literal.offset, id_literal.length, "Only numeric primitive types are supported as backend for the enum.");
+        } else {
+            p_parent_primitive = (ketl_type_primitive*)p_type;
+        }
+    }
+
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, defined_type ? "Expected '{' after enum parent type" : "Expected '{' after enum name.");
+
+    ketl_type_enum_pair a_enum_constants[256] = {0};
+    uint32_t enum_constants_count = 0;
+
+    ketl_variable current_value = {
+        .uint64 = 0,
+    };
+    ketl_variable_set_type(&current_value, (ketl_type*)p_parent_primitive);
+    --current_value.uint64;
+
+    if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
+        do {
+            ketl_token_t constant_literal = CURRENT_TOKEN(0);
+            a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_literal), TOKEN_LENGTH(constant_literal));
+            token_advance(p_context); // id
+
+            if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
+                ketl_token_t constant = CURRENT_TOKEN(0); 
+
+                char a_buffer[16] = {'\0'};
+                ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+                int64_t value = strtoll(a_buffer, NULL, 0);
+
+                current_value.int64 = value;
+            } else {
+                ++current_value.uint64;
+            }
+
+            a_enum_constants[enum_constants_count].literal = current_value;
+
+            ++enum_constants_count;
+
+            // TODO make optional for the last one
+            token_consume(p_context, KETL_TOKEN_TYPE_COMMA, "Expected ',' after constant declaration.");
+        } while (token_check(p_context, KETL_TOKEN_TYPE_ID));
+    }
+    
+    ketl_namespace_node* p_enum_node = ketl_state_define_enum(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_parent_primitive, a_enum_constants, enum_constants_count);
+    p_enum_node->export = p_context->export;
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' in the end of a enum declaration.");
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_import(ketl_parser_context* p_context) {
     token_advance(p_context); // var
     ketl_token_t module_literal = CURRENT_TOKEN(0);
@@ -1298,6 +1364,20 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
+static ketl_statement_info parse_mimic_declaration(ketl_parser_context* p_context) {
+    token_advance(p_context); // mimic
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    token_consume(p_context, KETL_TOKEN_TYPE_ASSIGN, "Expected '=' after mimic name.");
+
+    ketl_type* p_type = index_to_type(p_context, parse_type(p_context));
+    ketl_namespace_node* p_mimic_node = ketl_state_define_mimic(p_context->p_state, p_context->p_namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_type);
+    p_mimic_node->export = p_context->export;
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' in the end of a mimin declaration.");
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_export_declaration(ketl_parser_context* p_context) {
     ketl_token_t literal = CURRENT_TOKEN(0);
     token_advance(p_context);
@@ -1310,6 +1390,8 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
         case KETL_TOKEN_TYPE_VAR    : info = parse_var_declaration     (p_context); break;
         case KETL_TOKEN_TYPE_FN     : info = parse_function_declaration(p_context); break;
         case KETL_TOKEN_TYPE_CLASS  : info = parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_ENUM   : info = parse_enum_declaration    (p_context); break;
+        case KETL_TOKEN_TYPE_MIMIC  : info = parse_mimic_declaration   (p_context); break;
         case KETL_TOKEN_TYPE_EXPORT : 
             // TODO do warning instead
             errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
@@ -1331,6 +1413,8 @@ static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
         case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context); break;
         case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context); break;
         case KETL_TOKEN_TYPE_CLASS  : return parse_class_declaration   (p_context); break;
+        case KETL_TOKEN_TYPE_ENUM   : return parse_enum_declaration    (p_context); break;
+        case KETL_TOKEN_TYPE_MIMIC  : return parse_mimic_declaration   (p_context); break;
         case KETL_TOKEN_TYPE_EXPORT : return parse_export_declaration  (p_context); break;
         default                     : return parse_statement           (p_context); break;
     }
