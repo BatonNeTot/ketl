@@ -1,4 +1,4 @@
-//*
+/*
 import fib
 import a
 
@@ -18,7 +18,7 @@ fn calculate_fib() -> i64 {
 return Point.size; 
 //*/
 
-/*
+//*
 var arr = i64[10];
 arr[0] = 5;
 arr[1] = 7;
@@ -29,3 +29,5 @@ return pointer;
 /*
 return i64[10]{ 5, 7 };
 //*/
+
+// TODO transform into test cases which all checked

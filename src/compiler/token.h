@@ -100,12 +100,12 @@ enum {
 };
 
 typedef uint16_t ketl_token_length_t;
-typedef uint32_t ketl_toekn_offset_t;
+typedef uint32_t ketl_token_offset_t;
 
 ANN_DEFINE(ketl_token_t) {
     ketl_token_type type;
     ketl_token_length_t length;
-    ketl_toekn_offset_t offset;
+    ketl_token_offset_t offset;
 };
 
 typedef uint32_t ketl_token_iterator_t;

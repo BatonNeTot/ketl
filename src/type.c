@@ -27,7 +27,7 @@ uint16_t ketl_type_get_stack_size(ketl_type* p_type) {
 }
 
 size_t ketl_type_get_align(ketl_type* p_type) {
-    return ketl_align_map[ketl_type_get_size(p_type)];
+    return ketl_align_map[p_type ? p_type->align_enum : 0];
 }
 
 bool ketl_type_is_array(ketl_type* p_type) {

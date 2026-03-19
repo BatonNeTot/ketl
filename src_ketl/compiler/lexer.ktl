@@ -1,4 +1,4 @@
-//import token TODO uses not the path of the module, but the launch path -> doesn't work
+import token
 
 export class Lexer {
     //tokens : vector; TODO vector
@@ -7,5 +7,5 @@ export class Lexer {
     //source : str; TODO string = array[char]
     length : u32;
     offset : u32;
-    //token_iterator : token.TokenIterator; TODO fix importing
+    token_iterator : token.TokenIterator; //TODO fix doubling token.Token because of the symbols publishing
 }

@@ -43,8 +43,23 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     }
 
     p_module->header_loaded = true;
+    ketl_module_t* p_stashed_module = p_state->p_active_module;
+    p_state->p_active_module = p_module; 
 
-    FILE *p_module_file = fopen(p_module_filename, "rb");
+    const char* p_fullpath = p_module_filename;
+
+    char a_fullpath[256] = {'\0'};
+    if (p_stashed_module != NULL) { 
+        uint32_t path_length = ketl_strlen(p_stashed_module->p_path);
+        p_module->p_path = ketl_alloc(p_state->p_allocator, path_length + 1);
+        ketl_memcpy(p_module->p_path, p_stashed_module->p_path, path_length);
+        p_module->p_path[path_length] = '\0';
+
+        snprintf(a_fullpath, ANN_ARRAY_SIZE(a_fullpath), "%s%s", p_module->p_path, p_module_filename);
+        p_fullpath = a_fullpath;
+    }
+
+    FILE *p_module_file = fopen(p_fullpath, "rb");
     ANN_ASSERT(p_module_file != NULL);
     
     fseek(p_module_file, 0L, SEEK_END);
@@ -75,6 +90,8 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
 
     p_state->compile_function_declarations.size = compile_function_mark;
     p_state->error_stream.size = error_stream_mark;
+
+    p_state->p_active_module = p_stashed_module;
 
     if (p_module->p_opcodes == NULL) {
         return false;

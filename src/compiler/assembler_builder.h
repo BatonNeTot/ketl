@@ -121,7 +121,7 @@ ANN_DEFINE(ketl_asm_x86_arg_info_t) {
     ketl_asm_x86_offset_t stack_offset;
 };
 
-KETL_HASH_MAP_DECLARATION(ketl_asm_x86_variables_t, ketl_hir_var_id_t, ketl_asm_x86_arg_info_t)
+KETL_HASH_MAP_DECLARATION(ketl_asm_x86_variables_t, ketl_hir_var_info_index_t, ketl_asm_x86_arg_info_t)
 
 typedef uint8_t ketl_asm_x86_abi_type_t;
 enum {

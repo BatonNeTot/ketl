@@ -5,6 +5,7 @@
 #include "type_impl.h"
 
 #include "variable.h"
+#include "token.h"
 
 #include "ketl/utils.h"
 
@@ -203,6 +204,13 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 
+typedef uint32_t ketl_hir_expr_length_t;
+
+ANN_DEFINE(ketl_hir_expr_info_t) {
+    ketl_token_offset_t source_offset;
+    ketl_hir_expr_length_t length;
+};
+
 ANN_DEFINE(ketl_hir_var_t) {
     union {
         ketl_hir_symbol_offset_t literal;
@@ -210,6 +218,7 @@ ANN_DEFINE(ketl_hir_var_t) {
     };
     ketl_hir_used_type_index_t type;
     ketl_hir_var_uid_t uid;
+    ketl_hir_expr_info_t expr_info;
 };
 
 ANN_FORWARD(ketl_namespace_node);
@@ -223,6 +232,7 @@ ANN_DEFINE(ketl_hir_var_info_t) {
         ketl_namespace_node* p_global;
         ketl_hir_var_id_t parent_id;
     };
+    ketl_hir_var_id_t last_var_id;
     // TODO declaration info
 };
 

@@ -33,11 +33,12 @@ ANN_DEFINE(ketl_module_t) {
     ketl_namespace namespace;
     ketl_lexer_t lexer;
     compile_function_declarations_t compile_function_declarations;
-    char *p_source;
+    char *p_source; // lexer requires source, doesn't hold it; module does it instead
+    char *p_path;
     uint32_t opcodes_size;
-    uint8_t* p_opcodes;
-    bool header_loaded;
-    bool body_loaded;
+    uint8_t* p_opcodes; // hold opcodes until postload
+    bool header_loaded; // after preload
+    bool body_loaded; // after load
 };
 
 void ketl_module_init(ketl_module_t* p_module, ketl_atomic_string s_name, ketl_state* p_state);
