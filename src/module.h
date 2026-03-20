@@ -17,7 +17,6 @@ ANN_FORWARD(ketl_state);
 KETL_VECTOR_DECLARATION(ketl_parameters_t, ketl_named_variable_type_info_t)
 
 ANN_DEFINE(compile_function_declaration_t) {
-    ketl_atomic_string s_name;
     ketl_namespace_node* p_namespace_node;
     uint8_t* p_opcodes;
     uint64_t opcodes_size;
@@ -45,7 +44,7 @@ void ketl_module_init(ketl_module_t* p_module, ketl_atomic_string s_name, ketl_s
 
 void ketl_module_deinit(ketl_module_t* p_module);
 
-bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, ketl_state* p_state);
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, bool export, ketl_state* p_state);
 
 bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state);
 

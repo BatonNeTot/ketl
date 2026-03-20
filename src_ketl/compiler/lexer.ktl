@@ -7,5 +7,5 @@ export class Lexer {
     //source : str; TODO string = array[char]
     length : u32;
     offset : u32;
-    token_iterator : token.TokenIterator; //TODO fix doubling token.Token because of the symbols publishing
+    token_iterator : token.Iterator; // TODO fix visibility - Iterator is private (not exported) in token.ktl, this should not work
 }

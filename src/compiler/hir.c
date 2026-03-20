@@ -199,6 +199,7 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
 } 
 
 static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ketl_hir_instr_offset_t instr_offset, char* buffer, uint32_t buffer_size) {
+    (void)p_state;
     uint8_t* p_instr = p_hir->p_instrs + instr_offset;
 
     ketl_hir_header_t header = *(ketl_hir_header_t*)p_instr;
@@ -411,7 +412,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
         case KETL_HIR_NEW: {
             INIT_HIR_INFO(ketl_hir_new_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
-            ketl_type_format(p_state, p_hir->p_used_types[p_hir_info->type], var_buffer[1], ANN_ARRAY_SIZE(var_buffer[1]));
+            FORMAT_VAR(p_hir_info->type_var, var_buffer[1]);
             uint32_t count = snprintf(buffer, buffer_size, "%s = %s(", var_buffer[0], var_buffer[1]);
             for (uint32_t i = 0u; i < p_hir_info->arguments_count; ++i) {
                 if (i != 0) {
@@ -425,7 +426,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
         case KETL_HIR_CREATE_ARRAY: {
             INIT_HIR_INFO(ketl_hir_create_array_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
-            ketl_type_format(p_state, p_hir->p_used_types[p_hir_info->type], var_buffer[1], ANN_ARRAY_SIZE(var_buffer[1]));
+            FORMAT_VAR(p_hir_info->type_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->count_var_id, var_buffer[2]);
             uint32_t count = snprintf(buffer, buffer_size, "%s = %s(%s)", var_buffer[0], var_buffer[1], var_buffer[2]);
             return count;

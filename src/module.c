@@ -25,19 +25,19 @@ void ketl_module_deinit(ketl_module_t* p_module) {
     ketl_namespace_deinit(&p_module->namespace);
 }
 
-static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace* p_namespace) {
+static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace* p_namespace, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings) {
     ketl_variable namespace_var = {
         .p_pointer = &p_module->namespace,
         .kind = KETL_VARIABLE_NAMESPACE,
         .p_type = NULL,
     };
 
-    ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, false);
+    ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, info, p_atomic_strings, false);
 }
 
-bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, ketl_state* p_state) {
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, bool export, ketl_state* p_state) {
     if (p_module->header_loaded && p_namespace != NULL) {
-        ketl_module_add_to_namespace(p_module, p_namespace);
+        ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
 
         return true;
     }
@@ -98,7 +98,7 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     }
 
     if (p_namespace != NULL) {
-        ketl_module_add_to_namespace(p_module, p_namespace);
+        ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
     }
 
     return true;
@@ -138,7 +138,7 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
             ANN_ASSERT(export_count < ANN_ARRAY_SIZE(a_export));
 
             a_export[export_count++] = (export_info){
-                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].s_name),
+                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].p_namespace_node->s_name),
                 .p_opcodes = p_module->compile_function_declarations.p_data[i].p_opcodes,
                 .opcodes_size = p_module->compile_function_declarations.p_data[i].opcodes_size,
             };
@@ -158,7 +158,7 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
             ketl_parameters_t_deinit(&p_module->compile_function_declarations.p_data[i].v_parameters);
             ketl_free(p_state->p_allocator, p_module->compile_function_declarations.p_data[i].p_opcodes);
             p_module->compile_function_declarations.p_data[i].p_namespace_node->variable.cfunc = ketl_dynamic_library_load_function(a_library_filename, 
-                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].s_name));
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].p_namespace_node->s_name));
         }
     }
 

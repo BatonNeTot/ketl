@@ -1,6 +1,8 @@
 //🫖ketl
 #include "namespace.h"
 
+#include <stdio.h>
+
 KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, ANN_HASH, ANN_EQUAL)
 
@@ -41,13 +43,27 @@ bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
     return p_namespace->m_vars.size == 0 && p_namespace->v_nodes.size == 0;
 }
 
-//void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
+ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force) {
+    ketl_atomic_string s_name = s_key;
+    if (p_namespace->p_parent != NULL && !info.c_symbol) {
+        char a_buffer[256] = {'\0'};
+        uint32_t length = 0;
+        // TODO going up until module namepsace is met and stop
+        ANN_ASSERT(p_namespace->s_name != KETL_ATOMIC_STRING_EMPTY);
+        if (info.export) {
+            length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%s.%s", 
+                ketl_atomic_strings_get_pointer(p_atomic_strings, p_namespace->s_name), ketl_atomic_strings_get_pointer(p_atomic_strings, s_name));
+        } else {
+            length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s.%s", 
+                ketl_atomic_strings_get_pointer(p_atomic_strings, p_namespace->s_name), ketl_atomic_strings_get_pointer(p_atomic_strings, s_name));
+        }
+        s_name = ketl_atomic_strings_get(p_atomic_strings, a_buffer, length);
+    }
 
-ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, bool force) {
-    // TODO insert into vector uninitialized or something
     ketl_namespace_node new_node = {
         .variable = variable,
-        .s_name = s_key,
+        .s_name = s_name,
+        .info = info,
     };
     uint32_t new_node_offset = p_namespace->v_nodes.size;
 

@@ -38,7 +38,7 @@ ketl_type* ketl_state_get_cfunction_type(ketl_state* p_state, const ketl_functio
 
 void ketl_state_define_global_var(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_var);
 
-void ketl_state_define_global_function(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void));
+void ketl_state_define_global_cfunction(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void));
 
 void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count);
 

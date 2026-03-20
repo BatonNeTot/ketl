@@ -1,4 +1,4 @@
-export enum TokenType : u8 {
+export enum Type : u8 {
     ID,
     LITERAL_NULL,
     LITERAL_INTEGER,
@@ -90,12 +90,12 @@ export enum TokenType : u8 {
     ERROR,
 }
 
-export mimic TokenLength = u16;
-export mimic TokenOffset = u32;
-export mimic TokenIterator = u32;
+export mimic Length = u16;
+export mimic Offset = u32;
+mimic Iterator = u32;
 
 export class Token {
-    type : TokenType;
-    length : TokenLength;
-    offset : TokenOffset;
+    type : Type;
+    length : Length;
+    offset : Offset;
 }

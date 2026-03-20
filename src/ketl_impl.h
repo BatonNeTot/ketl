@@ -53,18 +53,18 @@ ANN_DEFINE(ketl_state) {
 
 void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations);
 
-bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace);
+bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export);
 
 ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_type_name, uint32_t length);
 
-ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type);
+ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, bool export);
 
-ketl_namespace_node* ketl_state_define_function(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void));
+ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void), bool export, bool c_symbol);
 
-ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count);
+ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count, bool export);
 
-ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type_primitive* p_parent_primitive, ketl_type_enum_pair* p_constants, uint64_t constant_count);
+ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type_primitive* p_parent_primitive, ketl_type_enum_pair* p_constants, uint64_t constant_count, bool export);
 
-ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type);
+ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, bool export);
 
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool is_global_scope, ketl_variable* p_output_variable);

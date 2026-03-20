@@ -706,7 +706,7 @@ static push_mov_arg arg_from_hir_var_id(ketl_hir_var_id_t var_id, ketl_asm_x86_b
         .var_id = var_id,
         .p_var_info = p_var_info,
         .p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, var.literal),
-        .p_type = p_builder->p_hir->p_used_types[var.type],
+        .p_type = var.type != KETL_HIR_USED_TYPE_META ? p_builder->p_hir->p_used_types[var.type] : NULL,
     };
 }
 
@@ -727,23 +727,17 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_a
     }
 
     if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_GLOBAL) {
-        ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
-
         ketl_namespace_node* p_namespace_node = p_arg->p_var_info->p_global;
 
         if (p_builder->inline_symbols) {
             ketl_atomic_string s_name = p_namespace_node->s_name;
-            if (!p_namespace_node->export) {
-                char a_buffer[256];
-                uint32_t length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, s_name));
-                s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_buffer, length);
-            }
-            if (p_arg->var.type == KETL_HIR_USED_TYPE_LITERAL) {
+            if (p_arg->var.type == KETL_HIR_USED_TYPE_META) {
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
             } else {
                 ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
             }
         } else {
+            ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
             // TODO FIX
             // get type size and use appropriate load global bytecode
             ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(target_reg), (int64_t)&p_namespace_node->variable);
@@ -820,11 +814,6 @@ static void push_mov_to_stack_hir(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t s
 
         if (p_builder->inline_symbols) {
             ketl_atomic_string s_name = p_namespace_node->s_name;
-            if (!p_namespace_node->export) {
-                char a_buffer[256];
-                uint32_t length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, s_name));
-                s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_buffer, length);
-            }
             ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_RIP_LABEL(s_name), source_reg); 
         } else {
             ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R15 ? KETL_ASM_X86_R15 : KETL_ASM_X86_R14;
@@ -1152,12 +1141,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 // call
                 if (p_builder->inline_symbols) {
                     ketl_namespace_node* p_namespace_node = p_builder->p_hir->p_vars_infos[callee.info].p_global;
-                    ketl_atomic_string s_func_name = p_namespace_node->variable.p_func->s_name;
-                    if (!p_namespace_node->export) {
-                        char a_buffer[256];
-                        uint32_t length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), ".%s", ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, s_func_name));
-                        s_func_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_buffer, length);
-                    }
+                    ketl_atomic_string s_func_name = p_namespace_node->s_name;
                     ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_func_name));
                 } else {
                     push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1172,24 +1156,9 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 ketl_hir_new_t* p_hir_info = (ketl_hir_new_t*)p_instr;
 
                 if (p_builder->inline_symbols) {
-                    ketl_type* p_type = p_hir->p_used_types[p_hir_info->type]; 
-                    ANN_ASSERT(p_type->kind == KETL_TYPE_CLASS);
+                    ANN_ASSERT(((ketl_type*)p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_global->variable.p_pointer)->kind == KETL_TYPE_CLASS);
 
-                    ketl_type_class* p_class_type = (ketl_type_class*)p_type;
-
-                    ketl_namespace_node dummy_type_node = {
-                        .export = true,
-                        .s_name = p_class_type->s_name,
-                    };
-                    ketl_hir_var_info_t dummy_type_info = {
-                        .p_global = &dummy_type_node,
-                    };
-                    char a_type_name_buffer[256];
-                    ketl_type_format(p_builder->p_state, p_hir->p_used_types[p_hir_info->type], a_type_name_buffer, ANN_ARRAY_SIZE(a_type_name_buffer));
-                    push_mov_arg a_arguments[] = {
-                        {.var = {.uid = KETL_HIR_VAR_UID_GLOBAL, .type = KETL_HIR_USED_TYPE_LITERAL }, .p_var_info = &dummy_type_info},
-                    };
-                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+                    push_function_arguments_hir(&p_hir_info->type_var, 1, p_builder);
 
                     // call __ketl_rt_new
                     ketl_atomic_string s_rt_new_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt_new", KETL_NULL_TERMINATED_LENGTH_32);
@@ -1199,7 +1168,8 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     char a_gc_address_buffer[16];
                     snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
                     char a_type_address_buffer[16];
-                    snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, (uint64_t)p_hir->p_used_types[p_hir_info->type]);
+                    snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, 
+                        (uint64_t)p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_global->variable.p_pointer);
                     push_mov_arg a_arguments[] = {
                         {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
                         {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_type_address_buffer},
@@ -1257,7 +1227,8 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 char a_gc_address_buffer[16];
                 snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
                 char a_type_address_buffer[16];
-                snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, (uint64_t)p_hir->p_used_types[p_hir_info->type]);
+                snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, 
+                    (uint64_t)p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_global->variable.p_pointer);
                 push_mov_arg a_arguments[] = {
                     {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
                     {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_type_address_buffer},

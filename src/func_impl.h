@@ -9,7 +9,6 @@
 ANN_DEFINE(ketl_function_header) {
     void(*cfunc)(void);
     // TODO hir
-    ketl_atomic_string s_name;
 };
 
 #endif

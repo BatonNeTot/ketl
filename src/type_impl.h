@@ -51,6 +51,7 @@ ANN_DEFINE(ketl_type_array) {
 ANN_DEFINE(ketl_array) {
     void* p_data;
     uint64_t size;
+    uint64_t capacity;
 };
 
 ANN_DEFINE(ketl_type_signature) {

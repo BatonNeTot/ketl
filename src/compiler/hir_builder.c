@@ -516,7 +516,8 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
 }
 
 void ketl_hir_builder_insert_new(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_new_t* p_create, ketl_hir_var_id_t* p_arguments) {
-    ketl_type* p_type = GET_TYPE(p_create->type);
+    ketl_namespace_node* p_type_node = get_var_info(p_hir_builder, GET_VAR(p_create->type_var).info)->p_global;
+    ketl_type* p_type = p_type_node->variable.p_pointer;
 
     switch (p_type->kind) {
         case KETL_TYPE_ARRAY: {
@@ -535,7 +536,7 @@ void ketl_hir_builder_insert_new(ketl_hir_builder_t* p_hir_builder, ketl_hir_hea
             
             // TODO FIX
             // check if return argument already has defined type and do casting if necessary
-            GET_VAR(p_create->output_var).type = p_create->type;
+            GET_VAR(p_create->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_type);
             break;
         }
         case KETL_TYPE_CLASS: {
@@ -557,7 +558,7 @@ void ketl_hir_builder_insert_new(ketl_hir_builder_t* p_hir_builder, ketl_hir_hea
             
             // TODO FIX
             // check if return argument already has defined type and do casting if necessary
-            GET_VAR(p_create->output_var).type = p_create->type;
+            GET_VAR(p_create->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_type);
             
             break;
         }
