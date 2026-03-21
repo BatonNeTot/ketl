@@ -320,7 +320,7 @@ ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type) {
     *p_array_type = (ketl_type_array){
         .kind = KETL_TYPE_ARRAY,
         .align_enum = p_type->align_enum,
-        .size = sizeof(void*) * 2,
+        .size = sizeof(ketl_type_array),
         .p_value_type = p_type,
     };
     return (ketl_type*)p_array_type;
@@ -369,7 +369,7 @@ void ketl_state_define_global_cfunction(ketl_state* p_state, const char* p_name,
     ketl_state_define_cfunction(p_state, &p_state->global_namespace, p_name, length, p_type, cfunc, false, false);
 }
 
-ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count, bool export) {
+ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count, ketl_namespace* p_class_namespace, bool export) {
     ketl_symboled_variable_type_info_t* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
     for (uint32_t i = 0u; i < field_count; ++i) {
         p_fields_impl[i].info = p_fields[i].info;
@@ -385,10 +385,13 @@ ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace
             .align_enum = ketl_align_find(class_size_pair.align),
             .size = class_size_pair.size,
             .fields_count = field_count,
-            .methods_count = 0u,
             .p_fields = p_fields_impl,
-            .p_methods = NULL,
             };
+    if (p_class_namespace != NULL) {
+        ((ketl_type_class*)p_class)->namespace = *p_class_namespace;
+    } else {
+        ketl_namespace_init(&((ketl_type_class*)p_class)->namespace, s_name, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
+    }
     ketl_variable namespace_variable = {
         .kind = KETL_VARIABLE_TYPE,
         .p_type = NULL,
@@ -435,7 +438,7 @@ ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace
 }
 
 void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
-    ketl_state_define_class(p_state, &p_state->global_namespace, p_name, length, p_fields, field_count, false);
+    ketl_state_define_class(p_state, &p_state->global_namespace, p_name, length, p_fields, field_count, NULL, false);
 }
 
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool is_global_scope, ketl_variable* p_output_variable) {    
@@ -959,9 +962,8 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
         printf("    .%"PRIuPTR"byte   %d    # s_name, TODO\n", sizeof(p_class_type->s_name), 0); // TODO
         printf("    .%"PRIuPTR"byte   %d    # fields_count\n", sizeof(p_class_type->fields_count), p_class_type->fields_count);
-        printf("    .%"PRIuPTR"byte   %d    # methods_count\n", sizeof(p_class_type->methods_count), p_class_type->methods_count);
         printf("    .%"PRIuPTR"byte   %d    # p_fields, TODO\n", sizeof(p_class_type->p_fields), 0); // TODO
-        printf("    .%"PRIuPTR"byte   %d    # p_methods, TODO\n", sizeof(p_class_type->p_methods), 0); // TODO
+        // TODO add namespace?
     }
 
     p_state->p_active_module = p_stashed_module;

@@ -28,13 +28,12 @@ void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags) {
     return p_object;
 }
 
-void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags) {
-    ANN_ASSERT(ketl_type_is_array(p_type));
-    ketl_type* p_value_type = ((ketl_type_array*)p_type)->p_value_type;
-    uint64_t obj_size = ketl_type_get_stack_size(p_value_type);
+void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags) {
+    uint64_t obj_size = ketl_type_get_stack_size(p_type);
     uint64_t mem_size = obj_size * count;
     ketl_array* p_array_obj = ketl_alloc(p_gc->p_allocator, sizeof(ketl_array));
     p_array_obj->size = count;
+    p_array_obj->capacity = count;
     p_array_obj->p_data = ketl_alloc(p_gc->p_allocator, mem_size);
     ketl_memset(p_array_obj->p_data, 0, mem_size);
     ketl_gc_reg(p_gc, p_array_obj, p_type, count, flags | KETL_GC_FREE_AFTER_USE);

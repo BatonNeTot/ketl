@@ -1223,7 +1223,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_CREATE_ARRAY: {
                 ketl_hir_create_array_t* p_hir_info = (ketl_hir_create_array_t*)p_instr;
 
-                //ketl_gc_create_array(&p_builder->p_state->gc, p_hir->p_used_types[p_hir_info->type], size, 0);
+                //ketl_gc_create_array_of_type(&p_builder->p_state->gc, p_hir->p_used_types[p_hir_info->type], size, 0);
                 char a_gc_address_buffer[16];
                 snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
                 char a_type_address_buffer[16];
@@ -1239,7 +1239,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
 
                 void* func_address;
                 #define KETL_POINTER_CONVERTER
-                #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_create_array
+                #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_create_array_of_type
                 #define KETL_POINTER_CONVERTER_VAR  func_address
                 #define KETL_POINTER_CONVERTER_TYPE void*
                 #include "meta.i"

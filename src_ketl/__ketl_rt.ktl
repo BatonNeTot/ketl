@@ -17,9 +17,9 @@ var __ketl_rt_gc : __ketl_rt_GC = __ketl_rt_calloc(__ketl_rt_GC.size);
 var __ketl_rt_atomic_strings : __ketl_rt_AtomicStrings = __ketl_rt_calloc(__ketl_rt_AtomicStrings.size);
 
 class __ketl_rt_Type {
-    kind : u8;
-    align_enum : u8;
-    size : u16;
+    var kind : u8;
+    var align_enum : u8;
+    var size : u16;
 }
 
 export fn __ketl_rt_gc_new(gc : __ketl_rt_GC, type : __ketl_rt_Type, flags : u64) -> raw {

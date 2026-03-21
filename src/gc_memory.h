@@ -37,7 +37,7 @@ void ketl_gc_deinit(ketl_gc* p_gc);
 
 void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags);
 
-void* ketl_gc_create_array(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags);
+void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags);
 
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags);
 

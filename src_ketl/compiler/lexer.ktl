@@ -1,11 +1,11 @@
 import token
 
 export class Lexer {
-    //tokens : vector; TODO vector
-    //lines : vector; TODO vector 
-    //filename : astr; TODO atomic string
-    //source : str; TODO string = array[char]
-    length : u32;
-    offset : u32;
-    token_iterator : token.Iterator; // TODO fix visibility - Iterator is private (not exported) in token.ktl, this should not work
+    var tokens : token.Token[];
+    //var lines : str[]; // TODO string = array[char]
+    //var filename : astr; TODO atomic string
+    //var source : str; TODO string = array[char]
+    var length : u32;
+    var offset : u32;
+    var token_iterator : token.Token.Iterator;
 }

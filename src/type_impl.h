@@ -5,6 +5,7 @@
 #include "ketl/type.h"
 
 #include "variable.h"
+#include "namespace.h"
 
 #include "atomic_strings.h"
 
@@ -74,9 +75,8 @@ ANN_DEFINE(ketl_type_class) {
     KETL_TYPE_BODY;
     ketl_atomic_string s_name;
     uint16_t fields_count;
-    uint16_t methods_count;
     ketl_symboled_variable_type_info_t* p_fields;
-    ketl_variable* p_methods;
+    ketl_namespace namespace;
 };
 
 ANN_DEFINE(ketl_type_enum_pair) {
