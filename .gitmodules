@@ -1,6 +1,0 @@
-[submodule "dependencies/ebnf"]
-	path = dependencies/ebnf
-	url = git@github.com:BatonNeTot/ebnf.git
-[submodule "dependencies/ketl_core"]
-	path = dependencies/ketl_core
-	url = git@github.com:BatonNeTot/ketl_core.git
