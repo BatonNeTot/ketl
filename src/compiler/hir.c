@@ -63,6 +63,17 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
         case KETL_HIR_GREATER_OR_EQUAL:
             return sizeof(ketl_hir_binary_op_t);
 
+        case KETL_HIR_CAST_TO_U8:
+        case KETL_HIR_CAST_TO_U16:
+        case KETL_HIR_CAST_TO_U32:
+        case KETL_HIR_CAST_TO_U64:
+        
+        case KETL_HIR_CAST_TO_I8:
+        case KETL_HIR_CAST_TO_I16:
+        case KETL_HIR_CAST_TO_I32:
+        case KETL_HIR_CAST_TO_I64:
+            return sizeof(ketl_hir_cast_primitive_t);
+
         case KETL_HIR_ASSIGN:
             return sizeof(ketl_hir_assign_t);
     

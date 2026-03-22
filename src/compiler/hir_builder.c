@@ -292,7 +292,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
         ketl_namespace_node* p_symbol_node = ketl_namespace_find(p_namespace, s_symbol);
 
         if (p_symbol_node == NULL) {
-            return -1;
+            return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
         }
 
         p_bucket->value = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
@@ -450,13 +450,19 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
             GET_VAR(p_binary_op->rhs_var).type != KETL_HIR_USED_TYPE_UNKNOWN) {
 
             // first type is return type, ignored during search
-            ketl_variable_type_info_t parameters_array[] = { {.p_type = NULL}, 
+            ketl_variable_type_info_t a_parameters_array[] = { {.p_type = NULL}, 
                 {.p_type = GET_TYPE(GET_VAR(p_binary_op->lhs_var).type)}, 
                 {.p_type = GET_TYPE(GET_VAR(p_binary_op->rhs_var).type)} };
             ketl_function_parameters parameters = {
-                .p_parameters = parameters_array,
-                .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)
+                .p_parameters = a_parameters_array,
+                .parameters_count = ANN_ARRAY_SIZE(a_parameters_array),
             };
+
+            for (size_t i = 0; i < ANN_ARRAY_SIZE(a_parameters_array); ++i) {
+                if (a_parameters_array[i].p_type && a_parameters_array[i].p_type->kind == KETL_TYPE_ENUM) {
+                    a_parameters_array[i].p_type = (ketl_type*)((ketl_type_enum*)a_parameters_array[i].p_type)->p_parent_primitive;
+                }
+            }
 
             operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
                 p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);

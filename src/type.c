@@ -89,6 +89,19 @@ uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string 
     return 0;
 }
 
+ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_string s_name) {
+    uint16_t constants_count = ((ketl_type_enum*)p_type)->constants_count;
+    ketl_type_enum_pair* p_contants = ((ketl_type_enum*)p_type)->p_contants;
+
+    for (uint16_t i = 0u; i < constants_count; ++i) {
+        if (p_contants[i].s_name == s_name) {
+            return p_contants[i].literal;
+        }
+    }
+
+    return (ketl_variable){.kind = KETL_VARIABLE_NONE};
+}
+
 uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer, uint32_t buffer_size) {
     ANN_SWITCH_STRICT(p_type->kind) {
         case KETL_TYPE_PRIMITIVE: {

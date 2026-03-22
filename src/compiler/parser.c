@@ -165,31 +165,101 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
     return output_var;
 }
 
-static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+// returns rhs after casting if happened
+// else returns -1
+static ketl_hir_var_id_t trying_to_cast_rhs_to_rhs(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     ketl_hir_var_t* p_lhs_var = &GET_VAR(lhs_var);
     ketl_hir_var_t* p_rhs_var = &GET_VAR(rhs_var);
 
+    ketl_hir_expr_info_t expr_info = expr_info_merge(p_lhs_var->expr_info, p_rhs_var->expr_info);
+
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
-        ANN_ASSERT(false && "Can't assign to an r-value.");
+        errorf(expr_info.source_offset, expr_info.length, "Can't assign to an r-value.");
+        return push_temp_var(p_context, expr_info);
     }
 
     if (p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
-        ANN_ASSERT(false && "Can't assign undefined value.");
+        errorf(expr_info.source_offset, expr_info.length, "Can't assign undefined value.");
+        return push_temp_var(p_context, expr_info);
     }
 
     // TODO casting if needed
-    if (p_lhs_var->type != p_rhs_var->type) {
-        ketl_type* p_lhs_type = GET_TYPE(p_lhs_var->type);
-        ketl_type* p_rhs_type = GET_TYPE(p_rhs_var->type);
+    if (p_lhs_var->type == p_rhs_var->type) {
+        return rhs_var;
+    }
 
-        if (!((p_lhs_type->kind == KETL_TYPE_ARRAY || p_lhs_type->kind == KETL_TYPE_FUNCTION || p_lhs_type->kind == KETL_TYPE_CFUNCTION || p_lhs_type->kind == KETL_TYPE_CLASS) &&
-            // hack to check for raw type
-            p_rhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->size == sizeof(void*)) &&
-            !((p_rhs_type->kind == KETL_TYPE_ARRAY || p_rhs_type->kind == KETL_TYPE_FUNCTION || p_rhs_type->kind == KETL_TYPE_CFUNCTION || p_rhs_type->kind == KETL_TYPE_CLASS) &&
-            // hack to check for raw type
-            p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_lhs_type->size == sizeof(void*))) {
-            ANN_ASSERT(false && "Incompatible assignment types.");
+    ketl_type* p_lhs_type = GET_TYPE(p_lhs_var->type);
+    ketl_type* p_rhs_type = GET_TYPE(p_rhs_var->type);
+
+    if (((p_lhs_type->kind == KETL_TYPE_ARRAY || p_lhs_type->kind == KETL_TYPE_FUNCTION || p_lhs_type->kind == KETL_TYPE_CFUNCTION || p_lhs_type->kind == KETL_TYPE_CLASS) &&
+        // hack to check for raw type
+        p_rhs_type->kind == KETL_TYPE_PRIMITIVE && !((ketl_type_primitive*)p_rhs_type)->is_numeric && p_rhs_type->size == sizeof(void*)) ||
+        ((p_rhs_type->kind == KETL_TYPE_ARRAY || p_rhs_type->kind == KETL_TYPE_FUNCTION || p_rhs_type->kind == KETL_TYPE_CFUNCTION || p_rhs_type->kind == KETL_TYPE_CLASS) &&
+        // hack to check for raw type
+        p_lhs_type->kind == KETL_TYPE_PRIMITIVE && !((ketl_type_primitive*)p_lhs_type)->is_numeric && p_lhs_type->size == sizeof(void*)) ||
+        (p_lhs_type->kind == KETL_TYPE_ARRAY && p_rhs_type->kind == KETL_TYPE_ARRAY && ((ketl_type_array*)p_lhs_type)->p_value_type == ((ketl_type_array*)p_rhs_type)->p_value_type)) {
+        return rhs_var;
+    }
+        
+    // trying to primitive cast
+    if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
+        ((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric &&
+        ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed) {
+        ketl_hir_tag_t tag = KETL_HIR_UNDEF;
+
+        if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
+            ANN_SWITCH_STRICT(p_rhs_type->size) {
+                case 1: tag |= KETL_HIR_U8; break;
+                case 2: tag |= KETL_HIR_U16; break;
+                case 4: tag |= KETL_HIR_U32; break;
+                case 8: tag |= KETL_HIR_U64; break;
+            };
+
+            ANN_SWITCH_STRICT(p_lhs_type->size) {
+                case 1: tag |= KETL_HIR_CAST_TO_U8; break;
+                case 2: tag |= KETL_HIR_CAST_TO_U16; break;
+                case 4: tag |= KETL_HIR_CAST_TO_U32; break;
+                case 8: tag |= KETL_HIR_CAST_TO_U64; break;
+            };
+        } else {
+            ANN_SWITCH_STRICT(p_rhs_type->size) {
+                case 1: tag |= KETL_HIR_I8; break;
+                case 2: tag |= KETL_HIR_I16; break;
+                case 4: tag |= KETL_HIR_I32; break;
+                case 8: tag |= KETL_HIR_I64; break;
+            };
+
+            ANN_SWITCH_STRICT(p_lhs_type->size) {
+                case 1: tag |= KETL_HIR_CAST_TO_I8; break;
+                case 2: tag |= KETL_HIR_CAST_TO_I16; break;
+                case 4: tag |= KETL_HIR_CAST_TO_I32; break;
+                case 8: tag |= KETL_HIR_CAST_TO_I64; break;
+            };
         }
+
+        ketl_hir_var_id_t casted_var = push_temp_var_type(p_context, p_rhs_var->expr_info, p_lhs_var->type);
+
+        ketl_hir_header_t assign_header = {
+            .tag = tag,
+            .file_symbol = p_context->s_filename,
+        };
+        ketl_hir_cast_primitive_t instr = {
+            .dest_var = casted_var,
+            .source_var = rhs_var,
+        };
+        ketl_hir_builder_insert_instr(&p_context->hir_builder, assign_header, (uint8_t*)&instr);
+        
+        return casted_var;
+    }
+        
+    errorf(expr_info.source_offset, expr_info.length, "Incompatible assignment types.");
+    return push_temp_var(p_context, expr_info);
+}
+
+static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+    rhs_var = trying_to_cast_rhs_to_rhs(p_context, lhs_var, rhs_var);
+    if (rhs_var == (ketl_hir_var_id_t)-1) {
+        return;
     }
 
     ketl_hir_header_t assign_header = {
@@ -566,8 +636,53 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
                 char a_buffer[256];
                 uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
 
-                return push_literal_number_symbol(p_context, push_symbol_string(p_context, a_buffer, length), expr_info);
+                return push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, a_buffer, length), expr_info,
+                    ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state)));
             }
+
+            if (p_type->kind == KETL_TYPE_CLASS) {
+                ketl_namespace* p_namespace = &((ketl_type_class*)p_type)->namespace;
+
+                ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, 
+                    push_symbol(p_context, id_literal), expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+                if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                    errorf(expr_info.source_offset, expr_info.length, "Use of undeclared entity '%.*s' from class '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
+                        ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
+                }
+                return var_id;
+            }
+
+            if (p_type->kind == KETL_TYPE_ENUM) {
+                ketl_variable constant = ketl_type_find_enum_constant_value(p_type, ketl_atomic_strings_get(&p_context->p_state->atomic_strings, 
+                    TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal)));
+                
+                if (constant.kind == KETL_VARIABLE_NONE) {
+                    errorf(id_literal.offset, id_literal.length, "Use of undeclared constant '%.*s' from enum '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
+                        ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_enum*)p_type)->s_name));
+                    return push_temp_var(p_context, expr_info);
+                }
+
+                char a_symbol[256];
+                uint32_t symbol_length;
+
+                ANN_SWITCH_STRICT(constant.kind) {
+                    case KETL_VARIABLE_INT8:
+                    case KETL_VARIABLE_INT16:
+                    case KETL_VARIABLE_INT32:
+                    case KETL_VARIABLE_INT64:
+                        symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIi64, constant.int64);
+                        break;
+                    case KETL_VARIABLE_UINT8:
+                    case KETL_VARIABLE_UINT16:
+                    case KETL_VARIABLE_UINT32:
+                    case KETL_VARIABLE_UINT64:
+                        symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIu64, constant.uint64);
+                        break;
+                }
+
+                return push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, a_symbol, symbol_length), expr_info,
+                    ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type));
+            } 
 
             ANN_ASSERT(false && "This type does not have this field");
         }
@@ -668,11 +783,18 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
 
     pull_hir_set_block(p_context, second_block);
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
+
+    ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info);
     
     // TODO find common type, set temp var to common type
-    ANN_ASSERT(GET_VAR(lhs).type == GET_VAR(rhs).type);
-    ANN_ASSERT(GET_VAR(lhs).type != KETL_HIR_USED_TYPE_UNKNOWN);
-    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, GET_VAR(lhs).expr_info, GET_VAR(lhs).type); 
+    if (GET_VAR(lhs).type != GET_VAR(rhs).type) {
+        errorf(expr_info.source_offset, expr_info.length, "Can't compare two types.");
+        return push_temp_var(p_context, expr_info);
+    }
+    if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_UNKNOWN || GET_VAR(rhs).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+    ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, GET_VAR(lhs).type); 
     // TODO do casting if necessary
     push_hir_assign_impl(p_context, output_var, rhs);
     push_hir_jump(p_context, after_block);
@@ -1357,12 +1479,12 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
 
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after class name.");
 
-    ketl_namespace class_namespace;
-    ketl_namespace_init(&class_namespace, ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal)), 
-        &p_context->p_state->atomic_strings, p_context->p_namespace, p_context->p_state->p_allocator);
+    ketl_namespace* p_class_namespace;
+    ketl_namespace_node* p_class_node = ketl_state_forward_define_class(p_context->p_state, p_context->p_namespace, 
+        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), &p_class_namespace, p_context->export);
 
     ketl_namespace* p_old_namespace = p_context->p_namespace;
-    p_context->p_namespace = &class_namespace;
+    p_context->p_namespace = p_class_namespace;
 
     ketl_named_variable_type_info_t a_class_fields[256] = {0};
     uint32_t class_field_count = 0;
@@ -1373,8 +1495,7 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
     
     p_context->p_namespace = p_old_namespace;
 
-    ketl_state_define_class(p_context->p_state, p_context->p_namespace, 
-        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), a_class_fields, class_field_count, &class_namespace, p_context->export);
+    ketl_state_post_define_class(p_context->p_state, p_class_node, a_class_fields, class_field_count);
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' in the end of a class declaration.");
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }

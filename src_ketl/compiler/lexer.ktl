@@ -2,10 +2,15 @@ import token
 
 export class Lexer {
     var tokens : token.Token[];
-    //var lines : str[]; // TODO string = array[char]
-    //var filename : astr; TODO atomic string
-    //var source : str; TODO string = array[char]
+    var lines_offsets : u32[];
+    var filename : str;
+    var source : str;
     var length : u32;
     var offset : u32;
     var token_iterator : token.Token.Iterator;
+    
+    fn init(lexer : Lexer) {
+        lexer.tokens = token.Token[4];
+        lexer.lines_offsets = u32[4];
+    }
 }

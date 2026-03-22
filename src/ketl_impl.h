@@ -43,7 +43,7 @@ ANN_DEFINE(ketl_state) {
     array_types_map_t array_types;
 
     operator_overloading_map am_hiroperator_overloading[
-        ((KETL_HIR_LAST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT) + 1) - (KETL_HIR_FIRST_BI_OPERATOR >> KETL_HIR_TYPE_INSTR_SHIFT)
+        ((KETL_HIR_LAST_BI_OPERATOR - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT) + 1
     ];
 
     compile_function_declarations_t compile_function_declarations;
@@ -61,7 +61,8 @@ ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* 
 
 ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void), bool export, bool c_symbol);
 
-ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count, ketl_namespace* p_class_namespace, bool export);
+ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_namespace** pp_class_namespace, bool export);
+void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_class_node, ketl_named_variable_type_info_t* p_fields, uint16_t field_count);
 
 ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type_primitive* p_parent_primitive, ketl_type_enum_pair* p_constants, uint64_t constant_count, bool export);
 

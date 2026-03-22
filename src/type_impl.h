@@ -39,9 +39,9 @@ ANN_DEFINE(ketl_type) {
 
 ANN_DEFINE(ketl_type_primitive) {
     KETL_TYPE_BODY;
-    ketl_atomic_string s_name;
     bool is_integer;
     bool is_signed;
+    bool is_numeric;
 };
 
 ANN_DEFINE(ketl_type_array) {
@@ -107,6 +107,8 @@ ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info
 ketl_type* ketl_type_find_class_field_type(ketl_type* p_type, ketl_atomic_string s_name);
 
 uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string s_name);
+
+ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_string s_name);
 
 
 #endif // ketl_type_impl_h

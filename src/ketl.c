@@ -142,17 +142,17 @@ ketl_state* ketl_state_create(const ketl_allocator* p_allocator) {
     p_state->p_active_module = NULL;
 
 #define INIT_TYPE(_var, _type) *(_type*)(_var) = (_type)
-#define CREATE_PRIMITIVE_TYPE(_var_name, _name, _size, _is_integer, _is_signed)\
+#define CREATE_PRIMITIVE_TYPE(_var_name, _name, _size, _is_integer, _is_signed, _is_numeric)\
 ketl_type* _var_name = ketl_alloc(p_allocator, sizeof(ketl_type_primitive)); \
 do {\
 ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR(_name));\
 INIT_TYPE(_var_name, ketl_type_primitive) {\
-        .s_name = s_name,\
         .kind = KETL_TYPE_PRIMITIVE,\
         .align_enum = ketl_align_find(_size),\
         .size = _size,\
         .is_integer = _is_integer,\
         .is_signed = _is_signed,\
+        .is_numeric = _is_numeric,\
         };\
 ketl_variable namespace_variable = {\
     .kind = KETL_VARIABLE_TYPE,\
@@ -162,20 +162,20 @@ ketl_variable namespace_variable = {\
 ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);\
 } while(0)
 
-    CREATE_PRIMITIVE_TYPE(p_none,  "none", 0, false, false);
-    CREATE_PRIMITIVE_TYPE(p_bool,  "bool", 1, false, false);
-    CREATE_PRIMITIVE_TYPE(p_char,  "char", 1, true,  false);
-    CREATE_PRIMITIVE_TYPE(p_raw,   "raw",  8, false, false);
+    CREATE_PRIMITIVE_TYPE(p_none,  "none", 0, false, false, false);
+    CREATE_PRIMITIVE_TYPE(p_bool,  "bool", 1, false, false, false);
+    CREATE_PRIMITIVE_TYPE(p_char,  "char", 1, true,  false, false);
+    CREATE_PRIMITIVE_TYPE(p_raw,   "raw",  8, false, false, false);
 
-    CREATE_PRIMITIVE_TYPE(p_i8,  "i8",   1, true,  true);
-    CREATE_PRIMITIVE_TYPE(p_i16, "i16",  2, true,  true);
-    CREATE_PRIMITIVE_TYPE(p_i32, "i32",  4, true,  true);
-    CREATE_PRIMITIVE_TYPE(p_i64, "i64",  8, true,  true);
+    CREATE_PRIMITIVE_TYPE(p_i8,  "i8",   1, true,  true,  true);
+    CREATE_PRIMITIVE_TYPE(p_i16, "i16",  2, true,  true,  true);
+    CREATE_PRIMITIVE_TYPE(p_i32, "i32",  4, true,  true,  true);
+    CREATE_PRIMITIVE_TYPE(p_i64, "i64",  8, true,  true,  true);
 
-    CREATE_PRIMITIVE_TYPE(p_u8,  "u8",   1, true,  false);
-    CREATE_PRIMITIVE_TYPE(p_u16, "u16",  2, true,  false);
-    CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false);
-    CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false);
+    CREATE_PRIMITIVE_TYPE(p_u8,  "u8",   1, true,  false, true);
+    CREATE_PRIMITIVE_TYPE(p_u16, "u16",  2, true,  false, true);
+    CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false, true);
+    CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false, true);
 
 #define REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
 do {\
@@ -217,6 +217,16 @@ do {\
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u16, KETL_HIR_I16);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u32, KETL_HIR_I32);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u64, KETL_HIR_I64);
+
+    {
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("str"));
+        ketl_variable namespace_variable = {
+            .kind = KETL_VARIABLE_TYPE,
+            .p_type = NULL,
+            .p_pointer = ketl_state_get_array_type(p_state, p_char),
+        };
+        ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);
+    }
 
     return p_state;
 }
@@ -369,35 +379,49 @@ void ketl_state_define_global_cfunction(ketl_state* p_state, const char* p_name,
     ketl_state_define_cfunction(p_state, &p_state->global_namespace, p_name, length, p_type, cfunc, false, false);
 }
 
-ketl_namespace_node* ketl_state_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count, ketl_namespace* p_class_namespace, bool export) {
-    ketl_symboled_variable_type_info_t* p_fields_impl = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
-    for (uint32_t i = 0u; i < field_count; ++i) {
-        p_fields_impl[i].info = p_fields[i].info;
-        p_fields_impl[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
-    }
-
-    ketl_type_size_pair_t class_size_pair = ketl_type_calc_class_size(p_fields_impl, field_count);
-    ketl_type* p_class = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_class));
+ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_namespace** pp_class_namespace, bool export) {
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
-    INIT_TYPE(p_class, ketl_type_class) {
-            .s_name = s_name,
-            .kind = KETL_TYPE_CLASS,
-            .align_enum = ketl_align_find(class_size_pair.align),
-            .size = class_size_pair.size,
-            .fields_count = field_count,
-            .p_fields = p_fields_impl,
-            };
-    if (p_class_namespace != NULL) {
-        ((ketl_type_class*)p_class)->namespace = *p_class_namespace;
-    } else {
-        ketl_namespace_init(&((ketl_type_class*)p_class)->namespace, s_name, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
-    }
     ketl_variable namespace_variable = {
         .kind = KETL_VARIABLE_TYPE,
         .p_type = NULL,
-        .p_pointer = p_class,
+        .p_pointer = NULL,
     };
-    return ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    ketl_namespace_node* p_class_node = ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    ANN_ASSERT(p_class_node->variable.p_pointer == NULL);
+
+    ketl_type* p_class =  ketl_alloc(p_state->p_allocator, sizeof(ketl_type_class));
+    p_class_node->variable.p_pointer = p_class;
+
+    INIT_TYPE(p_class, ketl_type_class) {
+            .s_name = s_name,
+            .kind = KETL_TYPE_CLASS,
+            .align_enum = 0,
+            .size = 0,
+            .fields_count = 0,
+            .p_fields = NULL,
+            };
+    if (pp_class_namespace != NULL) {
+        *pp_class_namespace = &((ketl_type_class*)p_class)->namespace;
+    }
+    ketl_namespace_init(&((ketl_type_class*)p_class)->namespace, s_name, &p_state->atomic_strings, p_namespace, p_state->p_allocator);
+
+    return p_class_node;
+}
+
+void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_class_node, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {    
+    ketl_symboled_variable_type_info_t* p_fields_copy = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
+    for (uint32_t i = 0u; i < field_count; ++i) {
+        p_fields_copy[i].info = p_fields[i].info;
+        p_fields_copy[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
+    }
+
+    ketl_type_class* p_class_type = p_class_node->variable.p_pointer;
+
+    ketl_type_size_pair_t class_size_pair = ketl_type_calc_class_size(p_fields_copy, field_count);
+    p_class_type->align_enum = ketl_align_find(class_size_pair.align);
+    p_class_type->size = class_size_pair.size;
+    p_class_type->fields_count = field_count;
+    p_class_type->p_fields = p_fields_copy;
 }
 
 ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type_primitive* p_parent_primitive, ketl_type_enum_pair* p_constants, uint64_t constant_count, bool export) {
@@ -438,7 +462,8 @@ ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace
 }
 
 void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {
-    ketl_state_define_class(p_state, &p_state->global_namespace, p_name, length, p_fields, field_count, NULL, false);
+    ketl_namespace_node* p_class_node = ketl_state_forward_define_class(p_state, &p_state->global_namespace, p_name, length, NULL, false);
+    ketl_state_post_define_class(p_state, p_class_node, p_fields, field_count);
 }
 
 void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool is_global_scope, ketl_variable* p_output_variable) {    

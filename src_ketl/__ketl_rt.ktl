@@ -1,33 +1,70 @@
-class __ketl_rt_GC {}
+class GC {}
 
-class __ketl_rt_AtomicStrings {}
+class AtomicStrings {}
 
 cimport malloc(size : u64) -> raw
 cimport memset(dest : raw, value : u8, size : u64) -> raw
 cimport memcpy(dest : raw, src : raw, size : u64) -> raw
 
-export fn __ketl_rt_calloc(size : u64) -> raw {
+export fn calloc(size : u64) -> raw {
     var pointer = malloc(size);
     memset(pointer, 0, size);
     return pointer;
 }
 
-var __ketl_rt_gc : __ketl_rt_GC = __ketl_rt_calloc(__ketl_rt_GC.size);
+var gc : GC = calloc(GC.size);
 
-var __ketl_rt_atomic_strings : __ketl_rt_AtomicStrings = __ketl_rt_calloc(__ketl_rt_AtomicStrings.size);
+var atomic_strings : AtomicStrings = calloc(AtomicStrings.size);
 
-class __ketl_rt_Type {
-    var kind : u8;
-    var align_enum : u8;
+class Type {
+    export enum Kind : u8{
+        Primitive,
+        Array,
+        Function,
+        CFunction,
+        Class,
+        Enum,
+    }
+
+    export enum Align : u8 {
+        Size1Byte,
+        Size2Byte,
+        Size4Byte,
+        Size8Byte,
+        Size16Byte,
+    }
+
+    var kind : Kind;
+    var align : Align;
     var size : u16;
 }
 
-export fn __ketl_rt_gc_new(gc : __ketl_rt_GC, type : __ketl_rt_Type, flags : u64) -> raw {
-    return __ketl_rt_calloc(type.size);
+export fn gc_new(gc : GC, type : Type, flags : u64) -> raw {
+    return calloc(type.size);
 }
 
-export fn __ketl_rt_new(type : __ketl_rt_Type) -> raw {
-    return __ketl_rt_gc_new(__ketl_rt_gc, type.size, 0);
+export fn new(type : Type) -> raw {
+    return gc_new(gc, type, 0);
 }
 
-var test = __ketl_rt_Type();
+class ArrayMeta {
+    var pointer : raw;
+    var size : u64;
+    var capacity : u64;
+}
+
+export fn gc_new_array(gc : GC, type : Type, count : u64, flags : u64) -> raw {
+    var meta = ArrayMeta();
+    var type_size : u64 = type.size;
+    if (type.kind != Type.Kind.Primitive && type.kind != Type.Kind.Enum) {
+        type_size = raw.size;
+    }
+    meta.pointer = calloc(type_size * count);
+    meta.size = count;
+    meta.capacity = count;
+    return meta;
+}
+
+export fn new_array(type : Type, count : u64) -> raw {
+    return gc_new_array(gc, type, count, 0);
+}
