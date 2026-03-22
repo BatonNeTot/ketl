@@ -357,6 +357,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_QUESTION_MARK, 1);
         return true;
     } 
+	case '$': {
+        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOLLAR, 1);
+        return true;
+    } 
 	case ':': {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_COLON, 1);
         return true;
