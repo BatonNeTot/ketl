@@ -155,28 +155,23 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
         .tag = hir_tag,
         .file_symbol = p_context->s_filename,
     };
-    ketl_hir_var_id_t output_var = push_temp_var(p_context, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info)); 
+    ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info);
+    ketl_hir_var_id_t output_var = push_temp_var(p_context, expr_info); 
     ketl_hir_binary_op_t instr = {
         .output_var = output_var,
         .lhs_var = lhs,
         .rhs_var = rhs,
     };
-    ketl_hir_builder_insert_binary_op(&p_context->hir_builder, header, &instr);
+    ketl_hir_builder_insert_binary_op(&p_context->hir_builder, header, &instr, expr_info);
     return output_var;
 }
 
 // returns rhs after casting if happened
 // else returns -1
-static ketl_hir_var_id_t trying_to_cast_rhs_to_rhs(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
-    ketl_hir_var_t* p_lhs_var = &GET_VAR(lhs_var);
+static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_context, ketl_hir_used_type_index_t lhs_type, ketl_hir_expr_info_t lhs_info, ketl_hir_var_id_t rhs_var, bool implicit) {
     ketl_hir_var_t* p_rhs_var = &GET_VAR(rhs_var);
 
-    ketl_hir_expr_info_t expr_info = expr_info_merge(p_lhs_var->expr_info, p_rhs_var->expr_info);
-
-    if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
-        errorf(expr_info.source_offset, expr_info.length, "Can't assign to an r-value.");
-        return push_temp_var(p_context, expr_info);
-    }
+    ketl_hir_expr_info_t expr_info = expr_info_merge(lhs_info, p_rhs_var->expr_info);
 
     if (p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
         errorf(expr_info.source_offset, expr_info.length, "Can't assign undefined value.");
@@ -184,11 +179,11 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_rhs(ketl_parser_context* p_contex
     }
 
     // TODO casting if needed
-    if (p_lhs_var->type == p_rhs_var->type) {
+    if (lhs_type == p_rhs_var->type) {
         return rhs_var;
     }
 
-    ketl_type* p_lhs_type = GET_TYPE(p_lhs_var->type);
+    ketl_type* p_lhs_type = GET_TYPE(lhs_type);
     ketl_type* p_rhs_type = GET_TYPE(p_rhs_var->type);
 
     if (((p_lhs_type->kind == KETL_TYPE_ARRAY || p_lhs_type->kind == KETL_TYPE_FUNCTION || p_lhs_type->kind == KETL_TYPE_CFUNCTION || p_lhs_type->kind == KETL_TYPE_CLASS) &&
@@ -203,53 +198,58 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_rhs(ketl_parser_context* p_contex
         
     // trying to primitive cast
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
-        ((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric &&
-        ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed) {
+        ((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric) {
         ketl_hir_tag_t tag = KETL_HIR_UNDEF;
 
-        if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
-            ANN_SWITCH_STRICT(p_rhs_type->size) {
-                case 1: tag |= KETL_HIR_U8; break;
-                case 2: tag |= KETL_HIR_U16; break;
-                case 4: tag |= KETL_HIR_U32; break;
-                case 8: tag |= KETL_HIR_U64; break;
-            };
+        if (implicit || (p_lhs_type->size >= p_rhs_type->size && 
+            ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed)) {
 
-            ANN_SWITCH_STRICT(p_lhs_type->size) {
-                case 1: tag |= KETL_HIR_CAST_TO_U8; break;
-                case 2: tag |= KETL_HIR_CAST_TO_U16; break;
-                case 4: tag |= KETL_HIR_CAST_TO_U32; break;
-                case 8: tag |= KETL_HIR_CAST_TO_U64; break;
-            };
-        } else {
-            ANN_SWITCH_STRICT(p_rhs_type->size) {
-                case 1: tag |= KETL_HIR_I8; break;
-                case 2: tag |= KETL_HIR_I16; break;
-                case 4: tag |= KETL_HIR_I32; break;
-                case 8: tag |= KETL_HIR_I64; break;
-            };
+            if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
+                ANN_SWITCH_STRICT(p_lhs_type->size) {
+                    case 1: tag |= KETL_HIR_CAST_TO_I8; break;
+                    case 2: tag |= KETL_HIR_CAST_TO_I16; break;
+                    case 4: tag |= KETL_HIR_CAST_TO_I32; break;
+                    case 8: tag |= KETL_HIR_CAST_TO_I64; break;
+                };
+            } else {
+                ANN_SWITCH_STRICT(p_lhs_type->size) {
+                    case 1: tag |= KETL_HIR_CAST_TO_U8; break;
+                    case 2: tag |= KETL_HIR_CAST_TO_U16; break;
+                    case 4: tag |= KETL_HIR_CAST_TO_U32; break;
+                    case 8: tag |= KETL_HIR_CAST_TO_U64; break;
+                };
+            }
 
-            ANN_SWITCH_STRICT(p_lhs_type->size) {
-                case 1: tag |= KETL_HIR_CAST_TO_I8; break;
-                case 2: tag |= KETL_HIR_CAST_TO_I16; break;
-                case 4: tag |= KETL_HIR_CAST_TO_I32; break;
-                case 8: tag |= KETL_HIR_CAST_TO_I64; break;
+            if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
+                ANN_SWITCH_STRICT(p_rhs_type->size) {
+                    case 1: tag |= KETL_HIR_I8; break;
+                    case 2: tag |= KETL_HIR_I16; break;
+                    case 4: tag |= KETL_HIR_I32; break;
+                    case 8: tag |= KETL_HIR_I64; break;
+                };
+            } else {
+                ANN_SWITCH_STRICT(p_rhs_type->size) {
+                    case 1: tag |= KETL_HIR_U8; break;
+                    case 2: tag |= KETL_HIR_U16; break;
+                    case 4: tag |= KETL_HIR_U32; break;
+                    case 8: tag |= KETL_HIR_U64; break;
+                };
+            }
+
+            ketl_hir_var_id_t casted_var = push_temp_var_type(p_context, p_rhs_var->expr_info, lhs_type);
+
+            ketl_hir_header_t assign_header = {
+                .tag = tag,
+                .file_symbol = p_context->s_filename,
             };
+            ketl_hir_cast_primitive_t instr = {
+                .dest_var = casted_var,
+                .source_var = rhs_var,
+            };
+            ketl_hir_builder_insert_instr(&p_context->hir_builder, assign_header, (uint8_t*)&instr);
+            
+            return casted_var;
         }
-
-        ketl_hir_var_id_t casted_var = push_temp_var_type(p_context, p_rhs_var->expr_info, p_lhs_var->type);
-
-        ketl_hir_header_t assign_header = {
-            .tag = tag,
-            .file_symbol = p_context->s_filename,
-        };
-        ketl_hir_cast_primitive_t instr = {
-            .dest_var = casted_var,
-            .source_var = rhs_var,
-        };
-        ketl_hir_builder_insert_instr(&p_context->hir_builder, assign_header, (uint8_t*)&instr);
-        
-        return casted_var;
     }
         
     errorf(expr_info.source_offset, expr_info.length, "Incompatible assignment types.");
@@ -257,7 +257,13 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_rhs(ketl_parser_context* p_contex
 }
 
 static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
-    rhs_var = trying_to_cast_rhs_to_rhs(p_context, lhs_var, rhs_var);
+    if (GET_VAR(lhs_var).uid == KETL_HIR_VAR_UID_LITERAL) {
+        ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
+        errorf(expr_info.source_offset, expr_info.length, "Can't assign to an r-value.");
+        return;
+    }
+
+    rhs_var = trying_to_cast_rhs_to_lhs(p_context, GET_VAR(lhs_var).type, GET_VAR(lhs_var).expr_info, rhs_var, false);
     if (rhs_var == (ketl_hir_var_id_t)-1) {
         return;
     }
@@ -554,6 +560,80 @@ static ketl_hir_var_id_t parse_identificator(ketl_parser_context* p_context) {
     return push_literal_id(p_context, CURRENT_TOKEN(1));
 }
 
+static ketl_type* parse_type(ketl_parser_context* p_context) {
+    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    token_advance(p_context);
+    
+    ketl_atomic_string s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
+    ketl_namespace_node* p_node = ketl_namespace_find(p_context->p_namespace, s_id);
+
+    while (p_node != NULL) {
+        switch (CURRENT_TOKEN(0).type) {
+            case KETL_TOKEN_TYPE_SQUARE_LEFT: {
+                ANN_ASSERT(p_node->variable.kind == KETL_VARIABLE_TYPE);
+
+                token_advance(p_context); // '['
+                ketl_type* p_index_type = NULL;
+                if (!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
+                    p_index_type = parse_type(p_context);
+                }
+
+                if (p_index_type != NULL) {
+                    // TODO implement dict
+                    (void)p_index_type;
+                    ANN_ASSERT(false);
+                }
+
+                ANN_ASSERT(!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_LEFT) && "Multi-dimensional arrays are not supported for now");
+
+                return ketl_state_get_array_type(p_context->p_state, p_node->variable.p_pointer);
+
+                //continue;
+            }
+            case KETL_TOKEN_TYPE_DOT: {
+                token_advance(p_context); // '.'
+
+                id_literal = CURRENT_TOKEN(0);
+                token_advance(p_context);
+
+                ANN_SWITCH_STRICT(p_node->variable.kind) {
+                    case KETL_VARIABLE_TYPE: {
+                        ketl_type* p_type = p_node->variable.p_pointer;
+                        ANN_ASSERT(p_type->kind == KETL_TYPE_CLASS);
+                        ketl_namespace* p_namespace = &((ketl_type_class*)p_type)->namespace;
+
+                        s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
+                        p_node = ketl_namespace_find(p_namespace, s_id);
+                        break;
+                    }
+                    case KETL_VARIABLE_NAMESPACE: {
+                        ketl_namespace* p_namespace = p_node->variable.p_pointer;
+
+                        s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
+                        p_node = ketl_namespace_find(p_namespace, s_id);
+                        break;
+                    }
+                }
+
+                continue;
+            }
+        }
+
+        break;
+    }
+
+    ketl_type* p_type = p_node && p_node->variable.kind == KETL_VARIABLE_TYPE ? p_node->variable.p_pointer : NULL;
+
+    if (p_type == NULL) {
+        errorf(id_literal.offset, id_literal.length, "'%.*s' is not a known type.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
+    }
+    return p_type;
+}
+
+static ketl_hir_used_type_index_t parse_type_as_index(ketl_parser_context* p_context) {
+    return  ketl_hir_builder_get_used_type_index(&p_context->hir_builder, parse_type(p_context));
+}
+
 static ketl_hir_var_id_t parse_expression(ketl_parser_context* p_context);
 static ketl_statement_info parse_statement(ketl_parser_context* p_context);
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context); 
@@ -689,32 +769,53 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(p_object->expr_info, token_extract_info(id_literal));
 
-    if (p_object->type != KETL_HIR_USED_TYPE_META) {
-        ANN_ASSERT(false && "Trying to meta access no-type");
+    if (p_object->type == KETL_HIR_USED_TYPE_META) {
+        ketl_namespace_node* p_namespace_node = get_var_info(p_context, p_object->info)->p_global;
+
+        if (p_namespace_node->variable.kind != KETL_VARIABLE_TYPE) {
+            errorf(expr_info.source_offset, expr_info.length, "Namespaces doesn't support meta properties.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        ketl_type* p_type = p_namespace_node->variable.p_pointer;
+        
+        if (ketl_str_is_equal_n("size", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+            uint64_t type_size = ketl_type_get_size(p_type);
+
+            char a_buffer[256];
+            uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
+
+            return push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, a_buffer, length), expr_info,
+                ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u16(p_context->p_state)));
+        }
+
+        errorf(expr_info.source_offset, expr_info.length, "There is no meta property '%.*s' of type.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
         return push_temp_var(p_context, expr_info);
     }
-
-
-    ketl_namespace_node* p_namespace_node = get_var_info(p_context, p_object->info)->p_global;
-
-    if (p_namespace_node->variable.kind != KETL_VARIABLE_TYPE) {
-        ANN_ASSERT(false && "Trying to meta access no-type");
-        return push_temp_var(p_context, expr_info);
-    }
-
-    ketl_type* p_type = p_namespace_node->variable.p_pointer;
     
-    if (ketl_str_is_equal_n("size", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
-        uint64_t type_size = ketl_type_get_size(p_type);
+    ketl_type* p_type = GET_TYPE(p_object->type);
 
-        char a_buffer[256];
-        uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
+    if (ketl_str_is_equal_n("cast", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+        if (p_type->kind != KETL_TYPE_PRIMITIVE) {
+            errorf(expr_info.source_offset, expr_info.length, "Implicit casting supported only by primitive types.");
+            return push_temp_var(p_context, expr_info);
+        }
 
-        return push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, a_buffer, length), expr_info,
-            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u16(p_context->p_state)));
+        token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after 'cast' meta property.");
+        ketl_type* p_cast_to_type = parse_type(p_context);
+        token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after 'cast' meta property parameter.");
+
+        if (p_cast_to_type->kind != KETL_TYPE_PRIMITIVE) {
+            errorf(expr_info.source_offset, expr_info.length, "Implicit casting supported only to primitive types.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        ketl_hir_var_id_t output_var = trying_to_cast_rhs_to_lhs(p_context, 
+            ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_cast_to_type), expr_info, lhs, true);
+        return output_var;
     }
 
-    ANN_ASSERT(false && "There is no meta parameter");
+    errorf(expr_info.source_offset, expr_info.length, "There is no meta property '%.*s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
     return push_temp_var(p_context, expr_info);
 }
 
@@ -1145,6 +1246,35 @@ static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
     return (ketl_statement_info){ .return_info = return_info };
 }
 
+static ketl_statement_info parse_while_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // while
+
+    ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 2);
+    ketl_hir_block_index_t expr_statement = first_block;
+    ketl_hir_block_index_t body_statement = first_block + 1;
+    ketl_hir_block_index_t after_statement = first_block + 2;
+
+    push_hir_jump(p_context, expr_statement);
+    pull_hir_set_block(p_context, expr_statement);
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after if keyword.");
+    ketl_hir_var_id_t expr = parse_expression(p_context);
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after if statement expression.");
+
+    push_hir_if(p_context, expr, body_statement, after_statement);
+
+    pull_hir_set_block(p_context, body_statement);
+    ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
+
+    if (!(body_return_info & KETL_RETURN_ALWAYS)) {
+        push_hir_jump(p_context, expr_statement);
+    }
+    pull_hir_set_block(p_context, after_statement);
+
+    ketl_parse_return_info return_info = body_return_info & KETL_RETURN_UNDEF;
+
+    return (ketl_statement_info){ .return_info = return_info };
+}
+
 static ketl_statement_info parse_return_statement(ketl_parser_context* p_context) {
     token_advance(p_context); // return
     if (token_match(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER)) {
@@ -1161,85 +1291,12 @@ static ketl_statement_info parse_statement(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
         case KETL_TOKEN_TYPE_CURLY_LEFT           : return parse_block_statement     (p_context); break;
         case KETL_TOKEN_TYPE_IF                   : return parse_if_statement        (p_context); break;
+        case KETL_TOKEN_TYPE_WHILE                : return parse_while_statement     (p_context); break;
         case KETL_TOKEN_TYPE_RETURN               : return parse_return_statement    (p_context); break;
         case KETL_TOKEN_TYPE_TERMINATION_CHARACTER:        token_advance             (p_context); 
                                                     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         default                                   : return parse_expression_statement(p_context); break;
     }
-}
-
-static ketl_type* parse_type(ketl_parser_context* p_context) {
-    ketl_token_t id_literal = CURRENT_TOKEN(0);
-    token_advance(p_context);
-    
-    ketl_atomic_string s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
-    ketl_namespace_node* p_node = ketl_namespace_find(p_context->p_namespace, s_id);
-
-    while (p_node != NULL) {
-        switch (CURRENT_TOKEN(0).type) {
-            case KETL_TOKEN_TYPE_SQUARE_LEFT: {
-                ANN_ASSERT(p_node->variable.kind == KETL_VARIABLE_TYPE);
-
-                token_advance(p_context); // '['
-                ketl_type* p_index_type = NULL;
-                if (!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
-                    p_index_type = parse_type(p_context);
-                }
-
-                if (p_index_type != NULL) {
-                    // TODO implement dict
-                    (void)p_index_type;
-                    ANN_ASSERT(false);
-                }
-
-                ANN_ASSERT(!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_LEFT) && "Multi-dimensional arrays are not supported for now");
-
-                return ketl_state_get_array_type(p_context->p_state, p_node->variable.p_pointer);
-
-                //continue;
-            }
-            case KETL_TOKEN_TYPE_DOT: {
-                token_advance(p_context); // '.'
-
-                id_literal = CURRENT_TOKEN(0);
-                token_advance(p_context);
-
-                ANN_SWITCH_STRICT(p_node->variable.kind) {
-                    case KETL_VARIABLE_TYPE: {
-                        ketl_type* p_type = p_node->variable.p_pointer;
-                        ANN_ASSERT(p_type->kind == KETL_TYPE_CLASS);
-                        ketl_namespace* p_namespace = &((ketl_type_class*)p_type)->namespace;
-
-                        s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
-                        p_node = ketl_namespace_find(p_namespace, s_id);
-                        break;
-                    }
-                    case KETL_VARIABLE_NAMESPACE: {
-                        ketl_namespace* p_namespace = p_node->variable.p_pointer;
-
-                        s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
-                        p_node = ketl_namespace_find(p_namespace, s_id);
-                        break;
-                    }
-                }
-
-                continue;
-            }
-        }
-
-        break;
-    }
-
-    ketl_type* p_type = p_node && p_node->variable.kind == KETL_VARIABLE_TYPE ? p_node->variable.p_pointer : NULL;
-
-    if (p_type == NULL) {
-        errorf(id_literal.offset, id_literal.length, "'%.*s' is not a known type.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
-    }
-    return p_type;
-}
-
-static ketl_hir_used_type_index_t parse_type_as_index(ketl_parser_context* p_context) {
-    return  ketl_hir_builder_get_used_type_index(&p_context->hir_builder, parse_type(p_context));
 }
 
 static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context) {

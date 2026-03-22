@@ -3,6 +3,8 @@
 
 #include "ketl_impl.h"
 
+#include "str.h"
+
 #include <stdio.h>
 
 uint8_t ketl_align_map[5] = { 1, 2, 4, 8, 16 };
@@ -30,6 +32,12 @@ size_t ketl_type_get_align(ketl_type* p_type) {
     return ketl_align_map[p_type ? p_type->align_enum : 0];
 }
 
+uint8_t ketl_type_get_stack_align(ketl_type* p_type) {
+    uint8_t size = ketl_type_get_stack_size(p_type);
+    ANN_ASSERT(size <= 8 && 8 == sizeof(void*));
+    return size;
+}
+
 bool ketl_type_is_array(ketl_type* p_type) {
     return p_type->kind == KETL_TYPE_ARRAY;
 }
@@ -41,8 +49,8 @@ ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info
     };
 
     for (uint16_t i = 0u; i < fields_count; ++i) {
-        uint8_t align = (uint8_t)ketl_type_get_align(p_fields[i].info.p_type);
-        uint16_t size = (uint16_t)ketl_type_get_size(p_fields[i].info.p_type);
+        uint8_t align = (uint8_t)ketl_type_get_stack_align(p_fields[i].info.p_type);
+        uint16_t size = (uint16_t)ketl_type_get_stack_size(p_fields[i].info.p_type);
 
         if (align > pair.align) {
             pair.align = align;
@@ -56,34 +64,50 @@ ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info
     return pair;
 }
 
-ketl_type* ketl_type_find_class_field_type(ketl_type* p_type, ketl_atomic_string s_name) {
-    uint16_t fields_count = ((ketl_type_class*)p_type)->fields_count;
-    ketl_symboled_variable_type_info_t* p_fields = ((ketl_type_class*)p_type)->p_fields;
+ketl_type* ketl_type_find_field_type(ketl_type* p_type, ketl_atomic_string s_name, ketl_state* p_state) {
+    if (p_type->kind == KETL_TYPE_CLASS) {
+        uint16_t fields_count = ((ketl_type_class*)p_type)->fields_count;
+        ketl_symboled_variable_type_info_t* p_fields = ((ketl_type_class*)p_type)->p_fields;
 
-    for (uint16_t i = 0u; i < fields_count; ++i) {
-        if (p_fields[i].s_name == s_name) {
-            return p_fields[i].info.p_type;
+        for (uint16_t i = 0u; i < fields_count; ++i) {
+            if (p_fields[i].s_name == s_name) {
+                return p_fields[i].info.p_type;
+            }
+        }
+    } else if (p_type->kind == KETL_TYPE_ARRAY) {
+        const char* p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_name);
+
+        if (ketl_str_is_equal("size", p_name)) {
+            return ketl_state_get_u64(p_state);
         }
     }
 
     return NULL;
 }
 
-uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string s_name) {
-    uint16_t fields_count = ((ketl_type_class*)p_type)->fields_count;
-    ketl_symboled_variable_type_info_t* p_fields = ((ketl_type_class*)p_type)->p_fields;
+uint16_t ketl_type_get_field_offset(ketl_type* p_type, ketl_atomic_string s_name, ketl_state* p_state) {
+    if (p_type->kind == KETL_TYPE_CLASS) {
+        uint16_t fields_count = ((ketl_type_class*)p_type)->fields_count;
+        ketl_symboled_variable_type_info_t* p_fields = ((ketl_type_class*)p_type)->p_fields;
 
-    uint16_t offset = 0;
+        uint16_t offset = 0;
 
-    for (uint16_t i = 0u; i < fields_count; ++i) {
-        if (p_fields[i].s_name == s_name) {
-            return offset;
+        for (uint16_t i = 0u; i < fields_count; ++i) {
+            if (p_fields[i].s_name == s_name) {
+                return offset;
+            }
+
+            uint8_t align = (uint8_t)ketl_type_get_align(p_fields[i].info.p_type);
+            uint16_t size = (uint16_t)ketl_type_get_size(p_fields[i].info.p_type);
+
+            offset = ANN_ALIGN_FORWARD(offset, align) + size;
         }
+    } else if (p_type->kind == KETL_TYPE_ARRAY) {
+        const char* p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_name);
 
-        uint8_t align = (uint8_t)ketl_type_get_align(p_fields[i].info.p_type);
-        uint16_t size = (uint16_t)ketl_type_get_size(p_fields[i].info.p_type);
-
-        offset = ANN_ALIGN_FORWARD(offset, align) + size;
+        if (ketl_str_is_equal("size", p_name)) {
+            return (uint16_t)offsetof(ketl_array, size);
+        }
     }
 
     return 0;

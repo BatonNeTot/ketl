@@ -117,9 +117,9 @@ static void on_instr_inserted(ketl_hir_builder_t* p_hir_builder, ketl_hir_instr_
     if (hir_header.tag == KETL_HIR_RETURN) {
         hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->return_offsets, instr_offset);
     } else if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
-        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_hir_builder->instrs.p_data + instr_offset + sizeof(ketl_hir_header_t));
-        ketl_hir_var_t* p_return_var = &GET_VAR(p_return_info->value_var);
-        ANN_ASSERT(p_return_var->type != KETL_HIR_USED_TYPE_UNKNOWN);
+        //ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(p_hir_builder->instrs.p_data + instr_offset + sizeof(ketl_hir_header_t));
+        //ketl_hir_var_t* p_return_var = &GET_VAR(p_return_info->value_var);
+        //ANN_ASSERT(p_return_var->type != KETL_HIR_USED_TYPE_UNKNOWN);
         hir_builder_return_offsets_t_push_back_copy(&p_hir_builder->return_offsets, instr_offset);
     } else if (hir_header.tag == KETL_HIR_CALL || hir_header.tag == KETL_HIR_CALL_VOID) {
         p_hir_builder->has_calls = true;
@@ -359,7 +359,10 @@ ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_buil
 }
 
 ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id, ketl_hir_expr_info_t expr_info) {
-    ANN_ASSERT(GET_VAR(array_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
+    if (GET_VAR(array_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+    }
+
     ketl_type* p_array_type = GET_TYPE(GET_VAR(array_id).type);
     ANN_ASSERT(p_array_type->kind == KETL_TYPE_ARRAY);
 
@@ -390,12 +393,14 @@ ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_bu
         
         const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
 
-        ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
-        p_field_type = ketl_type_find_class_field_type(p_object_type, s_field_name);
+        if (p_object_type->kind == KETL_TYPE_CLASS || p_object_type->kind == KETL_TYPE_ARRAY) {
+            ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+            p_field_type = ketl_type_find_field_type(p_object_type, s_field_name, p_hir_builder->p_state);
 
-        if (p_field_type == NULL) {
-            ANN_ASSERT(false);
-            // TODO error unknown field
+            if (p_field_type == NULL) {
+                errorf(expr_info.source_offset, expr_info.length, "Unknown field %s.", p_field_name);
+                return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+            }
         }
     }
 
@@ -440,7 +445,7 @@ void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_h
     on_instr_inserted(p_hir_builder, instr_offset, hir_header);
 }
 
-void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op) {
+void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op, ketl_hir_expr_info_t expr_info) {
     if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
         // TODO FIX
         // for now we just hash search exact function, later we should take into acount possible implicit casts
@@ -467,7 +472,8 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
             operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
                 p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
             if (p_operator_bucket == NULL) {
-                ANN_ASSERT(false); // TODO ERROR
+                errorf(expr_info.source_offset, expr_info.length, "Couldn't find proper op overloading.");
+                return;
             }
             
             // TODO FIX

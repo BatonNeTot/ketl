@@ -314,6 +314,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             break;
         }
+        case 'w': {
+            if (ketl_str_is_equal_n("while", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_WHILE, id_length);
+                return true;
+            }
+            break;
+        }
     }
     ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ID, id_length);
     return true;

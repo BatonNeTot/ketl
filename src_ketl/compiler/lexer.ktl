@@ -13,4 +13,32 @@ export class Lexer {
         lexer.tokens = token.Token[4];
         lexer.lines_offsets = u32[4];
     }
+    
+    // TODO those casts getting out of control; need to empower explicit casting
+    // TODO most of those casts - literal casts; need to create special "used_type_index" for numeric literals
+
+    fn get_line_offset(lexer : Lexer, line : u32) -> u32{
+        if (line$cast(u64) >= lexer.lines_offsets.size) {
+            return lexer.length;
+        }
+        return lexer.lines_offsets[line];
+    }
+
+    fn find_line(lexer : Lexer, offset : u32) -> u32{
+        var lhs : u32 = 0$cast(u32);
+        var rhs : u32 = lexer.lines_offsets.size$cast(u32);
+
+        while (lhs + 1$cast(u32) < rhs) {
+            var mid : u32 = (lhs + rhs) / 2$cast(u32);
+            var mid_offset : u32 = lexer.lines_offsets[mid];
+            if (mid_offset < offset) {
+                lhs = mid;
+            } else if (offset < mid_offset) {
+                rhs = mid;
+            } else {
+                return mid;
+            }
+        }
+        return lhs;
+    }
 }

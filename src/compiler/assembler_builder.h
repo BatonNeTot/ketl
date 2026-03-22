@@ -14,11 +14,15 @@ enum {
     KETL_ASM_LABEL,
 
     KETL_ASM_X86_MOV,
+    KETL_ASM_X86_MOVSX,
     KETL_ASM_X86_LEA,
 
     KETL_ASM_X86_ADD,
     KETL_ASM_X86_SUB,
+    KETL_ASM_X86_MUL,
     KETL_ASM_X86_IMUL,
+    KETL_ASM_X86_DIV,
+    KETL_ASM_X86_IDIV,
 
     KETL_ASM_X86_CMP,
     KETL_ASM_X86_TEST,
@@ -51,11 +55,12 @@ enum {
 typedef uint8_t ketl_asm_x86_arg_type_t;
 enum {
     KETL_ASM_X86_EMPTY,
-    KETL_ASM_X86_M,    // ModRM:r/m (r, w)
-    KETL_ASM_X86_RM,   // ModRM:reg (w)       ModRM:r/m (r)
-    KETL_ASM_X86_MR,   // ModRM:r/m (w)       ModRM:reg (r)
-    KETL_ASM_X86_MI,   // ModRM:r/m (r, w)    imm
-    KETL_ASM_X86_JI,   // .imm
+    KETL_ASM_X86_M,         // ModRM:r/m (r, w)
+    KETL_ASM_X86_RM,        // ModRM:reg (w),        ModRM:r/m (r)
+    KETL_ASM_X86_RM_SIZED,  // ModRM:reg (w) sized,  ModRM:r/m (r)
+    KETL_ASM_X86_MR,        // ModRM:r/m (w),        ModRM:reg (r)
+    KETL_ASM_X86_MI,        // ModRM:r/m (r, w),     imm
+    KETL_ASM_X86_JI,        // .imm
 };
 
 typedef uint8_t ketl_asm_x86_reg_t;
@@ -87,6 +92,7 @@ ANN_DEFINE(ketl_asm_x86_modrm_t) {
     ketl_asm_x86_size_t scale_power;
     union {
         int32_t disp;
+        uint8_t size;
         ketl_atomic_string s_literal;
     };
 };

@@ -97,16 +97,20 @@ ANN_DEFINE(ketl_type_size_pair_t) {
     uint16_t size;
 };
 
+ANN_FORWARD(ketl_state);
+
 // align must be power of 2
 uint8_t ketl_align_find(uint8_t align);
 
 uint16_t ketl_type_get_stack_size(ketl_type* p_type);
 
+uint8_t ketl_type_get_stack_align(ketl_type* p_type);
+
 ketl_type_size_pair_t ketl_type_calc_class_size(ketl_symboled_variable_type_info_t* p_fields, uint16_t fields_count);
 
-ketl_type* ketl_type_find_class_field_type(ketl_type* p_type, ketl_atomic_string s_name);
+ketl_type* ketl_type_find_field_type(ketl_type* p_type, ketl_atomic_string s_name, ketl_state* p_state);
 
-uint16_t ketl_type_get_class_field_offset(ketl_type* p_type, ketl_atomic_string s_name);
+uint16_t ketl_type_get_field_offset(ketl_type* p_type, ketl_atomic_string s_name, ketl_state* p_state);
 
 ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_string s_name);
 
