@@ -653,3 +653,49 @@ uint32_t ketl_lexer_find_line(ketl_lexer_t* p_lexer, uint32_t offset) {
     }
     return lhs;
 }
+
+#define ESCAPABLE_CHARACTERS_LIST\
+    X('a', 0x07)\
+    X('b', 0x08)\
+    X('e', 0x1b)\
+    X('f', 0x0c)\
+    X('n', 0x0a)\
+    X('r', 0x0d)\
+    X('t', 0x09)\
+    X('v', 0x0b)\
+    X('\\', 0x5c)\
+    X('\'', 0x27)
+
+bool ketl_lexer_is_character_escapable(char value) {
+    switch(value) {
+        #define X(escapable, escaped) case escapable:
+        ESCAPABLE_CHARACTERS_LIST return true;
+        #undef X
+        default: return false;
+    }
+}
+
+char ketl_lexer_resolve_escape_character(char value) {
+    ANN_SWITCH_STRICT(value) {
+        #define X(escapable, escaped) case escapable: return escaped;
+        ESCAPABLE_CHARACTERS_LIST
+        #undef X
+    }
+}
+
+char ketl_lexer_get_escape_character(char value) {
+    ANN_SWITCH_STRICT(value) {
+        #define X(escapable, escaped) case escaped: return escapable;
+        ESCAPABLE_CHARACTERS_LIST
+        #undef X
+    }
+}
+
+bool ketl_lexer_is_character_escaped(char value) {
+    switch(value) {
+        #define X(escapable, escaped) case escaped: return true;
+        ESCAPABLE_CHARACTERS_LIST
+        #undef X
+        default: return false;
+    }
+}

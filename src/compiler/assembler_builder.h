@@ -14,8 +14,14 @@ enum {
     KETL_ASM_LABEL,
 
     KETL_ASM_X86_MOV,
-    KETL_ASM_X86_MOVSX,
     KETL_ASM_X86_LEA,
+
+    KETL_ASM_X86_MOVSX8,
+    KETL_ASM_X86_MOVSX16,
+    KETL_ASM_X86_MOVSX32,
+
+    KETL_ASM_X86_MOVZX8,
+    KETL_ASM_X86_MOVZX16,
 
     KETL_ASM_X86_ADD,
     KETL_ASM_X86_SUB,
@@ -57,9 +63,9 @@ enum {
     KETL_ASM_X86_EMPTY,
     KETL_ASM_X86_M,         // ModRM:r/m (r, w)
     KETL_ASM_X86_RM,        // ModRM:reg (w),        ModRM:r/m (r)
-    KETL_ASM_X86_RM_SIZED,  // ModRM:reg (w) sized,  ModRM:r/m (r)
     KETL_ASM_X86_MR,        // ModRM:r/m (w),        ModRM:reg (r)
     KETL_ASM_X86_MI,        // ModRM:r/m (r, w),     imm
+    KETL_ASM_X86_MI_CHAR,   // ModRM:r/m (r, w),     char
     KETL_ASM_X86_JI,        // .imm
 };
 
@@ -92,7 +98,6 @@ ANN_DEFINE(ketl_asm_x86_modrm_t) {
     ketl_asm_x86_size_t scale_power;
     union {
         int32_t disp;
-        uint8_t size;
         ketl_atomic_string s_literal;
     };
 };

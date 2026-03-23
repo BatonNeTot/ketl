@@ -25,7 +25,7 @@ uint16_t ketl_type_get_stack_size(ketl_type* p_type) {
     if (p_type == NULL) {
         return 0;
     }
-    return p_type->kind == KETL_TYPE_PRIMITIVE ? p_type->size : sizeof(void*);
+    return p_type->kind == KETL_TYPE_PRIMITIVE || p_type->kind == KETL_TYPE_ENUM ? p_type->size : sizeof(void*);
 }
 
 size_t ketl_type_get_align(ketl_type* p_type) {

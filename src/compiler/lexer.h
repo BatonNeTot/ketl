@@ -35,4 +35,12 @@ uint32_t ketl_lexer_get_line_offset(ketl_lexer_t* p_lexer, uint32_t line);
 
 uint32_t ketl_lexer_find_line(ketl_lexer_t* p_lexer, uint32_t offset);
 
+bool ketl_lexer_is_character_escapable(char value);
+
+char ketl_lexer_resolve_escape_character(char value);
+
+char ketl_lexer_get_escape_character(char value);
+
+bool ketl_lexer_is_character_escaped(char value);
+
 #endif // ketl_compiler_lexer_h

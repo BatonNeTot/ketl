@@ -38,4 +38,23 @@ export class Lexer {
         }
         return lhs;
     }
+    
+    fn is_space(symbol : char) -> bool {
+        return symbol == ' ' || (symbol >= '\t' && symbol <= '\r');
+    }
+
+    fn is_numeric(symbol : char) -> bool {
+        return symbol >= '0' && symbol <= '9';
+    }
+
+    fn is_alpha(symbol : char) -> bool {
+        return (symbol >= 'a' && symbol <= 'z') || (symbol >= 'A' && symbol <= 'Z');
+    }
+
+    // TODO array append
+    /*
+    fn increment_line(lexer : Lexer) {
+        lexer.lines ..= lexer.offset;
+    }
+    */
 }

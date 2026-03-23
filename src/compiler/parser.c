@@ -168,7 +168,7 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
 }
 
 // returns rhs after casting if happened
-// else returns -1
+// else returns temp
 static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_context, ketl_hir_used_type_index_t lhs_type, ketl_hir_expr_info_t lhs_info, ketl_hir_var_id_t rhs_var, bool implicit) {
     ketl_hir_var_t* p_rhs_var = &GET_VAR(rhs_var);
 
@@ -216,6 +216,33 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     return push_temp_var(p_context, expr_info);
 }
 
+static ketl_hir_tag_t get_type_tag_from_type(ketl_type* p_type) {
+    ANN_ASSERT(p_type);
+    ANN_ASSERT(p_type->kind != KETL_TYPE_ENUM);
+    
+    if(p_type->kind == KETL_TYPE_PRIMITIVE) {
+        ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;
+        if (p_primitive_type->is_signed) {
+            ANN_SWITCH_STRICT (p_primitive_type->size) {
+                case 1: return KETL_HIR_I8;
+                case 2: return KETL_HIR_I16;
+                case 4: return KETL_HIR_I32;
+                case 8: return KETL_HIR_I64;
+            }
+        } else {
+            ANN_SWITCH_STRICT (p_primitive_type->size) {
+                case 1: return KETL_HIR_U8;
+                case 2: return KETL_HIR_U16;
+                case 4: return KETL_HIR_U32;
+                case 8: return KETL_HIR_U64;
+            }
+        }
+    }
+
+    ANN_ASSERT(sizeof(void*) == 8);
+    return KETL_HIR_U64;
+}
+
 static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     if (GET_VAR(lhs_var).uid == KETL_HIR_VAR_UID_LITERAL) {
         ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
@@ -224,13 +251,12 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id
     }
 
     rhs_var = trying_to_cast_rhs_to_lhs(p_context, GET_VAR(lhs_var).type, GET_VAR(lhs_var).expr_info, rhs_var, false);
-    if (rhs_var == (ketl_hir_var_id_t)-1) {
+    if (GET_VAR(rhs_var).type == KETL_HIR_USED_TYPE_UNKNOWN) {
         return;
     }
 
     ketl_hir_header_t assign_header = {
-        // TODO fix size
-        .tag = KETL_HIR_ASSIGN | KETL_HIR_I64,
+        .tag = KETL_HIR_ASSIGN | get_type_tag_from_type(GET_TYPE(GET_VAR(lhs_var).type)),
         .file_symbol = p_context->s_filename,
     };
     ketl_hir_assign_t instr = {
@@ -267,8 +293,7 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hi
 
 static void push_hir_return_value(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
     ketl_hir_header_t header = {
-        // TODO fix size
-        .tag = KETL_HIR_RETURN_VALUE | KETL_HIR_I64,
+        .tag = KETL_HIR_RETURN_VALUE | get_type_tag_from_type(GET_TYPE(GET_VAR(var_id).type)),
         .file_symbol = p_context->s_filename,
     };
     ketl_hir_return_value_t instr = {
@@ -518,6 +543,13 @@ static ketl_hir_var_id_t parse_null(ketl_parser_context* p_context) {
 
 static ketl_hir_var_id_t parse_number(ketl_parser_context* p_context) {
     return push_literal_number(p_context, CURRENT_TOKEN(1));
+}
+
+static ketl_hir_var_id_t parse_char(ketl_parser_context* p_context) {
+    ketl_token_t literal = CURRENT_TOKEN(1);
+    ketl_type* p_type = ketl_state_get_char_type(p_context->p_state);
+    ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
+    return push_literal_number_symbol_of_type(p_context, push_symbol(p_context, literal), token_extract_info(literal), type);
 }
 
 static ketl_hir_var_id_t parse_identificator(ketl_parser_context* p_context) {
@@ -923,7 +955,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_LITERAL_NULL]               = { parse_null,          NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { parse_number,        NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { parse_char,          NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { parse_grouping,      parse_call,            NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CURLY_LEFT]                 = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},

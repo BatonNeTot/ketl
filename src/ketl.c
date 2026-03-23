@@ -4,6 +4,7 @@
 #include "compiler/parser.h"
 #include "compiler/assembler.h"
 #include "compiler/assembler_builder.h"
+#include "compiler/assembler/x86.h"
 
 #include "executable_memory.h"
 #include "dynamic_library.h"
@@ -208,6 +209,8 @@ do {\
     REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL, _arg_type, p_bool, _hir_type);\
 } while (false)
 
+    REGISTER_PRIMITIVE_BINARY_OPERATORS(p_char,  KETL_HIR_I8);
+
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i8,  KETL_HIR_I8);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i16, KETL_HIR_I16);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_i32, KETL_HIR_I32);
@@ -277,6 +280,10 @@ ketl_free(p_state->p_allocator, p_type_node->variable.p_pointer);\
 // TODO FIX might be called often, replace allocation on heap with field in ketl_state
 ketl_type* ketl_state_get_none_type(ketl_state* p_state) {
     return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("none"));
+}
+
+ketl_type* ketl_state_get_char_type(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("char"));
 }
 
 ketl_type* ketl_state_get_raw_type(ketl_state* p_state) {
@@ -943,6 +950,8 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
     ///////////////////////////////
 
+    char a_size_name_buffer[16];
+
     if (namespace_has_vars(&p_module->namespace)) {
         printf("    .bss                    # -- Zero-initialized Variables\n");
     }
@@ -958,13 +967,14 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
         printf("    .globl    %s                    # @%s\n", p_variable_name, p_variable_name);
         printf("    .p2align  %d, 0x0\n", p_node->variable.p_type->align_enum);
         printf("%s:\n", p_variable_name);
-        printf("    .%dbyte   0\n", ketl_type_get_stack_size(p_node->variable.p_type));
+        ketl_asm_x86_format_directive_size(ketl_type_get_stack_size(p_node->variable.p_type), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   0\n", a_size_name_buffer);
     }
 
     ///////////////////////////////
 
     if (namespace_has_classes(&p_module->namespace)) {
-        printf("    .rdata                    # -- Read-only Variables\n");
+        printf("    .section   rdata,\"dr\"                    # -- Read-only Variables\n");
     }
 
     for (uint32_t i = 0; i < p_module->namespace.v_nodes.size; ++i) {
@@ -981,13 +991,19 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
         ketl_type_class* p_class_type = p_node->variable.p_pointer;
 
-        printf("    .%"PRIuPTR"byte   %d    # kind\n", sizeof(p_class_type->kind), p_class_type->kind);
-        printf("    .%"PRIuPTR"byte   %d    # align_enum\n", sizeof(p_class_type->align_enum), p_class_type->align_enum);
-        printf("    .%"PRIuPTR"byte   %d    # size\n", sizeof(p_class_type->size), p_class_type->size);
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->kind), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # kind\n", a_size_name_buffer, p_class_type->kind);
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->align_enum), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # align_enum\n", a_size_name_buffer, p_class_type->align_enum);
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->size), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # size\n", a_size_name_buffer, p_class_type->size);
 
-        printf("    .%"PRIuPTR"byte   %d    # s_name, TODO\n", sizeof(p_class_type->s_name), 0); // TODO
-        printf("    .%"PRIuPTR"byte   %d    # fields_count\n", sizeof(p_class_type->fields_count), p_class_type->fields_count);
-        printf("    .%"PRIuPTR"byte   %d    # p_fields, TODO\n", sizeof(p_class_type->p_fields), 0); // TODO
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->s_name), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # s_name, TODO\n", a_size_name_buffer, 0); // TODO
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->fields_count), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # fields_count\n", a_size_name_buffer, p_class_type->fields_count);
+        ketl_asm_x86_format_directive_size(sizeof(p_class_type->p_fields), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   %d    # p_fields, TODO\n", a_size_name_buffer, 0); // TODO
         // TODO add namespace?
     }
 

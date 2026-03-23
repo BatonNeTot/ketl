@@ -37,4 +37,6 @@ ANN_DEFINE(SIBByte) {
 #define SIB_SCALE_4 0x02 // 0b10
 #define SIB_SCALE_8 0x03 // 0b11
 
+uint32_t ketl_asm_x86_format_directive_size(uint8_t size, char* p_buffer, uint32_t buffer_size);
+
 #endif
