@@ -808,7 +808,7 @@ static push_mov_arg arg_from_hir_var_id(ketl_hir_var_id_t var_id, ketl_asm_x86_b
         .var_id = var_id,
         .p_var_info = p_var_info,
         .p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, var.literal),
-        .p_type = var.type != KETL_HIR_USED_TYPE_META ? p_builder->p_hir->p_used_types[var.type] : NULL,
+        .p_type = var.type != KETL_HIR_USED_TYPE_META && var.type != KETL_HIR_USED_TYPE_LITERAL ? p_builder->p_hir->p_used_types[var.type] : NULL,
     };
 }
 

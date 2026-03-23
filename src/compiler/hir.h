@@ -224,7 +224,8 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_UID_INDEX ((ketl_hir_var_uid_t)-5)
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
-#define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-2)
+#define KETL_HIR_USED_TYPE_LITERAL ((ketl_hir_used_type_index_t)-2)
+#define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-3)
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 
