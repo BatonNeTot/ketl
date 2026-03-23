@@ -204,55 +204,10 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     // trying to primitive cast
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
         ((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric) {
-        ketl_hir_tag_t tag = KETL_HIR_UNDEF;
-
+            
         if (implicit || (p_lhs_type->size >= p_rhs_type->size && 
             ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed)) {
-
-            if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
-                ANN_SWITCH_STRICT(p_lhs_type->size) {
-                    case 1: tag |= KETL_HIR_CAST_TO_I8; break;
-                    case 2: tag |= KETL_HIR_CAST_TO_I16; break;
-                    case 4: tag |= KETL_HIR_CAST_TO_I32; break;
-                    case 8: tag |= KETL_HIR_CAST_TO_I64; break;
-                };
-            } else {
-                ANN_SWITCH_STRICT(p_lhs_type->size) {
-                    case 1: tag |= KETL_HIR_CAST_TO_U8; break;
-                    case 2: tag |= KETL_HIR_CAST_TO_U16; break;
-                    case 4: tag |= KETL_HIR_CAST_TO_U32; break;
-                    case 8: tag |= KETL_HIR_CAST_TO_U64; break;
-                };
-            }
-
-            if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
-                ANN_SWITCH_STRICT(p_rhs_type->size) {
-                    case 1: tag |= KETL_HIR_I8; break;
-                    case 2: tag |= KETL_HIR_I16; break;
-                    case 4: tag |= KETL_HIR_I32; break;
-                    case 8: tag |= KETL_HIR_I64; break;
-                };
-            } else {
-                ANN_SWITCH_STRICT(p_rhs_type->size) {
-                    case 1: tag |= KETL_HIR_U8; break;
-                    case 2: tag |= KETL_HIR_U16; break;
-                    case 4: tag |= KETL_HIR_U32; break;
-                    case 8: tag |= KETL_HIR_U64; break;
-                };
-            }
-
-            ketl_hir_var_id_t casted_var = push_temp_var_type(p_context, p_rhs_var->expr_info, lhs_type);
-
-            ketl_hir_header_t assign_header = {
-                .tag = tag,
-                .file_symbol = p_context->s_filename,
-            };
-            ketl_hir_cast_primitive_t instr = {
-                .dest_var = casted_var,
-                .source_var = rhs_var,
-            };
-            ketl_hir_builder_insert_instr(&p_context->hir_builder, assign_header, (uint8_t*)&instr);
-            
+            ketl_hir_var_id_t casted_var = ketl_hir_builder_cast_primitive(&p_context->hir_builder, rhs_var, lhs_type);
             return casted_var;
         }
     }

@@ -10,14 +10,12 @@ export class Lexer {
     var token_iterator : token.Token.Iterator;
     
     fn init(lexer : Lexer) {
-        lexer.tokens = token.Token[4];
-        lexer.lines_offsets = u32[4];
+        lexer.tokens = token.Token[0];
+        lexer.lines_offsets = u32[0];
     }
-    
-    // TODO those casts getting out of control; need to empower explicit casting
 
     fn get_line_offset(lexer : Lexer, line : u32) -> u32{
-        if (line$cast(u64) >= lexer.lines_offsets.size) {
+        if (line >= lexer.lines_offsets.size) {
             return lexer.length;
         }
         return lexer.lines_offsets[line];
