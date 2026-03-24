@@ -51,10 +51,7 @@ export class Lexer {
         return (symbol >= 'a' && symbol <= 'z') || (symbol >= 'A' && symbol <= 'Z');
     }
 
-    // TODO array append
-    /*
     fn increment_line(lexer : Lexer) {
-        lexer.lines ..= lexer.offset;
+        lexer.lines_offsets ..= lexer.offset;
     }
-    */
 }

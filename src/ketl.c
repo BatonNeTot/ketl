@@ -178,9 +178,9 @@ ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl
     CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false, true);
     CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false, true);
 
-#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
+#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _lhs_arg_type, _rhs_arg_type, _return_type, _hir_type)\
 do {\
-    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type}, {.p_type = _arg_type} };\
+    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _lhs_arg_type}, {.p_type = _rhs_arg_type} };\
     ketl_function_parameters parameters = {\
         .p_parameters = parameters_array,\
         .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)\
@@ -193,20 +193,23 @@ do {\
         ((_hir_tag_op - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
 } while (false)
 
+#define REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(_hir_tag_op, _arg_type, _return_type, _hir_type)\
+    REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _arg_type, _return_type, _hir_type)
+
 #define REGISTER_PRIMITIVE_BINARY_OPERATORS(_arg_type, _hir_type)\
 do {\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,             _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,            _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MULTY,            _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_DIV,              _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MOD,              _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_PLUS,             _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MINUS,            _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MULTY,            _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_DIV,              _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MOD,              _arg_type, _arg_type, _hir_type);\
 \
-    REGISTER_BINARY_OPERATOR(KETL_HIR_EQUAL,            _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_NOT_EQUAL,        _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS,             _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_LESS_OR_EQUAL,    _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER,          _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR(KETL_HIR_GREATER_OR_EQUAL, _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,            _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL,        _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS,             _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS_OR_EQUAL,    _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER,          _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER_OR_EQUAL, _arg_type, p_bool, _hir_type);\
 } while (false)
 
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_char,  KETL_HIR_I8);
@@ -220,6 +223,14 @@ do {\
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u16, KETL_HIR_U16);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u32, KETL_HIR_U32);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u64, KETL_HIR_U64);
+
+    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,   p_raw, p_u64, p_raw, KETL_HIR_U64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,   p_u64, p_raw, p_raw, KETL_HIR_U64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,  p_raw, p_u64, p_raw, KETL_HIR_U64);
+    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,  p_u64, p_raw, p_raw, KETL_HIR_U64);
+
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,     p_raw, p_bool, KETL_HIR_U64);
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL, p_raw, p_bool, KETL_HIR_U64);
 
     {
         ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("str"));
@@ -477,7 +488,7 @@ void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ke
     uint32_t error_stream_mark = p_state->error_stream.size;
     
     ketl_hir_t hir;
-    ketl_parser_build_hir(p_state, &hir, p_lexer, end_pos, p_namespace, p_parameters, parameter_count, is_global_scope, p_state->p_allocator);
+    ketl_parser_build_hir(p_state, &hir, p_lexer, end_pos, p_namespace, p_parameters, parameter_count, NULL, is_global_scope, p_state->p_allocator);
     if (p_state->error_stream.size > error_stream_mark) {
         if (p_output_variable != NULL) {
             ketl_variable_set_type(p_output_variable, ketl_state_get_none_type(p_state));
@@ -804,7 +815,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
     {
 
         ketl_hir_t hir;
-        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, NULL, 0, true, p_state->p_allocator);
+        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, NULL, 0, NULL, true, p_state->p_allocator);
 
 
         if (p_state->error_stream.size > error_stream_mark) {
@@ -887,9 +898,11 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
         uint32_t error_stream_mark = p_state->error_stream.size;
 
         //////////////////////////////////
+
+        ketl_type* p_return_type = ((ketl_type_function*)p_compile_function_declaration->p_namespace_node->variable.p_type)->p_type_signature->a_parameters[0].p_type;
     
         ketl_hir_t hir;
-        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, &local_namespace, p_function_parameters_named, parameters_count, false, p_state->p_allocator);
+        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, &local_namespace, p_function_parameters_named, parameters_count, p_return_type, false, p_state->p_allocator);
         
         if (p_state->error_stream.size > error_stream_mark) {
             fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);
@@ -928,7 +941,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             printf("    .p2align	4\n");
             printf("%s:\n", p_func_name);
 
-            char arr_buffer[4096];
+            char arr_buffer[16384];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
         }

@@ -40,11 +40,12 @@ static ketl_hir_var_info_t* get_var_info(ketl_hir_builder_t* p_hir_builder, ketl
     return var_info_index != KETL_HIR_VAR_INFO_TEMP ? &p_hir_builder->vars_infos.p_data[var_info_index] : NULL;
 } 
 
-void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator) {
+void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_type* p_return_type, const ketl_allocator* p_allocator) {
     *p_hir_builder = (ketl_hir_builder_t){0};
     p_hir_builder->p_allocator = p_allocator;
     p_hir_builder->p_state = p_state;
     p_hir_builder->p_lexer = p_lexer;
+    p_hir_builder->p_return_type = p_return_type;
     
     hir_builder_instrs_t_init(&p_hir_builder->instrs, 16, p_allocator);
     hir_builder_vars_t_init(&p_hir_builder->vars, 16, p_allocator);
@@ -67,18 +68,23 @@ void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_stat
 }
 
 void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir) {
-    ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
-    ketl_hir_header_t* p_return = (ketl_hir_header_t*)(p_hir_builder->instrs.p_data + p_hir_builder->return_offsets.p_data[0]);
-    
-    if (p_return->tag == KETL_HIR_RETURN) {
-        ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
-        p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
-    } else if ((p_return->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
-        ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(((uint8_t*)p_return) + sizeof(ketl_hir_header_t));
-        ketl_hir_var_t* p_return_var = &GET_VAR(p_return_info->value_var);
-        p_hir->return_type = p_return_var->type;
+    if (p_hir_builder->p_return_type == NULL) {
+        ANN_ASSERT(p_hir_builder->return_offsets.size > 0);
+        // TODO deduce return type instead of getting just first
+        ketl_hir_header_t* p_return = (ketl_hir_header_t*)(p_hir_builder->instrs.p_data + p_hir_builder->return_offsets.p_data[0]);
+        
+        if (p_return->tag == KETL_HIR_RETURN) {
+            ketl_type* p_none_type = ketl_state_get_none_type(p_hir_builder->p_state);
+            p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_none_type);
+        } else if ((p_return->tag & KETL_HIR_TYPE_INSTR_MASK) == KETL_HIR_RETURN_VALUE) {
+            ketl_hir_return_value_t* p_return_info = (ketl_hir_return_value_t*)(((uint8_t*)p_return) + sizeof(ketl_hir_header_t));
+            ketl_hir_var_t* p_return_var = &GET_VAR(p_return_info->value_var);
+            p_hir->return_type = p_return_var->type;
+        } else {
+            ANN_ASSERT(false);
+        }
     } else {
-        ANN_ASSERT(false);
+        p_hir->return_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_hir_builder->p_return_type);
     }
     
     ////////////
@@ -459,50 +465,63 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
         }
 
         // if any var is undefined, the op is undefined
-        if (p_lhs_var->type != KETL_HIR_USED_TYPE_UNKNOWN &&
-            p_rhs_var->type != KETL_HIR_USED_TYPE_UNKNOWN) {
-
-            // first type is return type, ignored during search
-            ketl_variable_type_info_t a_parameters_array[] = { {.p_type = NULL}, 
-                {.p_type = GET_TYPE(p_lhs_var->type)}, 
-                {.p_type = GET_TYPE(p_rhs_var->type)} };
-            ketl_function_parameters parameters = {
-                .p_parameters = a_parameters_array,
-                .parameters_count = ANN_ARRAY_SIZE(a_parameters_array),
-            };
-
-            for (size_t i = 0; i < ANN_ARRAY_SIZE(a_parameters_array); ++i) {
-                if (a_parameters_array[i].p_type && a_parameters_array[i].p_type->kind == KETL_TYPE_ENUM) {
-                    a_parameters_array[i].p_type = (ketl_type*)((ketl_type_enum*)a_parameters_array[i].p_type)->p_parent_primitive;
-                }
-            }
-
-            if (a_parameters_array[1].p_type->kind == KETL_TYPE_PRIMITIVE && a_parameters_array[2].p_type->kind == KETL_TYPE_PRIMITIVE) {
-                ketl_type_primitive* p_lhs_type = (ketl_type_primitive*)a_parameters_array[1].p_type;
-                ketl_type_primitive* p_rhs_type = (ketl_type_primitive*)a_parameters_array[2].p_type;
-                if (p_lhs_type->is_numeric && p_rhs_type->is_numeric && p_lhs_type->is_signed == p_rhs_type->is_signed) {
-                    if (p_lhs_type->size < p_rhs_type->size) {
-                        p_binary_op->lhs_var = ketl_hir_builder_cast_primitive(p_hir_builder, p_binary_op->lhs_var, p_rhs_var->type);
-                        a_parameters_array[1].p_type = a_parameters_array[2].p_type;
-                    } else if (p_rhs_type->size < p_lhs_type->size) {
-                        p_binary_op->rhs_var = ketl_hir_builder_cast_primitive(p_hir_builder, p_binary_op->rhs_var, p_lhs_var->type);
-                        a_parameters_array[2].p_type = a_parameters_array[1].p_type;
-                    }
-                }
-            }
-
-            operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
-                p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
-            if (p_operator_bucket == NULL) {
-                errorf(expr_info.source_offset, expr_info.length, "Couldn't find proper op overloading.");
-                return;
-            }
-            
-            // TODO FIX
-            // check if return argument already has defined type and do casting if necessary
-            GET_VAR(p_binary_op->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_operator_bucket->key.p_parameters[0].p_type);
-            hir_header.tag = p_operator_bucket->value;
+        if (p_lhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN ||
+            p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            return;
         }
+
+        // first type is return type, ignored during search
+        ketl_variable_type_info_t a_parameters_array[] = { {.p_type = NULL}, 
+            {.p_type = GET_TYPE(p_lhs_var->type)}, 
+            {.p_type = GET_TYPE(p_rhs_var->type)} };
+        ketl_function_parameters parameters = {
+            .p_parameters = a_parameters_array,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters_array),
+        };
+
+        for (size_t i = 0; i < ANN_ARRAY_SIZE(a_parameters_array); ++i) {
+            if (a_parameters_array[i].p_type && a_parameters_array[i].p_type->kind == KETL_TYPE_ENUM) {
+                a_parameters_array[i].p_type = (ketl_type*)((ketl_type_enum*)a_parameters_array[i].p_type)->p_parent_primitive;
+            }
+        }
+
+        if (a_parameters_array[1].p_type->kind == KETL_TYPE_PRIMITIVE && a_parameters_array[2].p_type->kind == KETL_TYPE_PRIMITIVE) {
+            ketl_type_primitive* p_lhs_type = (ketl_type_primitive*)a_parameters_array[1].p_type;
+            ketl_type_primitive* p_rhs_type = (ketl_type_primitive*)a_parameters_array[2].p_type;
+            if (p_lhs_type->is_numeric && p_rhs_type->is_numeric && p_lhs_type->is_signed == p_rhs_type->is_signed) {
+                if (p_lhs_type->size < p_rhs_type->size) {
+                    p_binary_op->lhs_var = ketl_hir_builder_cast_primitive(p_hir_builder, p_binary_op->lhs_var, p_rhs_var->type);
+                    a_parameters_array[1].p_type = a_parameters_array[2].p_type;
+                } else if (p_rhs_type->size < p_lhs_type->size) {
+                    p_binary_op->rhs_var = ketl_hir_builder_cast_primitive(p_hir_builder, p_binary_op->rhs_var, p_lhs_var->type);
+                    a_parameters_array[2].p_type = a_parameters_array[1].p_type;
+                }
+            }
+        }
+
+        if (ketl_type_is_pointer_type(a_parameters_array[1].p_type) && ketl_type_is_raw_type(a_parameters_array[2].p_type)) {
+            a_parameters_array[1].p_type = a_parameters_array[2].p_type;
+        } else if (ketl_type_is_pointer_type(a_parameters_array[2].p_type) && ketl_type_is_raw_type(a_parameters_array[1].p_type)) {
+            a_parameters_array[1].p_type = a_parameters_array[2].p_type;
+        }
+
+        if (a_parameters_array[1].p_type->kind == KETL_TYPE_CLASS && a_parameters_array[1].p_type == a_parameters_array[2].p_type) {
+            ketl_type* p_raw_type = ketl_state_get_raw_type(p_hir_builder->p_state);
+            a_parameters_array[1].p_type = p_raw_type;
+            a_parameters_array[2].p_type = p_raw_type;
+        }
+
+        operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
+            p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
+        if (p_operator_bucket == NULL) {
+            errorf(expr_info.source_offset, expr_info.length, "Couldn't find proper op overloading.");
+            return;
+        }
+        
+        // TODO FIX
+        // check if return argument already has defined type and do casting if necessary
+        GET_VAR(p_binary_op->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_operator_bucket->key.p_parameters[0].p_type);
+        hir_header.tag = p_operator_bucket->value;
     }
 
     ketl_hir_builder_insert_instr(p_hir_builder, hir_header, (uint8_t*)p_binary_op);
@@ -605,42 +624,48 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
     ketl_type* p_lhs_type = GET_TYPE(target_type); 
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(var).type); 
 
-    ANN_ASSERT(p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE);
-    ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric);
-    ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed);
 
     ketl_hir_tag_t tag = KETL_HIR_UNDEF;
 
-    if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
-        ANN_SWITCH_STRICT(p_lhs_type->size) {
-            case 1: tag |= KETL_HIR_CAST_TO_I8; break;
-            case 2: tag |= KETL_HIR_CAST_TO_I16; break;
-            case 4: tag |= KETL_HIR_CAST_TO_I32; break;
-            case 8: tag |= KETL_HIR_CAST_TO_I64; break;
-        };
-    } else {
-        ANN_SWITCH_STRICT(p_lhs_type->size) {
-            case 1: tag |= KETL_HIR_CAST_TO_U8; break;
-            case 2: tag |= KETL_HIR_CAST_TO_U16; break;
-            case 4: tag |= KETL_HIR_CAST_TO_U32; break;
-            case 8: tag |= KETL_HIR_CAST_TO_U64; break;
-        };
-    }
+    if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) {
+        ANN_ASSERT(p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE);
+        ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric);
+        ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed);
 
-    if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
-        ANN_SWITCH_STRICT(p_rhs_type->size) {
-            case 1: tag |= KETL_HIR_I8; break;
-            case 2: tag |= KETL_HIR_I16; break;
-            case 4: tag |= KETL_HIR_I32; break;
-            case 8: tag |= KETL_HIR_I64; break;
-        };
-    } else {
-        ANN_SWITCH_STRICT(p_rhs_type->size) {
-            case 1: tag |= KETL_HIR_U8; break;
-            case 2: tag |= KETL_HIR_U16; break;
-            case 4: tag |= KETL_HIR_U32; break;
-            case 8: tag |= KETL_HIR_U64; break;
-        };
+        if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
+            ANN_SWITCH_STRICT(p_lhs_type->size) {
+                case 1: tag |= KETL_HIR_CAST_TO_I8; break;
+                case 2: tag |= KETL_HIR_CAST_TO_I16; break;
+                case 4: tag |= KETL_HIR_CAST_TO_I32; break;
+                case 8: tag |= KETL_HIR_CAST_TO_I64; break;
+            };
+        } else {
+            ANN_SWITCH_STRICT(p_lhs_type->size) {
+                case 1: tag |= KETL_HIR_CAST_TO_U8; break;
+                case 2: tag |= KETL_HIR_CAST_TO_U16; break;
+                case 4: tag |= KETL_HIR_CAST_TO_U32; break;
+                case 8: tag |= KETL_HIR_CAST_TO_U64; break;
+            };
+        }
+
+        if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
+            ANN_SWITCH_STRICT(p_rhs_type->size) {
+                case 1: tag |= KETL_HIR_I8; break;
+                case 2: tag |= KETL_HIR_I16; break;
+                case 4: tag |= KETL_HIR_I32; break;
+                case 8: tag |= KETL_HIR_I64; break;
+            };
+        } else {
+            ANN_SWITCH_STRICT(p_rhs_type->size) {
+                case 1: tag |= KETL_HIR_U8; break;
+                case 2: tag |= KETL_HIR_U16; break;
+                case 4: tag |= KETL_HIR_U32; break;
+                case 8: tag |= KETL_HIR_U64; break;
+            };
+        }
+    } else if ((ketl_type_is_raw_type(p_rhs_type) && ketl_type_is_pointer_type(p_lhs_type)) || 
+                (ketl_type_is_raw_type(p_lhs_type) && ketl_type_is_pointer_type(p_rhs_type))) {
+        tag = KETL_HIR_CAST_TO_U64 | KETL_HIR_U64;
     }
 
     ketl_hir_var_id_t casted_var =  ketl_hir_builder_create_temp_var(p_hir_builder, GET_VAR(var).expr_info, target_type);

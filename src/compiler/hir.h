@@ -41,6 +41,7 @@ enum {
 
     KETL_HIR_NEW,
     KETL_HIR_CREATE_ARRAY,
+    KETL_HIR_APPEND_VALUE,
 
     KETL_HIR_JUMP,
 
@@ -182,6 +183,11 @@ ANN_DEFINE(ketl_hir_create_array_t) {
     ketl_hir_var_id_t count_var_id;
 };
 
+ANN_DEFINE(ketl_hir_append_value_t) {
+    ketl_hir_var_id_t array_var;
+    ketl_hir_var_id_t append_var;
+};
+
 ANN_DEFINE(ketl_hir_cast_primitive_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
@@ -222,10 +228,15 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-3)
 #define KETL_HIR_VAR_UID_PARAMETER ((ketl_hir_var_uid_t)-4)
 #define KETL_HIR_VAR_UID_INDEX ((ketl_hir_var_uid_t)-5)
+#define KETL_HIR_VAR_UID_LAST KETL_HIR_VAR_UID_INDEX
+
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
+
 #define KETL_HIR_USED_TYPE_UNKNOWN ((ketl_hir_used_type_index_t)-1)
 #define KETL_HIR_USED_TYPE_LITERAL ((ketl_hir_used_type_index_t)-2)
 #define KETL_HIR_USED_TYPE_META ((ketl_hir_used_type_index_t)-3)
+#define KETL_HIR_USED_TYPE_LAST KETL_HIR_USED_TYPE_META
+
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 

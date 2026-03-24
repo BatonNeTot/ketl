@@ -39,6 +39,10 @@ void* ketl_gc_create(ketl_gc* p_gc, ketl_type* p_type, uint8_t flags);
 
 void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t count, uint8_t flags);
 
+ANN_FORWARD(ketl_array);
+
+void ketl_gc_append_value(ketl_gc* p_gc, ketl_type* p_type, ketl_array* p_array, uint64_t value);
+
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags);
 
 uint64_t ketl_gc_get_allocation_count(ketl_gc* p_gc, void* p_object);

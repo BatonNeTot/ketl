@@ -353,7 +353,24 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         return true;
     } 
 	case '.': {
-        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOT, 1);
+        
+        p_lexer->offset += 1;
+        char second_symbol = ketl_lexer_get_symbol(p_lexer);
+        p_lexer->offset -= 1;
+        
+        if (second_symbol == '.') {
+            p_lexer->offset += 2;
+            char third_symbol = ketl_lexer_get_symbol(p_lexer);
+            p_lexer->offset -= 2;
+
+            if (third_symbol == '=') {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN_CONCAT, 3);
+            } else {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CONCAT, 2);
+            }
+        } else {
+            ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOT, 1);
+        }
         return true;
     } 
 	case ',': {

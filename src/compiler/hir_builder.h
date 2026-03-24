@@ -35,6 +35,8 @@ ANN_DEFINE(ketl_hir_builder_t) {
     ketl_state* p_state;
     ketl_lexer_t* p_lexer;
 
+    ketl_type* p_return_type;
+
     hir_builder_instrs_t instrs;
     hir_builder_vars_t vars;
     hir_builder_vars_infos_t vars_infos;
@@ -54,7 +56,7 @@ ANN_DEFINE(ketl_hir_builder_t) {
     bool has_calls;
 };
 
-void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, const ketl_allocator* p_allocator);
+void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_type* p_return_type, const ketl_allocator* p_allocator);
 
 void ketl_hir_builder_add_parameter(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameter_info);
 

@@ -25,7 +25,7 @@ uint16_t ketl_type_get_stack_size(ketl_type* p_type) {
     if (p_type == NULL) {
         return 0;
     }
-    return p_type->kind == KETL_TYPE_PRIMITIVE || p_type->kind == KETL_TYPE_ENUM ? p_type->size : sizeof(void*);
+    return ketl_type_is_pointer_type(p_type) ? sizeof(void*) : p_type->size;
 }
 
 size_t ketl_type_get_align(ketl_type* p_type) {
@@ -153,4 +153,13 @@ uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer
                 ketl_atomic_strings_get_pointer(&p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
         }
     }
+}
+
+bool ketl_type_is_pointer_type(ketl_type* p_type) {
+    return p_type && p_type->kind != KETL_TYPE_PRIMITIVE && p_type->kind != KETL_TYPE_ENUM;
+}
+
+bool ketl_type_is_raw_type(ketl_type* p_type) {
+    return p_type && p_type->size == sizeof(void*) && p_type->kind == KETL_TYPE_PRIMITIVE && 
+        !((ketl_type_primitive*)p_type)->is_integer && !((ketl_type_primitive*)p_type)->is_signed && !((ketl_type_primitive*)p_type)->is_numeric;
 }

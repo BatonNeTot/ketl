@@ -40,6 +40,20 @@ void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t co
     return p_array_obj;
 }
 
+void ketl_gc_append_value(ketl_gc* p_gc, ketl_type* p_type, ketl_array* p_array, uint64_t value) {
+    uint64_t value_size = ketl_type_get_stack_size(p_type);
+    if (p_array->capacity == 0) {
+        ANN_ASSERT(p_array->p_data == NULL);
+        p_array->capacity = 4;
+        p_array->p_data = ketl_alloc(p_gc->p_allocator, value_size * p_array->capacity);
+    } else if (p_array->size >= p_array->capacity) {
+        ANN_ASSERT(p_array->p_data != NULL);
+        p_array->capacity += p_array->capacity / 2;
+        p_array->p_data = ketl_realloc(p_gc->p_allocator, p_array->p_data, value_size * p_array->capacity);
+    }
+    ketl_memcpy(p_array->p_data + p_array->size++ * value_size, &value, value_size);
+}
+
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags) {
     ketl_gc_info info = {
         .p_type = p_type,
