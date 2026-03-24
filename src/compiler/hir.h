@@ -70,16 +70,6 @@ enum {
     __KETL_HIR_GREATER,
     __KETL_HIR_GREATER_OR_EQUAL,
 
-    __KETL_HIR_CAST_TO_U8,
-    __KETL_HIR_CAST_TO_U16,
-    __KETL_HIR_CAST_TO_U32,
-    __KETL_HIR_CAST_TO_U64,
-    
-    __KETL_HIR_CAST_TO_I8,
-    __KETL_HIR_CAST_TO_I16,
-    __KETL_HIR_CAST_TO_I32,
-    __KETL_HIR_CAST_TO_I64,
-
     __KETL_HIR_ASSIGN,    
     
     __KETL_HIR_JUMP_IF_EQUAL,
@@ -107,16 +97,6 @@ enum {
     KETL_HIR_LESS_OR_EQUAL            = __KETL_HIR_LESS_OR_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_GREATER                  = __KETL_HIR_GREATER << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_GREATER_OR_EQUAL         = __KETL_HIR_GREATER_OR_EQUAL << KETL_HIR_TYPE_INSTR_SHIFT,
-
-    KETL_HIR_CAST_TO_U8               = __KETL_HIR_CAST_TO_U8 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_U16              = __KETL_HIR_CAST_TO_U16 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_U32              = __KETL_HIR_CAST_TO_U32 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_U64              = __KETL_HIR_CAST_TO_U64 << KETL_HIR_TYPE_INSTR_SHIFT,
-    
-    KETL_HIR_CAST_TO_I8               = __KETL_HIR_CAST_TO_I8 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_I16              = __KETL_HIR_CAST_TO_I16 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_I32              = __KETL_HIR_CAST_TO_I32 << KETL_HIR_TYPE_INSTR_SHIFT,
-    KETL_HIR_CAST_TO_I64              = __KETL_HIR_CAST_TO_I64 << KETL_HIR_TYPE_INSTR_SHIFT,
 
     KETL_HIR_ASSIGN                   = __KETL_HIR_ASSIGN << KETL_HIR_TYPE_INSTR_SHIFT,
     
@@ -188,11 +168,6 @@ ANN_DEFINE(ketl_hir_append_value_t) {
     ketl_hir_var_id_t append_var;
 };
 
-ANN_DEFINE(ketl_hir_cast_primitive_t) {
-    ketl_hir_var_id_t dest_var;
-    ketl_hir_var_id_t source_var;
-};
-
 ANN_DEFINE(ketl_hir_assign_t) {
     ketl_hir_var_id_t dest_var;
     ketl_hir_var_id_t source_var;
@@ -224,10 +199,11 @@ ANN_DEFINE(ketl_hir_return_value_t) {
 typedef uint16_t ketl_hir_var_uid_t;
 
 #define KETL_HIR_VAR_UID_LITERAL ((ketl_hir_var_uid_t)-1)
-#define KETL_HIR_VAR_UID_GLOBAL ((ketl_hir_var_uid_t)-2)
-#define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-3)
-#define KETL_HIR_VAR_UID_PARAMETER ((ketl_hir_var_uid_t)-4)
-#define KETL_HIR_VAR_UID_INDEX ((ketl_hir_var_uid_t)-5)
+#define KETL_HIR_VAR_UID_CAST ((ketl_hir_var_uid_t)-2)
+#define KETL_HIR_VAR_UID_GLOBAL ((ketl_hir_var_uid_t)-3)
+#define KETL_HIR_VAR_UID_FIELD ((ketl_hir_var_uid_t)-4)
+#define KETL_HIR_VAR_UID_PARAMETER ((ketl_hir_var_uid_t)-5)
+#define KETL_HIR_VAR_UID_INDEX ((ketl_hir_var_uid_t)-6)
 #define KETL_HIR_VAR_UID_LAST KETL_HIR_VAR_UID_INDEX
 
 #define KETL_HIR_LITERAL_NULL KETL_ATOMIC_STRING_EMPTY
@@ -251,6 +227,7 @@ ANN_DEFINE(ketl_hir_var_t) {
     union {
         ketl_hir_symbol_offset_t literal;
         ketl_hir_var_info_index_t info;
+        ketl_hir_var_uid_t cast_target;
     };
     ketl_hir_used_type_index_t type;
     ketl_hir_var_uid_t uid;

@@ -128,7 +128,6 @@ ANN_FORWARD(ketl_type);
 #define KETL_ASM_X86_ARG_PARENT_NONE ((ketl_hir_var_id_t)-1)
 
 ANN_DEFINE(ketl_asm_x86_arg_info_t) {
-    ketl_type* p_type;
     ketl_asm_x86_offset_t stack_offset;
 };
 

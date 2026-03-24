@@ -624,61 +624,19 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
     ketl_type* p_lhs_type = GET_TYPE(target_type); 
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(var).type); 
 
-
-    ketl_hir_tag_t tag = KETL_HIR_UNDEF;
-
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) {
         ANN_ASSERT(p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE);
         ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric);
         ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed);
-
-        if (((ketl_type_primitive*)p_lhs_type)->is_signed) {
-            ANN_SWITCH_STRICT(p_lhs_type->size) {
-                case 1: tag |= KETL_HIR_CAST_TO_I8; break;
-                case 2: tag |= KETL_HIR_CAST_TO_I16; break;
-                case 4: tag |= KETL_HIR_CAST_TO_I32; break;
-                case 8: tag |= KETL_HIR_CAST_TO_I64; break;
-            };
-        } else {
-            ANN_SWITCH_STRICT(p_lhs_type->size) {
-                case 1: tag |= KETL_HIR_CAST_TO_U8; break;
-                case 2: tag |= KETL_HIR_CAST_TO_U16; break;
-                case 4: tag |= KETL_HIR_CAST_TO_U32; break;
-                case 8: tag |= KETL_HIR_CAST_TO_U64; break;
-            };
-        }
-
-        if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
-            ANN_SWITCH_STRICT(p_rhs_type->size) {
-                case 1: tag |= KETL_HIR_I8; break;
-                case 2: tag |= KETL_HIR_I16; break;
-                case 4: tag |= KETL_HIR_I32; break;
-                case 8: tag |= KETL_HIR_I64; break;
-            };
-        } else {
-            ANN_SWITCH_STRICT(p_rhs_type->size) {
-                case 1: tag |= KETL_HIR_U8; break;
-                case 2: tag |= KETL_HIR_U16; break;
-                case 4: tag |= KETL_HIR_U32; break;
-                case 8: tag |= KETL_HIR_U64; break;
-            };
-        }
-    } else if ((ketl_type_is_raw_type(p_rhs_type) && ketl_type_is_pointer_type(p_lhs_type)) || 
-                (ketl_type_is_raw_type(p_lhs_type) && ketl_type_is_pointer_type(p_rhs_type))) {
-        tag = KETL_HIR_CAST_TO_U64 | KETL_HIR_U64;
     }
 
-    ketl_hir_var_id_t casted_var =  ketl_hir_builder_create_temp_var(p_hir_builder, GET_VAR(var).expr_info, target_type);
-
-    ketl_hir_header_t assign_header = {
-        .tag = tag,
-        .file_symbol = p_hir_builder->p_lexer->s_filename,
-    };
-    ketl_hir_cast_primitive_t instr = {
-        .dest_var = casted_var,
-        .source_var = var,
-    };
-    ketl_hir_builder_insert_instr(p_hir_builder, assign_header, (uint8_t*)&instr);
+    ketl_hir_var_id_t casted_var = (ketl_hir_var_id_t)p_hir_builder->vars.size;
+    hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
+        .cast_target = var,
+        .type = target_type,
+        .uid = KETL_HIR_VAR_UID_CAST,
+        .expr_info = GET_VAR(var).expr_info,
+    });
     
     return casted_var;
 }

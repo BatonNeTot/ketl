@@ -803,14 +803,21 @@ ANN_DEFINE(push_mov_arg) {
 
 static push_mov_arg arg_from_hir_var_id(ketl_hir_var_id_t var_id, ketl_asm_x86_builder_t* p_builder) {
     ketl_hir_var_t var = p_builder->p_hir->p_vars[var_id];
+
+    while (var.uid == KETL_HIR_VAR_UID_CAST) {
+        var_id = var.cast_target;
+        var = p_builder->p_hir->p_vars[var_id];
+    }
+
     ketl_hir_var_info_t* p_var_info = var.info != KETL_HIR_VAR_INFO_TEMP ? &p_builder->p_hir->p_vars_infos[var.info] : NULL;
+    ketl_type* p_type = var.type != KETL_HIR_USED_TYPE_META && var.type != KETL_HIR_USED_TYPE_LITERAL ? p_builder->p_hir->p_used_types[var.type] : NULL;
     
     return (push_mov_arg){
         .var = var,
         .var_id = var_id,
         .p_var_info = p_var_info,
         .p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, var.literal),
-        .p_type = var.type != KETL_HIR_USED_TYPE_META && var.type != KETL_HIR_USED_TYPE_LITERAL ? p_builder->p_hir->p_used_types[var.type] : NULL,
+        .p_type = p_type,
     };
 }
 
@@ -903,6 +910,11 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_a
         ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
         ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
 
+        while (object.uid == KETL_HIR_VAR_UID_CAST) {
+            object_id = object.cast_target;
+            object = p_builder->p_hir->p_vars[object_id];
+        }
+
         ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object.info);
         ANN_ASSERT(object_bucket != NULL);
 
@@ -980,6 +992,11 @@ static void push_mov_to_stack_hir(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t s
     if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
         ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
         ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+
+        while (object.uid == KETL_HIR_VAR_UID_CAST) {
+            object_id = object.cast_target;
+            object = p_builder->p_hir->p_vars[object_id];
+        }
 
         ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object.info);
         ANN_ASSERT(object_bucket != NULL);
@@ -1068,7 +1085,6 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
 
         // local or temporary variable
         ketl_asm_x86_arg_info_t arg_info = {
-            .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
             .stack_offset = (var_id + 1) * sizeof(void*),
         };
 
@@ -1089,6 +1105,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
         ketl_hir_var_t var = p_hir->p_vars[var_id];
 
         if (var.uid == KETL_HIR_VAR_UID_LITERAL ||
+            var.uid == KETL_HIR_VAR_UID_CAST ||
             var.uid == KETL_HIR_VAR_UID_GLOBAL ||
             var.uid == KETL_HIR_VAR_UID_PARAMETER ||
             var.uid == KETL_HIR_VAR_UID_INDEX) {
@@ -1099,16 +1116,12 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             ketl_hir_var_id_t object_id = p_hir->p_vars_infos[var.info].parent_id;
             ketl_hir_var_t object = p_hir->p_vars[object_id];
 
-            ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, object.info);
-            ANN_ASSERT(object_bucket != NULL);
-
             const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name);
 
             ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
-            ketl_asm_x86_offset_t field_offset = ketl_type_get_field_offset(object_bucket->value.p_type, s_field_name, p_builder->p_state);
+            ketl_asm_x86_offset_t field_offset = ketl_type_get_field_offset(p_hir->p_used_types[object.type], s_field_name, p_builder->p_state);
 
             ketl_asm_x86_arg_info_t arg_info = {
-                .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
                 .stack_offset = field_offset,
             };
 
@@ -1117,7 +1130,6 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
 
         // local or temporary variable
         ketl_asm_x86_arg_info_t arg_info = {
-            .p_type = var.type != KETL_HIR_USED_TYPE_UNKNOWN ? p_hir->p_used_types[var.type] : NULL,
             .stack_offset = stack_reserved_size,
         };
 
@@ -1236,25 +1248,6 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         break;
                 }
                 push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
-                continue;
-            }
-
-            case KETL_HIR_CAST_TO_U8:
-            case KETL_HIR_CAST_TO_U16:
-            case KETL_HIR_CAST_TO_U32:
-            case KETL_HIR_CAST_TO_U64:
-            case KETL_HIR_CAST_TO_I8:
-            case KETL_HIR_CAST_TO_I16:
-            case KETL_HIR_CAST_TO_I32:
-            case KETL_HIR_CAST_TO_I64:{
-                ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
-                // in the 'hir' we pretend that we cast something
-                // we will cast during push_mov_from_stack_hir based on the old
-                // damn that is a bad solution
-                p_hir->p_vars[p_hir_info->dest_var].type = p_hir->p_vars[p_hir_info->source_var].type;
-                ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
-                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->source_var, size, p_builder);
-                push_mov_to_stack_hir(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
 
