@@ -1249,6 +1249,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_ENUM]                       = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FN]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_FROM]                       = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IMPORT]                     = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_MIMIC]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
@@ -1638,12 +1639,56 @@ static ketl_statement_info parse_import(ketl_parser_context* p_context) {
     ketl_token_t module_literal = CURRENT_TOKEN(0);
     token_advance(p_context); // id
 
+    ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(2)), token_extract_info(CURRENT_TOKEN(1)));
+
     const char* p_module_name = TOKEN_STRING(module_literal);
     uint32_t module_name_length = TOKEN_LENGTH(module_literal);
 
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
 
-    ketl_state_load_module_impl(p_context->p_state, s_module_name, p_context->p_namespace, p_context->export);
+    if (!ketl_state_load_module_impl(p_context->p_state, s_module_name, p_context->p_namespace, p_context->export)) {
+        errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+    }
+
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
+static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
+    ANN_ASSERT(p_context->is_global_scope);
+
+    token_advance(p_context); // from
+    ketl_token_t module_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+    token_consume(p_context, KETL_TOKEN_TYPE_IMPORT, "Expected 'import' keyword after module name.");
+    ketl_token_t name_literal = CURRENT_TOKEN(0);
+    token_advance(p_context); // id
+
+    ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(2)), token_extract_info(CURRENT_TOKEN(1)));
+
+    const char* p_module_name = TOKEN_STRING(module_literal);
+    uint32_t module_name_length = TOKEN_LENGTH(module_literal);
+
+    ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
+
+    ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, NULL, p_context->export);
+    if (p_module_namespace == NULL) {
+        errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+        return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+    }
+
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(name_literal), TOKEN_LENGTH(name_literal));
+    ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
+
+    if (p_node == NULL) {
+        errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
+            TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
+        return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+    }
+
+    ketl_variable namespace_var = p_node->variable;
+
+    ketl_namespace_put(p_context->p_namespace, s_name, namespace_var, 
+        (ketl_namespace_node_info){ .export = p_context->export, }, &p_context->p_state->atomic_strings, false);
 
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
@@ -1883,6 +1928,7 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
     ketl_statement_info info;
     switch (CURRENT_TOKEN(0).type) {
         case KETL_TOKEN_TYPE_IMPORT :
+        case KETL_TOKEN_TYPE_FROM   :
         case KETL_TOKEN_TYPE_CIMPORT:
         case KETL_TOKEN_TYPE_VAR    :
         case KETL_TOKEN_TYPE_FN     :
@@ -1931,6 +1977,10 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
             parse_import(p_context);
             break;
+        case KETL_TOKEN_TYPE_FROM   : 
+            errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
+            parse_from_import(p_context);
+            break;
         default: 
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "Statements are not supported inside class declaration.");
             parse_statement(p_context);
@@ -1941,6 +1991,7 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     switch (CURRENT_TOKEN(0).type) {
         case KETL_TOKEN_TYPE_IMPORT : return parse_import              (p_context); break;
+        case KETL_TOKEN_TYPE_FROM   : return parse_from_import         (p_context); break;
         case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context); break;
         case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context); break;
         case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context); break;

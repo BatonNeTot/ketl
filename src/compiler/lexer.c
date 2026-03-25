@@ -276,6 +276,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FN, id_length);
                 return true;
             }
+            if (ketl_str_is_equal_n("from", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FROM, id_length);
+                return true;
+            }
             break;
         }
         case 'i': {

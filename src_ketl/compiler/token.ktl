@@ -30,6 +30,7 @@ export class Token {
         EXPORT,
         FN,
         FOR,
+        FROM,
         IF,
         IMPORT,
         MIMIC,

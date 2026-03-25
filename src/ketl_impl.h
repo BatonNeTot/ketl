@@ -53,7 +53,7 @@ ANN_DEFINE(ketl_state) {
 
 void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations);
 
-bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export);
+ketl_namespace* ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export);
 
 ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_type_name, uint32_t length);
 

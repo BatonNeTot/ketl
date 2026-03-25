@@ -657,10 +657,10 @@ void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namesp
 
 bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint32_t length) {
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_module_name, length);
-    return ketl_state_load_module_impl(p_state, s_module_name, NULL, false);
+    return ketl_state_load_module_impl(p_state, s_module_name, NULL, false) != NULL;
 }
 
-bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export) {
+ketl_namespace* ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export) {
     const char* p_module_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, s_module_name);
 
     char a_module_filename[256] = {0};
@@ -671,7 +671,7 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     // old insert
     if (module_size == p_state->modules.size) {
         ketl_module_preload(&p_module_bucket->value, a_module_filename, p_namespace, export, p_state);
-        return true;
+        return &p_module_bucket->value.namespace;
     }
 
     bool top_loading = !p_state->loading_modules;
@@ -682,11 +682,11 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
     // preloading
     if (!ketl_module_preload(&p_module_bucket->value, a_module_filename, p_namespace, export, p_state)) {
         ketl_modules_t_erase(&p_state->modules, p_module_bucket);
-        return false;
+        return NULL;
     }
 
     if (!top_loading) {
-        return true;
+        return &p_module_bucket->value.namespace;
     }
 
     // postloading evetything
@@ -699,7 +699,7 @@ bool ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_modul
 
     p_state->loading_modules = false;
 
-    return true;
+    return &p_module_bucket->value.namespace;
 }
 
 static bool variable_is_namespace(ketl_variable* p_variable) {

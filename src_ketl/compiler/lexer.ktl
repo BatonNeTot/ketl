@@ -1,16 +1,16 @@
-import token
+from token import Token
 
 export class Lexer {
-    var tokens : token.Token[];
+    var tokens : Token[];
     var lines_offsets : u32[];
     var filename : str;
     var source : str;
     var length : u32;
     var offset : u32;
-    var token_iterator : token.Token.Iterator;
+    var token_iterator : Token.Iterator;
     
     fn init(lexer : Lexer) {
-        lexer.tokens = token.Token[0];
+        lexer.tokens = Token[0];
         lexer.lines_offsets = u32[0];
     }
 
@@ -56,13 +56,13 @@ export class Lexer {
         lexer.lines_offsets ..= lexer.offset;
     }
 
-    fn add_token(lexer : Lexer, type : token.Token.Type, length : u32) {
-        var literal = token.Token();
-        literal.type = type;
+    fn add_token(lexer : Lexer, type : Token.Type, length : u32) {
+        var token = Token();
+        token.type = type;
         // TODO make cast deduce type from the left side
-        literal.length = length$cast(token.Token.Length);
-        literal.offset = lexer.offset;
-        lexer.tokens ..= literal;
+        token.length = length$cast(Token.Length);
+        token.offset = lexer.offset;
+        lexer.tokens ..= token;
         lexer.offset += length;
     }
 
@@ -146,4 +146,71 @@ export class Lexer {
         return false;
     }
 
+    fn parse_literal_char(lexer : Lexer, next_symbol : char) -> bool {
+        if (next_symbol != '\'') {
+            return false;
+        }
+
+        var char_length : u32 = 1;
+        var char_offset = lexer.offset += 1;
+
+        if (lexer:get_symbol() == '\\') {
+            // TODO replace with increment
+            char_length += 1;
+        }
+
+        if (lexer:parse_next_line(next_symbol)) {
+            // TODO ERROR and decide how to cleverly restore lexing
+            // TODO assert(false);
+        }
+
+
+        var end_mark_offset = char_offset + char_length;
+
+        // error correction
+        if (end_mark_offset >= lexer.length || lexer.source[end_mark_offset] != '\'') {
+            // TODO ERROR
+            if (end_mark_offset >= lexer.length) {
+                char_length = lexer.length - char_offset;
+            }
+            lexer:add_token(Token.Type.LITERAL_CHAR, char_length);
+            return true;
+        }
+
+        lexer:add_token(Token.Type.LITERAL_CHAR, char_length);
+        lexer.offset += 1;
+        return true;
+    }
+
+    fn parse_literal_string(lexer : Lexer, next_symbol : char) -> bool {
+        if (next_symbol != '"') {
+            return false;
+        }
+
+        var literal_start_offset = lexer.offset += 1;
+        while (true) {
+            next_symbol = lexer:get_symbol();
+            if (lexer:parse_next_line(next_symbol)) {
+                // TODO ERROR
+                continue;
+            }
+
+            if (next_symbol == '\0') {
+                // TODO ERROR
+                break;
+            }
+            
+            if (next_symbol == '"') {
+                break;
+            }
+
+            lexer.offset += 1;
+        }
+
+        var literal_length = lexer.offset - literal_start_offset;
+        lexer.offset = literal_start_offset;
+        lexer:add_token(Token.Type.LITERAL_STRING, literal_length);
+        lexer.offset += 1;
+        return true;
+    }
 }
