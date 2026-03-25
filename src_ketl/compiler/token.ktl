@@ -2,7 +2,7 @@
 export class Token {
     export enum Type : u8 {
         ID,
-        LITERAL_NULL, LITERAL_INTEGER, LITERAL_STRING, LITERAL_CHAR,
+        LITERAL_NULL, LITERAL_FALSE, LITERAL_TRUE, LITERAL_INTEGER, LITERAL_STRING, LITERAL_CHAR,
         PARENTHESIS_LEFT, PARENTHESIS_RIGHT,
         CURLY_LEFT, CURLY_RIGHT,
         SQUARE_LEFT, SQUARE_RIGHT,
@@ -28,7 +28,6 @@ export class Token {
         ELSE,
         ENUM,
         EXPORT,
-        FALSE,
         FN,
         FOR,
         IF,
@@ -39,7 +38,6 @@ export class Token {
         RETURN,
         STRUCT,
         SWITCH,
-        TRUE,
         UNION,
         VAR,
         WHILE,

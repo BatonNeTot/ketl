@@ -219,7 +219,9 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
 
 static ketl_hir_tag_t get_type_tag_from_type(ketl_type* p_type) {
     ANN_ASSERT(p_type);
-    ANN_ASSERT(p_type->kind != KETL_TYPE_ENUM);
+    if (p_type->kind == KETL_TYPE_ENUM) {
+        p_type = (ketl_type*)((ketl_type_enum*)p_type)->p_parent_primitive;
+    }
     
     if(p_type->kind == KETL_TYPE_PRIMITIVE) {
         ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;
@@ -582,6 +584,24 @@ static ketl_hir_var_id_t push_null_var(ketl_parser_context* p_context, ketl_hir_
 static ketl_hir_var_id_t parse_null(ketl_parser_context* p_context) {
     ketl_token_t null_token = CURRENT_TOKEN(1);
     return push_null_var(p_context, token_extract_info(null_token));
+}
+
+static ketl_hir_var_id_t push_bool_var(ketl_parser_context* p_context, ketl_hir_expr_info_t expr_info, bool value) {
+    ketl_type* p_type = ketl_state_get_bool_type(p_context->p_state);
+    ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
+    ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, value ? "0" : "1", 1);
+    return push_literal_number_symbol_of_type(p_context, symbol, expr_info, type);
+}
+
+static ketl_hir_var_id_t parse_false(ketl_parser_context* p_context) {
+    ketl_token_t false_token = CURRENT_TOKEN(1);
+    return push_bool_var(p_context, token_extract_info(false_token), false);
+}
+
+
+static ketl_hir_var_id_t parse_true(ketl_parser_context* p_context) {
+    ketl_token_t true_token = CURRENT_TOKEN(1);
+    return push_bool_var(p_context, token_extract_info(true_token), true);
 }
 
 static ketl_hir_var_id_t parse_number(ketl_parser_context* p_context) {
@@ -1125,6 +1145,8 @@ static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_h
 ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_ID]                         = { parse_identificator, NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_NULL]               = { parse_null,          NULL,                  NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_LITERAL_FALSE]              = { parse_false,         NULL,                  NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_LITERAL_TRUE]               = { parse_true,          NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { parse_number,        NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_STRING]             = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { parse_char,          NULL,                  NULL,             KETL_PREC_PRIMARY},
@@ -1197,7 +1219,6 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_DO]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ELSE]                       = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ENUM]                       = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_FALSE]                      = { parse_identificator, NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_FN]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_FOR]                        = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_IF]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
@@ -1208,7 +1229,6 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_RETURN]                     = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_STRUCT]                     = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_SWITCH]                     = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_TRUE]                       = { parse_identificator, NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_UNION]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_VAR]                        = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_WHILE]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},

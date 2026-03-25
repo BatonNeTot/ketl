@@ -257,6 +257,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             break;
         }
         case 'f': {
+            if (ketl_str_is_equal_n("false", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_FALSE, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("fn", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FN, id_length);
                 return true;
@@ -303,6 +307,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
+                return true;
+            }
+            break;
+        }
+        case 't': {
+            if (ketl_str_is_equal_n("true", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_TRUE, id_length);
                 return true;
             }
             break;
@@ -672,6 +683,7 @@ uint32_t ketl_lexer_find_line(ketl_lexer_t* p_lexer, uint32_t offset) {
 }
 
 #define ESCAPABLE_CHARACTERS_LIST\
+    X('0', 0x00)\
     X('a', 0x07)\
     X('b', 0x08)\
     X('e', 0x1b)\

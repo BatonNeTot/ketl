@@ -16,6 +16,7 @@ ketl_state* ketl_state_create(const ketl_allocator* p_allocator);
 void ketl_state_destroy(ketl_state* p_state);
 
 ketl_type* ketl_state_get_none_type(ketl_state* p_state);
+ketl_type* ketl_state_get_bool_type(ketl_state* p_state);
 ketl_type* ketl_state_get_char_type(ketl_state* p_state);
 ketl_type* ketl_state_get_raw_type(ketl_state* p_state);
 

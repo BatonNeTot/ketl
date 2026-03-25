@@ -293,6 +293,10 @@ ketl_type* ketl_state_get_none_type(ketl_state* p_state) {
     return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("none"));
 }
 
+ketl_type* ketl_state_get_bool_type(ketl_state* p_state) {
+    return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("bool"));
+}
+
 ketl_type* ketl_state_get_char_type(ketl_state* p_state) {
     return ketl_state_get_type(p_state, LITERAL_STRING_PAIR("char"));
 }
