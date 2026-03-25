@@ -1258,6 +1258,49 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 push_mov_to_stack_hir(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
+
+            case KETL_HIR_ASSIGN_PLUS:
+            case KETL_HIR_ASSIGN_MINUS:
+            case KETL_HIR_ASSIGN_MULTY:
+            case KETL_HIR_ASSIGN_DIV:
+            case KETL_HIR_ASSIGN_MOD: {
+                ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
+                ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
+                push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->source_var, size, p_builder);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->dest_var, size, p_builder);
+                switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+                    case KETL_HIR_ASSIGN_PLUS:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_ASSIGN_MINUS:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_SUB, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_ASSIGN_MULTY:
+                        if (is_signed_hir_type(header.tag)) {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IMUL, size, MODRM_REG(KETL_ASM_X86_CX));
+                        } else {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_MUL, size, MODRM_REG(KETL_ASM_X86_CX));
+                        }
+                        break;
+                    case KETL_HIR_ASSIGN_DIV:
+                        if (is_signed_hir_type(header.tag)) {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IDIV, size, MODRM_REG(KETL_ASM_X86_CX));
+                        } else {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_DIV, size, MODRM_REG(KETL_ASM_X86_CX));
+                        }
+                    case KETL_HIR_ASSIGN_MOD:
+                        ANN_ASSERT(size != KETL_ASM_X86_8B);
+                        if (is_signed_hir_type(header.tag)) {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IDIV, size, MODRM_REG(KETL_ASM_X86_CX));
+                        } else {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_DIV, size, MODRM_REG(KETL_ASM_X86_CX));
+                        }
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_DX));
+                        break;
+                }
+                push_mov_to_stack_hir(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
+                continue;
+            }
             
             case KETL_HIR_RETURN_VALUE: {
                 ketl_hir_return_value_t* p_hir_info = (ketl_hir_return_value_t*)p_instr;

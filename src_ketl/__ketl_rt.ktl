@@ -109,8 +109,7 @@ class GC {
         } else if (array_header.size >= array_header.capacity) {
             // TODO assert(array_header.data != NULL);
             var old_capacity = array_header.capacity;
-            // TODO replace with assign_plus
-            array_header.capacity = array_header.capacity + array_header.capacity / 2;
+            array_header.capacity += array_header.capacity / 2;
             array_header.data = array_header.data:recalloc(value_size * old_capacity, value_size * array_header.capacity);
         }
         // TODO replace with switch; after replace with template/generic 
@@ -124,7 +123,7 @@ class GC {
             (array_header.data + array_header.size * value_size)$cast(U64Wrapper).value = value$cast(u64);
         }
         // TODO replace with increment
-        array_header.size = array_header.size + 1;
+        array_header.size += 1;
     }
 
 }

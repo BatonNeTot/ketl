@@ -246,7 +246,7 @@ static ketl_hir_tag_t get_type_tag_from_type(ketl_type* p_type) {
     return KETL_HIR_U64;
 }
 
-static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     if (GET_VAR(lhs_var).uid == KETL_HIR_VAR_UID_LITERAL) {
         ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
         errorf(expr_info.source_offset, expr_info.length, "Can't assign to an r-value.");
@@ -259,7 +259,7 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_var_id
     }
 
     ketl_hir_header_t assign_header = {
-        .tag = KETL_HIR_ASSIGN | get_type_tag_from_type(GET_TYPE(GET_VAR(lhs_var).type)),
+        .tag = op | get_type_tag_from_type(GET_TYPE(GET_VAR(lhs_var).type)),
         .file_symbol = p_context->s_filename,
     };
     ketl_hir_assign_t instr = {
@@ -316,7 +316,7 @@ static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_va
     }
 }
 
-static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     ketl_hir_var_t* p_lhs_var = &GET_VAR(lhs_var);
     if (p_lhs_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
@@ -335,7 +335,7 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hi
         //lhs_var = ketl_hir_builder_increment_var_uid(&p_context->hir_builder, lhs_var);
         // TODO should not run during debug compilation
     }
-    push_hir_assign_impl(p_context, lhs_var, rhs_var);
+    push_hir_assign_impl(p_context, op, lhs_var, rhs_var);
 
     // TODO should not return the same var. need to come up with semanticaly correct new var. full copy, same info? 
     return lhs_var;
@@ -391,7 +391,7 @@ static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_t
             push_symbol(p_context, id_literal), expr_info, type_index);
     }
 
-    push_hir_assign_impl(p_context, id_var, init_var);
+    push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, id_var, init_var);
 }
 
 static void push_hir_argument(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
@@ -1047,7 +1047,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
                     GET_VAR(value_var).expr_info, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state)));
                 ketl_hir_var_id_t indexed_var = push_array_index(p_context, id_var, index_literal, GET_VAR(value_var).expr_info);
 
-                push_hir_assign(p_context, indexed_var, value_var);
+                push_hir_assign(p_context, KETL_HIR_ASSIGN, indexed_var, value_var);
                 ++index;
             } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
         }
@@ -1120,12 +1120,12 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
     }
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, GET_VAR(lhs).type); 
     // TODO do casting if necessary
-    push_hir_assign_impl(p_context, output_var, rhs);
+    push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, output_var, rhs);
     push_hir_jump(p_context, after_block);
     
     pull_hir_set_block(p_context, short_sircuit_block);
     // TODO do casting if necessary
-    push_hir_assign_impl(p_context, output_var, lhs);
+    push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, output_var, lhs);
     push_hir_jump(p_context, after_block);
 
     pull_hir_set_block(p_context, after_block);
@@ -1137,8 +1137,13 @@ static ketl_hir_var_id_t parse_binary_rtl(ketl_parser_context* p_context, ketl_h
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
 
     ANN_SWITCH_STRICT (token_type) {
-        case KETL_TOKEN_TYPE_ASSIGN       : return push_hir_assign(p_context, lhs, rhs);
-        case KETL_TOKEN_TYPE_ASSIGN_CONCAT: return push_append    (p_context, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN          : return push_hir_assign(p_context, KETL_HIR_ASSIGN, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_PLUS     : return push_hir_assign(p_context, KETL_HIR_ASSIGN_PLUS, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_MINUS    : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MINUS, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_MULTIPLY : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MULTY, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_DIVIDE   : return push_hir_assign(p_context, KETL_HIR_ASSIGN_DIV, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_REMAINDER: return push_hir_assign(p_context, KETL_HIR_ASSIGN_MOD, lhs, rhs);
+        case KETL_TOKEN_TYPE_ASSIGN_CONCAT   : return push_append    (p_context, lhs, rhs);
     }
 }
 
@@ -1187,11 +1192,11 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_FACTOR},
     [KETL_TOKEN_TYPE_CONCAT]                     = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_TERM},
     [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
-    [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_MULTIPLY]            = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_DIVIDE]              = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_ASSIGN_REMAINDER]           = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_ASSIGN_MULTIPLY]            = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_ASSIGN_DIVIDE]              = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
+    [KETL_TOKEN_TYPE_ASSIGN_REMAINDER]           = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
     [KETL_TOKEN_TYPE_ASSIGN_CONCAT]              = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
     [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_LEFT]  = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_ASSIGN_BITWISE_SHIFT_RIGHT] = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},

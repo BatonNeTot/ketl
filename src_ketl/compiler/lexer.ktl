@@ -14,15 +14,16 @@ export class Lexer {
         lexer.lines_offsets = u32[0];
     }
 
-    fn get_line_offset(lexer : Lexer, line : u32) -> u32{
+    fn get_line_offset(lexer : Lexer, line : u32) -> u32 {
         if (line >= lexer.lines_offsets.size) {
             return lexer.length;
         }
         return lexer.lines_offsets[line];
     }
 
-    fn find_line(lexer : Lexer, offset : u32) -> u32{
+    fn find_line(lexer : Lexer, offset : u32) -> u32 {
         var lhs : u32 = 0;
+        // TODO make cast deduce type from the left side
         var rhs : u32 = lexer.lines_offsets.size$cast(u32);
 
         while (lhs + 1 < rhs) {
@@ -62,8 +63,7 @@ export class Lexer {
         literal.length = length$cast(token.Token.Length);
         literal.offset = lexer.offset;
         lexer.tokens ..= literal;
-        // TODO replace with assign_plus
-        lexer.offset = lexer.offset + length;
+        lexer.offset += length;
     }
 
     fn get_symbol(lexer : Lexer) -> char {
@@ -80,19 +80,16 @@ export class Lexer {
 
             var offset = lexer.offset;
             if (offset + 1 < lexer.length && lexer.source[offset + 1] == '\n') {
-                // TODO replace with assign_plus
-                lexer.offset = lexer.offset + 2;
+                lexer.offset += 2;
             } else {
-                // TODO replace with assign_plus
-                lexer.offset = lexer.offset + 1;
+                lexer.offset += 1;
             }
             lexer:increment_line();
             return true;
         }
 
         if (next_symbol == '\n') {
-            // TODO replace with assign_plus
-            lexer.offset = lexer.offset + 2;
+            lexer.offset += 2;
             lexer:increment_line();
             return true;
         }
