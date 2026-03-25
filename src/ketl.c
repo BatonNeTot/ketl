@@ -902,7 +902,8 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
         ketl_type* p_return_type = ((ketl_type_function*)p_compile_function_declaration->p_namespace_node->variable.p_type)->p_type_signature->a_parameters[0].p_type;
     
         ketl_hir_t hir;
-        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, &local_namespace, p_function_parameters_named, parameters_count, p_return_type, false, p_state->p_allocator);
+        ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, 
+            p_compile_function_declaration->p_namespace, p_function_parameters_named, parameters_count, p_return_type, false, p_state->p_allocator);
         
         if (p_state->error_stream.size > error_stream_mark) {
             fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);

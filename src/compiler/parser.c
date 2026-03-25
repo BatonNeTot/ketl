@@ -1627,6 +1627,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     ketl_token_iterator_t end_pos = p_context->p_lexer->token_iterator;
 
     compile_function_declaration_t function_decl = {
+        .p_namespace = p_context->p_namespace,
         .p_namespace_node = p_func_node,
         .p_opcodes = NULL,
         .opcodes_size = 0,

@@ -17,6 +17,7 @@ ANN_FORWARD(ketl_state);
 KETL_VECTOR_DECLARATION(ketl_parameters_t, ketl_named_variable_type_info_t)
 
 ANN_DEFINE(compile_function_declaration_t) {
+    ketl_namespace* p_namespace;
     ketl_namespace_node* p_namespace_node;
     uint8_t* p_opcodes;
     uint64_t opcodes_size;
