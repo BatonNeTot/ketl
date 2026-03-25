@@ -265,8 +265,8 @@ ketl_hir_var_id_t ketl_hir_builder_register_var(ketl_hir_builder_t* p_hir_builde
 }
 
 // TODO contruct fullname instead of just using expr_info cutted symbol
-ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_symbol_offset_t fullname, ketl_hir_expr_info_t expr_info) {
-    hir_builder_symbol_to_var_info_map_t_bucket* p_bucket = hir_builder_symbol_to_var_info_map_t_get_or_insert_copy(&p_hir_builder->symbol_to_var, fullname, (ketl_hir_var_id_t)-1);
+ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_hir_symbol_offset_t name, ketl_hir_symbol_offset_t fullname, ketl_hir_expr_info_t expr_info, bool force) {
+    hir_builder_symbol_to_var_info_map_t_bucket* p_bucket = hir_builder_symbol_to_var_info_map_t_get_or_insert_copy(&p_hir_builder->symbol_to_var, fullname, (ketl_hir_var_info_index_t)-1);
     
     ketl_hir_used_type_index_t known_type;
 
@@ -284,16 +284,20 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
                 .p_global = p_symbol_node,
             });
 
-            ketl_hir_var_id_t var_id = (ketl_hir_var_id_t)p_hir_builder->vars.size;
-            get_var_info(p_hir_builder, p_bucket->value)->last_var_id = var_id;
+            if (force) {
+                ketl_hir_var_id_t var_id = (ketl_hir_var_id_t)p_hir_builder->vars.size;
+                get_var_info(p_hir_builder, p_bucket->value)->last_var_id = var_id;
 
-            hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
-                .info = p_bucket->value,
-                .type = KETL_HIR_USED_TYPE_UNKNOWN,
-                .uid = KETL_HIR_VAR_UID_GLOBAL,
-                .expr_info = expr_info,
-            });
-            return var_id;
+                hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
+                    .info = p_bucket->value,
+                    .type = KETL_HIR_USED_TYPE_UNKNOWN,
+                    .uid = KETL_HIR_VAR_UID_GLOBAL,
+                    .expr_info = expr_info,
+                });
+                return var_id;
+            } else {
+                return -1;
+            }
         }
 
         p_bucket->value = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
