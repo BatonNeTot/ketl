@@ -377,18 +377,6 @@ static ketl_hir_var_id_t push_array_index(ketl_parser_context* p_context, ketl_h
     return id_var;
 }
 
-static ketl_hir_var_id_t push_object_field(ketl_parser_context* p_context, ketl_hir_var_id_t object_id, ketl_token_t literal) {
-    ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(object_id).expr_info, token_extract_info(literal));
-    
-    ketl_hir_var_id_t id_var = ketl_hir_builder_create_field_var(&p_context->hir_builder, object_id,
-        push_symbol(p_context, literal), expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
-    if (id_var == (ketl_hir_var_id_t)-1) {
-        errorf(literal.offset, literal.length, "Use of undeclared field '%.*s'.", TOKEN_LENGTH(literal), TOKEN_STRING(literal));
-        id_var = push_temp_var(p_context, expr_info);
-    }
-    return id_var;
-}
-
 static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_token_t id_literal, ketl_hir_used_type_index_t type_index, ketl_hir_var_id_t init_var, ketl_hir_expr_info_t expr_info) {
     ketl_hir_var_id_t id_var;
     if (p_context->is_global_scope) {
@@ -741,6 +729,25 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
     }
 }
 
+static ketl_hir_var_id_t push_access_class_namespace(ketl_parser_context* p_context, ketl_token_t id_literal, ketl_hir_expr_info_t expr_info, ketl_type* p_type) {
+    ANN_ASSERT(p_type && p_type->kind == KETL_TYPE_CLASS);
+
+    ketl_namespace* p_namespace = &((ketl_type_class*)p_type)->namespace;
+
+    ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, push_symbol(p_context, id_literal), 
+        push_symbol_string(p_context, p_context->p_lexer->p_source + expr_info.source_offset, expr_info.length), expr_info);
+    ANN_ASSERT(GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
+    if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(var_id).info, true);
+        if (p_bucket->value) {
+            errorf(id_literal.offset, id_literal.length, "Use of undeclared entity '%.*s' from class '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
+                ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
+            p_bucket->value = false;
+        }
+    }
+    return var_id;
+}
+
 static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
     ketl_hir_var_t* p_object = &GET_VAR(lhs);
     token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after access operator.");
@@ -773,20 +780,7 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
             ketl_type* p_type = p_namespace_node->variable.p_pointer;
 
             if (p_type->kind == KETL_TYPE_CLASS) {
-                ketl_namespace* p_namespace = &((ketl_type_class*)p_type)->namespace;
-
-                ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, push_symbol(p_context, id_literal), 
-                    push_symbol_string(p_context, p_context->p_lexer->p_source + expr_info.source_offset, expr_info.length), expr_info);
-                ANN_ASSERT(GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
-                if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
-                    _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(var_id).info, true);
-                    if (p_bucket->value) {
-                        errorf(id_literal.offset, id_literal.length, "Use of undeclared entity '%.*s' from class '%s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal),
-                            ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
-                        p_bucket->value = false;
-                    }
-                }
-                return var_id;
+                return push_access_class_namespace(p_context, id_literal, expr_info, p_type);
             }
 
             if (p_type->kind == KETL_TYPE_ENUM) {
@@ -826,8 +820,44 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
         ANN_ASSERT(false && "Trying to field access no-type and no-namespace");
         return push_temp_var(p_context, expr_info);
     } else {
-        return push_object_field(p_context, lhs, id_literal);
+        ketl_hir_var_id_t object_id = lhs;
+
+        ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(object_id).expr_info, token_extract_info(id_literal));
+
+        ketl_type* p_field_type = NULL;
+        
+        if (GET_VAR(object_id).type != KETL_HIR_USED_TYPE_UNKNOWN) {
+            ketl_type* p_object_type = GET_TYPE(GET_VAR(object_id).type);
+
+            if (p_object_type->kind == KETL_TYPE_CLASS || p_object_type->kind == KETL_TYPE_ARRAY) {
+                ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
+                p_field_type = ketl_type_find_field_type(p_object_type, s_field_name, p_context->p_state);
+
+                if (p_field_type == NULL) {
+
+                    if (p_object_type->kind == KETL_TYPE_CLASS) {
+                        return push_access_class_namespace(p_context, id_literal, expr_info, p_object_type);
+                    }
+
+                    // TODO create unique info to use 'undef_vars_info'
+                    errorf(expr_info.source_offset, expr_info.length, "Unknown field '%.*s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
+                    return ketl_hir_builder_create_temp_var(&p_context->hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+                }
+            }
+        }
+
+        ketl_hir_used_type_index_t field_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_field_type);
+        
+        ketl_hir_var_id_t id_var = ketl_hir_builder_create_field_var(&p_context->hir_builder, object_id,
+            push_symbol(p_context, id_literal), expr_info, field_type);
+        return id_var;
     }
+}
+
+static ketl_hir_var_id_t parse_colon_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
+    (void)p_context;
+    (void)lhs;
+    ANN_ASSERT(false);
 }
 
 static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
@@ -836,6 +866,10 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
     ketl_token_t id_literal = CURRENT_TOKEN(1);
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(p_object->expr_info, token_extract_info(id_literal));
+
+    if (p_object->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
 
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
         ketl_namespace_node* p_namespace_node = get_var_info(p_context, p_object->info)->p_global;
@@ -1040,7 +1074,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DOLLAR]                     = { NULL,                parse_dollar_operator, NULL,             KETL_PREC_CALL},
-    [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_COLON]                      = { NULL,                parse_colon_operator,  NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},

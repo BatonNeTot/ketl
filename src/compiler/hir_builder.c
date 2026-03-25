@@ -383,29 +383,7 @@ ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_bu
     return value;
 }
 
-ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type) {
-    ketl_type* p_field_type = NULL;
-    
-    if (GET_VAR(object_id).type != KETL_HIR_USED_TYPE_UNKNOWN) {
-        ketl_type* p_object_type = GET_TYPE(GET_VAR(object_id).type);
-        
-        const char* p_field_name = ketl_atomic_strings_get_pointer(&p_hir_builder->symbols, name);
-
-        if (p_object_type->kind == KETL_TYPE_CLASS || p_object_type->kind == KETL_TYPE_ARRAY) {
-            ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
-            p_field_type = ketl_type_find_field_type(p_object_type, s_field_name, p_hir_builder->p_state);
-
-            if (p_field_type == NULL) {
-                // TODO create unique info to use 'undef_vars_info'
-                errorf(expr_info.source_offset, expr_info.length, "Unknown field '%s'.", p_field_name);
-                return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
-            }
-        }
-    }
-
-    ketl_hir_used_type_index_t field_type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_field_type);
-    ANN_ASSERT(type == KETL_HIR_USED_TYPE_UNKNOWN || type == field_type);
-    
+ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t field_type) {
     ketl_hir_var_info_index_t var_info = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
     hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->vars_infos, (ketl_hir_var_info_t){
         .name = name,
@@ -531,7 +509,6 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
     ketl_hir_var_t* p_callee = &GET_VAR(p_call->callee);
 
     if (p_callee->type == KETL_HIR_USED_TYPE_UNKNOWN) {
-        errorf(7, 14, "Trying to call an undefined entity.");
         return;
     }
 

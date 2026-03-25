@@ -74,7 +74,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_buil
 
 ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t array_id, ketl_hir_var_id_t arg_id, ketl_hir_expr_info_t expr_info);
 
-ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type);
+ketl_hir_var_id_t ketl_hir_builder_create_field_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t object_id, ketl_hir_symbol_offset_t name, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t field_type);
 
 ketl_hir_var_id_t ketl_hir_builder_create_temp_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type);
 
