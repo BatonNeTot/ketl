@@ -223,13 +223,24 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
 
     char first_symbol = ketl_lexer_get_symbol(p_lexer);
     switch (first_symbol) {
+        case 'b': {
+            if (ketl_str_is_equal_n("break", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_BREAK, id_length);
+                return true;
+            }
+            break;
+        }
         case 'c': {
+            if (ketl_str_is_equal_n("cimport", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CIMPORT, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("class", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CLASS, id_length);
                 return true;
             }
-            if (ketl_str_is_equal_n("cimport", p_lexer->p_source + p_lexer->offset, id_length)) {
-                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CIMPORT, id_length);
+            if (ketl_str_is_equal_n("continue", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CONTINUE, id_length);
                 return true;
             }
             break;

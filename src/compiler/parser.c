@@ -35,13 +35,16 @@ ANN_DEFINE(ketl_parser_context) {
     ketl_namespace* p_namespace;
     ketl_token_iterator_t end_pos;
     ketl_hir_symbol_offset_t s_filename;
+
+    ketl_hir_block_index_t reserved_break;
+    ketl_hir_block_index_t reserved_continue;
+    bool is_global_scope;
+    bool export;
+
     ketl_hir_builder_t hir_builder;
 
     _ketl_parse_argument_stack_t v_argument_stack;
     _ketl_parse_undefined_vars_infos_t m_undef_vars_infos;
-
-    bool is_global_scope;
-    bool export;
 };
 
 typedef uint8_t ketl_parse_return_info;
@@ -399,6 +402,26 @@ static void push_hir_argument(ketl_parser_context* p_context, ketl_hir_var_id_t 
 }
 
 static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee_id, uint16_t arguments_count, ketl_hir_expr_info_t expr_info) {
+    ketl_hir_var_t* p_callee = &GET_VAR(callee_id);
+
+    if (p_callee->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+
+    ketl_type* p_type = GET_TYPE(p_callee->type);
+
+    if (p_type->kind != KETL_TYPE_FUNCTION && p_type->kind != KETL_TYPE_CFUNCTION) {
+        errorf(expr_info.source_offset, expr_info.length, "Only functions can be called.");
+        return push_temp_var(p_context, expr_info);
+    }
+    ketl_type_function* p_function_type = (ketl_type_function*)p_type;
+    ketl_type_signature* p_function_signature = p_function_type->p_type_signature;
+
+    if (p_function_signature->parameters_count - 1 != arguments_count) {
+        errorf(expr_info.source_offset, expr_info.length, "Arguments count does not match function parameters count.");
+        return push_temp_var(p_context, expr_info);
+    }
+    
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CALL,
         .file_symbol = p_context->s_filename,
@@ -1453,6 +1476,38 @@ static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
     return (ketl_statement_info){ .return_info = return_info };
 }
 
+static ketl_statement_info parse_break_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // break
+
+    ketl_statement_info statement_info = { .return_info = KETL_RETURN_EMPTY };
+
+    if (p_context->reserved_break == (ketl_hir_block_index_t)-1) {
+        ketl_token_t literal = CURRENT_TOKEN(1);
+        errorf(literal.offset, literal.length, "'break' statement outside of loop or switch body.");
+    } else {
+        push_hir_jump(p_context, p_context->reserved_break);
+    }
+        
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after 'break' statement.");
+    return statement_info;
+}
+
+static ketl_statement_info parse_continue_statement(ketl_parser_context* p_context) {
+    token_advance(p_context); // continue
+
+    ketl_statement_info statement_info = { .return_info = KETL_RETURN_EMPTY };
+
+    if (p_context->reserved_continue == (ketl_hir_block_index_t)-1) {
+        ketl_token_t literal = CURRENT_TOKEN(1);
+        errorf(literal.offset, literal.length, "'continue' outside of loop body.");
+    } else {
+        push_hir_jump(p_context, p_context->reserved_continue);
+    }
+        
+    token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after 'continue' statement.");
+    return statement_info;
+}
+
 static ketl_statement_info parse_while_statement(ketl_parser_context* p_context) {
     token_advance(p_context); // while
 
@@ -1469,8 +1524,16 @@ static ketl_statement_info parse_while_statement(ketl_parser_context* p_context)
 
     push_hir_if(p_context, expr, body_statement, after_statement);
 
+    ketl_hir_block_index_t old_reserved_break = p_context->reserved_break;
+    p_context->reserved_break = after_statement;
+    ketl_hir_block_index_t old_reserved_continue = p_context->reserved_continue;
+    p_context->reserved_continue = expr_statement;
+
     pull_hir_set_block(p_context, body_statement);
     ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
+
+    p_context->reserved_continue = old_reserved_continue;
+    p_context->reserved_break = old_reserved_break;
 
     if (!(body_return_info & KETL_RETURN_ALWAYS)) {
         push_hir_jump(p_context, expr_statement);
@@ -1499,6 +1562,8 @@ static ketl_statement_info parse_statement(ketl_parser_context* p_context) {
         case KETL_TOKEN_TYPE_CURLY_LEFT           : return parse_block_statement     (p_context); break;
         case KETL_TOKEN_TYPE_IF                   : return parse_if_statement        (p_context); break;
         case KETL_TOKEN_TYPE_WHILE                : return parse_while_statement     (p_context); break;
+        case KETL_TOKEN_TYPE_BREAK                : return parse_break_statement     (p_context); break;
+        case KETL_TOKEN_TYPE_CONTINUE             : return parse_continue_statement  (p_context); break;
         case KETL_TOKEN_TYPE_RETURN               : return parse_return_statement    (p_context); break;
         case KETL_TOKEN_TYPE_TERMINATION_CHARACTER:        token_advance             (p_context); 
                                                     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
@@ -1896,6 +1961,8 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
         .p_lexer = p_lexer,
         .p_namespace = p_namespace,
         .end_pos = end_pos,
+        .reserved_break = -1,
+        .reserved_continue = -1,
         .is_global_scope = is_global_scope,
     };
     ketl_parser_context* p_context = &context;
@@ -1916,7 +1983,12 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
             (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (statement_info.return_info & KETL_RETURN_ALWAYS_VALUE))) {
             // TODO POS?
-            errorf(end_pos, 1, "Not all control returns value.");
+            errorf(p_lexer->tokens.p_data[end_pos - 1].offset, 1, "Not all control returns value.");
+        }
+
+        if (p_context->reserved_break != (ketl_hir_block_index_t)-1 ||
+            p_context->reserved_continue != (ketl_hir_block_index_t)-1) {
+            errorf(p_lexer->tokens.p_data[end_pos - 1].offset, 1, "Expected statement.");
         }
 
         if (!(statement_info.return_info & KETL_RETURN_ALWAYS)) {

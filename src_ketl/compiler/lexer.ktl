@@ -97,4 +97,53 @@ export class Lexer {
         return false;
     }
 
+    fn parse_comments(lexer : Lexer, next_symbol : char) -> bool {
+        var offset = lexer.offset;
+        if (next_symbol != '/' || offset + 1 >= lexer.length) {
+            return false;
+        }
+
+        next_symbol = lexer.source[offset + 1];
+
+        // single line comment
+        if (next_symbol == '/') {
+            lexer.offset += 2;
+            while (true) {
+                next_symbol = lexer:get_symbol();
+                if (next_symbol == '\0' || lexer:parse_next_line(next_symbol)) {
+                    break;
+                }
+                lexer.offset += 1;
+            }
+            return true;
+        }
+
+        // multiline comment
+        if (next_symbol == '*') {
+            lexer.offset += 2;
+            while (true) {
+                next_symbol = lexer:get_symbol();
+                if (lexer:parse_next_line(next_symbol)) {
+                    continue;
+                }
+
+                if (next_symbol == '\0') {
+                    // TODO ERROR
+                    break;
+                }
+
+                if (next_symbol == '*' && lexer.offset + 1 < lexer.length && lexer.source[lexer.offset + 1] == '/') {
+                    lexer.offset += 2;
+                    break;
+                }
+
+                lexer.offset += 1;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
 }
