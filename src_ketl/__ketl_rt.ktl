@@ -64,7 +64,7 @@ export fn calloc(size : u64) -> raw {
 }
 
 export fn recalloc(old_pointer : raw, old_size : u64, new_size : u64) -> raw {
-    var pointer = old_pointer:realloc(new_size);
+    var pointer = old_pointer@realloc(new_size);
     memset(pointer + old_size, 0, new_size - old_size);
     return pointer;
 }
@@ -90,7 +90,7 @@ class GC {
 
     export fn new_array(gc : GC, type : Type, count : u64, flags : u64) -> raw {
         var array_header = ArrayHeader();
-        var type_size = type:get_stack_size();
+        var type_size = type@get_stack_size();
         if (type.kind != Type.Kind.Primitive && type.kind != Type.Kind.Enum) {
             type_size = raw$size;
         }
@@ -101,7 +101,7 @@ class GC {
     }
 
     export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : u64) {
-        var value_size = type:get_stack_size();
+        var value_size = type@get_stack_size();
         if (array_header.capacity == 0) {
             // TODO assert(array_header.data == NULL);
             array_header.capacity = 4;
@@ -110,7 +110,7 @@ class GC {
             // TODO assert(array_header.data != NULL);
             var old_capacity = array_header.capacity;
             array_header.capacity += array_header.capacity / 2;
-            array_header.data = array_header.data:recalloc(value_size * old_capacity, value_size * array_header.capacity);
+            array_header.data = array_header.data@recalloc(value_size * old_capacity, value_size * array_header.capacity);
         }
         // TODO replace with switch; after replace with template/generic 
         if (value_size == 1) {
@@ -133,13 +133,13 @@ var gc : GC = calloc(GC$size);
 var atomic_strings : AtomicStrings = calloc(AtomicStrings$size);
 
 export fn new(type : Type) -> raw {
-    return gc:new(type, 0);
+    return gc@new(type, 0);
 }
 
 export fn new_array(type : Type, count : u64) -> raw {
-    return gc:new_array(type, count, 0);
+    return gc@new_array(type, count, 0);
 }
 
 export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : raw) {
-    gc:append_value(type, array_header, value);
+    gc@append_value(type, array_header, value);
 }

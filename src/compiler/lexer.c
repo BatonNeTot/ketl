@@ -231,6 +231,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             break;
         }
         case 'c': {
+            if (ketl_str_is_equal_n("case", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CASE, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("cimport", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_CIMPORT, id_length);
                 return true;
@@ -246,6 +250,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             break;
         }
         case 'd': {
+            if (ketl_str_is_equal_n("default", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DEFAULT, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("do", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DO, id_length);
                 return true;
@@ -322,6 +330,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
             }
             if (ketl_str_is_equal_n("return", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_RETURN, id_length);
+                return true;
+            }
+            break;
+        }
+        case 's': {
+            if (ketl_str_is_equal_n("switch", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_SWITCH, id_length);
                 return true;
             }
             break;
@@ -409,6 +424,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
     } 
 	case '$': {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOLLAR, 1);
+        return true;
+    } 
+	case '@': {
+        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_AT, 1);
         return true;
     } 
 	case ':': {

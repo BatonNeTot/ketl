@@ -84,13 +84,13 @@ export class Lexer {
             } else {
                 lexer.offset += 1;
             }
-            lexer:increment_line();
+            lexer@increment_line();
             return true;
         }
 
         if (next_symbol == '\n') {
             lexer.offset += 2;
-            lexer:increment_line();
+            lexer@increment_line();
             return true;
         }
 
@@ -109,8 +109,8 @@ export class Lexer {
         if (next_symbol == '/') {
             lexer.offset += 2;
             while (true) {
-                next_symbol = lexer:get_symbol();
-                if (next_symbol == '\0' || lexer:parse_next_line(next_symbol)) {
+                next_symbol = lexer@get_symbol();
+                if (next_symbol == '\0' || lexer@parse_next_line(next_symbol)) {
                     break;
                 }
                 lexer.offset += 1;
@@ -122,8 +122,8 @@ export class Lexer {
         if (next_symbol == '*') {
             lexer.offset += 2;
             while (true) {
-                next_symbol = lexer:get_symbol();
-                if (lexer:parse_next_line(next_symbol)) {
+                next_symbol = lexer@get_symbol();
+                if (lexer@parse_next_line(next_symbol)) {
                     continue;
                 }
 
@@ -154,12 +154,12 @@ export class Lexer {
         var char_length : u32 = 1;
         var char_offset = lexer.offset += 1;
 
-        if (lexer:get_symbol() == '\\') {
+        if (lexer@get_symbol() == '\\') {
             // TODO replace with increment
             char_length += 1;
         }
 
-        if (lexer:parse_next_line(next_symbol)) {
+        if (lexer@parse_next_line(next_symbol)) {
             // TODO ERROR and decide how to cleverly restore lexing
             // TODO assert(false);
         }
@@ -173,11 +173,11 @@ export class Lexer {
             if (end_mark_offset >= lexer.length) {
                 char_length = lexer.length - char_offset;
             }
-            lexer:add_token(Token.Type.LITERAL_CHAR, char_length);
+            lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
             return true;
         }
 
-        lexer:add_token(Token.Type.LITERAL_CHAR, char_length);
+        lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
         lexer.offset += 1;
         return true;
     }
@@ -189,8 +189,8 @@ export class Lexer {
 
         var literal_start_offset = lexer.offset += 1;
         while (true) {
-            next_symbol = lexer:get_symbol();
-            if (lexer:parse_next_line(next_symbol)) {
+            next_symbol = lexer@get_symbol();
+            if (lexer@parse_next_line(next_symbol)) {
                 // TODO ERROR
                 continue;
             }
@@ -209,7 +209,7 @@ export class Lexer {
 
         var literal_length = lexer.offset - literal_start_offset;
         lexer.offset = literal_start_offset;
-        lexer:add_token(Token.Type.LITERAL_STRING, literal_length);
+        lexer@add_token(Token.Type.LITERAL_STRING, literal_length);
         lexer.offset += 1;
         return true;
     }
@@ -224,7 +224,7 @@ export class Lexer {
 
 
         while (true) {
-            next_symbol = lexer:get_symbol();
+            next_symbol = lexer@get_symbol();
             if (!lexer.is_numeric(next_symbol)) {
                 break;
             }
@@ -234,7 +234,7 @@ export class Lexer {
 
         var literal_length = lexer.offset - literal_start_offset;
         lexer.offset = literal_start_offset;
-        lexer:add_token(Token.Type.LITERAL_INTEGER, literal_length);
+        lexer@add_token(Token.Type.LITERAL_INTEGER, literal_length);
         return true;
     }
     
@@ -247,7 +247,7 @@ export class Lexer {
         lexer.offset = id_start_offset + 1;
 
         while (true) {
-            next_symbol = lexer:get_symbol();
+            next_symbol = lexer@get_symbol();
             if (next_symbol != '_' && !lexer.is_alpha(next_symbol) && !lexer.is_numeric(next_symbol)) {
                 break;
             }
@@ -258,134 +258,127 @@ export class Lexer {
         var id_length = lexer.offset - id_start_offset;
         lexer.offset = id_start_offset;
 
-        var first_symbol = lexer:get_symbol();
+        var first_symbol = lexer@get_symbol();
         switch (first_symbol) {
-            case 'b': {
-                if ("break" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.BREAK, id_length);
+            case 'b' -> {
+                if ("break" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.BREAK, id_length);
                     return true;
                 }
-                break;
             }
-            case 'c': {
-                if ("cimport" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.CIMPORT, id_length);
+            case 'c' -> {
+                if ("cimport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.CIMPORT, id_length);
                     return true;
                 }
-                if ("class" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.CLASS, id_length);
+                if ("class" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.CLASS, id_length);
                     return true;
                 }
-                if ("continue" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.CONTINUE, id_length);
+                if ("continue" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.CONTINUE, id_length);
                     return true;
                 }
-                break;
             }
-            case 'd': {
-                if ("do" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.DO, id_length);
+            case 'd' -> {
+                if ("default" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.DEFAULT, id_length);
                     return true;
                 }
-                break;
+                if ("do" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.DO, id_length);
+                    return true;
+                }
             }
-            case 'e': {
-                if ("else" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.ELSE, id_length);
+            case 'e' -> {
+                if ("else" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.ELSE, id_length);
                     return true;
                 }
-                if ("enum" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.ENUM, id_length);
+                if ("enum" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.ENUM, id_length);
                     return true;
                 }
-                if ("export" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.EXPORT, id_length);
+                if ("export" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.EXPORT, id_length);
                     return true;
                 }
-                break;
             }
-            case 'f': {
-                if ("false" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.LITERAL_FALSE, id_length);
+            case 'f' -> {
+                if ("false" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.LITERAL_FALSE, id_length);
                     return true;
                 }
-                if ("fn" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.FN, id_length);
+                if ("fn" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.FN, id_length);
                     return true;
                 }
-                if ("from" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.FROM, id_length);
+                if ("from" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.FROM, id_length);
                     return true;
                 }
-                break;
             }
-            case 'i': {
-                if ("if" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.IF, id_length);
+            case 'i' -> {
+                if ("if" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.IF, id_length);
                     return true;
                 }
-                if ("import" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.IMPORT, id_length);
+                if ("import" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.IMPORT, id_length);
                     return true;
                 }
-                if ("i64" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.I64, id_length);
+                if ("i64" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.I64, id_length);
                     return true;
                 }
-                break;
             }
-            case 'm': {
-                if ("mimic" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.MIMIC, id_length);
+            case 'm' -> {
+                if ("mimic" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.MIMIC, id_length);
                     return true;
                 }
-                break;
             }
-            case 'n': {
-                if ("none" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.NONE, id_length);
+            case 'n' -> {
+                if ("none" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.NONE, id_length);
                     return true;
                 }
-                if ("null" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.LITERAL_NULL, id_length);
+                if ("null" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.LITERAL_NULL, id_length);
                     return true;
                 }
-                break;
             }
-            case 'r': {
-                if ("raw" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.RAW, id_length);
+            case 'r' -> {
+                if ("raw" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.RAW, id_length);
                     return true;
                 }
-                if ("return" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.RETURN, id_length);
+                if ("return" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.RETURN, id_length);
                     return true;
                 }
-                break;
             }
-            case 't': {
-                if ("true" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.LITERAL_TRUE, id_length);
+            case 't' -> {
+                if ("true" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.LITERAL_TRUE, id_length);
                     return true;
                 }
-                break;
             }
-            case 'v': {
-                if ("var" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.VAR, id_length);
+            case 'v' -> {
+                if ("var" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.VAR, id_length);
                     return true;
                 }
-                break;
             }
-            case 'w': {
-                if ("while" == lexer[lexer.offset:lexer.offset + id_length]) {
-                    lexer:add_token(Token.Type.WHILE, id_length);
+            case 'w' -> {
+                if ("while" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.WHILE, id_length);
                     return true;
                 }
-                break;
             }
         }
-        lexer:add_token(Token.Type.ID, id_length);
+
+        lexer@add_token(Token.Type.ID, id_length);
         return true;
     }
 }
