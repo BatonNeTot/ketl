@@ -237,4 +237,155 @@ export class Lexer {
         lexer:add_token(Token.Type.LITERAL_INTEGER, literal_length);
         return true;
     }
+    
+    fn parse_id(lexer : Lexer, next_symbol : char) -> bool {
+        if (next_symbol != '_' && !lexer.is_alpha(next_symbol)) {
+            return false;
+        }
+
+        var id_start_offset = lexer.offset;
+        lexer.offset = id_start_offset + 1;
+
+        while (true) {
+            next_symbol = lexer:get_symbol();
+            if (next_symbol != '_' && !lexer.is_alpha(next_symbol) && !lexer.is_numeric(next_symbol)) {
+                break;
+            }
+            
+            lexer.offset += 1;
+        }
+
+        var id_length = lexer.offset - id_start_offset;
+        lexer.offset = id_start_offset;
+
+        var first_symbol = lexer:get_symbol();
+        switch (first_symbol) {
+            case 'b': {
+                if ("break" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.BREAK, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'c': {
+                if ("cimport" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.CIMPORT, id_length);
+                    return true;
+                }
+                if ("class" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.CLASS, id_length);
+                    return true;
+                }
+                if ("continue" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.CONTINUE, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'd': {
+                if ("do" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.DO, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'e': {
+                if ("else" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.ELSE, id_length);
+                    return true;
+                }
+                if ("enum" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.ENUM, id_length);
+                    return true;
+                }
+                if ("export" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.EXPORT, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'f': {
+                if ("false" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.LITERAL_FALSE, id_length);
+                    return true;
+                }
+                if ("fn" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.FN, id_length);
+                    return true;
+                }
+                if ("from" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.FROM, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'i': {
+                if ("if" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.IF, id_length);
+                    return true;
+                }
+                if ("import" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.IMPORT, id_length);
+                    return true;
+                }
+                if ("i64" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.I64, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'm': {
+                if ("mimic" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.MIMIC, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'n': {
+                if ("none" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.NONE, id_length);
+                    return true;
+                }
+                if ("null" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.LITERAL_NULL, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'r': {
+                if ("raw" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.RAW, id_length);
+                    return true;
+                }
+                if ("return" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.RETURN, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 't': {
+                if ("true" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.LITERAL_TRUE, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'v': {
+                if ("var" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.VAR, id_length);
+                    return true;
+                }
+                break;
+            }
+            case 'w': {
+                if ("while" == lexer[lexer.offset:lexer.offset + id_length]) {
+                    lexer:add_token(Token.Type.WHILE, id_length);
+                    return true;
+                }
+                break;
+            }
+        }
+        lexer:add_token(Token.Type.ID, id_length);
+        return true;
+    }
 }
