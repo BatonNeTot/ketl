@@ -426,6 +426,53 @@ void ketl_hir_builder_insert_instr(ketl_hir_builder_t* p_hir_builder, ketl_hir_h
     on_instr_inserted(p_hir_builder, instr_offset, hir_header);
 }
 
+void ketl_hir_builder_insert_unary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_unary_op_t* p_unary_op, ketl_hir_expr_info_t expr_info) {
+    if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) != KETL_HIR_UNDEF && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
+        // TODO FIX
+        // for now we just hash search exact function, later we should take into acount possible implicit casts
+
+        ketl_hir_var_t* p_rhs_var = &GET_VAR(p_unary_op->arg_var);
+        
+        // if any var is undefined, the op is undefined
+        if (p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
+            return;
+        }
+
+        // first type is return type, ignored during search
+        ketl_variable_type_info_t a_parameters_array[] = { {.p_type = NULL}, 
+            {.p_type = GET_TYPE(p_rhs_var->type)} };
+        ketl_function_parameters parameters = {
+            .p_parameters = a_parameters_array,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters_array),
+        };
+
+        for (size_t i = 0; i < ANN_ARRAY_SIZE(a_parameters_array); ++i) {
+            if (a_parameters_array[i].p_type && a_parameters_array[i].p_type->kind == KETL_TYPE_ENUM) {
+                a_parameters_array[i].p_type = (ketl_type*)((ketl_type_enum*)a_parameters_array[i].p_type)->p_parent_primitive;
+            }
+        }
+
+        if (a_parameters_array[1].p_type->kind == KETL_TYPE_CLASS) {
+            ketl_type* p_raw_type = ketl_state_get_raw_type(p_hir_builder->p_state);
+            a_parameters_array[1].p_type = p_raw_type;
+        }
+
+        operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
+            p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
+        if (p_operator_bucket == NULL) {
+            errorf(expr_info.source_offset, expr_info.length, "Couldn't find proper op overloading.");
+            return;
+        }
+        
+        // TODO FIX
+        // check if return argument already has defined type and do casting if necessary
+        GET_VAR(p_unary_op->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_operator_bucket->key.p_parameters[0].p_type);
+        hir_header.tag = p_operator_bucket->value;
+    }
+
+    ketl_hir_builder_insert_instr(p_hir_builder, hir_header, (uint8_t*)p_unary_op);
+}
+
 void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op, ketl_hir_expr_info_t expr_info) {
     if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) != KETL_HIR_UNDEF && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
         // TODO FIX
@@ -494,7 +541,7 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
         }
 
         operator_overloading_map_bucket* p_operator_bucket = operator_overloading_map_get_or_null(
-            p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
+            p_hir_builder->p_state->am_hiroperator_overloading + ((hir_header.tag - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters);
         if (p_operator_bucket == NULL) {
             errorf(expr_info.source_offset, expr_info.length, "Couldn't find proper op overloading.");
             return;

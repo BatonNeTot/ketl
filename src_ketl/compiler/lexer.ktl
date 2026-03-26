@@ -213,4 +213,28 @@ export class Lexer {
         lexer.offset += 1;
         return true;
     }
+
+    fn parse_literal_integer(lexer : Lexer, next_symbol : char) -> bool {
+        if (!lexer.is_numeric(next_symbol)) {
+            return false;
+        }
+
+        var literal_start_offset = lexer.offset;
+        lexer.offset += 1;
+
+
+        while (true) {
+            next_symbol = lexer:get_symbol();
+            if (!lexer.is_numeric(next_symbol)) {
+                break;
+            }
+            
+            lexer.offset += 1;
+        }
+
+        var literal_length = lexer.offset - literal_start_offset;
+        lexer.offset = literal_start_offset;
+        lexer:add_token(Token.Type.LITERAL_INTEGER, literal_length);
+        return true;
+    }
 }

@@ -154,6 +154,20 @@ static ketl_hir_var_id_t push_temp_var(ketl_parser_context* p_context, ketl_hir_
     return push_temp_var_type(p_context, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
 }
 
+static ketl_hir_var_id_t push_hir_unary_op(ketl_parser_context* p_context, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info) {
+    ketl_hir_header_t header = {
+        .tag = hir_tag,
+        .file_symbol = p_context->s_filename,
+    };
+    ketl_hir_var_id_t output_var = push_temp_var(p_context, expr_info); 
+    ketl_hir_unary_op_t instr = {
+        .output_var = output_var,
+        .arg_var = rhs,
+    };
+    ketl_hir_builder_insert_unary_op(&p_context->hir_builder, header, &instr, expr_info);
+    return output_var;
+}
+
 static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs) {
     ketl_hir_header_t header = {
         .tag = hir_tag,
@@ -526,7 +540,7 @@ static void push_hir_instr(ketl_parser_context* p_context, ketl_hir_tag_t tag) {
     ketl_hir_builder_insert_instr(&p_context->hir_builder, header,  NULL);
 }
 
-typedef ketl_hir_var_id_t(*ketl_parse_prefix)(ketl_parser_context*);
+typedef ketl_hir_var_id_t(*ketl_parse_unary_rtl)(ketl_parser_context*);
 typedef ketl_hir_var_id_t(*ketl_parse_ltr_infix)(ketl_parser_context*, ketl_hir_var_id_t);
 typedef ketl_hir_var_id_t(*ketl_parse_rtl_infix)(ketl_parser_context*, ketl_hir_var_id_t, ketl_hir_var_id_t);
 
@@ -541,6 +555,7 @@ enum {
     KETL_PREC_TERM,
     KETL_PREC_FACTOR,
     KETL_PREC_CALL,
+    KETL_PREC_PREFIX,
     KETL_PREC_PRIMARY,
 };
 
@@ -553,15 +568,19 @@ enum {
 ketl_associativity associativity[] = {
     [KETL_PREC_NONE] = KETL_LTR,
     [KETL_PREC_ASSIGNMENT] = KETL_RTL,
+    [KETL_PREC_LOGICAL_OR] = KETL_LTR,
+    [KETL_PREC_LOGICAL_AND] = KETL_LTR,
     [KETL_PREC_EQUALITY] = KETL_LTR,
     [KETL_PREC_COMPARISON] = KETL_LTR,
     [KETL_PREC_TERM] = KETL_LTR,
     [KETL_PREC_FACTOR] = KETL_LTR,
+    [KETL_PREC_CALL] = KETL_LTR,
+    [KETL_PREC_PREFIX] = KETL_RTL,
     [KETL_PREC_PRIMARY] = KETL_LTR,
 };
 
 ANN_DEFINE(ketl_parse_rule) {
-    ketl_parse_prefix f_prefix;
+    ketl_parse_unary_rtl f_prefix;
     ketl_parse_ltr_infix f_ltr_infix;
     ketl_parse_rtl_infix f_rtl_infix;
     ketl_precedence precedence;
@@ -1082,6 +1101,16 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
     }
 }
 
+static ketl_hir_var_id_t parse_unary_rtl(ketl_parser_context* p_context) {
+    ketl_token_t token = CURRENT_TOKEN(1);
+    ketl_token_type token_type = token.type;
+    ketl_hir_var_id_t rhs = parse_expression(p_context);
+
+    ANN_SWITCH_STRICT (token_type) {
+        case KETL_TOKEN_TYPE_LOGICAL_NOT: return push_hir_unary_op(p_context, KETL_HIR_LOGICAL_NOT, rhs, token_extract_info(token));
+    }
+}
+
 static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
     ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
@@ -1191,7 +1220,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_COLON]                      = { NULL,                parse_colon_operator,  NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { parse_unary_rtl,     NULL,                  NULL,             KETL_PREC_PREFIX},
     [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,                parse_short_circuit,   NULL,             KETL_PREC_LOGICAL_AND},
     [KETL_TOKEN_TYPE_LOGICAL_OR]                 = { NULL,                parse_short_circuit,   NULL,             KETL_PREC_LOGICAL_OR},
     [KETL_TOKEN_TYPE_LESS]                       = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_COMPARISON},
@@ -1270,7 +1299,7 @@ static ketl_parse_rule* get_parse_rule(ketl_token_type token_type) {
 }
 
 static ketl_hir_var_id_t parse_lhs_operand(ketl_parser_context* p_context, ketl_precedence precedence) {    
-    ketl_parse_prefix f_prefix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_prefix;
+    ketl_parse_unary_rtl f_prefix_rule = get_parse_rule(CURRENT_TOKEN(1).type)->f_prefix;
     if (f_prefix_rule == NULL) {
         errorf(CURRENT_TOKEN(1).offset, CURRENT_TOKEN(1).length, "Expected expression.");
         return push_temp_var(p_context, token_extract_info(CURRENT_TOKEN(1)));

@@ -49,6 +49,9 @@ void ketl_hir_deinit(ketl_hir_t* p_hir) {
 
 ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_instr) {
     switch (tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_LOGICAL_NOT:
+            return sizeof(ketl_hir_unary_op_t);
+
         case KETL_HIR_PLUS:
         case KETL_HIR_MINUS:
         case KETL_HIR_MULTY:

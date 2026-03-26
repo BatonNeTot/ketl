@@ -1177,6 +1177,20 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
         p_instr += sizeof(ketl_hir_header_t);
 
         switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+            case KETL_HIR_LOGICAL_NOT: {
+                ketl_hir_unary_op_t* p_hir_info = (ketl_hir_unary_op_t*)p_instr;
+                ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
+                push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->arg_var, size, p_builder);
+                switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+                    case KETL_HIR_LOGICAL_NOT:
+                        ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_TEST, size, MODRM_REG(KETL_ASM_X86_AX), KETL_ASM_X86_AX);
+                        ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETZ, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
+                        break;
+                }
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_8B, p_builder);
+                continue;
+            }
+
             case KETL_HIR_PLUS:
             case KETL_HIR_MINUS:
             case KETL_HIR_MULTY:

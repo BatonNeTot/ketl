@@ -57,7 +57,9 @@ enum {
 
     // pre-shifted instructions
 
-    __KETL_HIR_PLUS                     = 1,
+    __KETL_HIR_LOGICAL_NOT              = 1,
+
+    __KETL_HIR_PLUS,
     __KETL_HIR_MINUS,
     __KETL_HIR_MULTY,
     __KETL_HIR_DIV,
@@ -90,6 +92,8 @@ enum {
 
     // shifted instructions
 
+    KETL_HIR_LOGICAL_NOT              = __KETL_HIR_LOGICAL_NOT << KETL_HIR_TYPE_INSTR_SHIFT,
+
     KETL_HIR_PLUS                     = __KETL_HIR_PLUS << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_MINUS                    = __KETL_HIR_MINUS << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_MULTY                    = __KETL_HIR_MULTY << KETL_HIR_TYPE_INSTR_SHIFT,
@@ -121,8 +125,8 @@ enum {
 
     KETL_HIR_RETURN_VALUE             = __KETL_HIR_RETURN_VALUE << KETL_HIR_TYPE_INSTR_SHIFT,
 
-    KETL_HIR_FIRST_BI_OPERATOR = KETL_HIR_PLUS,
-    KETL_HIR_LAST_BI_OPERATOR = KETL_HIR_GREATER_OR_EQUAL,
+    KETL_HIR_FIRST_OVERLOADABLE_OPERATOR = KETL_HIR_LOGICAL_NOT,
+    KETL_HIR_LAST_OVERLOADABLE_OPERATOR = KETL_HIR_GREATER_OR_EQUAL,
 };
 
 bool ketl_hir_is_terminator_tag(ketl_hir_tag_t tag);
@@ -139,6 +143,11 @@ typedef uint16_t ketl_hir_symbol_offset_t;
 ANN_DEFINE(ketl_hir_header_t) {
     ketl_hir_tag_t tag;
     ketl_hir_symbol_offset_t file_symbol;
+};
+
+ANN_DEFINE(ketl_hir_unary_op_t) {
+    ketl_hir_var_id_t arg_var;
+    ketl_hir_var_id_t output_var;
 };
 
 ANN_DEFINE(ketl_hir_binary_op_t) {

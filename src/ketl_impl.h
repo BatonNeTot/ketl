@@ -43,7 +43,7 @@ ANN_DEFINE(ketl_state) {
     array_types_map_t array_types;
 
     operator_overloading_map am_hiroperator_overloading[
-        ((KETL_HIR_LAST_BI_OPERATOR - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT) + 1
+        ((KETL_HIR_LAST_OVERLOADABLE_OPERATOR - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT) + 1
     ];
 
     compile_function_declarations_t compile_function_declarations;

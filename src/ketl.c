@@ -178,6 +178,21 @@ ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl
     CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false, true);
     CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false, true);
 
+#define REGISTER_UNARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
+do {\
+    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type} };\
+    ketl_function_parameters parameters = {\
+        .p_parameters = parameters_array,\
+        .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)\
+    };\
+\
+    const function_type_composite* p_func_type_composite = get_function_type_composite(p_state, &parameters);\
+    parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;\
+\
+    operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + \
+        ((_hir_tag_op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
+} while (false)
+
 #define REGISTER_BINARY_OPERATOR(_hir_tag_op, _lhs_arg_type, _rhs_arg_type, _return_type, _hir_type)\
 do {\
     ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _lhs_arg_type}, {.p_type = _rhs_arg_type} };\
@@ -190,8 +205,22 @@ do {\
     parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;\
 \
     operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + \
-        ((_hir_tag_op - KETL_HIR_FIRST_BI_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
+        ((_hir_tag_op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
 } while (false)
+
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_bool, p_bool, KETL_HIR_U8);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_char, p_bool, KETL_HIR_U8);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_raw,  p_bool, KETL_HIR_U64);
+
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i8,   p_bool, KETL_HIR_I8);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i16,  p_bool, KETL_HIR_I16);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i32,  p_bool, KETL_HIR_I32);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i64,  p_bool, KETL_HIR_I64);
+
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u8,   p_bool, KETL_HIR_U8);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u16,  p_bool, KETL_HIR_U16);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u32,  p_bool, KETL_HIR_U32);
+    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u64,  p_bool, KETL_HIR_U64);
 
 #define REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(_hir_tag_op, _arg_type, _return_type, _hir_type)\
     REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _arg_type, _return_type, _hir_type)
