@@ -44,4 +44,10 @@ ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic
 
 ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomic_string s_key);
 
+ketl_namespace_node* ketl_namespace_find_by_index(ketl_namespace* p_namespace, uint32_t index);
+
+uint32_t ketl_namespace_get_index(ketl_namespace* p_namespace, ketl_namespace_node* p_node);
+
+ketl_namespace* ketl_namespace_find_direct_parent(ketl_namespace* p_namespace, ketl_namespace_node* p_node);
+
 #endif // ketl_namespace_h

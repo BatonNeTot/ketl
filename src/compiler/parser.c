@@ -134,12 +134,12 @@ static ketl_hir_symbol_offset_t push_symbol(ketl_parser_context* p_context, ketl
     return push_symbol_string(p_context, TOKEN_STRING(literal), TOKEN_LENGTH(literal));
 }
 
-static ketl_hir_var_id_t push_literal_number_symbol_of_type(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type) {
+static ketl_hir_var_id_t push_literal_symbol_of_type(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type) {
     return ketl_hir_builder_get_literal(&p_context->hir_builder, literal, expr_info, type);
 }
 
 static ketl_hir_var_id_t push_literal_number_symbol(ketl_parser_context* p_context, ketl_hir_symbol_offset_t literal, ketl_hir_expr_info_t expr_info) {
-    return push_literal_number_symbol_of_type(p_context, literal, expr_info, KETL_HIR_USED_TYPE_LITERAL);
+    return push_literal_symbol_of_type(p_context, literal, expr_info, KETL_HIR_USED_TYPE_LITERAL);
 }
 
 static ketl_hir_var_id_t push_literal_number(ketl_parser_context* p_context, ketl_token_t literal_token) {
@@ -400,7 +400,7 @@ static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_t
     if (p_context->is_global_scope) {
         ketl_namespace_node* p_namespace_node = ketl_state_define_var(p_context->p_state, p_context->p_namespace, 
             TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), GET_TYPE(type_index), p_context->export);
-        id_var = ketl_hir_builder_get_global_var(&p_context->hir_builder, p_namespace_node, 
+        id_var = ketl_hir_builder_get_global_var(&p_context->hir_builder, p_context->p_namespace, p_namespace_node, 
             push_symbol(p_context, id_literal), expr_info, type_index);
     } else {
         id_var = ketl_hir_builder_register_var(&p_context->hir_builder, p_context->p_namespace, 
@@ -457,7 +457,10 @@ static ketl_hir_var_id_t push_hir_new(ketl_parser_context* p_context, ketl_hir_v
         .tag = KETL_HIR_NEW,
         .file_symbol = p_context->s_filename,
     };
-    ketl_type* p_type = get_var_info(p_context, GET_VAR(type_var).info)->p_global->variable.p_pointer;
+    ketl_namespace_node* p_type_node = ketl_namespace_find_by_index(
+        get_var_info(p_context, GET_VAR(type_var).info)->p_namespace,
+        get_var_info(p_context, GET_VAR(type_var).info)->namespace_node_index);
+    ketl_type* p_type = p_type_node->variable.p_pointer;
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type)); 
     ketl_hir_new_t instr = {
         .output_var = output_var,
@@ -476,7 +479,9 @@ static ketl_hir_var_id_t push_hir_new_array(ketl_parser_context* p_context, ketl
         .tag = KETL_HIR_CREATE_ARRAY,
         .file_symbol = p_context->s_filename,
     };
-    ketl_type* p_value_type = get_var_info(p_context, GET_VAR(value_type_var).info)->p_global->variable.p_pointer;
+    ketl_hir_var_info_t* p_var_info = get_var_info(p_context, GET_VAR(value_type_var).info);
+    ketl_namespace_node* p_type_node = ketl_namespace_find_by_index(p_var_info->p_namespace, p_var_info->namespace_node_index);
+    ketl_type* p_value_type = p_type_node->variable.p_pointer;
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, 
         ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)));
     ketl_hir_create_array_t instr = {
@@ -619,7 +624,7 @@ static void token_consume(ketl_parser_context* p_context, ketl_token_type token_
 static ketl_hir_var_id_t push_null_var(ketl_parser_context* p_context, ketl_hir_expr_info_t expr_info) {
     ketl_type* p_type = ketl_state_get_raw_type(p_context->p_state);
     ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
-    return push_literal_number_symbol_of_type(p_context, KETL_HIR_LITERAL_NULL, expr_info, type);
+    return push_literal_symbol_of_type(p_context, KETL_HIR_LITERAL_NULL, expr_info, type);
 }
 
 static ketl_hir_var_id_t parse_null(ketl_parser_context* p_context) {
@@ -631,7 +636,7 @@ static ketl_hir_var_id_t push_bool_var(ketl_parser_context* p_context, ketl_hir_
     ketl_type* p_type = ketl_state_get_bool_type(p_context->p_state);
     ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
     ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, value ? "0" : "1", 1);
-    return push_literal_number_symbol_of_type(p_context, symbol, expr_info, type);
+    return push_literal_symbol_of_type(p_context, symbol, expr_info, type);
 }
 
 static ketl_hir_var_id_t parse_false(ketl_parser_context* p_context) {
@@ -646,15 +651,20 @@ static ketl_hir_var_id_t parse_true(ketl_parser_context* p_context) {
 }
 
 static ketl_hir_var_id_t parse_number(ketl_parser_context* p_context) {
-    ANN_ASSERT(CURRENT_TOKEN(1).type != KETL_TOKEN_TYPE_LITERAL_STRING);
     return push_literal_number(p_context, CURRENT_TOKEN(1));
+}
+
+static ketl_hir_var_id_t parse_string(ketl_parser_context* p_context) {
+    ketl_token_t string_literal = CURRENT_TOKEN(1);
+    ketl_hir_used_type_index_t string_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_str_type(p_context->p_state));
+    return push_literal_symbol_of_type(p_context, push_symbol(p_context, string_literal), token_extract_info(string_literal), string_type);
 }
 
 static ketl_hir_var_id_t parse_char(ketl_parser_context* p_context) {
     ketl_token_t literal = CURRENT_TOKEN(1);
     ketl_type* p_type = ketl_state_get_char_type(p_context->p_state);
     ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
-    return push_literal_number_symbol_of_type(p_context, push_symbol(p_context, literal), token_extract_info(literal), type);
+    return push_literal_symbol_of_type(p_context, push_symbol(p_context, literal), token_extract_info(literal), type);
 }
 
 static ketl_hir_var_id_t parse_identificator(ketl_parser_context* p_context) {
@@ -774,7 +784,7 @@ static ketl_hir_var_id_t parse_call(ketl_parser_context* p_context, ketl_hir_var
     ketl_hir_var_t* p_callee = &GET_VAR(callee);
     if (p_callee->type == KETL_HIR_USED_TYPE_META) {
         ketl_hir_var_info_t* p_callee_info = get_var_info(p_context, p_callee->info);
-        ketl_namespace_node* p_callee_node = p_callee_info->p_global;
+        ketl_namespace_node* p_callee_node = ketl_namespace_find_by_index(p_callee_info->p_namespace, p_callee_info->namespace_node_index);
         if (p_callee_node->variable.kind != KETL_VARIABLE_TYPE) {
             errorf(expr_info.source_offset, expr_info.length, "Trying to call an improper object.");
             return push_temp_var(p_context, expr_info);
@@ -836,7 +846,8 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
         ketl_hir_expr_info_t expr_info = expr_info_merge(p_object->expr_info, token_extract_info(id_literal));
 
-        ketl_namespace_node* p_namespace_node = get_var_info(p_context, p_object->info)->p_global;
+        ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
+            get_var_info(p_context, p_object->info)->p_namespace, get_var_info(p_context, p_object->info)->namespace_node_index);
         
         if (p_namespace_node->variable.kind == KETL_VARIABLE_NAMESPACE) { 
             ketl_namespace* p_namespace = p_namespace_node->variable.p_pointer;
@@ -998,7 +1009,8 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
     }
 
     if (p_object->type == KETL_HIR_USED_TYPE_META) {
-        ketl_namespace_node* p_namespace_node = get_var_info(p_context, p_object->info)->p_global;
+        ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
+            get_var_info(p_context, p_object->info)->p_namespace, get_var_info(p_context, p_object->info)->namespace_node_index);
 
         if (p_namespace_node->variable.kind != KETL_VARIABLE_TYPE) {
             errorf(expr_info.source_offset, expr_info.length, "Namespaces doesn't support meta properties.");
@@ -1071,7 +1083,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 
     if (token_match(p_context, KETL_TOKEN_TYPE_COLON)) {
         parse_expression(p_context);
-        ANN_ASSERT(false);
+        // ANN_ASSERT(false);
         // TODO slice
     }
 
@@ -1092,7 +1104,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
                 ketl_hir_var_id_t value_var = parse_expression(p_context);
                 char a_literal_buffer[256] = {0};
                 uint32_t literal_length = snprintf(a_literal_buffer, ANN_ARRAY_SIZE(a_literal_buffer), "%"PRIu64, index);
-                ketl_hir_var_id_t index_literal = push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, a_literal_buffer, literal_length),
+                ketl_hir_var_id_t index_literal = push_literal_symbol_of_type(p_context, push_symbol_string(p_context, a_literal_buffer, literal_length),
                     GET_VAR(value_var).expr_info, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state)));
                 ketl_hir_var_id_t indexed_var = push_array_index(p_context, id_var, index_literal, GET_VAR(value_var).expr_info);
 
@@ -1212,7 +1224,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_LITERAL_FALSE]              = { parse_false,         NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_TRUE]               = { parse_true,          NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_INTEGER]            = { parse_number,        NULL,                  NULL,             KETL_PREC_PRIMARY},
-    [KETL_TOKEN_TYPE_LITERAL_STRING]             = { parse_number,        NULL,                  NULL,             KETL_PREC_PRIMARY},
+    [KETL_TOKEN_TYPE_LITERAL_STRING]             = { parse_string,        NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_LITERAL_CHAR]               = { parse_char,          NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_PARENTHESIS_LEFT]           = { parse_grouping,      parse_call,            NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_PARENTHESIS_RIGHT]          = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
@@ -1863,7 +1875,7 @@ static ketl_statement_info parse_var_declaration(ketl_parser_context* p_context)
             // TODO do default contructor or smth
             ketl_type* p_type = GET_TYPE(type);
             if (p_type->kind == KETL_TYPE_PRIMITIVE) {
-                initial_value = push_literal_number_symbol_of_type(p_context, push_symbol_string(p_context, "0", 1), token_extract_info(id_literal), type);
+                initial_value = push_literal_symbol_of_type(p_context, push_symbol_string(p_context, "0", 1), token_extract_info(id_literal), type);
             } else {
                 initial_value = push_null_var(p_context, token_extract_info(id_literal));
             }
@@ -1981,6 +1993,9 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
     ketl_namespace_node* p_func_node = ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
         TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, p_context->export, false);
+    ketl_namespace* p_direct_namespace = ketl_namespace_find_direct_parent(p_context->p_namespace, p_func_node);
+    ANN_ASSERT(p_direct_namespace == p_context->p_namespace);
+    uint32_t namespace_node_index = ketl_namespace_get_index(p_direct_namespace, p_func_node);
     
     // looking for the end of the function definition
     ketl_token_iterator_t start_pos = p_context->p_lexer->token_iterator;
@@ -2000,8 +2015,8 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     ketl_token_iterator_t end_pos = p_context->p_lexer->token_iterator;
 
     compile_function_declaration_t function_decl = {
-        .p_namespace = p_context->p_namespace,
-        .p_namespace_node = p_func_node,
+        .p_namespace = p_direct_namespace,
+        .namespace_node_index = namespace_node_index,
         .p_opcodes = NULL,
         .opcodes_size = 0,
         .start_pos = start_pos,

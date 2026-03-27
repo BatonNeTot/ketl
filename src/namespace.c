@@ -113,3 +113,36 @@ ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomi
 
     return NULL;
 }
+
+ketl_namespace_node* ketl_namespace_find_by_index(ketl_namespace* p_namespace, uint32_t index) {
+    if (index >= p_namespace->v_nodes.size) {
+        return NULL;
+    }
+
+    return &p_namespace->v_nodes.p_data[index];
+}
+
+uint32_t ketl_namespace_get_index(ketl_namespace* p_namespace, ketl_namespace_node* p_node) {
+    if (p_node == NULL) {
+        return 0;
+    }
+
+    ANN_ASSERT(p_namespace->v_nodes.p_data <= p_node && p_node < p_namespace->v_nodes.p_data + p_namespace->v_nodes.size);
+    return p_node - p_namespace->v_nodes.p_data;
+}
+
+ketl_namespace* ketl_namespace_find_direct_parent(ketl_namespace* p_namespace, ketl_namespace_node* p_node) {
+    if (p_node == NULL) {
+        return NULL;
+    }
+
+    if (p_namespace->v_nodes.p_data <= p_node && p_node < p_namespace->v_nodes.p_data + p_namespace->v_nodes.size) {
+        return p_namespace;
+    }
+
+    if (p_namespace->p_parent != NULL) {
+        return ketl_namespace_find_direct_parent(p_namespace->p_parent, p_node);
+    }
+
+    ANN_ASSERT(false);
+}

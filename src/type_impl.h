@@ -50,9 +50,16 @@ ANN_DEFINE(ketl_type_array) {
 };
 
 ANN_DEFINE(ketl_array) {
-    uint8_t* p_data;
+    union {
+        uint8_t* p_data;
+        ketl_array* p_mirrored;
+    };
+    union {
+        uint64_t capacity;
+        uint64_t mirrored_offset;
+    };
     uint64_t size;
-    uint64_t capacity;
+    bool is_slice;
 };
 
 ANN_DEFINE(ketl_type_signature) {

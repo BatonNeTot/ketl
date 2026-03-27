@@ -40,7 +40,10 @@ enum {
     KETL_HIR_CALL,
 
     KETL_HIR_NEW,
+
     KETL_HIR_CREATE_ARRAY,
+    KETL_HIR_CREATE_SLICE,
+    KETL_HIR_EQUAL_ARRAY,
     KETL_HIR_APPEND_VALUE,
 
     KETL_HIR_JUMP,
@@ -257,12 +260,15 @@ ANN_FORWARD(ketl_namespace_node);
 
 ANN_DEFINE(ketl_hir_var_info_t) {
     union {
-        ketl_hir_symbol_offset_t name;
-        ketl_hir_var_id_t arg_id;
+        struct {
+            ketl_namespace* p_namespace;
+            uint32_t namespace_node_index;
+        };
+        ketl_hir_var_id_t parent_id;
     };
     union {
-        ketl_namespace_node* p_global;
-        ketl_hir_var_id_t parent_id;
+        ketl_hir_symbol_offset_t name;
+        ketl_hir_var_id_t arg_id;
     };
     ketl_hir_var_id_t last_var_id;
     // TODO declaration info
@@ -286,7 +292,7 @@ ANN_DEFINE(ketl_hir_t) {
 
     ketl_hir_used_type_index_t return_type;
     ketl_hir_var_id_t parameter_count;
-    bool has_calls;
+    uint8_t max_call_arg_count;
 };
 
 void ketl_hir_deinit(ketl_hir_t* p_hir);

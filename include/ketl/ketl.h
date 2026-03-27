@@ -19,6 +19,7 @@ ketl_type* ketl_state_get_none_type(ketl_state* p_state);
 ketl_type* ketl_state_get_bool_type(ketl_state* p_state);
 ketl_type* ketl_state_get_char_type(ketl_state* p_state);
 ketl_type* ketl_state_get_raw_type(ketl_state* p_state);
+ketl_type* ketl_state_get_str_type(ketl_state* p_state);
 
 ketl_type* ketl_state_get_i8(ketl_state* p_state);
 ketl_type* ketl_state_get_i16(ketl_state* p_state);

@@ -44,8 +44,9 @@ class TypeArray {
 
 class ArrayHeader {
     var data : raw;
-    var size : u64;
     var capacity : u64;
+    var size : u64;
+    var is_slice : bool;
 }
 
 /////////////////////////////////////////////
@@ -69,6 +70,10 @@ export fn recalloc(old_pointer : raw, old_size : u64, new_size : u64) -> raw {
     return pointer;
 }
 
+export fn assert(expr : bool) {
+    // TODO
+}
+
 class GC {
 
     class U8Wrapper {
@@ -88,26 +93,52 @@ class GC {
         return calloc(type.size);
     }
 
-    export fn new_array(gc : GC, type : Type, count : u64, flags : u64) -> raw {
+    export fn new_array(gc : GC, type : Type, size : u64, initial_data : raw, initial_data_mem_size : u64, flags : u64) -> raw {
         var array_header = ArrayHeader();
         var type_size = type@get_stack_size();
-        if (type.kind != Type.Kind.Primitive && type.kind != Type.Kind.Enum) {
-            type_size = raw$size;
+        var mem_size = type_size * size;
+        array_header.data = calloc(type_size * size);
+        array_header.capacity = size;
+        array_header.size = size;
+        array_header.is_slice = false;
+        assert(initial_data == null || initial_data_mem_size <= mem_size);
+        if (initial_data != null) {
+            memcpy(array_header.data, initial_data, initial_data_mem_size);
         }
-        array_header.data = calloc(type_size * count);
-        array_header.size = count;
-        array_header.capacity = count;
+        return array_header;
+    }
+
+    export fn new_slice(gc : GC, type : Type, size : u64, mirrored_array : ArrayHeader, mirrored_offset : u64, flags : u64) -> raw {
+        var array_header = ArrayHeader();
+        while (mirrored_array != null || mirrored_array.is_slice) {
+            mirrored_offset += mirrored_array.capacity; // capacity is mirrored_offset when is_slice == true
+            mirrored_array = mirrored_array.data; // data is mirrored_array when is_slice == true
+        }
+        array_header.data = mirrored_array;
+        array_header.capacity = mirrored_offset;
+        array_header.size = size;
+        array_header.is_slice = true;
+        assert(mirrored_array == null || mirrored_array.size >= mirrored_offset + size);
         return array_header;
     }
 
     export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : u64) {
         var value_size = type@get_stack_size();
-        if (array_header.capacity == 0) {
-            // TODO assert(array_header.data == NULL);
+        if (array_header.is_slice) {
+            var capacity = array_header.size + 1; // plus appended one
+            var data = calloc(value_size * capacity);
+            // capacity is mirrored_offset when is_slice == true
+            // data is mirrored_array when is_slice == true
+            memcpy(data, array_header.data$cast(ArrayHeader).data + array_header.capacity * value_size, array_header.size * value_size);
+            array_header.data = data;
+            array_header.capacity = capacity;
+            array_header.is_slice = false;
+        } else if (array_header.capacity == 0) {
+            assert(array_header.data == null);
             array_header.capacity = 4;
             array_header.data = calloc(value_size * array_header.capacity);
         } else if (array_header.size >= array_header.capacity) {
-            // TODO assert(array_header.data != NULL);
+            assert(array_header.data != null);
             var old_capacity = array_header.capacity;
             array_header.capacity += array_header.capacity / 2;
             array_header.data = array_header.data@recalloc(value_size * old_capacity, value_size * array_header.capacity);
@@ -136,8 +167,12 @@ export fn new(type : Type) -> raw {
     return gc@new(type, 0);
 }
 
-export fn new_array(type : Type, count : u64) -> raw {
-    return gc@new_array(type, count, 0);
+export fn new_array(type : Type, size : u64, initial_data : raw, initial_data_mem_size : u64) -> raw {
+    return gc@new_array(type, size, initial_data, initial_data_mem_size, 0);
+}
+
+export fn new_slice(type : Type, size : u64, mirrored_array : ArrayHeader, mirrored_offset : u64) -> raw {
+    return gc@new_slice(type, size, mirrored_array, mirrored_offset, 0);
 }
 
 export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : raw) {

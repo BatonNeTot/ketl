@@ -137,10 +137,13 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
         for (uint32_t i = 0; i < p_module->compile_function_declarations.size; ++i) {
             ANN_ASSERT(export_count < ANN_ARRAY_SIZE(a_export));
 
+            compile_function_declaration_t* p_compile_function_declaration = &p_module->compile_function_declarations.p_data[i];
+            ketl_namespace_node* p_node = ketl_namespace_find_by_index(
+                p_compile_function_declaration->p_namespace, p_compile_function_declaration->namespace_node_index);
             a_export[export_count++] = (export_info){
-                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].p_namespace_node->s_name),
-                .p_opcodes = p_module->compile_function_declarations.p_data[i].p_opcodes,
-                .opcodes_size = p_module->compile_function_declarations.p_data[i].opcodes_size,
+                .p_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name),
+                .p_opcodes = p_compile_function_declaration->p_opcodes,
+                .opcodes_size = p_compile_function_declaration->opcodes_size,
             };
         }
 
@@ -155,10 +158,13 @@ bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state) {
 
     {
         for (uint32_t i = 0; i < p_module->compile_function_declarations.size; ++i) {
-            ketl_parameters_t_deinit(&p_module->compile_function_declarations.p_data[i].v_parameters);
-            ketl_free(p_state->p_allocator, p_module->compile_function_declarations.p_data[i].p_opcodes);
-            p_module->compile_function_declarations.p_data[i].p_namespace_node->variable.cfunc = ketl_dynamic_library_load_function(a_library_filename, 
-                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_module->compile_function_declarations.p_data[i].p_namespace_node->s_name));
+            compile_function_declaration_t* p_compile_function_declaration = &p_module->compile_function_declarations.p_data[i];
+            ketl_parameters_t_deinit(&p_compile_function_declaration->v_parameters);
+            ketl_free(p_state->p_allocator, p_compile_function_declaration->p_opcodes);
+            ketl_namespace_node* p_node = ketl_namespace_find_by_index(
+                p_compile_function_declaration->p_namespace, p_compile_function_declaration->namespace_node_index);
+            p_node->variable.cfunc = ketl_dynamic_library_load_function(a_library_filename, 
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name));
         }
     }
 
