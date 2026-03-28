@@ -41,9 +41,9 @@ void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t si
 
 ANN_FORWARD(ketl_array);
 
-void* ketl_gc_create_slice_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t size, ketl_array* mirrored_array, uint64_t mirrored_offset, uint8_t flags);
+void* ketl_gc_create_slice_of_type(ketl_gc* p_gc, ketl_type* p_type, ketl_array* mirrored_array, uint64_t start, uint64_t end, uint8_t flags);
 
-void ketl_gc_append_value(ketl_gc* p_gc, ketl_type* p_type, ketl_array* p_array, uint64_t value);
+void ketl_gc_append_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, uint64_t value);
 
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags);
 

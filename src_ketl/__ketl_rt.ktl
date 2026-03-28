@@ -108,8 +108,10 @@ class GC {
         return array_header;
     }
 
-    export fn new_slice(gc : GC, type : Type, size : u64, mirrored_array : ArrayHeader, mirrored_offset : u64, flags : u64) -> raw {
+    export fn new_slice(gc : GC, mirrored_array : ArrayHeader, start : u64, end : u64, flags : u64) -> raw {
         var array_header = ArrayHeader();
+        var mirrored_offset = start;
+        var size = end - start;
         while (mirrored_array != null || mirrored_array.is_slice) {
             mirrored_offset += mirrored_array.capacity; // capacity is mirrored_offset when is_slice == true
             mirrored_array = mirrored_array.data; // data is mirrored_array when is_slice == true
@@ -122,8 +124,8 @@ class GC {
         return array_header;
     }
 
-    export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : u64) {
-        var value_size = type@get_stack_size();
+    export fn append_value(gc : GC, stack_size : u64, array_header : ArrayHeader, value : u64) {
+        var value_size = stack_size;
         if (array_header.is_slice) {
             var capacity = array_header.size + 1; // plus appended one
             var data = calloc(value_size * capacity);
@@ -171,10 +173,10 @@ export fn new_array(type : Type, size : u64, initial_data : raw, initial_data_me
     return gc@new_array(type, size, initial_data, initial_data_mem_size, 0);
 }
 
-export fn new_slice(type : Type, size : u64, mirrored_array : ArrayHeader, mirrored_offset : u64) -> raw {
-    return gc@new_slice(type, size, mirrored_array, mirrored_offset, 0);
+export fn new_slice(mirrored_array : ArrayHeader, start : u64, end : u64) -> raw {
+    return gc@new_slice(mirrored_array, start, end, 0);
 }
 
-export fn append_value(gc : GC, type : Type, array_header : ArrayHeader, value : raw) {
-    gc@append_value(type, array_header, value);
+export fn append_value(stack_size : u64, array_header : ArrayHeader, value : raw) {
+    gc@append_value(stack_size, array_header, value);
 }

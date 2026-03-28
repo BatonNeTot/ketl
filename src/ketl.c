@@ -992,7 +992,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             printf("    .p2align	4\n");
             printf("%s:\n", p_func_name);
 
-            char arr_buffer[32768];
+            char arr_buffer[65536];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
         }

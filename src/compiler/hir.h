@@ -43,7 +43,6 @@ enum {
 
     KETL_HIR_CREATE_ARRAY,
     KETL_HIR_CREATE_SLICE,
-    KETL_HIR_EQUAL_ARRAY,
     KETL_HIR_APPEND_VALUE,
 
     KETL_HIR_JUMP,
@@ -142,6 +141,7 @@ typedef uint16_t ketl_hir_var_info_index_t;
 typedef uint16_t ketl_hir_block_index_t;
 typedef uint16_t ketl_hir_used_type_index_t;
 typedef uint16_t ketl_hir_symbol_offset_t;
+typedef uint16_t ketl_hir_const_index_t;
 
 ANN_DEFINE(ketl_hir_header_t) {
     ketl_hir_tag_t tag;
@@ -183,6 +183,15 @@ ANN_DEFINE(ketl_hir_create_array_t) {
     ketl_hir_var_id_t output_var;
     ketl_hir_var_id_t type_var;
     ketl_hir_var_id_t count_var_id;
+    ketl_hir_const_index_t const_index;
+};
+
+ANN_DEFINE(ketl_hir_create_slice_t) {
+    ketl_hir_var_id_t output_var;
+    ketl_hir_used_type_index_t type;
+    ketl_hir_var_id_t mirror_var_id;
+    ketl_hir_var_id_t start_var_id;
+    ketl_hir_var_id_t end_var_id;
 };
 
 ANN_DEFINE(ketl_hir_append_value_t) {
@@ -238,6 +247,8 @@ typedef uint16_t ketl_hir_var_uid_t;
 #define KETL_HIR_VAR_INFO_TEMP ((ketl_hir_var_info_index_t)-1)
 #define KETL_HIR_VAR_NAME_TEMP KETL_ATOMIC_STRING_EMPTY
 
+#define KETL_HIR_CONST_INDEX_NULL ((ketl_hir_const_index_t)-1)
+
 typedef uint32_t ketl_hir_expr_length_t;
 
 ANN_DEFINE(ketl_hir_expr_info_t) {
@@ -274,6 +285,13 @@ ANN_DEFINE(ketl_hir_var_info_t) {
     // TODO declaration info
 };
 
+ANN_DEFINE(ketl_hir_const_info_t) {
+    uint32_t const_offset;
+    uint32_t const_size;
+    ketl_hir_symbol_offset_t name;
+    bool is_string;
+};
+
 ANN_DEFINE(ketl_hir_t) {
     const ketl_allocator* p_allocator;
 
@@ -283,12 +301,16 @@ ANN_DEFINE(ketl_hir_t) {
     ketl_hir_instr_offset_t* p_block_offsets;
     ketl_type** p_used_types;
     char* p_symbols;
+    ketl_hir_const_info_t* p_consts_infos;
+    uint8_t* p_consts;
     
     ketl_hir_instr_offset_t instrs_count;
     ketl_hir_var_id_t vars_count;
     ketl_hir_var_info_index_t vars_infos_count;
     ketl_hir_block_index_t blocks_count;
     ketl_hir_used_type_index_t used_types_count;
+    ketl_hir_const_index_t consts_count;
+    uint32_t consts_size;
 
     ketl_hir_used_type_index_t return_type;
     ketl_hir_var_id_t parameter_count;

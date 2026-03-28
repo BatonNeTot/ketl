@@ -17,6 +17,8 @@ KETL_VECTOR_DECLARATION(hir_builder_vars_t, ketl_hir_var_t)
 KETL_VECTOR_DECLARATION(hir_builder_vars_infos_t, ketl_hir_var_info_t)
 KETL_VECTOR_DECLARATION(hir_builder_blocks_t, ketl_hir_instr_offset_t)
 KETL_VECTOR_DECLARATION(hir_builder_used_types_t, ketl_type*)
+KETL_VECTOR_DECLARATION(ketl_hir_consts_infos_t, ketl_hir_const_info_t)
+KETL_VECTOR_DECLARATION(ketl_hir_consts_t, uint8_t)
 
 KETL_HASH_MAP_DECLARATION(hir_builder_symbol_to_var_info_map_t, ketl_hir_symbol_offset_t, ketl_hir_var_info_index_t)
 KETL_HASH_MAP_DECLARATION(hir_builder_type_to_used_type_map_t, ketl_type*, ketl_hir_used_type_index_t)
@@ -43,6 +45,8 @@ ANN_DEFINE(ketl_hir_builder_t) {
     hir_builder_blocks_t blocks;
     hir_builder_used_types_t used_types;
     ketl_atomic_strings symbols;
+    ketl_hir_consts_infos_t consts_infos;
+    ketl_hir_consts_t consts;
 
     hir_builder_return_offsets_t return_offsets;
     hir_builder_blocks_infos_t blocks_infos;
@@ -54,6 +58,8 @@ ANN_DEFINE(ketl_hir_builder_t) {
     ketl_hir_var_id_t parameter_count; 
     ketl_hir_var_uid_t temp_var_counter;
     uint8_t max_call_arg_count;
+    ketl_hir_const_index_t string_literal_counter;
+    ketl_hir_const_index_t numeric_literal_counter;
 };
 
 void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_type* p_return_type, const ketl_allocator* p_allocator);
@@ -89,5 +95,7 @@ void ketl_hir_builder_insert_call(ketl_hir_builder_t* p_hir_builder, ketl_hir_he
 void ketl_hir_builder_insert_new(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_new_t* p_create, ketl_hir_var_id_t* p_arguments);
 
 ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t var, ketl_hir_used_type_index_t target_type);
+
+ketl_hir_const_index_t ketl_hir_builder_push_string_literal(ketl_hir_builder_t* p_hir_builder, ketl_token_t literal);
 
 #endif

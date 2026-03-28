@@ -12,6 +12,8 @@ KETL_VECTOR_DEFINITION(hir_builder_vars_t, ketl_hir_var_t)
 KETL_VECTOR_DEFINITION(hir_builder_vars_infos_t, ketl_hir_var_info_t)
 KETL_VECTOR_DEFINITION(hir_builder_blocks_t, ketl_hir_instr_offset_t)
 KETL_VECTOR_DEFINITION(hir_builder_used_types_t, ketl_type*)
+KETL_VECTOR_DEFINITION(ketl_hir_consts_infos_t, ketl_hir_const_info_t)
+KETL_VECTOR_DEFINITION(ketl_hir_consts_t, uint8_t)
 
 KETL_HASH_MAP_DEFINITION(hir_builder_symbol_to_var_info_map_t, ketl_hir_symbol_offset_t, ketl_hir_var_info_index_t, ANN_HASH, ANN_EQUAL)
 KETL_HASH_MAP_DEFINITION(hir_builder_type_to_used_type_map_t, ketl_type*, ketl_hir_used_type_index_t, ANN_HASH, ANN_EQUAL)
@@ -36,6 +38,10 @@ do {\
 #define GET_VAR(var_id) (p_hir_builder->vars.p_data[(var_id)])
 #define GET_TYPE(used_type_index) (p_hir_builder->used_types.p_data[(used_type_index)])
 
+#define EOF_STR "EOF"
+#define TOKEN_LENGTH(token) ((int)((token).length > 0 ? (token).length : sizeof(EOF_STR) - 1))
+#define TOKEN_STRING(token) ((token).length > 0 ? (p_hir_builder)->p_lexer->p_source + (token).offset : EOF_STR)
+
 static ketl_hir_var_info_t* get_var_info(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_info_index_t var_info_index) {
     return var_info_index != KETL_HIR_VAR_INFO_TEMP ? &p_hir_builder->vars_infos.p_data[var_info_index] : NULL;
 } 
@@ -46,6 +52,7 @@ void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_stat
     p_hir_builder->p_state = p_state;
     p_hir_builder->p_lexer = p_lexer;
     p_hir_builder->p_return_type = p_return_type;
+    p_hir_builder->max_call_arg_count = (uint8_t)-1;
     
     hir_builder_instrs_t_init(&p_hir_builder->instrs, 16, p_allocator);
     hir_builder_vars_t_init(&p_hir_builder->vars, 16, p_allocator);
@@ -53,6 +60,8 @@ void ketl_hir_builder_init(ketl_hir_builder_t* p_hir_builder, ketl_state* p_stat
     hir_builder_blocks_t_init(&p_hir_builder->blocks, 4, p_allocator);
     hir_builder_used_types_t_init(&p_hir_builder->used_types, 4, p_allocator);
     ketl_atomic_strings_init(&p_hir_builder->symbols, p_allocator);
+    ketl_hir_consts_infos_t_init(&p_hir_builder->consts_infos, 4, p_allocator);
+    ketl_hir_consts_t_init(&p_hir_builder->consts, 4, p_allocator);
 
     hir_builder_return_offsets_t_init(&p_hir_builder->return_offsets, 4, p_allocator);
     hir_builder_blocks_infos_t_init(&p_hir_builder->blocks_infos, 4, p_allocator);
@@ -96,12 +105,16 @@ void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir
     p_hir->p_vars_infos = p_hir_builder->vars_infos.p_data;
     p_hir->p_block_offsets = p_hir_builder->blocks.p_data;
     p_hir->p_used_types = p_hir_builder->used_types.p_data;
+    p_hir->p_consts_infos = p_hir_builder->consts_infos.p_data;
+    p_hir->p_consts = p_hir_builder->consts.p_data;
     
     p_hir->instrs_count = p_hir_builder->instrs.size;
     p_hir->vars_count = (ketl_hir_var_id_t)p_hir_builder->vars.size;
     p_hir->vars_infos_count = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
     p_hir->blocks_count = (ketl_hir_block_index_t)p_hir_builder->blocks.size;
     p_hir->used_types_count = (ketl_hir_used_type_index_t)p_hir_builder->used_types.size;
+    p_hir->consts_count = (ketl_hir_const_index_t)p_hir_builder->consts_infos.size;
+    p_hir->consts_size = p_hir_builder->consts.size;
     
     p_hir->p_symbols = p_hir_builder->symbols.storage.p_data;
     ketl_atomic_strings_map_deinit(&p_hir_builder->symbols.str_map);
@@ -354,13 +367,15 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
 
 ketl_hir_var_id_t ketl_hir_builder_get_global_var(ketl_hir_builder_t* p_hir_builder, ketl_namespace* p_namespace, ketl_namespace_node* p_namespace_node, ketl_hir_symbol_offset_t name, ketl_hir_expr_info_t expr_info, ketl_hir_used_type_index_t type) {
     hir_builder_symbol_to_var_info_map_t_bucket* p_bucket = hir_builder_symbol_to_var_info_map_t_get_or_insert_copy(&p_hir_builder->symbol_to_var, name, (ketl_hir_var_id_t)-1);
+    ketl_namespace* p_direct_namespace = ketl_namespace_find_direct_parent(p_namespace, p_namespace_node);
+    uint32_t namespace_node_index = ketl_namespace_get_index(p_direct_namespace, p_namespace_node);
     // if size didn't change, we found existing var
     if (p_bucket->value == (ketl_hir_var_id_t)-1) {
         p_bucket->value = (ketl_hir_var_info_index_t)p_hir_builder->vars_infos.size;
         hir_builder_vars_infos_t_push_back_copy(&p_hir_builder->vars_infos, (ketl_hir_var_info_t){
             .name = name,
-            .p_namespace = p_namespace,
-            .namespace_node_index = ketl_namespace_get_index(p_namespace, p_namespace_node),
+            .p_namespace = p_direct_namespace,
+            .namespace_node_index = namespace_node_index,
         });
     }
     
@@ -490,6 +505,110 @@ void ketl_hir_builder_insert_unary_op(ketl_hir_builder_t* p_hir_builder, ketl_hi
     ketl_hir_builder_insert_instr(p_hir_builder, hir_header, (uint8_t*)p_unary_op);
 }
 
+static ketl_hir_tag_t get_type_tag_from_type(ketl_type* p_type) {
+    ANN_ASSERT(p_type);
+    if (p_type->kind == KETL_TYPE_ENUM) {
+        p_type = (ketl_type*)((ketl_type_enum*)p_type)->p_parent_primitive;
+    }
+    
+    if(p_type->kind == KETL_TYPE_PRIMITIVE) {
+        ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;
+        if (p_primitive_type->is_signed) {
+            ANN_SWITCH_STRICT (p_primitive_type->size) {
+                case 1: return KETL_HIR_I8;
+                case 2: return KETL_HIR_I16;
+                case 4: return KETL_HIR_I32;
+                case 8: return KETL_HIR_I64;
+            }
+        } else {
+            ANN_SWITCH_STRICT (p_primitive_type->size) {
+                case 1: return KETL_HIR_U8;
+                case 2: return KETL_HIR_U16;
+                case 4: return KETL_HIR_U32;
+                case 8: return KETL_HIR_U64;
+            }
+        }
+    }
+
+    ANN_ASSERT(sizeof(void*) == 8);
+    return KETL_HIR_U64;
+}
+
+static void push_assign(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
+    ketl_hir_header_t assign_header = {
+        .tag = op | get_type_tag_from_type(GET_TYPE(GET_VAR(lhs_var).type)),
+        .file_symbol = p_hir_builder->p_lexer->s_filename,
+    };
+    ketl_hir_assign_t instr = {
+        .dest_var = lhs_var,
+        .source_var = rhs_var,
+    };
+    ketl_hir_builder_insert_instr(p_hir_builder, assign_header, (uint8_t*)&instr);
+}
+
+static ketl_hir_block_index_t reserve_hir_blocks(ketl_hir_builder_t* p_hir_builder, uint8_t count) {
+    ketl_hir_block_index_t first_block = (ketl_hir_block_index_t)p_hir_builder->blocks.size;
+    hir_builder_blocks_t_reserve(&p_hir_builder->blocks, p_hir_builder->blocks.size + count);
+    for (uint8_t i = count; i > 0; --i) {
+        hir_builder_blocks_t_push_back_copy(&p_hir_builder->blocks, 0u);
+    }
+    return first_block;
+}
+static void hir_set_block(ketl_hir_builder_t* p_hir_builder, ketl_hir_block_index_t block) {
+    p_hir_builder->blocks.p_data[block] = p_hir_builder->instrs.size;
+    hir_builder_offset_to_block_t_get_or_insert_copy(&p_hir_builder->offset_to_block, p_hir_builder->instrs.size, block);
+}
+static ketl_hir_var_id_t push_hir_cmp_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info) {
+    ketl_hir_header_t header = {
+        .tag = hir_tag,
+        .file_symbol = p_hir_builder->p_lexer->s_filename,
+    };
+    ketl_hir_var_id_t output_var = ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+    ketl_hir_binary_op_t instr = {
+        .output_var = output_var,
+        .lhs_var = lhs,
+        .rhs_var = rhs,
+    };
+    ketl_hir_builder_insert_binary_op(p_hir_builder, header, &instr, expr_info);
+    return output_var;
+}
+
+static void push_hir_if(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t bool_expr_var, ketl_hir_block_index_t true_statement, ketl_hir_block_index_t false_statement) {
+    // TODO token_check casting
+    
+    ketl_hir_header_t if_header = {
+        .tag = KETL_HIR_JUMP_IF_TRUE,
+        .file_symbol = p_hir_builder->p_lexer->s_filename,
+    };
+    ketl_hir_jump_if_t instr = {
+        .true_block = true_statement,
+        .false_block = false_statement,
+        .expr_var = bool_expr_var,
+    };
+    
+    // TODO provide true and false branches
+    ketl_hir_builder_insert_instr(p_hir_builder, if_header, (uint8_t*)&instr);
+}
+
+static void push_hir_jump(ketl_hir_builder_t* p_hir_builder, ketl_hir_block_index_t target) {
+    ketl_hir_header_t jump_header = {
+        .tag = KETL_HIR_JUMP,
+        .file_symbol = p_hir_builder->p_lexer->s_filename,
+    };
+    ketl_hir_jump_t instr = {
+        .block_index = target,
+    };
+    
+    ketl_hir_builder_insert_instr(p_hir_builder, jump_header, (uint8_t*)&instr);
+}
+
+static ketl_hir_var_id_t push_bool_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_expr_info_t expr_info, bool value) {
+    ketl_type* p_type = ketl_state_get_bool_type(p_hir_builder->p_state);
+    ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(p_hir_builder, p_type);
+    ketl_hir_symbol_offset_t symbol = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_hir_builder->symbols, value ? "0" : "1", 1);
+    return ketl_hir_builder_get_literal(p_hir_builder, symbol, expr_info, type);
+}
+
 void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_header_t hir_header, ketl_hir_binary_op_t* p_binary_op, ketl_hir_expr_info_t expr_info) {
     if ((hir_header.tag & KETL_HIR_TYPE_INSTR_MASK) != KETL_HIR_UNDEF && (hir_header.tag & KETL_HIR_TYPE_MASK) == KETL_HIR_UNDEF) {
         // TODO FIX
@@ -560,14 +679,57 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
 
         if (a_parameters_array[1].p_type->kind == KETL_TYPE_ARRAY && a_parameters_array[2].p_type->kind == KETL_TYPE_ARRAY &&
             ((ketl_type_array*)a_parameters_array[1].p_type)->p_value_type == ((ketl_type_array*)a_parameters_array[2].p_type)->p_value_type) {
-            ANN_ASSERT(false);
             
-            GET_VAR(p_binary_op->output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, 
-                ketl_state_get_bool_type(p_hir_builder->p_state));
-            hir_header.tag = KETL_HIR_EQUAL_ARRAY;
+            ketl_hir_var_id_t output_var = p_binary_op->output_var;
+            GET_VAR(output_var).type = ketl_hir_builder_get_used_type_index(p_hir_builder, ketl_state_get_bool_type(p_hir_builder->p_state));
+            
+            ketl_hir_var_id_t lhs_var = p_binary_op->lhs_var;
+            ketl_hir_var_id_t rhs_var = p_binary_op->rhs_var;
 
-            ketl_hir_builder_insert_instr(p_hir_builder, hir_header, (uint8_t*)p_binary_op);
+            ketl_hir_block_index_t first_block = reserve_hir_blocks(p_hir_builder, 7);
 
+            ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(p_hir_builder, ketl_state_get_u64(p_hir_builder->p_state));
+            ketl_hir_symbol_offset_t size_symbol = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_hir_builder->symbols, "size", 4);
+            
+            ketl_hir_var_id_t lhs_size_var = ketl_hir_builder_create_field_var(p_hir_builder, lhs_var, size_symbol, expr_info, size_type);
+            ketl_hir_var_id_t rhs_size_var = ketl_hir_builder_create_field_var(p_hir_builder, rhs_var, size_symbol, expr_info, size_type);
+
+            ketl_hir_var_id_t is_sizes_not_equal_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_size_var, rhs_size_var, expr_info);
+            push_hir_if(p_hir_builder, is_sizes_not_equal_var, first_block + 4, first_block + 0);
+
+            hir_set_block(p_hir_builder, first_block + 0);
+            ketl_hir_var_id_t index_var = ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, size_type);
+            ketl_hir_var_id_t zero_var = ketl_hir_builder_get_literal(p_hir_builder, KETL_HIR_LITERAL_NULL, expr_info, size_type);
+            push_assign(p_hir_builder, KETL_HIR_ASSIGN, index_var, zero_var);
+            push_hir_jump(p_hir_builder, first_block + 1);
+
+            hir_set_block(p_hir_builder, first_block + 1);
+            ketl_hir_var_id_t is_index_less_size_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_LESS, index_var, lhs_size_var, expr_info);
+            push_hir_if(p_hir_builder, is_index_less_size_var, first_block + 2, first_block + 5);
+
+            hir_set_block(p_hir_builder, first_block + 2);
+            ketl_hir_var_id_t lhs_indexed_var = ketl_hir_builder_create_index_var(p_hir_builder, lhs_var, index_var, expr_info);
+            ketl_hir_var_id_t rhs_indexed_var = ketl_hir_builder_create_index_var(p_hir_builder, rhs_var, index_var, expr_info);
+            ketl_hir_var_id_t is_values_not_equal_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_indexed_var, rhs_indexed_var, expr_info);
+            push_hir_if(p_hir_builder, is_values_not_equal_var, first_block + 4, first_block + 3);
+
+            hir_set_block(p_hir_builder, first_block + 3);
+            ketl_hir_var_id_t one_var = ketl_hir_builder_get_literal(p_hir_builder, 
+                (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_hir_builder->symbols, "1", 1), expr_info, size_type);
+            push_assign(p_hir_builder, KETL_HIR_ASSIGN_PLUS, index_var, one_var);
+            push_hir_jump(p_hir_builder, first_block + 1);
+
+            hir_set_block(p_hir_builder, first_block + 4);
+            ketl_hir_var_id_t false_var = push_bool_var(p_hir_builder, expr_info, false);
+            push_assign(p_hir_builder, KETL_HIR_ASSIGN, output_var, false_var);
+            push_hir_jump(p_hir_builder, first_block + 6);
+
+            hir_set_block(p_hir_builder, first_block + 5);
+            ketl_hir_var_id_t true_var = push_bool_var(p_hir_builder, expr_info, false);
+            push_assign(p_hir_builder, KETL_HIR_ASSIGN, output_var, true_var);
+            push_hir_jump(p_hir_builder, first_block + 6);
+
+            hir_set_block(p_hir_builder, first_block + 6);
             return;
         }
 
@@ -700,4 +862,25 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
     });
     
     return casted_var;
+}
+
+ketl_hir_const_index_t ketl_hir_builder_push_string_literal(ketl_hir_builder_t* p_hir_builder, ketl_token_t literal) {
+    ketl_hir_const_index_t literal_index = p_hir_builder->consts_infos.size;
+    char a_name_buffer[256];
+    uint32_t name_length = (uint32_t)snprintf(a_name_buffer, ANN_ARRAY_SIZE(a_name_buffer), ".L__const.str%"PRIu16, p_hir_builder->string_literal_counter++);
+
+    uint32_t const_offset = p_hir_builder->consts.size;
+    uint32_t const_size = TOKEN_LENGTH(literal);
+
+    // TODO does not comply with escaped chars
+    ketl_hir_consts_t_push_back_ref_n(&p_hir_builder->consts, (const uint8_t*)TOKEN_STRING(literal), TOKEN_LENGTH(literal));
+
+    ketl_hir_consts_infos_t_push_back_copy(&p_hir_builder->consts_infos, (ketl_hir_const_info_t){
+        .const_offset = const_offset,
+        .const_size = const_size,
+        .name = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_hir_builder->symbols, a_name_buffer, name_length),
+        .is_string = true,
+    });
+
+    return literal_index;
 }
