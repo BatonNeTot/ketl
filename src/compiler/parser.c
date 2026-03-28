@@ -302,18 +302,38 @@ static ketl_hir_var_id_t push_hir_append_value(ketl_parser_context* p_context, k
 static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
     
-    if (GET_VAR(lhs_var).type >= KETL_HIR_USED_TYPE_LAST || GET_VAR(rhs_var).type >= KETL_HIR_USED_TYPE_LAST) {
-        errorf(expr_info.source_offset, expr_info.length, "Append can't work with special types.");
+    if (GET_VAR(lhs_var).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+
+    if (GET_VAR(lhs_var).type >= KETL_HIR_USED_TYPE_LAST) {
+        errorf(expr_info.source_offset, expr_info.length, "Append must operate over array type value.");
         return push_temp_var(p_context, expr_info);
     }
 
     ketl_type* p_lhs_type = GET_TYPE(GET_VAR(lhs_var).type);
-    ketl_type* p_rhs_type = GET_TYPE(GET_VAR(rhs_var).type);
     
     if (p_lhs_type->kind != KETL_TYPE_ARRAY) {
         errorf(expr_info.source_offset, expr_info.length, "Append must operate over array type value.");
         return push_temp_var(p_context, expr_info);
     }
+
+    if (GET_VAR(rhs_var).type >= KETL_HIR_USED_TYPE_LAST) {
+        if (GET_VAR(rhs_var).type != KETL_HIR_USED_TYPE_LITERAL) {
+            errorf(expr_info.source_offset, expr_info.length, "Append can't work with special types.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        ketl_type* p_value_type = ((ketl_type_array*)p_lhs_type)->p_value_type;
+        if (p_value_type->kind != KETL_TYPE_PRIMITIVE || !((ketl_type_primitive*)p_value_type)->is_numeric) {
+            errorf(expr_info.source_offset, expr_info.length, "Append can't work with special types.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        GET_VAR(rhs_var).type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_value_type);
+    }
+
+    ketl_type* p_rhs_type = GET_TYPE(GET_VAR(rhs_var).type);
 
     if (p_rhs_type->kind == KETL_TYPE_ARRAY) {
         ANN_ASSERT(false);
@@ -405,6 +425,10 @@ static void push_hir_variable_declaration(ketl_parser_context* p_context, ketl_t
     } else {
         id_var = ketl_hir_builder_register_var(&p_context->hir_builder, p_context->p_namespace, 
             push_symbol(p_context, id_literal), expr_info, type_index);
+    }
+
+    if (GET_VAR(id_var).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return;
     }
 
     push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, id_var, init_var);
@@ -878,6 +902,15 @@ static ketl_hir_var_id_t find_field(ketl_parser_context* p_context, ketl_hir_var
 
     if (p_object_type->kind == KETL_TYPE_CLASS) {
         ketl_hir_var_id_t var_id = push_access_class_namespace(p_context, id_literal, expr_info, p_object_type, force);
+        return var_id;
+    }
+
+    if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("clear", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+        ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
+
+        ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "__ketl_rt.array_clear", 21);
+        ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, symbol, symbol, expr_info, force);
+        ANN_ASSERT(!force || GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
         return var_id;
     }
 
@@ -1521,7 +1554,18 @@ static ketl_statement_info parse_block_statement_inner(ketl_parser_context* p_co
 
 static ketl_statement_info parse_block_statement(ketl_parser_context* p_context) {
     token_advance(p_context); // {
+
+    hir_builder_symbol_stack_t_push_back_copy(&p_context->hir_builder.symbol_to_var_info_stack, (hir_builder_symbol_to_var_info_map_t){0});
+    hir_builder_symbol_to_var_info_map_t_init(
+        &p_context->hir_builder.symbol_to_var_info_stack.p_data[p_context->hir_builder.symbol_to_var_info_stack.size - 1],
+        p_context->hir_builder.p_allocator);
+
     ketl_statement_info statement_info = parse_block_statement_inner(p_context);
+
+    hir_builder_symbol_to_var_info_map_t_deinit(
+        &p_context->hir_builder.symbol_to_var_info_stack.p_data[p_context->hir_builder.symbol_to_var_info_stack.size - 1]);
+    --p_context->hir_builder.symbol_to_var_info_stack.size;
+
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' at the end of the block.");
     return statement_info;
 }
@@ -2217,7 +2261,7 @@ static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     }
 }
 
-void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_type* p_return_type, bool is_global_scope, const ketl_allocator* p_allocator) {
+void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_type* p_return_type, uint16_t func_index, bool is_global_scope, const ketl_allocator* p_allocator) {
     *p_hir = (ketl_hir_t){0};
 
     ketl_parser_context context = {0};
@@ -2232,7 +2276,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
     };
     ketl_parser_context* p_context = &context;
 
-    ketl_hir_builder_init(&context.hir_builder, p_state, p_lexer, p_return_type, p_allocator);
+    ketl_hir_builder_init(&context.hir_builder, p_state, p_lexer, p_return_type, func_index, p_allocator);
     context.s_filename = push_symbol_string(&context, 
         ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_lexer->s_filename), KETL_NULL_TERMINATED_LENGTH_32);
 

@@ -288,7 +288,7 @@ ANN_DEFINE(ketl_hir_var_info_t) {
 ANN_DEFINE(ketl_hir_const_info_t) {
     uint32_t const_offset;
     uint32_t const_size;
-    ketl_hir_symbol_offset_t name;
+    ketl_atomic_string s_name;
     bool is_string;
 };
 

@@ -29,9 +29,9 @@ enable_language(ASM)
 
 ################################
 
-add_subdirectory ("src")
-
 file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h)
+
+add_subdirectory ("src")
 
 foreach(SOURCE_ASM IN LISTS PROJECT_SOURCES_ASM)
     set_property(SOURCE ${SOURCE_ASM} APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp")
@@ -91,9 +91,17 @@ target_include_directories(${PROJECT_EXE_TARGET} PRIVATE "src")
 
 set(PROJECT_TEST_TARGET "${PROJECT_NAME}_test")
 
+add_subdirectory ("src_ketl")
+
+foreach(SOURCE_ASM IN LISTS PROJECT_KETL_SOURCES_ASM)
+    set_property(SOURCE ${SOURCE_ASM} APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp")
+endforeach()
+
 add_subdirectory ("tests")
 
-add_executable (${PROJECT_TEST_TARGET} ${PROJECT_TEST_SOURCES})
+add_executable (${PROJECT_TEST_TARGET} ${PROJECT_TEST_SOURCES} 
+    #${PROJECT_KETL_SOURCES}
+    )
 set_property(TARGET ${PROJECT_TEST_TARGET} PROPERTY CXX_STANDARD 20)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_TEST_TARGET})

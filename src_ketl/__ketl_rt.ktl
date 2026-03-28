@@ -93,9 +93,9 @@ class GC {
         return calloc(type.size);
     }
 
-    export fn new_array(gc : GC, type : Type, size : u64, initial_data : raw, initial_data_mem_size : u64, flags : u64) -> raw {
+    export fn new_array(gc : GC, stack_size : u64, size : u64, initial_data : raw, initial_data_mem_size : u64, flags : u64) -> raw {
         var array_header = ArrayHeader();
-        var type_size = type@get_stack_size();
+        var type_size = stack_size;
         var mem_size = type_size * size;
         array_header.data = calloc(type_size * size);
         array_header.capacity = size;
@@ -169,8 +169,8 @@ export fn new(type : Type) -> raw {
     return gc@new(type, 0);
 }
 
-export fn new_array(type : Type, size : u64, initial_data : raw, initial_data_mem_size : u64) -> raw {
-    return gc@new_array(type, size, initial_data, initial_data_mem_size, 0);
+export fn new_array(stack_size : u64, size : u64, initial_data : raw, initial_data_mem_size : u64) -> raw {
+    return gc@new_array(stack_size, size, initial_data, initial_data_mem_size, 0);
 }
 
 export fn new_slice(mirrored_array : ArrayHeader, start : u64, end : u64) -> raw {
@@ -179,4 +179,15 @@ export fn new_slice(mirrored_array : ArrayHeader, start : u64, end : u64) -> raw
 
 export fn append_value(stack_size : u64, array_header : ArrayHeader, value : raw) {
     gc@append_value(stack_size, array_header, value);
+}
+
+export fn array_clear(array_header : ArrayHeader) {
+    if (array_header.is_slice) {
+        array_header.data = null;
+        array_header.capacity = 0;
+        array_header.size = 0;
+        array_header.is_slice = false;
+    } else {
+        array_header.size = 0;
+    }
 }

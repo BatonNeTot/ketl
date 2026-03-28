@@ -1497,11 +1497,19 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 ketl_hir_create_array_t* p_hir_info = (ketl_hir_create_array_t*)p_instr;
 
                 if (p_builder->inline_symbols) {
+                    char a_stack_size_buffer[16];
+                    ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
+                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_namespace, 
+                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].namespace_node_index);
+                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(
+                        p_namespace_node->variable.p_pointer
+                    ));
+
                     const char* name = NULL;
                     uint32_t mem_size = 0;
                     if (p_hir_info->const_index != KETL_HIR_CONST_INDEX_NULL) {
                         ketl_hir_const_info_t* p_const_info = &p_hir->p_consts_infos[p_hir_info->const_index];
-                        name = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_const_info->name);
+                        name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_const_info->s_name);
                         mem_size = p_const_info->const_size;
                     }
 
@@ -1511,7 +1519,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     dummy_namespace_node dummy;
 
                     push_mov_arg a_arguments[] = {
-                        arg_from_hir_var_id(p_hir_info->type_var, p_builder),
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer}, // stack_size
                         arg_from_hir_var_id(p_hir_info->count_var_id, p_builder),
                         get_arg_for_lea(&dummy, name, p_builder), // p_initial_data
                         {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_mem_size_buffer}, // initial_data_mem_size

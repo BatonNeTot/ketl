@@ -37,6 +37,7 @@ ANN_DEFINE(ketl_state) {
     ketl_atomic_strings atomic_strings;
     ketl_executable_memory executable_memory;
     ketl_namespace global_namespace;
+    ketl_namespace secret_namespace;
     ketl_modules_t modules;
     
     function_types_map function_types;

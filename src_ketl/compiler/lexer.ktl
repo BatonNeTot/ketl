@@ -381,4 +381,314 @@ export class Lexer {
         lexer@add_token(Token.Type.ID, id_length);
         return true;
     }
+    
+    fn parse_operator(lexer : Lexer, next_symbol : char) -> bool {
+        switch (next_symbol) {  
+            case '(' -> {
+                lexer@add_token(Token.Type.PARENTHESIS_LEFT, 1);
+                return true;
+            } 
+            case ')' -> {
+                lexer@add_token(Token.Type.PARENTHESIS_RIGHT, 1);
+                return true;
+            } 
+            case '{' -> {
+                lexer@add_token(Token.Type.CURLY_LEFT, 1);
+                return true;
+            } 
+            case '}' -> {
+                lexer@add_token(Token.Type.CURLY_RIGHT, 1);
+                return true;
+            } 
+            case '[' -> {
+                lexer@add_token(Token.Type.SQUARE_LEFT, 1);
+                return true;
+            } 
+            case ']' -> {
+                lexer@add_token(Token.Type.SQUARE_RIGHT, 1);
+                return true;
+            } 
+            case '.' -> {
+                
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '.') {
+                    lexer.offset += 2;
+                    var third_symbol = lexer@get_symbol();
+                    lexer.offset -= 2;
+
+                    if (third_symbol == '=') {
+                        lexer@add_token(Token.Type.ASSIGN_CONCAT, 3);
+                    } else {
+                        lexer@add_token(Token.Type.CONCAT, 2);
+                    }
+                } else {
+                    lexer@add_token(Token.Type.DOT, 1);
+                }
+                return true;
+            } 
+            case ',' -> {
+                lexer@add_token(Token.Type.COMMA, 1);
+                return true;
+            } 
+            case '?' -> {
+                lexer@add_token(Token.Type.QUESTION_MARK, 1);
+                return true;
+            } 
+            case '$' -> {
+                lexer@add_token(Token.Type.DOLLAR, 1);
+                return true;
+            } 
+            case '@' -> {
+                lexer@add_token(Token.Type.AT, 1);
+                return true;
+            } 
+            case ':' -> {
+                lexer@add_token(Token.Type.COLON, 1);
+                return true;
+            } 
+            case ';' -> {
+                lexer@add_token(Token.Type.TERMINATION_CHARACTER, 1);
+                return true;
+            } 
+            case '~' -> {
+                lexer@add_token(Token.Type.BITWISE_NOT, 1);
+                return true;
+            } 
+            case '=' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.EQUAL, 2);
+                } else {
+                    lexer@add_token(Token.Type.ASSIGN, 1);
+                }
+                return true;
+            } 
+            case '^' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_BITWISE_XOR, 2);
+                } else {
+                    lexer@add_token(Token.Type.BITWISE_XOR, 1);
+                }
+                return true;
+            } 
+            case '*' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_MULTIPLY, 2);
+                } else {
+                    lexer@add_token(Token.Type.MULTIPLY, 1);
+                }
+                return true;
+            } 
+            case '/' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_DIVIDE, 2);
+                } else {
+                    lexer@add_token(Token.Type.DIVIDE, 1);
+                }
+                return true;
+            } 
+            case '%' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_REMAINDER, 2);
+                } else {
+                    lexer@add_token(Token.Type.REMAINDER, 1);
+                }
+                return true;
+            } 
+            case '!' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.NOT_EQUAL, 2);
+                } else {
+                    lexer@add_token(Token.Type.LOGICAL_NOT, 1);
+                }
+                return true;
+            } 
+            case '+' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_PLUS, 2);
+                } else if (second_symbol == '+') {
+                    lexer@add_token(Token.Type.INCREMENT, 2);
+                } else {
+                    lexer@add_token(Token.Type.PLUS, 1);
+                }
+                return true;
+            } 
+            case '-' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_MINUS, 2);
+                } else if (second_symbol == '-') {
+                    lexer@add_token(Token.Type.DECREMENT, 2);
+                } else if (second_symbol == '>') {
+                    lexer@add_token(Token.Type.ARROW_RIGHT, 2);
+                } else {
+                    lexer@add_token(Token.Type.MINUS, 1);
+                }
+                return true;
+            } 
+            case '&' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_BITWISE_AND, 2);
+                } else if (second_symbol == next_symbol) {
+                    lexer@add_token(Token.Type.LOGICAL_AND, 2);
+                } else {
+                    lexer@add_token(Token.Type.BITWISE_AND, 1);
+                }
+                return true;
+            } 
+            case '|' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.ASSIGN_BITWISE_OR, 2);
+                } else if (second_symbol == next_symbol) {
+                    lexer@add_token(Token.Type.LOGICAL_OR, 2);
+                } else {
+                    lexer@add_token(Token.Type.BITWISE_OR, 1);
+                }
+                return true;
+            } 
+            case '<' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.LESS_OR_EQUAL, 2);
+                } else if (second_symbol == next_symbol) {
+                    lexer.offset += 2;
+                    var third_symbol = lexer@get_symbol();
+                    lexer.offset -= 2;
+
+                    if (third_symbol == '=') {
+                        lexer@add_token(Token.Type.ASSIGN_BITWISE_SHIFT_LEFT, 3);
+                    } else {
+                        lexer@add_token(Token.Type.BITWISE_SHIFT_LEFT, 2);
+                    }
+                } else {
+                    lexer@add_token(Token.Type.LESS, 1);
+                }
+                return true;
+            } 
+            case '>' -> {
+                lexer.offset += 1;
+                var second_symbol = lexer@get_symbol();
+                lexer.offset -= 1;
+                
+                if (second_symbol == '=') {
+                    lexer@add_token(Token.Type.GREATER_OR_EQUAL, 2);
+                } else if (second_symbol == next_symbol) {
+                    lexer.offset += 2;
+                    var third_symbol = lexer@get_symbol();
+                    lexer.offset -= 2;
+
+                    if (third_symbol == '=') {
+                        lexer@add_token(Token.Type.ASSIGN_BITWISE_SHIFT_RIGHT, 3);
+                    } else {
+                        lexer@add_token(Token.Type.BITWISE_SHIFT_RIGHT, 2);
+                    }
+                } else {
+                    lexer@add_token(Token.Type.GREATER, 1);
+                }
+                return true;
+            } 
+            default -> return false;
+        }
+    }
+    
+    export fn build_tokens(lexer : Lexer, filename : str, source : str, length : u32) {
+        lexer.filename = filename;
+        lexer.source = source;
+        lexer.length = length;
+        lexer.offset = 0;
+        lexer.token_iterator = 0;
+        lexer.tokens@clear();
+        lexer.lines_offsets@clear();
+        lexer.lines_offsets ..= 0;
+
+        while (true) {
+            var next_symbol = lexer@get_symbol();
+
+            if (next_symbol == '\0') {
+                break;
+            }
+
+            if (lexer@parse_next_line(next_symbol)) {
+                continue;
+            }
+
+            if (lexer.is_space(next_symbol)) {
+                lexer.offset += 1;
+                continue;
+            }
+
+            if (lexer@parse_comments(next_symbol)) {
+                continue;
+            }
+
+            if (lexer@parse_literal_char(next_symbol)) {
+                continue;
+            }
+
+            if (lexer@parse_literal_string(next_symbol)) {
+                continue;
+            }
+
+            if (lexer@parse_literal_integer(next_symbol)) {
+                continue;
+            }
+
+            if (lexer@parse_id(next_symbol)) {
+                continue;
+            }
+
+            if (lexer@parse_operator(next_symbol)) {
+                continue;
+            }
+
+            // TODO ERROR
+            break;
+        }
+
+        lexer@add_token(Token.Type.EOF, 0);
+    }
 }
