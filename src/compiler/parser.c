@@ -234,35 +234,6 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     return push_temp_var(p_context, expr_info);
 }
 
-static ketl_hir_tag_t get_type_tag_from_type(ketl_type* p_type) {
-    ANN_ASSERT(p_type);
-    if (p_type->kind == KETL_TYPE_ENUM) {
-        p_type = (ketl_type*)((ketl_type_enum*)p_type)->p_parent_primitive;
-    }
-    
-    if(p_type->kind == KETL_TYPE_PRIMITIVE) {
-        ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;
-        if (p_primitive_type->is_signed) {
-            ANN_SWITCH_STRICT (p_primitive_type->size) {
-                case 1: return KETL_HIR_I8;
-                case 2: return KETL_HIR_I16;
-                case 4: return KETL_HIR_I32;
-                case 8: return KETL_HIR_I64;
-            }
-        } else {
-            ANN_SWITCH_STRICT (p_primitive_type->size) {
-                case 1: return KETL_HIR_U8;
-                case 2: return KETL_HIR_U16;
-                case 4: return KETL_HIR_U32;
-                case 8: return KETL_HIR_U64;
-            }
-        }
-    }
-
-    ANN_ASSERT(sizeof(void*) == 8);
-    return KETL_HIR_U64;
-}
-
 static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
     if (GET_VAR(lhs_var).uid == KETL_HIR_VAR_UID_LITERAL) {
         ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs_var).expr_info, GET_VAR(rhs_var).expr_info);
@@ -275,15 +246,7 @@ static void push_hir_assign_impl(ketl_parser_context* p_context, ketl_hir_tag_t 
         return;
     }
 
-    ketl_hir_header_t assign_header = {
-        .tag = op | get_type_tag_from_type(GET_TYPE(GET_VAR(lhs_var).type)),
-        .file_symbol = p_context->s_filename,
-    };
-    ketl_hir_assign_t instr = {
-        .dest_var = lhs_var,
-        .source_var = rhs_var,
-    };
-    ketl_hir_builder_insert_instr(&p_context->hir_builder, assign_header, (uint8_t*)&instr);
+    ketl_hir_builder_push_assign(&p_context->hir_builder, op, lhs_var, rhs_var);
 }
 
 static ketl_hir_var_id_t push_hir_append_value(ketl_parser_context* p_context, ketl_hir_var_id_t array_var, ketl_hir_var_id_t value_var) {
@@ -384,7 +347,7 @@ static void push_hir_return_value(ketl_parser_context* p_context, ketl_hir_var_i
             expr_info, var_id, false);
     }
 
-    ketl_hir_tag_t type_tag = GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN ? KETL_HIR_UNDEF : get_type_tag_from_type(GET_TYPE(GET_VAR(var_id).type));
+    ketl_hir_tag_t type_tag = GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN ? KETL_HIR_UNDEF : ketl_hir_get_type_tag_from_type(GET_TYPE(GET_VAR(var_id).type));
 
     ketl_hir_header_t header = {
         .tag = KETL_HIR_RETURN_VALUE | type_tag,
@@ -570,48 +533,6 @@ static ketl_hir_var_id_t push_hir_new_slice(ketl_parser_context* p_context, ketl
     return output_var;
 }
 
-static ketl_hir_block_index_t reserve_hir_blocks(ketl_parser_context* p_context, uint8_t count) {
-    ketl_hir_block_index_t first_block = (ketl_hir_block_index_t)p_context->hir_builder.blocks.size;
-    hir_builder_blocks_t_reserve(&p_context->hir_builder.blocks, p_context->hir_builder.blocks.size + count);
-    for (uint8_t i = count; i > 0; --i) {
-        hir_builder_blocks_t_push_back_copy(&p_context->hir_builder.blocks, 0u);
-    }
-    return first_block;
-}
-static void hir_set_block(ketl_parser_context* p_context, ketl_hir_block_index_t block) {
-    p_context->hir_builder.blocks.p_data[block] = p_context->hir_builder.instrs.size;
-    hir_builder_offset_to_block_t_get_or_insert_copy(&p_context->hir_builder.offset_to_block, p_context->hir_builder.instrs.size, block);
-}
-
-static void push_hir_if(ketl_parser_context* p_context, ketl_hir_var_id_t bool_expr_var, ketl_hir_block_index_t true_statement, ketl_hir_block_index_t false_statement) {
-    // TODO token_check casting
-    
-    ketl_hir_header_t if_header = {
-        .tag = KETL_HIR_JUMP_IF_TRUE,
-        .file_symbol = p_context->s_filename,
-    };
-    ketl_hir_jump_if_t instr = {
-        .true_block = true_statement,
-        .false_block = false_statement,
-        .expr_var = bool_expr_var,
-    };
-    
-    // TODO provide true and false branches
-    ketl_hir_builder_insert_instr(&p_context->hir_builder, if_header, (uint8_t*)&instr);
-}
-
-static void push_hir_jump(ketl_parser_context* p_context, ketl_hir_block_index_t target) {
-    ketl_hir_header_t jump_header = {
-        .tag = KETL_HIR_JUMP,
-        .file_symbol = p_context->s_filename,
-    };
-    ketl_hir_jump_t instr = {
-        .block_index = target,
-    };
-    
-    ketl_hir_builder_insert_instr(&p_context->hir_builder, jump_header, (uint8_t*)&instr);
-}
-
 static void push_hir_instr(ketl_parser_context* p_context, ketl_hir_tag_t tag) {
     ketl_hir_header_t header = {
         .tag = tag,
@@ -708,22 +629,15 @@ static ketl_hir_var_id_t parse_null(ketl_parser_context* p_context) {
     return push_null_var(p_context, token_extract_info(null_token));
 }
 
-static ketl_hir_var_id_t push_bool_var(ketl_parser_context* p_context, ketl_hir_expr_info_t expr_info, bool value) {
-    ketl_type* p_type = ketl_state_get_bool_type(p_context->p_state);
-    ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
-    ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, value ? "1" : "0", 1);
-    return push_literal_symbol_of_type(p_context, symbol, expr_info, type);
-}
-
 static ketl_hir_var_id_t parse_false(ketl_parser_context* p_context) {
     ketl_token_t false_token = CURRENT_TOKEN(1);
-    return push_bool_var(p_context, token_extract_info(false_token), false);
+    return ketl_hir_builder_push_bool_var(&p_context->hir_builder, token_extract_info(false_token), false);
 }
 
 
 static ketl_hir_var_id_t parse_true(ketl_parser_context* p_context) {
     ketl_token_t true_token = CURRENT_TOKEN(1);
-    return push_bool_var(p_context, token_extract_info(true_token), true);
+    return ketl_hir_builder_push_bool_var(&p_context->hir_builder, token_extract_info(true_token), true);
 }
 
 static ketl_hir_var_id_t parse_number(ketl_parser_context* p_context) {
@@ -1249,12 +1163,12 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
     ketl_token_type token_type = CURRENT_TOKEN(1).type;
     ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
 
-    ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 3);
+    ketl_hir_block_index_t first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 3);
     ketl_hir_block_index_t true_statement = first_block;
     ketl_hir_block_index_t false_statement = first_block + 1;
     ketl_hir_block_index_t after_block = first_block + 2;
 
-    push_hir_if(p_context, lhs, true_statement, false_statement);
+    ketl_hir_builder_push_if(&p_context->hir_builder, lhs, true_statement, false_statement);
 
     ketl_hir_block_index_t short_sircuit_block, second_block;
     ANN_SWITCH_STRICT (token_type) {
@@ -1270,7 +1184,7 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
         }
     }
 
-    hir_set_block(p_context, second_block);
+    ketl_hir_builder_set_block(&p_context->hir_builder, second_block);
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info);
@@ -1286,14 +1200,14 @@ static ketl_hir_var_id_t parse_short_circuit(ketl_parser_context* p_context, ket
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, GET_VAR(lhs).type); 
     // TODO do casting if necessary
     push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, output_var, rhs);
-    push_hir_jump(p_context, after_block);
+    ketl_hir_builder_push_jump(&p_context->hir_builder, after_block);
     
-    hir_set_block(p_context, short_sircuit_block);
+    ketl_hir_builder_set_block(&p_context->hir_builder, short_sircuit_block);
     // TODO do casting if necessary
     push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, output_var, lhs);
-    push_hir_jump(p_context, after_block);
+    ketl_hir_builder_push_jump(&p_context->hir_builder, after_block);
 
-    hir_set_block(p_context, after_block);
+    ketl_hir_builder_set_block(&p_context->hir_builder, after_block);
 
     return output_var;
 }
@@ -1576,7 +1490,7 @@ static ketl_statement_info parse_block_statement(ketl_parser_context* p_context)
 static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
     token_advance(p_context); // if
 
-    ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 2);
+    ketl_hir_block_index_t first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 2);
     ketl_hir_block_index_t true_statement = first_block;
     ketl_hir_block_index_t false_statement = first_block + 1;
 
@@ -1584,9 +1498,9 @@ static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
     ketl_hir_var_id_t expr = parse_expression(p_context);
     token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after 'if' statement expression.");
 
-    push_hir_if(p_context, expr, true_statement, false_statement);
+    ketl_hir_builder_push_if(&p_context->hir_builder, expr, true_statement, false_statement);
 
-    hir_set_block(p_context, true_statement);
+    ketl_hir_builder_set_block(&p_context->hir_builder, true_statement);
     ketl_parse_return_info true_return_info = parse_statement(p_context).return_info;
 
     ketl_parse_return_info return_info;
@@ -1594,24 +1508,24 @@ static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
     if (token_match(p_context, KETL_TOKEN_TYPE_ELSE)) {
         ketl_parse_return_info false_return_info;
         if (true_return_info & KETL_RETURN_ALWAYS) {
-            hir_set_block(p_context, false_statement);
+            ketl_hir_builder_set_block(&p_context->hir_builder, false_statement);
             false_return_info = parse_statement(p_context).return_info;
             if (!(false_return_info & KETL_RETURN_ALWAYS)) {
-                ketl_hir_block_index_t after_block = reserve_hir_blocks(p_context, 1);
-                push_hir_jump(p_context, after_block);
-                hir_set_block(p_context, after_block);
+                ketl_hir_block_index_t after_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
+                ketl_hir_builder_push_jump(&p_context->hir_builder, after_block);
+                ketl_hir_builder_set_block(&p_context->hir_builder, after_block);
             }
         } else {
-            ketl_hir_block_index_t after_block = reserve_hir_blocks(p_context, 1);
-            push_hir_jump(p_context, after_block);
+            ketl_hir_block_index_t after_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
+            ketl_hir_builder_push_jump(&p_context->hir_builder, after_block);
         
-            hir_set_block(p_context, false_statement);
+            ketl_hir_builder_set_block(&p_context->hir_builder, false_statement);
             false_return_info = parse_statement(p_context).return_info;
             if (!(false_return_info & KETL_RETURN_ALWAYS)) {
-                push_hir_jump(p_context, after_block);
+                ketl_hir_builder_push_jump(&p_context->hir_builder, after_block);
             }
 
-            hir_set_block(p_context, after_block);
+            ketl_hir_builder_set_block(&p_context->hir_builder, after_block);
         }
 
         return_info = 
@@ -1619,9 +1533,9 @@ static ketl_statement_info parse_if_statement(ketl_parser_context* p_context) {
             ((true_return_info | false_return_info) & KETL_RETURN_UNDEF);
     } else {
         if (!(true_return_info & KETL_RETURN_ALWAYS)) {
-            push_hir_jump(p_context, false_statement);
+            ketl_hir_builder_push_jump(&p_context->hir_builder, false_statement);
         }
-        hir_set_block(p_context, false_statement);
+        ketl_hir_builder_set_block(&p_context->hir_builder, false_statement);
 
         return_info = true_return_info & KETL_RETURN_UNDEF;
     }
@@ -1638,7 +1552,7 @@ static ketl_statement_info parse_break_statement(ketl_parser_context* p_context)
         ketl_token_t literal = CURRENT_TOKEN(1);
         errorf(literal.offset, literal.length, "'break' statement outside of loop or switch body.");
     } else {
-        push_hir_jump(p_context, p_context->reserved_break);
+        ketl_hir_builder_push_jump(&p_context->hir_builder, p_context->reserved_break);
     }
         
     token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after 'break' statement.");
@@ -1654,7 +1568,7 @@ static ketl_statement_info parse_continue_statement(ketl_parser_context* p_conte
         ketl_token_t literal = CURRENT_TOKEN(1);
         errorf(literal.offset, literal.length, "'continue' outside of loop body.");
     } else {
-        push_hir_jump(p_context, p_context->reserved_continue);
+        ketl_hir_builder_push_jump(&p_context->hir_builder, p_context->reserved_continue);
     }
         
     token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after 'continue' statement.");
@@ -1664,34 +1578,34 @@ static ketl_statement_info parse_continue_statement(ketl_parser_context* p_conte
 static ketl_statement_info parse_while_statement(ketl_parser_context* p_context) {
     token_advance(p_context); // while
 
-    ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 3);
+    ketl_hir_block_index_t first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 3);
     ketl_hir_block_index_t expr_statement = first_block;
     ketl_hir_block_index_t body_statement = first_block + 1;
     ketl_hir_block_index_t after_statement = first_block + 2;
 
-    push_hir_jump(p_context, expr_statement);
-    hir_set_block(p_context, expr_statement);
+    ketl_hir_builder_push_jump(&p_context->hir_builder, expr_statement);
+    ketl_hir_builder_set_block(&p_context->hir_builder, expr_statement);
     token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after if keyword.");
     ketl_hir_var_id_t expr = parse_expression(p_context);
     token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after if statement expression.");
 
-    push_hir_if(p_context, expr, body_statement, after_statement);
+    ketl_hir_builder_push_if(&p_context->hir_builder, expr, body_statement, after_statement);
 
     ketl_hir_block_index_t old_reserved_break = p_context->reserved_break;
     p_context->reserved_break = after_statement;
     ketl_hir_block_index_t old_reserved_continue = p_context->reserved_continue;
     p_context->reserved_continue = expr_statement;
 
-    hir_set_block(p_context, body_statement);
+    ketl_hir_builder_set_block(&p_context->hir_builder, body_statement);
     ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
 
     p_context->reserved_continue = old_reserved_continue;
     p_context->reserved_break = old_reserved_break;
 
     if (!(body_return_info & KETL_RETURN_ALWAYS)) {
-        push_hir_jump(p_context, expr_statement);
+        ketl_hir_builder_push_jump(&p_context->hir_builder, expr_statement);
     }
-    hir_set_block(p_context, after_statement);
+    ketl_hir_builder_set_block(&p_context->hir_builder, after_statement);
 
     ketl_parse_return_info return_info = body_return_info & KETL_RETURN_UNDEF;
 
@@ -1713,10 +1627,10 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
     ketl_hir_block_index_t default_block = (ketl_hir_block_index_t)-1;
 
     if (!token_match(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
-        ketl_hir_block_index_t first_block = reserve_hir_blocks(p_context, 2);
+        ketl_hir_block_index_t first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 2);
         ketl_hir_block_index_t after_statement = first_block;
         ketl_hir_block_index_t next_cmp_block = first_block + 1;
-        push_hir_jump(p_context, next_cmp_block);
+        ketl_hir_builder_push_jump(&p_context->hir_builder, next_cmp_block);
 
         ketl_hir_block_index_t old_reserved_break = p_context->reserved_break;
         p_context->reserved_break = after_statement;
@@ -1728,7 +1642,7 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                 case KETL_TOKEN_TYPE_CASE: {
                     token_advance(p_context); // case
 
-                    hir_set_block(p_context, next_cmp_block);
+                    ketl_hir_builder_set_block(&p_context->hir_builder, next_cmp_block);
                     ketl_hir_var_id_t case_expr = parse_expression(p_context);
 
                     token_consume(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT, "Expected '->' after 'case' statement expression.");
@@ -1736,17 +1650,17 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                     expr_info = expr_info_merge(expr_info, token_extract_info(CURRENT_TOKEN(1)));
                     ketl_hir_var_id_t cmp_expr = push_hir_binary_op(p_context, KETL_HIR_EQUAL, expr, case_expr, expr_info);
 
-                    first_block = reserve_hir_blocks(p_context, 2);
+                    first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 2);
                     ketl_hir_block_index_t current_block = first_block;
                     next_cmp_block = first_block + 1;
                     
-                    push_hir_if(p_context, cmp_expr, current_block, next_cmp_block);
+                    ketl_hir_builder_push_if(&p_context->hir_builder, cmp_expr, current_block, next_cmp_block);
 
-                    hir_set_block(p_context, current_block);
+                    ketl_hir_builder_set_block(&p_context->hir_builder, current_block);
                     ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
 
                     if (!(body_return_info & KETL_RETURN_ALWAYS)) {
-                        push_hir_jump(p_context, after_statement);
+                        ketl_hir_builder_push_jump(&p_context->hir_builder, after_statement);
                     }
 
                     return_info = 
@@ -1760,13 +1674,13 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                     token_consume(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT, "Expected '->' after 'default' statement expression.");
 
                     ANN_ASSERT(default_block == (ketl_hir_block_index_t)-1);
-                    default_block = reserve_hir_blocks(p_context, 1);
-                    hir_set_block(p_context, default_block);
+                    default_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
+                    ketl_hir_builder_set_block(&p_context->hir_builder, default_block);
 
                     ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
 
                     if (!(body_return_info & KETL_RETURN_ALWAYS)) {
-                        push_hir_jump(p_context, after_statement);
+                        ketl_hir_builder_push_jump(&p_context->hir_builder, after_statement);
                     }
 
                     default_return_info = body_return_info;
@@ -1781,14 +1695,14 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
 
         p_context->reserved_break = old_reserved_break;
 
-        hir_set_block(p_context, next_cmp_block);
+        ketl_hir_builder_set_block(&p_context->hir_builder, next_cmp_block);
 
         if (default_block == (ketl_hir_block_index_t)-1) {
-            push_hir_jump(p_context, after_statement);
+            ketl_hir_builder_push_jump(&p_context->hir_builder, after_statement);
 
             return_info &= KETL_RETURN_UNDEF;
         } else {
-            push_hir_jump(p_context, default_block);
+            ketl_hir_builder_push_jump(&p_context->hir_builder, default_block);
 
             return_info = 
                 ((return_info & default_return_info) & KETL_RETURN_ALWAYS) |
@@ -1796,7 +1710,7 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
         }
             
         if (!(return_info & KETL_RETURN_ALWAYS)) {
-            hir_set_block(p_context, after_statement);
+            ketl_hir_builder_set_block(&p_context->hir_builder, after_statement);
         }
     }
 

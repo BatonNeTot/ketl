@@ -101,4 +101,18 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
 
 ketl_hir_const_index_t ketl_hir_builder_push_string_literal(ketl_hir_builder_t* p_hir_builder, ketl_token_t literal);
 
+void ketl_hir_builder_push_assign(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var);
+
+ketl_hir_block_index_t ketl_hir_builder_reserve_blocks(ketl_hir_builder_t* p_hir_builder, uint8_t count);
+
+void ketl_hir_builder_set_block(ketl_hir_builder_t* p_hir_builder, ketl_hir_block_index_t block);
+
+void ketl_hir_builder_push_if(ketl_hir_builder_t* p_hir_builder, ketl_hir_var_id_t bool_expr_var, ketl_hir_block_index_t true_statement, ketl_hir_block_index_t false_statement);
+
+void ketl_hir_builder_push_jump(ketl_hir_builder_t* p_hir_builder, ketl_hir_block_index_t target);
+
+ketl_hir_var_id_t ketl_hir_builder_push_bool_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_expr_info_t expr_info, bool value);
+
+ketl_hir_tag_t ketl_hir_get_type_tag_from_type(ketl_type* p_type);
+
 #endif
