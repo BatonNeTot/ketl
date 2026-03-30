@@ -19,7 +19,7 @@ typedef struct {
 } import_table_rva_info;
 
 void ketl_dynamic_library_flush_function(export_header* p_export, import_header* p_import, const uint64_t import_count) {
-    uint8_t buffer[2048] = {0};
+    uint8_t buffer[32768] = {0};
 
 /////////////////////////////
 

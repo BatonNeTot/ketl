@@ -97,8 +97,8 @@ uint16_t ketl_type_get_field_offset(ketl_type* p_type, ketl_atomic_string s_name
                 return offset;
             }
 
-            uint8_t align = (uint8_t)ketl_type_get_align(p_fields[i].info.p_type);
-            uint16_t size = (uint16_t)ketl_type_get_size(p_fields[i].info.p_type);
+            uint8_t align = (uint8_t)ketl_type_get_stack_align(p_fields[i].info.p_type);
+            uint16_t size = (uint16_t)ketl_type_get_stack_size(p_fields[i].info.p_type);
 
             offset = ANN_ALIGN_FORWARD(offset, align) + size;
         }

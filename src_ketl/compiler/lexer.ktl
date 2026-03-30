@@ -5,7 +5,6 @@ export class Lexer {
     var lines_offsets : u32[];
     var filename : str;
     var source : str;
-    var length : u32;
     var offset : u32;
     var token_iterator : Token.Iterator;
     
@@ -16,7 +15,7 @@ export class Lexer {
 
     fn get_line_offset(lexer : Lexer, line : u32) -> u32 {
         if (line >= lexer.lines_offsets.size) {
-            return lexer.length;
+            return lexer.source.size$cast(u32);
         }
         return lexer.lines_offsets[line];
     }
@@ -69,7 +68,7 @@ export class Lexer {
     fn get_symbol(lexer : Lexer) -> char {
         var symbol = '\0';
         var offset = lexer.offset;
-        if (offset < lexer.length) {
+        if (offset < lexer.source.size) {
             symbol = lexer.source[offset];
         }
         return symbol;
@@ -79,7 +78,7 @@ export class Lexer {
         if (next_symbol == '\r') {
 
             var offset = lexer.offset;
-            if (offset + 1 < lexer.length && lexer.source[offset + 1] == '\n') {
+            if (offset + 1 < lexer.source.size && lexer.source[offset + 1] == '\n') {
                 lexer.offset += 2;
             } else {
                 lexer.offset += 1;
@@ -99,7 +98,7 @@ export class Lexer {
 
     fn parse_comments(lexer : Lexer, next_symbol : char) -> bool {
         var offset = lexer.offset;
-        if (next_symbol != '/' || offset + 1 >= lexer.length) {
+        if (next_symbol != '/' || offset + 1 >= lexer.source.size) {
             return false;
         }
 
@@ -132,7 +131,7 @@ export class Lexer {
                     break;
                 }
 
-                if (next_symbol == '*' && lexer.offset + 1 < lexer.length && lexer.source[lexer.offset + 1] == '/') {
+                if (next_symbol == '*' && lexer.offset + 1 < lexer.source.size && lexer.source[lexer.offset + 1] == '/') {
                     lexer.offset += 2;
                     break;
                 }
@@ -168,10 +167,10 @@ export class Lexer {
         var end_mark_offset = char_offset + char_length;
 
         // error correction
-        if (end_mark_offset >= lexer.length || lexer.source[end_mark_offset] != '\'') {
+        if (end_mark_offset >= lexer.source.size || lexer.source[end_mark_offset] != '\'') {
             // TODO ERROR
-            if (end_mark_offset >= lexer.length) {
-                char_length = lexer.length - char_offset;
+            if (end_mark_offset >= lexer.source.size) {
+                char_length = lexer.source.size$cast(u32) - char_offset;
             }
             lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
             return true;
@@ -267,6 +266,14 @@ export class Lexer {
                 }
             }
             case 'c' -> {
+                if ("case" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.CASE, id_length);
+                    return true;
+                }
+                if ("cexport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.CEXPORT, id_length);
+                    return true;
+                }
                 if ("cimport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer@add_token(Token.Type.CIMPORT, id_length);
                     return true;
@@ -635,10 +642,9 @@ export class Lexer {
         }
     }
     
-    export fn build_tokens(lexer : Lexer, filename : str, source : str, length : u32) {
+    fn build_tokens(lexer : Lexer, filename : str, source : str) {
         lexer.filename = filename;
         lexer.source = source;
-        lexer.length = length;
         lexer.offset = 0;
         lexer.token_iterator = 0;
         lexer.tokens@clear();

@@ -40,6 +40,7 @@ ANN_DEFINE(ketl_parser_context) {
     ketl_hir_block_index_t reserved_continue;
     bool is_global_scope;
     bool export;
+    bool c_symbol;
 
     ketl_hir_builder_t hir_builder;
 
@@ -633,8 +634,8 @@ enum {
     KETL_PREC_COMPARISON,
     KETL_PREC_TERM,
     KETL_PREC_FACTOR,
-    KETL_PREC_CALL,
     KETL_PREC_PREFIX,
+    KETL_PREC_CALL,
     KETL_PREC_PRIMARY,
 };
 
@@ -653,8 +654,8 @@ ketl_associativity associativity[] = {
     [KETL_PREC_COMPARISON] = KETL_LTR,
     [KETL_PREC_TERM] = KETL_LTR,
     [KETL_PREC_FACTOR] = KETL_LTR,
-    [KETL_PREC_CALL] = KETL_LTR,
     [KETL_PREC_PREFIX] = KETL_RTL,
+    [KETL_PREC_CALL] = KETL_LTR,
     [KETL_PREC_PRIMARY] = KETL_LTR,
 };
 
@@ -710,7 +711,7 @@ static ketl_hir_var_id_t parse_null(ketl_parser_context* p_context) {
 static ketl_hir_var_id_t push_bool_var(ketl_parser_context* p_context, ketl_hir_expr_info_t expr_info, bool value) {
     ketl_type* p_type = ketl_state_get_bool_type(p_context->p_state);
     ketl_hir_used_type_index_t type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type);
-    ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, value ? "0" : "1", 1);
+    ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, value ? "1" : "0", 1);
     return push_literal_symbol_of_type(p_context, symbol, expr_info, type);
 }
 
@@ -1215,7 +1216,8 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 static ketl_hir_var_id_t parse_unary_rtl(ketl_parser_context* p_context) {
     ketl_token_t token = CURRENT_TOKEN(1);
     ketl_token_type token_type = token.type;
-    ketl_hir_var_id_t rhs = parse_expression(p_context);
+    ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
+    ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence);
 
     ANN_SWITCH_STRICT (token_type) {
         case KETL_TOKEN_TYPE_LOGICAL_NOT: return push_hir_unary_op(p_context, KETL_HIR_LOGICAL_NOT, rhs, token_extract_info(token));
@@ -1380,6 +1382,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_BOOL]                       = { parse_identificator, NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_BREAK]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CASE]                       = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_CEXPORT]                    = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CHAR]                       = { parse_identificator, NULL,                  NULL,             KETL_PREC_PRIMARY},
     [KETL_TOKEN_TYPE_CIMPORT]                    = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_CONST]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
@@ -1890,9 +1893,17 @@ static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context
 static ketl_statement_info parse_import(ketl_parser_context* p_context) {
     ANN_ASSERT(p_context->is_global_scope);
 
+    char a_path_buffer[256] = {'\0'};
+    uint32_t path_length = 0;
+
     token_advance(p_context); // import
     ketl_token_t module_literal = CURRENT_TOKEN(0);
     token_advance(p_context); // id
+    while (token_match(p_context, KETL_TOKEN_TYPE_DOT)) {
+        snprintf(a_path_buffer + path_length, ANN_ARRAY_SIZE(a_path_buffer) - path_length, "%.*s/", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+        module_literal = CURRENT_TOKEN(0);
+        token_advance(p_context); // module id
+    }
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(2)), token_extract_info(CURRENT_TOKEN(1)));
 
@@ -1901,7 +1912,7 @@ static ketl_statement_info parse_import(ketl_parser_context* p_context) {
 
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
 
-    if (!ketl_state_load_module_impl(p_context->p_state, s_module_name, p_context->p_namespace, p_context->export)) {
+    if (!ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, p_context->p_namespace, p_context->export)) {
         errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
     }
 
@@ -1911,12 +1922,20 @@ static ketl_statement_info parse_import(ketl_parser_context* p_context) {
 static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
     ANN_ASSERT(p_context->is_global_scope);
 
+    char a_path_buffer[256] = {'\0'};
+    uint32_t path_length = 0;
+
     token_advance(p_context); // from
     ketl_token_t module_literal = CURRENT_TOKEN(0);
-    token_advance(p_context); // id
+    token_advance(p_context); // module id
+    while (token_match(p_context, KETL_TOKEN_TYPE_DOT)) {
+        snprintf(a_path_buffer + path_length, ANN_ARRAY_SIZE(a_path_buffer) - path_length, "%.*s/", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+        module_literal = CURRENT_TOKEN(0);
+        token_advance(p_context); // module id
+    }
     token_consume(p_context, KETL_TOKEN_TYPE_IMPORT, "Expected 'import' keyword after module name.");
     ketl_token_t name_literal = CURRENT_TOKEN(0);
-    token_advance(p_context); // id
+    token_advance(p_context); // entity id
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(4)), token_extract_info(CURRENT_TOKEN(1)));
 
@@ -1925,7 +1944,7 @@ static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
 
     ketl_atomic_string s_module_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, p_module_name, module_name_length);
 
-    ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, NULL, p_context->export);
+    ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, NULL, p_context->export);
     if (p_module_namespace == NULL) {
         errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
         return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
@@ -1942,8 +1961,9 @@ static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
 
     ketl_variable namespace_var = p_node->variable;
 
-    ketl_namespace_put(p_context->p_namespace, s_name, namespace_var, 
-        (ketl_namespace_node_info){ .export = p_context->export, }, &p_context->p_state->atomic_strings, false);
+    ketl_namespace_node* p_local_node = ketl_namespace_put(p_context->p_namespace, s_name, namespace_var, 
+        (ketl_namespace_node_info){ .export = p_context->export, .imported = true }, &p_context->p_state->atomic_strings, false);
+    p_local_node->s_name = p_node->s_name;
 
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
@@ -2095,7 +2115,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
 
     ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
     ketl_namespace_node* p_func_node = ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
-        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, p_context->export, false);
+        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, p_context->export, p_context->c_symbol);
     ketl_namespace* p_direct_namespace = ketl_namespace_find_direct_parent(p_context->p_namespace, p_func_node);
     ANN_ASSERT(p_direct_namespace == p_context->p_namespace);
     uint32_t namespace_node_index = ketl_namespace_get_index(p_direct_namespace, p_func_node);
@@ -2150,6 +2170,9 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
     ketl_namespace* p_old_namespace = p_context->p_namespace;
     p_context->p_namespace = p_class_namespace;
 
+    bool old_export = p_context->export;
+    p_context->export = false;
+
     ketl_named_variable_type_info_t a_class_fields[256] = {0};
     uint32_t class_field_count = 0;
 
@@ -2157,6 +2180,7 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
         parse_class_declaration_inner(p_context, a_class_fields, &class_field_count);
     }
     
+    p_context->export = old_export;
     p_context->p_namespace = p_old_namespace;
 
     ketl_state_post_define_class(p_context->p_state, p_class_node, a_class_fields, class_field_count);
@@ -2181,6 +2205,11 @@ static ketl_statement_info parse_mimic_declaration(ketl_parser_context* p_contex
 static ketl_statement_info parse_export_declaration(ketl_parser_context* p_context) {
     ketl_token_t literal = CURRENT_TOKEN(0);
     token_advance(p_context);
+    if (p_context->export) {
+        // TODO do warning instead
+        errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
+    }
+
     p_context->export = true;
 
     ketl_statement_info info;
@@ -2192,11 +2221,9 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
         case KETL_TOKEN_TYPE_FN     :
         case KETL_TOKEN_TYPE_CLASS  :
         case KETL_TOKEN_TYPE_ENUM   :
-        case KETL_TOKEN_TYPE_MIMIC  : info = parse_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_EXPORT : 
-            // TODO do warning instead
-            errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
-            return parse_export_declaration(p_context);
+        case KETL_TOKEN_TYPE_MIMIC  : 
+        case KETL_TOKEN_TYPE_EXPORT :
+        case KETL_TOKEN_TYPE_CEXPORT: info = parse_declaration(p_context); break;
         default:
             // TODO do warning instead?
             errorf(literal.offset, literal.length, "Expected declaration after 'export'.");
@@ -2204,6 +2231,38 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
             return parse_statement(p_context);
     }
     p_context->export = false;
+    return info;
+}
+
+static ketl_statement_info parse_cexport_declaration(ketl_parser_context* p_context) {
+    ketl_token_t literal = CURRENT_TOKEN(0);
+    token_advance(p_context);
+    if (p_context->c_symbol) {
+        // TODO do warning instead
+        errorf(literal.offset, literal.length, "Redundant 'cexport' keyword.");
+    }
+
+    p_context->c_symbol = true;
+
+    ketl_statement_info info;
+    switch (CURRENT_TOKEN(0).type) {
+        case KETL_TOKEN_TYPE_IMPORT :
+        case KETL_TOKEN_TYPE_FROM   :
+        case KETL_TOKEN_TYPE_CIMPORT:
+        case KETL_TOKEN_TYPE_VAR    :
+        case KETL_TOKEN_TYPE_FN     :
+        case KETL_TOKEN_TYPE_CLASS  :
+        case KETL_TOKEN_TYPE_ENUM   :
+        case KETL_TOKEN_TYPE_MIMIC  : 
+        case KETL_TOKEN_TYPE_EXPORT :
+        case KETL_TOKEN_TYPE_CEXPORT: info = parse_declaration(p_context); break;
+        default:
+            // TODO do warning instead?
+            errorf(literal.offset, literal.length, "Expected declaration after 'cexport'.");
+            p_context->c_symbol = false;
+            return parse_statement(p_context);
+    }
+    p_context->c_symbol = false;
     return info;
 }
 
@@ -2231,6 +2290,7 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
         case KETL_TOKEN_TYPE_ENUM   : parse_enum_declaration    (p_context); break;
         case KETL_TOKEN_TYPE_MIMIC  : parse_mimic_declaration   (p_context); break;
         case KETL_TOKEN_TYPE_EXPORT : parse_export_declaration  (p_context); break;
+        case KETL_TOKEN_TYPE_CEXPORT: parse_cexport_declaration (p_context); break;
         case KETL_TOKEN_TYPE_IMPORT : 
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
             parse_import(p_context);
@@ -2257,6 +2317,7 @@ static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
         case KETL_TOKEN_TYPE_ENUM   : return parse_enum_declaration    (p_context); break;
         case KETL_TOKEN_TYPE_MIMIC  : return parse_mimic_declaration   (p_context); break;
         case KETL_TOKEN_TYPE_EXPORT : return parse_export_declaration  (p_context); break;
+        case KETL_TOKEN_TYPE_CEXPORT: return parse_cexport_declaration (p_context); break;
         default                     : return parse_statement           (p_context); break;
     }
 }

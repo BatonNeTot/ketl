@@ -5,8 +5,8 @@ class Type {
         Enum,
         Function,
         CFunction,
-        Class,
         Array,
+        Class,
     }
 
     export enum Align : u8 {
@@ -42,7 +42,7 @@ class TypeArray {
     var value : Type;
 }
 
-class ArrayHeader {
+export class ArrayHeader {
     var data : raw;
     var capacity : u64;
     var size : u64;
@@ -59,6 +59,9 @@ cimport memset(dest : raw, value : u8, size : u64) -> raw
 cimport memcpy(dest : raw, src : raw, size : u64) -> raw
 
 export fn calloc(size : u64) -> raw {
+    if (size == 0) {
+        return null;
+    }
     var pointer = malloc(size);
     memset(pointer, 0, size);
     return pointer;
@@ -76,16 +79,16 @@ export fn assert(expr : bool) {
 
 class GC {
 
-    class U8Wrapper {
+    export class U8Wrapper {
         var value : u8;
     }
-    class U16Wrapper {
+    export class U16Wrapper {
         var value : u16;
     }
-    class U32Wrapper {
+    export class U32Wrapper {
         var value : u32;
     }
-    class U64Wrapper {
+    export class U64Wrapper {
         var value : u64;
     }
 
@@ -97,7 +100,7 @@ class GC {
         var array_header = ArrayHeader();
         var type_size = stack_size;
         var mem_size = type_size * size;
-        array_header.data = calloc(type_size * size);
+        array_header.data = calloc(mem_size);
         array_header.capacity = size;
         array_header.size = size;
         array_header.is_slice = false;
@@ -112,7 +115,7 @@ class GC {
         var array_header = ArrayHeader();
         var mirrored_offset = start;
         var size = end - start;
-        while (mirrored_array != null || mirrored_array.is_slice) {
+        while (mirrored_array != null && mirrored_array.is_slice) {
             mirrored_offset += mirrored_array.capacity; // capacity is mirrored_offset when is_slice == true
             mirrored_array = mirrored_array.data; // data is mirrored_array when is_slice == true
         }
@@ -191,3 +194,10 @@ export fn array_clear(array_header : ArrayHeader) {
         array_header.size = 0;
     }
 }
+ export fn array_get_value(stack_size : u64, array_header : ArrayHeader, index : u64) -> u64 {
+    if (array_header.is_slice) {
+        return (array_header.data$cast(ArrayHeader).data + stack_size * (array_header.capacity + index))$cast(GC.U64Wrapper).value;
+    } else {
+        return (array_header.data + stack_size * index)$cast(GC.U64Wrapper).value;
+    }
+ }

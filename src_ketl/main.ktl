@@ -1,0 +1,7 @@
+from compiler.lexer import Lexer
+
+cexport fn eval(filename : str, source : str) {
+    var lexer = Lexer();
+    lexer@init();
+    lexer@build_tokens(filename, source);
+}

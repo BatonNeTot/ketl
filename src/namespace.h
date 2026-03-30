@@ -13,6 +13,7 @@ ANN_DEFINE(ketl_namespace_node_info) {
     // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
     bool export;
     bool c_symbol;
+    bool imported;
 };
 
 ANN_DEFINE(ketl_namespace_node) {

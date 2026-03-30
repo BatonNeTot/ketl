@@ -45,7 +45,7 @@ void ketl_module_init(ketl_module_t* p_module, ketl_atomic_string s_name, ketl_s
 
 void ketl_module_deinit(ketl_module_t* p_module);
 
-bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, bool export, ketl_state* p_state);
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, const char* p_folder_path, ketl_namespace* p_namespace, bool export, ketl_state* p_state);
 
 bool ketl_module_load(ketl_module_t* p_module, ketl_state* p_state);
 

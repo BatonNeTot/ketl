@@ -12,6 +12,10 @@
 typedef uint8_t ketl_asm_x86_tag_t;
 enum {
     KETL_ASM_LABEL,
+    KETL_ASM_DIRECTIVE,
+
+    KETL_ASM_X86_PUSH,
+    KETL_ASM_X86_POP,
 
     KETL_ASM_X86_MOV,
     KETL_ASM_X86_LEA,
@@ -29,6 +33,8 @@ enum {
     KETL_ASM_X86_IMUL,
     KETL_ASM_X86_DIV,
     KETL_ASM_X86_IDIV,
+    
+    KETL_ASM_X86_XOR,
 
     KETL_ASM_X86_CMP,
     KETL_ASM_X86_TEST,
@@ -106,10 +112,8 @@ ANN_DEFINE(ketl_asm_x86_modrm_t) {
     ketl_asm_x86_reg_t base;
     ketl_asm_x86_reg_t index;
     ketl_asm_x86_size_t scale_power;
-    union {
-        int32_t disp;
-        ketl_atomic_string s_literal;
-    };
+    int32_t disp;
+    ketl_atomic_string s_literal;
 };
 
 ANN_DEFINE(ketl_asm_x86_instr_t) {
@@ -139,6 +143,7 @@ ANN_FORWARD(ketl_type);
 
 ANN_DEFINE(ketl_asm_x86_arg_info_t) {
     ketl_asm_x86_offset_t stack_offset;
+    ketl_atomic_string s_name;
 };
 
 KETL_HASH_MAP_DECLARATION(ketl_asm_x86_variables_t, ketl_hir_var_info_index_t, ketl_asm_x86_arg_info_t)

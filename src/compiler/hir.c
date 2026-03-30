@@ -137,8 +137,12 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
     ketl_hir_var_t* p_var = p_hir->p_vars + var_id;
     if (p_var->uid == KETL_HIR_VAR_UID_LITERAL) {
         const char* p_literal = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var->literal);
-        return snprintf(buffer, buffer_size, "%s|%"PRIu16, p_literal != NULL ? p_literal : "null", 
-            ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+        if (p_var->type == KETL_HIR_USED_TYPE_LITERAL) {
+            return snprintf(buffer, buffer_size, "%s", p_literal != NULL ? p_literal : "null");
+        } else {
+            return snprintf(buffer, buffer_size, "%s|%"PRIu16, p_literal != NULL ? p_literal : "null", 
+                ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
+        }
     } else if (p_var->info == KETL_HIR_VAR_INFO_TEMP) {
         uint32_t printed = 0;
         printed += snprintf(buffer + printed, buffer_size - printed, "~%"PRIu16, p_var->uid);
@@ -160,6 +164,10 @@ static uint32_t ketl_hir_format_var(ketl_hir_t* p_hir, ketl_hir_var_id_t var_id,
                 KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_var_info->name));
             if (p_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
                 printed += snprintf(buffer + printed, buffer_size - printed, "|undef");
+            } else if (p_var->type == KETL_HIR_USED_TYPE_LITERAL) {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|literal");
+            } else if (p_var->type == KETL_HIR_USED_TYPE_META) {
+                printed += snprintf(buffer + printed, buffer_size - printed, "|meta");
             } else {
                 printed += snprintf(buffer + printed, buffer_size - printed, "|%"PRIu16,
                     ketl_type_get_stack_size(p_hir->p_used_types[p_var->type]));
@@ -224,6 +232,13 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
 #define FORMAT_BLOCK(block_index, buffer) (snprintf(buffer, ANN_ARRAY_SIZE(buffer), "BB%"PRIu16, block_index))
 
     switch (header.tag & KETL_HIR_TYPE_INSTR_MASK) {
+        case KETL_HIR_LOGICAL_NOT: {
+            INIT_HIR_INFO(ketl_hir_unary_op_t);
+            FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->arg_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s = not %s;",
+                var_buffer[0], var_buffer[1]);
+        }
         case KETL_HIR_PLUS: {
             INIT_HIR_INFO(ketl_hir_binary_op_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
@@ -319,6 +334,46 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
             FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
             return snprintf(buffer, buffer_size, "%s = %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_ASSIGN_PLUS: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s += %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_ASSIGN_MINUS: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s -= %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_ASSIGN_MULTY: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s *= %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_ASSIGN_DIV: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s /= %s;",
+                var_buffer[0], var_buffer[1]);
+        }
+
+        case KETL_HIR_ASSIGN_MOD: {
+            INIT_HIR_INFO(ketl_hir_assign_t);
+            FORMAT_VAR(p_hir_info->dest_var, var_buffer[0]);
+            FORMAT_VAR(p_hir_info->source_var, var_buffer[1]);
+            return snprintf(buffer, buffer_size, "%s %%= %s;",
                 var_buffer[0], var_buffer[1]);
         }
     
@@ -440,7 +495,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
             FORMAT_VAR(p_hir_info->type_var, var_buffer[1]);
             FORMAT_VAR(p_hir_info->count_var_id, var_buffer[2]);
-            uint32_t count = snprintf(buffer, buffer_size, "%s = %s(%s)", var_buffer[0], var_buffer[1], var_buffer[2]);
+            uint32_t count = snprintf(buffer, buffer_size, "%s = %s[%s]", var_buffer[0], var_buffer[1], var_buffer[2]);
             return count;
         }
 

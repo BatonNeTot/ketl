@@ -35,7 +35,7 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
     ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, info, p_atomic_strings, false);
 }
 
-bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, ketl_namespace* p_namespace, bool export, ketl_state* p_state) {
+bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, const char* p_folder_path, ketl_namespace* p_namespace, bool export, ketl_state* p_state) {
     if (p_module->header_loaded && p_namespace != NULL) {
         ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
 
@@ -46,20 +46,26 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     ketl_module_t* p_stashed_module = p_state->p_active_module;
     p_state->p_active_module = p_module; 
 
-    const char* p_fullpath = p_module_filename;
-
     char a_fullpath[256] = {'\0'};
+    uint32_t fullpath_printed = 0;
     if (p_stashed_module != NULL) { 
-        uint32_t path_length = ketl_strlen(p_stashed_module->p_path);
-        p_module->p_path = ketl_alloc(p_state->p_allocator, path_length + 1);
-        ketl_memcpy(p_module->p_path, p_stashed_module->p_path, path_length);
-        p_module->p_path[path_length] = '\0';
-
-        snprintf(a_fullpath, ANN_ARRAY_SIZE(a_fullpath), "%s%s", p_module->p_path, p_module_filename);
-        p_fullpath = a_fullpath;
+        fullpath_printed += snprintf(a_fullpath + fullpath_printed, ANN_ARRAY_SIZE(a_fullpath) - fullpath_printed, "%s", p_stashed_module->p_path);
     }
 
-    FILE *p_module_file = fopen(p_fullpath, "rb");
+    if (p_folder_path != NULL && p_folder_path[0] != '\0') {
+        fullpath_printed += snprintf(a_fullpath + fullpath_printed, ANN_ARRAY_SIZE(a_fullpath) - fullpath_printed, "%s", p_folder_path);
+    }
+
+    {
+        p_module->p_path = ketl_alloc(p_state->p_allocator, fullpath_printed + 1);
+        ketl_memcpy(p_module->p_path, a_fullpath, fullpath_printed);
+        p_module->p_path[fullpath_printed] = '\0';
+    }
+
+    char a_fullpath_filename[256] = {'\0'};
+    snprintf(a_fullpath_filename, ANN_ARRAY_SIZE(a_fullpath_filename), "%s%s", p_module->p_path, p_module_filename);
+
+    FILE *p_module_file = fopen(a_fullpath_filename, "rb");
     ANN_ASSERT(p_module_file != NULL);
     
     fseek(p_module_file, 0L, SEEK_END);
@@ -82,7 +88,8 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
 
     ketl_variable output_variable;
     p_module->opcodes_size = 0u;
-    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, NULL, 0, true, &output_variable);
+    p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, 
+        NULL, 0, ketl_state_get_none_type(p_state), 0, true, &output_variable);
 
     for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
         compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);

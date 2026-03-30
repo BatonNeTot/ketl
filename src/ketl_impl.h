@@ -54,7 +54,7 @@ ANN_DEFINE(ketl_state) {
 
 void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations);
 
-ketl_namespace* ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, ketl_namespace* p_namespace, bool export);
+ketl_namespace* ketl_state_load_module_impl(ketl_state* p_state, ketl_atomic_string s_module_name, const char* p_folder_path, ketl_namespace* p_namespace, bool export);
 
 ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_type_name, uint32_t length);
 
@@ -69,4 +69,4 @@ ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace*
 
 ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, bool export);
 
-void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, bool is_global_scope, ketl_variable* p_output_variable);
+void* ketl_state_compile_function(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_token_iterator_t end_pos, ketl_namespace* p_namespace, uint32_t* p_opcodes_size, ketl_named_variable_type_info_t* p_parameters, uint32_t parameter_count, ketl_type* p_return_type, uint16_t func_index, bool is_global_scope, ketl_variable* p_output_variable);

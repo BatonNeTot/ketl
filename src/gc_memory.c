@@ -49,7 +49,7 @@ void* ketl_gc_create_slice_of_type(ketl_gc* p_gc, ketl_type* p_type, ketl_array*
     ketl_array* p_slice_obj = ketl_alloc(p_gc->p_allocator, sizeof(ketl_array));
     uint64_t mirrored_offset = start;
     uint64_t size = end - start;
-    while (mirrored_array != NULL || mirrored_array->is_slice) {
+    while (mirrored_array != NULL && mirrored_array->is_slice) {
         mirrored_offset += mirrored_array->mirrored_offset;
         mirrored_array = mirrored_array->p_mirrored;
     }
@@ -81,6 +81,15 @@ void ketl_gc_append_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_arra
         p_array->p_data = ketl_realloc(p_gc->p_allocator, p_array->p_data, value_size * p_array->capacity);
     }
     ketl_memcpy(p_array->p_data + p_array->size++ * value_size, &value, value_size);
+}
+
+uint64_t ketl_gc_get_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, uint64_t index) {
+    (void)p_gc;
+    if (p_array->is_slice) {
+        return *(uint64_t*)(p_array->p_mirrored->p_data + stack_size * (p_array->mirrored_offset + index));
+    } else {
+        return *(uint64_t*)(p_array->p_data + stack_size * index);
+    }
 }
 
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags) {

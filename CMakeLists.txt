@@ -100,7 +100,7 @@ endforeach()
 add_subdirectory ("tests")
 
 add_executable (${PROJECT_TEST_TARGET} ${PROJECT_TEST_SOURCES} 
-    #${PROJECT_KETL_SOURCES}
+    ${PROJECT_KETL_SOURCES}
     )
 set_property(TARGET ${PROJECT_TEST_TARGET} PROPERTY CXX_STANDARD 20)
 
