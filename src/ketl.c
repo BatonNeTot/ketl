@@ -172,7 +172,7 @@ ketl_variable namespace_variable = {\
     .p_type = NULL,\
     .p_pointer = _var_name,\
 };\
-ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);\
+ketl_namespace_put(&p_state->global_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);\
 } while(0)
 
     CREATE_PRIMITIVE_TYPE(p_none,  "none", 0, false, false, false);
@@ -187,7 +187,7 @@ ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl
             .p_type = NULL,
             .p_pointer = ketl_state_get_array_type(p_state, p_char),
         };
-        ketl_namespace_put(&p_state->global_namespace, s_name, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);
+        ketl_namespace_put(&p_state->global_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){0}, &p_state->atomic_strings, false);
     }
     
     CREATE_PRIMITIVE_TYPE(p_i8,  "i8",   1, true,  true,  true);
@@ -297,7 +297,24 @@ do {\
             .parameters_count = ANN_ARRAY_SIZE(a_parameters),
         };
         ketl_type* p_func_type = ketl_state_get_cfunction_type(p_state, &clear_func_params);
-        ketl_state_define_cfunction(p_state, &p_state->secret_namespace, LITERAL_STRING_PAIR("__ketl_rt.array_clear"), p_func_type, (void(*)(void))&array_clear, false, true);
+        ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("array_clear"));
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.array_clear"));
+        ketl_state_define_cfunction(p_state, &p_state->secret_namespace, s_key, s_name, p_func_type, (void(*)(void))&array_clear, false);
+    }
+
+    {
+        ketl_variable_type_info_t a_parameters[] = {
+            { .p_type = p_none },
+            { .p_type = p_bool },
+        };
+        ketl_function_parameters clear_func_params = {
+            .p_parameters = a_parameters,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters),
+        };
+        ketl_type* p_func_type = ketl_state_get_cfunction_type(p_state, &clear_func_params);
+        ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("assert"));
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.assert"));
+        ketl_state_define_cfunction(p_state, &p_state->global_namespace, s_key, s_name, p_func_type, (void(*)(void))&array_clear, false);
     }
 
     return p_state;
@@ -437,7 +454,7 @@ ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* 
         .p_type = p_type,
         .uint64 = 0,
     };
-    return ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    return ketl_namespace_put(p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
 }
 
 void ketl_state_define_global_var(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void* p_var) {
@@ -447,8 +464,7 @@ void ketl_state_define_global_var(ketl_state* p_state, const char* p_name, uint3
     p_namespace_node->variable.p_pointer = p_var;
 }
 
-ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void), bool export, bool c_symbol) {
-    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
+ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_atomic_string s_name, ketl_type* p_type, void(*cfunc)(void), bool export) {
     ketl_function_header* p_func_header = ketl_alloc(p_state->p_allocator, sizeof(ketl_function_header));
     *p_func_header = (ketl_function_header){
         .cfunc = cfunc,
@@ -458,11 +474,12 @@ ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_names
         .p_type = p_type,
         .p_func = p_func_header,
     };
-    return ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export, .c_symbol = c_symbol}, &p_state->atomic_strings, false);
+    return ketl_namespace_put(p_namespace, s_key, s_name, namespace_variable, (ketl_namespace_node_info){.export = export, }, &p_state->atomic_strings, false);
 }
 
 void ketl_state_define_global_cfunction(ketl_state* p_state, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void)) {
-    ketl_state_define_cfunction(p_state, &p_state->global_namespace, p_name, length, p_type, cfunc, false, false);
+    ketl_state_define_cfunction(p_state, &p_state->global_namespace, 
+        ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length), KETL_ATOMIC_STRING_EMPTY, p_type, cfunc, false);
 }
 
 #include "str.h"
@@ -474,7 +491,7 @@ ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_n
         .p_type = NULL,
         .p_pointer = NULL,
     };
-    ketl_namespace_node* p_class_node = ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    ketl_namespace_node* p_class_node = ketl_namespace_put(p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
     ANN_ASSERT(p_class_node->variable.p_pointer == NULL);
 
     ketl_type* p_class =  ketl_alloc(p_state->p_allocator, sizeof(ketl_type_class));
@@ -514,7 +531,7 @@ void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_cl
                 ketl_namespace_node* p_unpacked_node = &p_unpacked_namespace->v_nodes.p_data[i];
                 ketl_namespace_node_info info = p_unpacked_node->info;
                 info.imported = true;
-                ketl_namespace_put(&p_class_type->namespace, p_unpacked_node->s_key, p_unpacked_node->variable, info, &p_state->atomic_strings, false);
+                ketl_namespace_put(&p_class_type->namespace, p_unpacked_node->s_key, p_unpacked_node->s_name, p_unpacked_node->variable, info, &p_state->atomic_strings, false);
             }
         }
     }
@@ -546,7 +563,7 @@ ketl_namespace_node* ketl_state_define_enum(ketl_state* p_state, ketl_namespace*
         .p_type = NULL,
         .p_pointer = p_enum,
     };
-    return ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    return ketl_namespace_put(p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
 }
 
 // TODO must create a full copy of a type - so they will be same, but distinct
@@ -560,7 +577,7 @@ ketl_namespace_node* ketl_state_define_mimic(ketl_state* p_state, ketl_namespace
         .p_type = NULL,
         .p_pointer = p_type,
     };
-    return ketl_namespace_put(p_namespace, s_name, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
+    return ketl_namespace_put(p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_variable, (ketl_namespace_node_info){.export = export}, &p_state->atomic_strings, false);
 }
 
 void ketl_state_define_global_class(ketl_state* p_state, const char* p_name, uint32_t length, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {

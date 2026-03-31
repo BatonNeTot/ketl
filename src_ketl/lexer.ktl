@@ -162,7 +162,7 @@ export class Lexer {
 
         if (lexer@parse_next_line(next_symbol)) {
             // TODO ERROR and decide how to cleverly restore lexing
-            // TODO assert(false);
+            assert(false);
         }
 
 

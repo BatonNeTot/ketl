@@ -58,22 +58,24 @@ static uint32_t namespace_print_fullname(ketl_namespace* p_namespace, char* p_bu
     return printed;
 }
 
-ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force) {
-    ketl_atomic_string s_name = s_key;
-    if (p_namespace->p_parent != NULL && !info.c_symbol) {
-        ANN_ASSERT(p_namespace->s_name != KETL_ATOMIC_STRING_EMPTY);
-        
-        char a_buffer[256] = {'\0'};
+ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_atomic_string s_name, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force) {
+    if (s_name == KETL_ATOMIC_STRING_EMPTY) {
+        s_name = s_key;
+        if (p_namespace->p_parent != NULL) {
+            ANN_ASSERT(p_namespace->s_name != KETL_ATOMIC_STRING_EMPTY);
+            
+            char a_buffer[256] = {'\0'};
 
-        uint32_t printed = namespace_print_fullname(p_namespace, a_buffer, ANN_ARRAY_SIZE(a_buffer), p_atomic_strings);
-        printed += snprintf(a_buffer + printed, ANN_ARRAY_SIZE(a_buffer) - printed,  ".%s", 
-                    ketl_atomic_strings_get_pointer(p_atomic_strings, s_name));
+            uint32_t printed = namespace_print_fullname(p_namespace, a_buffer, ANN_ARRAY_SIZE(a_buffer), p_atomic_strings);
+            printed += snprintf(a_buffer + printed, ANN_ARRAY_SIZE(a_buffer) - printed,  ".%s", 
+                        ketl_atomic_strings_get_pointer(p_atomic_strings, s_name));
 
-        if (info.export) {
-            // skip first dot
-            s_name = ketl_atomic_strings_get(p_atomic_strings, a_buffer + 1, printed - 1);
-        } else {
-            s_name = ketl_atomic_strings_get(p_atomic_strings, a_buffer, printed);
+            if (info.export) {
+                // skip first dot
+                s_name = ketl_atomic_strings_get(p_atomic_strings, a_buffer + 1, printed - 1);
+            } else {
+                s_name = ketl_atomic_strings_get(p_atomic_strings, a_buffer, printed);
+            }
         }
     }
 

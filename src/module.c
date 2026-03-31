@@ -32,7 +32,7 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
         .p_type = NULL,
     };
 
-    ketl_namespace_put(p_namespace, p_module->s_name, namespace_var, info, p_atomic_strings, false);
+    ketl_namespace_put(p_namespace, p_module->s_name, KETL_ATOMIC_STRING_EMPTY, namespace_var, info, p_atomic_strings, false);
 }
 
 bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, const char* p_folder_path, ketl_namespace* p_namespace, bool export, ketl_state* p_state) {

@@ -17,6 +17,7 @@ cimport malloc(size : u64) -> raw
 cimport realloc(pointer : raw, size : u64) -> raw
 cimport memset(dest : raw, value : u8, size : u64) -> raw
 cimport memcpy(dest : raw, src : raw, size : u64) -> raw
+cimport _assert(expr : bool)
 
 export fn calloc(size : u64) -> raw {
     if (size == 0) {
@@ -34,7 +35,7 @@ export fn recalloc(old_pointer : raw, old_size : u64, new_size : u64) -> raw {
 }
 
 export fn assert(expr : bool) {
-    // TODO
+    _assert(expr);
 }
 
 class GC {

@@ -12,7 +12,6 @@
 ANN_DEFINE(ketl_namespace_node_info) {
     // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
     bool export;
-    bool c_symbol;
     bool imported;
 };
 
@@ -42,7 +41,7 @@ bool ketl_namespace_is_empty(ketl_namespace* p_namespace);
 
 void ketl_namespace_copy(ketl_namespace* p_dst_namespace, ketl_namespace* p_src_namespace);
 
-ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force);
+ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_atomic_string s_name, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force);
 
 ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomic_string s_key);
 

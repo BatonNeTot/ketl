@@ -40,7 +40,7 @@ ANN_DEFINE(ketl_parser_context) {
     ketl_hir_block_index_t reserved_continue;
     bool is_global_scope;
     bool export;
-    bool c_symbol;
+    bool cexport;
 
     ketl_hir_builder_t hir_builder;
 
@@ -830,7 +830,7 @@ static ketl_hir_var_id_t find_field(ketl_parser_context* p_context, ketl_hir_var
     if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("clear", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
         ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
 
-        ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "__ketl_rt.array_clear", 21);
+        ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "array_clear", 11);
         ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, symbol, symbol, expr_info, force);
         ANN_ASSERT(!force || GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
         return var_id;
@@ -1998,7 +1998,7 @@ static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
 
     ketl_variable namespace_var = p_node->variable;
 
-    ketl_namespace_node* p_local_node = ketl_namespace_put(p_context->p_namespace, s_name, namespace_var, 
+    ketl_namespace_node* p_local_node = ketl_namespace_put(p_context->p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_var, 
         (ketl_namespace_node_info){ .export = p_context->export, .imported = true }, &p_context->p_state->atomic_strings, false);
     p_local_node->s_name = p_node->s_name;
 
@@ -2094,8 +2094,9 @@ static ketl_statement_info parse_cimport_declaration(ketl_parser_context* p_cont
     ++function_parameters.parameters_count;
 
     ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
-        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, p_context->export, true);
+        s_name, s_name, function_type, NULL, p_context->export);
 
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
@@ -2146,8 +2147,9 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
     ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
+    ketl_atomic_string s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     ketl_namespace_node* p_func_node = ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
-        TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), function_type, NULL, p_context->export, p_context->c_symbol);
+        s_name, p_context->cexport ? s_name : KETL_ATOMIC_STRING_EMPTY, function_type, NULL, p_context->export);
     ketl_namespace* p_direct_namespace = ketl_namespace_find_direct_parent(p_context->p_namespace, p_func_node);
     ANN_ASSERT(p_direct_namespace == p_context->p_namespace);
     uint32_t namespace_node_index = ketl_namespace_get_index(p_direct_namespace, p_func_node);
@@ -2269,12 +2271,12 @@ static ketl_statement_info parse_export_declaration(ketl_parser_context* p_conte
 static ketl_statement_info parse_cexport_declaration(ketl_parser_context* p_context) {
     ketl_token_t literal = CURRENT_TOKEN(0);
     token_advance(p_context);
-    if (p_context->c_symbol) {
+    if (p_context->cexport) {
         // TODO do warning instead
         errorf(literal.offset, literal.length, "Redundant 'cexport' keyword.");
     }
 
-    p_context->c_symbol = true;
+    p_context->cexport = true;
 
     ketl_statement_info info;
     switch (CURRENT_TOKEN(0).type) {
@@ -2291,10 +2293,10 @@ static ketl_statement_info parse_cexport_declaration(ketl_parser_context* p_cont
         default:
             // TODO do warning instead?
             errorf(literal.offset, literal.length, "Expected declaration after 'cexport'.");
-            p_context->c_symbol = false;
+            p_context->cexport = false;
             return parse_statement(p_context);
     }
-    p_context->c_symbol = false;
+    p_context->cexport = false;
     return info;
 }
 

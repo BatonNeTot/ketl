@@ -60,7 +60,7 @@ ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_names
 
 ketl_namespace_node* ketl_state_define_var(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, bool export);
 
-ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_type* p_type, void(*cfunc)(void), bool export, bool c_symbol);
+ketl_namespace_node* ketl_state_define_cfunction(ketl_state* p_state, ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_atomic_string s_name, ketl_type* p_type, void(*cfunc)(void), bool export);
 
 ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_namespace** pp_class_namespace, bool export);
 void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_class_node, ketl_named_variable_type_info_t* p_fields, uint16_t field_count);

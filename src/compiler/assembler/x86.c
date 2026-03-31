@@ -2318,7 +2318,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
         case KETL_ASM_X86_M:
             printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.label) {
+            if (p_instr->modrm.indir && p_instr->modrm.label) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2335,7 +2335,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
             printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, rhs_size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.label) {
+            if (p_instr->modrm.indir && p_instr->modrm.label) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2345,7 +2345,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
             printed += ketl_asm_x86_format_reg(p_instr->reg, p_instr->size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.label) {
+            if (p_instr->modrm.indir && p_instr->modrm.label) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2366,7 +2366,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
                     break;
             }
 
-            if (p_instr->modrm.label) {
+            if (p_instr->modrm.indir && p_instr->modrm.label) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2382,7 +2382,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
                     break;
             }
 
-            if (p_instr->modrm.label) {
+            if (p_instr->modrm.indir && p_instr->modrm.label) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
