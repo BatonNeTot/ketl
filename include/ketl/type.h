@@ -17,7 +17,7 @@ ANN_DEFINE(ketl_function_parameters) {
 };
 
 ANN_DEFINE(ketl_named_variable_type_info_t) {
-	ketl_variable_type_info_t info;
+    ketl_variable_type_info_t info;
     const char* p_name;
     uint32_t name_length;
 };

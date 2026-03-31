@@ -19,6 +19,7 @@ ANN_DEFINE(ketl_namespace_node_info) {
 ANN_DEFINE(ketl_namespace_node) {
     ketl_variable variable;
     ketl_atomic_string s_name;
+    ketl_atomic_string s_key;
     ketl_namespace_node_info info;
 };
 

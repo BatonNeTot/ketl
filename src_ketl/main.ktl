@@ -1,7 +1,13 @@
-from compiler.lexer import Lexer
+//🫖ketl
+
+from lexer import Lexer
+from parser import Parser
+from type import NamedVariable
 
 cexport fn eval(filename : str, source : str) {
     var lexer = Lexer();
     lexer@init();
     lexer@build_tokens(filename, source);
+
+    var hir = Parser.build_hir(lexer, NamedVariable[0], null);
 }

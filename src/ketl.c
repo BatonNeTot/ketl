@@ -255,6 +255,10 @@ do {\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_DIV,              _arg_type, _arg_type, _hir_type);\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MOD,              _arg_type, _arg_type, _hir_type);\
 \
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_AND,      _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_OR,       _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_XOR,      _arg_type, _arg_type, _hir_type);\
+\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,            _arg_type, p_bool, _hir_type);\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL,        _arg_type, p_bool, _hir_type);\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS,             _arg_type, p_bool, _hir_type);\
@@ -461,6 +465,8 @@ void ketl_state_define_global_cfunction(ketl_state* p_state, const char* p_name,
     ketl_state_define_cfunction(p_state, &p_state->global_namespace, p_name, length, p_type, cfunc, false, false);
 }
 
+#include "str.h"
+
 ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_namespace* p_namespace, const char* p_name, uint32_t length, ketl_namespace** pp_class_namespace, bool export) {
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_name, length);
     ketl_variable namespace_variable = {
@@ -490,14 +496,28 @@ ketl_namespace_node* ketl_state_forward_define_class(ketl_state* p_state, ketl_n
     return p_class_node;
 }
 
-void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_class_node, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {    
+void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_class_node, ketl_named_variable_type_info_t* p_fields, uint16_t field_count) {   
+    ketl_type_class* p_class_type = p_class_node->variable.p_pointer;
+
     ketl_symboled_variable_type_info_t* p_fields_copy = ketl_alloc(p_state->p_allocator, sizeof(ketl_symboled_variable_type_info_t) * field_count); 
     for (uint32_t i = 0u; i < field_count; ++i) {
         p_fields_copy[i].info = p_fields[i].info;
         p_fields_copy[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
-    }
 
-    ketl_type_class* p_class_type = p_class_node->variable.p_pointer;
+        if (p_fields[i].p_name == NULL) {
+            ketl_type* p_unpacked_type = p_fields[i].info.p_type;
+            ANN_ASSERT(p_unpacked_type->kind == KETL_TYPE_CLASS);
+            ketl_type_class* p_unpacked_class = (ketl_type_class*)p_unpacked_type;
+            ketl_namespace* p_unpacked_namespace = &p_unpacked_class->namespace;
+
+            for (uint32_t i = 0; i < p_unpacked_namespace->v_nodes.size; ++i) {
+                ketl_namespace_node* p_unpacked_node = &p_unpacked_namespace->v_nodes.p_data[i];
+                ketl_namespace_node_info info = p_unpacked_node->info;
+                info.imported = true;
+                ketl_namespace_put(&p_class_type->namespace, p_unpacked_node->s_key, p_unpacked_node->variable, info, &p_state->atomic_strings, false);
+            }
+        }
+    }
 
     ketl_type_size_pair_t class_size_pair = ketl_type_calc_class_size(p_fields_copy, field_count);
     p_class_type->align_enum = ketl_align_find(class_size_pair.align);
@@ -859,12 +879,13 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
         // not supported for now
         ANN_ASSERT(false);
     }
+    
+    p_state->loading_modules = true;
 
     ketl_module_t* p_module = &p_module_bucket->value;
     ketl_module_init(p_module, s_module_name, p_state);
 
-    hir_consts consts;
-    hir_consts_init(&consts, 4, p_state->p_allocator);
+    p_module->header_loaded = true;
 
     ketl_module_t* p_stashed_module = p_state->p_active_module;
     p_state->p_active_module = p_module;
@@ -913,6 +934,9 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
     ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, p_filepath, length), p_module->p_source, filesize);
 
     ///////////////////////////////////////////
+
+    hir_consts consts;
+    hir_consts_init(&consts, 4, p_state->p_allocator);
 
     uint32_t compile_function_mark = p_state->compile_function_declarations.size;
 
@@ -1189,4 +1213,5 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
     }
 
     p_state->p_active_module = p_stashed_module;
+    p_state->loading_modules = false;
 }

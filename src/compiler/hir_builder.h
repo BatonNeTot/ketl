@@ -113,6 +113,8 @@ void ketl_hir_builder_push_jump(ketl_hir_builder_t* p_hir_builder, ketl_hir_bloc
 
 ketl_hir_var_id_t ketl_hir_builder_push_bool_var(ketl_hir_builder_t* p_hir_builder, ketl_hir_expr_info_t expr_info, bool value);
 
+ketl_hir_var_id_t ketl_hir_builder_push_hir_cmp_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info);
+
 ketl_hir_tag_t ketl_hir_get_type_tag_from_type(ketl_type* p_type);
 
 #endif

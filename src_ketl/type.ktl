@@ -1,0 +1,48 @@
+//🫖ketl
+
+class Type {
+    export enum Kind : u8{
+        Primitive,
+        Enum,
+        Function,
+        CFunction,
+        Array,
+        Class,
+    }
+
+    export enum Align : u8 {
+        Size1Byte,
+        Size2Byte,
+        Size4Byte,
+        Size8Byte,
+        Size16Byte,
+    }
+
+    var kind : Kind;
+    var align : Align;
+    var size : u16;
+
+    fn get_stack_size(type : Type) -> u64 {
+        if (type == null) {
+            return 0;
+        }
+
+        if (type.kind == Kind.Primitive || type.kind == Kind.Enum) {
+            return type.size;
+        } else {
+            return raw$size;
+        }
+    }
+}
+
+class TypeArray {
+    unpack Type;
+    var value : Type;
+}
+
+//////////////////
+
+class NamedVariable {
+    var type : Type;
+    var name : str;
+}

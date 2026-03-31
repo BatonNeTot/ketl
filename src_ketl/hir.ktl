@@ -1,0 +1,283 @@
+//🫖ketl
+
+from type import Type
+
+from token import Token
+
+export class HIR {
+
+    enum Tag : u16 {
+        NONE_STMT,
+
+        LOGICAL_NOT,
+
+        PLUS_8,
+        PLUS_16,
+        PLUS_32,
+        PLUS_64,
+
+        MINUS_8,
+        MINUS_16,
+        MINUS_32,
+        MINUS_64,
+
+        MULTY_8,
+        MULTY_16,
+        MULTY_32,
+        MULTY_64,
+        IMULTY_8,
+        IMULTY_16,
+        IMULTY_32,
+        IMULTY_64,
+
+        DIVIDE_8,
+        DIVIDE_16,
+        DIVIDE_32,
+        DIVIDE_64,
+        IDIVIDE_8,
+        IDIVIDE_16,
+        IDIVIDE_32,
+        IDIVIDE_64,
+
+        MOD_8,
+        MOD_16,
+        MOD_32,
+        MOD_64,
+        IMOD_8,
+        IMOD_16,
+        IMOD_32,
+        IMOD_64,
+
+        COMPARE_8,
+        COMPARE_16,
+        COMPARE_32,
+        COMPARE_64,
+
+        TEST_8,
+        TEST_16,
+        TEST_32,
+        TEST_64,
+
+        EQUAL,
+        NOT_EQUAL,
+        LESS,
+        ILESS,
+        LESS_OR_EQUAL,
+        ILESS_OR_EQUAL,
+        GREATER,
+        IGREATER,
+        GREATER_OR_EQUAL,
+        IGREATER_OR_EQUAL,
+
+        ASSIGN_8,
+        ASSIGN_16,
+        ASSIGN_32,
+        ASSIGN_64,
+
+        CALL_VOID,
+        CALL,
+
+        NEW_CLASS,
+        NEW_ARRAY,
+        NEW_SLICE,
+
+        APPEND_VALUE,
+
+        JUMP,
+
+        JUMP_IF_TRUE,
+        JUMP_IF_FALSE,
+        
+        JUMP_IF_EQUAL,
+        JUMP_IF_NOT_EQAUL,
+        JUMP_IF_LESS,
+        JUMP_IF_ILESS,
+        JUMP_IF_LESS_OR_EQAUL,
+        JUMP_IF_ILESS_OR_EQAUL,
+        JUMP_IF_GREATER,
+        JUMP_IF_IGREATER,
+        JUMP_IF_GREATER_OR_EQAUL,
+        JUMP_IF_IGREATER_OR_EQAUL,
+
+        RETURN,
+        RETURN_VALUE_8,
+        RETURN_VALUE_16,
+        RETURN_VALUE_32,
+        RETURN_VALUE_64,
+    }
+
+    export fn is_terminator(tag : Tag) -> bool {
+        return tag >= Tag.JUMP;
+    }
+
+    export mimic InstrOffset = u32;
+    export mimic VarId = u16;
+    export mimic VarInfoId = u16;
+    export mimic BlockId = u16;
+    export mimic ConstId = u16;
+
+////////////////////////////
+
+    export class Instr {
+        var tag : Tag;
+    }
+
+    export class InstrWithOutput {
+        unpack Instr;
+        var output : VarId;
+    }
+
+    export class UnaryOp {
+        unpack InstrWithOutput;
+        var arg : VarId;
+    }
+
+    export class BinaryOp {
+        unpack InstrWithOutput;
+        var lhs : VarId;
+        var rhs : VarId;
+    }
+
+    export class Call {
+        unpack InstrWithOutput;
+        var callee : VarId;
+        var args : VarId[];
+    }
+
+    export class CallVoid {
+        unpack Instr;
+        var callee : VarId;
+        var args : VarId[];
+    }
+
+    export class New {
+        unpack InstrWithOutput;
+        var type : Type;
+        var args : VarId[];
+    }
+
+    export class NewArray {
+        unpack InstrWithOutput;
+        var type : Type;
+        var size : VarId;
+        var initial_value : ConstId;
+    }
+
+    export class NewSlice {
+        unpack InstrWithOutput;
+        var mirrored : VarId;
+        var start : VarId;
+        var end : ConstId;
+    }
+
+    export class AppendValue {
+        unpack InstrWithOutput;
+        var array : VarId;
+        var value : VarId;
+    }
+
+    export class Assign {
+        unpack InstrWithOutput;
+        var dst : VarId;
+        var src : VarId;
+    }
+
+    export class Jump {
+        unpack Instr;
+        var dst : BlockId;
+    }
+
+    export class JumpIf {
+        unpack Instr;
+        var true_dst : BlockId;
+        var false_dst : BlockId;
+    }
+
+    export class ReturnValue {
+        unpack Instr;
+        var value : VarId;
+    }
+
+////////////////////////
+
+    export class ExprInfo {
+        export mimic Length = u32;
+
+        var source_offset : Token.Offset;
+        var length : Length;
+    }
+
+    export class Var {
+        export enum Kind : u8 {
+            Regular,
+            Literal,
+            Cast,
+            Global,
+            Field,
+            Parameter,
+            Index,
+        } 
+
+        var kind : Kind;
+        var type : Type;
+        var expr_info : ExprInfo;
+    }
+
+    export class VarCommon {
+        unpack Var;
+        var info : VarInfoId;
+    }
+
+    export class VarLiteral {
+        unpack Var;
+        var value : u64;
+    }
+
+    export class VarCast {
+        unpack Var;
+        var casted : VarId;
+    }
+
+    export class VarInfo {
+        // TODO namespace and namespace index
+        var name : str;
+        /*
+        union {
+            struct {
+                ketl_namespace* p_namespace;
+                uint32_t namespace_node_index;
+            };
+            ketl_hir_var_id_t parent_id;
+        };
+        union {
+            ketl_hir_symbol_offset_t name;
+            ketl_hir_var_id_t arg_id;
+        };
+        ketl_hir_var_id_t last_var_id;
+        // TODO declaration info
+        */
+    }
+
+    export class Const {
+         var offset : u32;
+         var size : u32;
+         var name : str;
+         var is_string : bool;
+    }
+
+    var instrs : Instr[];
+    var vars : Var[];
+    var vars_infos : VarInfo[];
+    var block_offsets : InstrOffset[];
+    var consts_infos : Const[];
+    var consts : u8[];
+
+    var return_type : Type;
+    var parameters_count : u8;
+    var max_call_arg_count : u8;
+
+    fn format(hir : HIR) -> str {
+        // TODO
+        return "";
+    }
+}

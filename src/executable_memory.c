@@ -42,7 +42,7 @@ inline static uint32_t ketl_get_page_size(void) {
 
 inline static void* ketl_allocate_exe_memory(void* p_mem_hint, uint32_t size) {
 	// hinting is not an option in windows
-	// I could specify an implicit address, but not currently possible alongside random malloc
+	// I could specify an explicit address, but not currently possible alongside random malloc
 	(void)p_mem_hint; 
 	return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
 }

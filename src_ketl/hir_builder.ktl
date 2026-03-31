@@ -1,0 +1,8 @@
+//🫖ketl
+
+from lexer import Lexer
+
+class HIRBuilder {
+    // TODO leave only necessary, lexer remove to parser
+    var lexer : Lexer;
+}

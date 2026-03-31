@@ -36,8 +36,10 @@ static void ketl_module_add_to_namespace(ketl_module_t* p_module, ketl_namespace
 }
 
 bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename, const char* p_folder_path, ketl_namespace* p_namespace, bool export, ketl_state* p_state) {
-    if (p_module->header_loaded && p_namespace != NULL) {
-        ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
+    if (p_module->header_loaded) {
+        if (p_namespace != NULL) {
+            ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
+        }
 
         return true;
     }

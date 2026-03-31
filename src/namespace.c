@@ -80,6 +80,7 @@ ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic
     ketl_namespace_node new_node = {
         .variable = variable,
         .s_name = s_name,
+        .s_key = s_key,
         .info = info,
     };
     uint32_t new_node_offset = p_namespace->v_nodes.size;

@@ -636,7 +636,7 @@ void ketl_hir_builder_set_block(ketl_hir_builder_t* p_hir_builder, ketl_hir_bloc
     p_hir_builder->blocks.p_data[block] = p_hir_builder->instrs.size;
     hir_builder_offset_to_block_t_get_or_insert_copy(&p_hir_builder->offset_to_block, p_hir_builder->instrs.size, block);
 }
-static ketl_hir_var_id_t push_hir_cmp_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info) {
+ketl_hir_var_id_t ketl_hir_builder_push_hir_cmp_op(ketl_hir_builder_t* p_hir_builder, ketl_hir_tag_t hir_tag, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info) {
     ketl_hir_header_t header = {
         .tag = hir_tag,
         .file_symbol = p_hir_builder->p_lexer->s_filename,
@@ -772,7 +772,7 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
             ketl_hir_var_id_t lhs_size_var = ketl_hir_builder_create_field_var(p_hir_builder, lhs_var, size_symbol, expr_info, size_type);
             ketl_hir_var_id_t rhs_size_var = ketl_hir_builder_create_field_var(p_hir_builder, rhs_var, size_symbol, expr_info, size_type);
 
-            ketl_hir_var_id_t is_sizes_not_equal_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_size_var, rhs_size_var, expr_info);
+            ketl_hir_var_id_t is_sizes_not_equal_var = ketl_hir_builder_push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_size_var, rhs_size_var, expr_info);
             ketl_hir_builder_push_if(p_hir_builder, is_sizes_not_equal_var, first_block + 4, first_block + 0);
 
             ketl_hir_builder_set_block(p_hir_builder, first_block + 0);
@@ -782,13 +782,13 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
             ketl_hir_builder_push_jump(p_hir_builder, first_block + 1);
 
             ketl_hir_builder_set_block(p_hir_builder, first_block + 1);
-            ketl_hir_var_id_t is_index_less_size_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_LESS, index_var, lhs_size_var, expr_info);
+            ketl_hir_var_id_t is_index_less_size_var = ketl_hir_builder_push_hir_cmp_op(p_hir_builder, KETL_HIR_LESS, index_var, lhs_size_var, expr_info);
             ketl_hir_builder_push_if(p_hir_builder, is_index_less_size_var, first_block + 2, first_block + 5);
 
             ketl_hir_builder_set_block(p_hir_builder, first_block + 2);
             ketl_hir_var_id_t lhs_indexed_var = ketl_hir_builder_create_index_var(p_hir_builder, lhs_var, index_var, expr_info);
             ketl_hir_var_id_t rhs_indexed_var = ketl_hir_builder_create_index_var(p_hir_builder, rhs_var, index_var, expr_info);
-            ketl_hir_var_id_t is_values_not_equal_var = push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_indexed_var, rhs_indexed_var, expr_info);
+            ketl_hir_var_id_t is_values_not_equal_var = ketl_hir_builder_push_hir_cmp_op(p_hir_builder, KETL_HIR_NOT_EQUAL, lhs_indexed_var, rhs_indexed_var, expr_info);
             ketl_hir_builder_push_if(p_hir_builder, is_values_not_equal_var, first_block + 4, first_block + 3);
 
             ketl_hir_builder_set_block(p_hir_builder, first_block + 3);

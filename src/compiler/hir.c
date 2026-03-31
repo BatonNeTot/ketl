@@ -58,6 +58,10 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
         case KETL_HIR_DIV:
         case KETL_HIR_MOD:
 
+        case KETL_HIR_BITWISE_AND:
+        case KETL_HIR_BITWISE_OR:
+        case KETL_HIR_BITWISE_XOR:
+
         case KETL_HIR_EQUAL:
         case KETL_HIR_NOT_EQUAL:
         case KETL_HIR_LESS:
@@ -67,11 +71,16 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
             return sizeof(ketl_hir_binary_op_t);
 
         case KETL_HIR_ASSIGN:
+
         case KETL_HIR_ASSIGN_PLUS:
         case KETL_HIR_ASSIGN_MINUS:
         case KETL_HIR_ASSIGN_MULTY:
         case KETL_HIR_ASSIGN_DIV:
         case KETL_HIR_ASSIGN_MOD:
+
+        case KETL_HIR_ASSIGN_BITWISE_AND:
+        case KETL_HIR_ASSIGN_BITWISE_OR:
+        case KETL_HIR_ASSIGN_BITWISE_XOR:
             return sizeof(ketl_hir_assign_t);
     
         case KETL_HIR_JUMP_IF_EQUAL:

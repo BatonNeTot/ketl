@@ -1,0 +1,127 @@
+//🫖ketl
+
+from type import Type
+from type import NamedVariable
+from token import Token
+from lexer import Lexer
+from hir import HIR
+from hir_builder import HIRBuilder
+
+class Parser {
+
+    class Context {
+        var builder : HIRBuilder;
+    }
+
+    fn current_token(context : Context, offset : u64) -> Token {
+        var index = context.builder.lexer.token_iterator - offset;
+        if (index >= context.builder.lexer.tokens.size) {
+            var token = Token();
+            token.type = Token.Type.EOF;
+            token.length = 0;
+            token.offset = context.builder.lexer.tokens[context.builder.lexer.tokens.size - 1].offset;
+            return token;
+        }
+        return context.builder.lexer.tokens[index];
+    }
+
+    fn token_check(context : Context, token_type : Token.Type) -> bool {
+        return context@current_token(0).type == token_type;
+    }
+
+    fn token_advance(context : Context) {
+        while (true) {
+            context.builder.lexer.token_iterator += 1;
+            var current = context.builder.lexer.token_iterator;
+
+            if (context.builder.lexer.tokens[current].type != Token.Type.ERROR) break;
+
+            // TODO error
+            // assert(false);
+        }
+    }
+
+    fn token_match(context : Context, token_type : Token.Type) -> bool {
+        if (!context@token_check(token_type)) return false;
+        context@token_advance();
+        return true;
+    }
+
+    fn token_consume(context : Context, token_type : Token.Type, message : str) {
+        if (!context@token_match(token_type)) {
+            // TODO error message
+        }
+    }
+
+    class StatementInfo {
+        enum ReturnInfo : u8 {
+            Empty   = 0,
+            None    = 1,
+            Value   = 2,
+            Undef   = 3, // None | Value
+            Always  = 4,
+
+            AlwaysNone  = 5, //None  | Always
+            AlwaysValue = 6, //Value | Always;
+            AlwaysUndef = 7, //Undef | Always;
+        }
+
+        var return_info : ReturnInfo;
+    }
+
+    fn parse_declaration(context : Context) -> StatementInfo {
+        // TODO
+        return null;
+    }
+
+    fn parse_block_statement_inner(context : Context) -> StatementInfo {
+        var return_info = StatementInfo.ReturnInfo.Empty;
+
+        while (!context@token_check(Token.Type.CURLY_RIGHT) && !context@token_check(Token.Type.EOF)) {
+            if (return_info & StatementInfo.ReturnInfo.Always > 0) {
+                var statement_start = context@current_token(0).offset;
+                var decl_return_info = context@parse_declaration().return_info;
+                var last_token = context@current_token(1);
+                var statement_end = last_token.offset + last_token.length;
+
+                // TODO error
+
+                return_info |= decl_return_info;
+            } else {
+                return_info |= context@parse_declaration().return_info;
+            }
+        }
+
+        var statement_info = StatementInfo();
+        statement_info.return_info = return_info;
+        return statement_info;
+    }
+
+    fn parse_block_statement(context : Context) -> StatementInfo {
+        context@token_advance();
+
+        // TODO push_symbol_map
+        var statement_info = context@parse_block_statement_inner();
+        // TODO pop_symbol_map
+
+        context@token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of the block.");
+        return null;
+    }
+
+    export fn build_hir(lexer : Lexer, parameters : NamedVariable[], return_type : Type) -> HIR {
+        var context = Context();
+
+        context.builder = HIRBuilder();
+        context.builder.lexer = lexer;
+
+        for (var parameter -> parameters) {
+            // TODO
+        }
+
+        if (lexer.tokens.size > 0) {
+            var statement_info = context@parse_block_statement_inner();
+            // TODO
+        }
+
+    }
+}

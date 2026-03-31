@@ -288,6 +288,10 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FN, id_length);
                 return true;
             }
+            if (ketl_str_is_equal_n("for", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FOR, id_length);
+                return true;
+            }
             if (ketl_str_is_equal_n("from", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_FROM, id_length);
                 return true;
@@ -348,6 +352,13 @@ static bool ketl_lexer_parse_id(ketl_lexer_t* p_lexer, char next_symbol) {
         case 't': {
             if (ketl_str_is_equal_n("true", p_lexer->p_source + p_lexer->offset, id_length)) {
                 ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LITERAL_TRUE, id_length);
+                return true;
+            }
+            break;
+        }
+        case 'u': {
+            if (ketl_str_is_equal_n("unpack", p_lexer->p_source + p_lexer->offset, id_length)) {
+                ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_UNPACK, id_length);
                 return true;
             }
             break;

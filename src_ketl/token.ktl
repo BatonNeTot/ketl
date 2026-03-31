@@ -1,3 +1,4 @@
+//🫖ketl
 
 export class Token {
     export enum Type : u8 {
@@ -56,6 +57,7 @@ export class Token {
         STRUCT,
         SWITCH,
         UNION,
+        UNPACK,
         VAR,
         WHILE,
         EOF,

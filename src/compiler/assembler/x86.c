@@ -386,12 +386,30 @@ static void ketl_asm_x86_push_opcode(opcodes_t* p_opcodes, ketl_asm_x86_instr_t*
                     break;
             }
             break;
+        case KETL_ASM_X86_AND: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_RM: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0x22 : 0x23);
+                    ketl_asm_x86_push_postfix(p_opcodes, p_instr);
+                    break;
+            }
+            break;
+        case KETL_ASM_X86_OR: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_RM: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0x0a : 0x0b);
+                    ketl_asm_x86_push_postfix(p_opcodes, p_instr);
+                    break;
+            }
+            break;
         case KETL_ASM_X86_XOR: ///////////////////////////////////////
             ANN_SWITCH_STRICT (p_instr->arg_type) {
                 case KETL_ASM_X86_RM: 
                     ketl_asm_x86_push_prefix(p_opcodes, p_instr);
                     opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0x32 : 0x33);
-                    ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 7);
+                    ketl_asm_x86_push_postfix(p_opcodes, p_instr);
                     break;
             }
             break;
@@ -916,9 +934,12 @@ static void push_mov_from_stack_hir(ketl_asm_x86_reg_t target_reg, ketl_hir_var_
 
 static void push_cast_aware_mov(ketl_asm_x86_builder_t* p_builder, ketl_type* p_rhs_type, ketl_asm_x86_size_t size, ketl_asm_x86_reg_t target_reg, ketl_asm_x86_modrm_t rhs) {
     uint8_t rhs_type_size = ketl_type_get_stack_size(p_rhs_type);
-    ANN_ASSERT(size == rhs_type_size || (p_rhs_type && p_rhs_type->kind == KETL_TYPE_PRIMITIVE));
+    ANN_ASSERT(size == rhs_type_size || (p_rhs_type && (p_rhs_type->kind == KETL_TYPE_PRIMITIVE || p_rhs_type->kind == KETL_TYPE_ENUM)));
 
     if (size > rhs_type_size) {
+        if (p_rhs_type->kind == KETL_TYPE_ENUM) {
+            p_rhs_type = (ketl_type*)((ketl_type_enum*)p_rhs_type)->p_parent_primitive;
+        }
         ketl_type_primitive* p_rhs_primitive_type = (ketl_type_primitive*) p_rhs_type;
         if (p_rhs_primitive_type->is_signed) {
             ANN_SWITCH_STRICT(rhs_type_size) {
@@ -1453,6 +1474,10 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_DIV:
             case KETL_HIR_MOD: 
 
+            case KETL_HIR_BITWISE_AND: 
+            case KETL_HIR_BITWISE_OR: 
+            case KETL_HIR_BITWISE_XOR: 
+
             case KETL_HIR_EQUAL:
             case KETL_HIR_NOT_EQUAL:
             case KETL_HIR_LESS:
@@ -1495,6 +1520,15 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         }
                         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_DX));
                         break;
+                    case KETL_HIR_BITWISE_AND:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_AND, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_BITWISE_OR:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_OR, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_BITWISE_XOR:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_XOR, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
                     case KETL_HIR_EQUAL:
                         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                         ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SETE, KETL_ASM_X86_8B, MODRM_REG(KETL_ASM_X86_AX));
@@ -1536,7 +1570,11 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_ASSIGN_MINUS:
             case KETL_HIR_ASSIGN_MULTY:
             case KETL_HIR_ASSIGN_DIV:
-            case KETL_HIR_ASSIGN_MOD: {
+            case KETL_HIR_ASSIGN_MOD:
+
+            case KETL_HIR_ASSIGN_BITWISE_AND: 
+            case KETL_HIR_ASSIGN_BITWISE_OR: 
+            case KETL_HIR_ASSIGN_BITWISE_XOR: {
                 ketl_hir_assign_t* p_hir_info = (ketl_hir_assign_t*)p_instr;
                 ketl_asm_x86_size_t size = get_size_from_hir_type(header.tag);
                 push_mov_from_stack_hir(KETL_ASM_X86_CX, p_hir_info->source_var, size, p_builder);
@@ -1569,6 +1607,15 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_DIV, size, MODRM_REG(KETL_ASM_X86_CX));
                         }
                         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_DX));
+                        break;
+                    case KETL_HIR_ASSIGN_BITWISE_AND:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_AND, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_ASSIGN_BITWISE_OR:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_OR, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_ASSIGN_BITWISE_XOR:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_XOR, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
                         break;
                 }
                 push_mov_to_stack_hir(p_hir_info->dest_var, KETL_ASM_X86_AX, size, p_builder);
@@ -2214,6 +2261,12 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             printed += snprintf(p_buffer + printed, buffer_size - printed, "idiv ");
             break;
 
+        case KETL_ASM_X86_AND:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "and ");
+            break;
+        case KETL_ASM_X86_OR:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "or ");
+            break;
         case KETL_ASM_X86_XOR:
             printed += snprintf(p_buffer + printed, buffer_size - printed, "xor ");
             break;

@@ -1,3 +1,5 @@
+//🫖ketl
+
 from token import Token
 
 export class Lexer {
@@ -320,6 +322,10 @@ export class Lexer {
                     lexer@add_token(Token.Type.FN, id_length);
                     return true;
                 }
+                if ("for" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.FOR, id_length);
+                    return true;
+                }
                 if ("from" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer@add_token(Token.Type.FROM, id_length);
                     return true;
@@ -368,6 +374,12 @@ export class Lexer {
             case 't' -> {
                 if ("true" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer@add_token(Token.Type.LITERAL_TRUE, id_length);
+                    return true;
+                }
+            }
+            case 'u' -> {
+                if ("unpack" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.UNPACK, id_length);
                     return true;
                 }
             }
