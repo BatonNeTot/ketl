@@ -927,8 +927,10 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
 
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) {
         ANN_ASSERT(p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE);
-        ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric);
-        ANN_ASSERT(((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed);
+        ketl_type_primitive* p_lhs_primitive_type = (ketl_type_primitive*)p_lhs_type;
+        ketl_type_primitive* p_rhs_primitive_type = (ketl_type_primitive*)p_rhs_type;
+        ANN_ASSERT(p_lhs_primitive_type->is_integer && p_rhs_primitive_type->is_integer);
+        ANN_ASSERT(!(p_lhs_primitive_type->is_numeric && p_rhs_primitive_type->is_numeric) || p_lhs_primitive_type->is_signed == p_rhs_primitive_type->is_signed);
     }
 
     ketl_hir_var_id_t casted_var = (ketl_hir_var_id_t)p_hir_builder->vars.size;

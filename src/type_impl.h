@@ -15,6 +15,7 @@ enum {
     KETL_TYPE_FUNCTION,
     KETL_TYPE_CFUNCTION,
     KETL_TYPE_ARRAY,
+    KETL_TYPE_CARRAY,
     KETL_TYPE_CLASS,
 };
 
@@ -124,6 +125,8 @@ ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_
 bool ketl_type_is_pointer_type(ketl_type* p_type);
 
 bool ketl_type_is_raw_type(ketl_type* p_type);
+
+bool ketl_type_is_char_type(ketl_type* p_type);
 
 
 #endif // ketl_type_impl_h

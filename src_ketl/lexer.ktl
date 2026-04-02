@@ -1,8 +1,12 @@
 //🫖ketl
 
+from common import FilePointer
+from common import LogAccum
+
 from token import Token
 
 export class Lexer {
+    var log_accum: LogAccum;
     var tokens : Token[];
     var lines_offsets : u32[];
     var filename : str;
@@ -13,32 +17,6 @@ export class Lexer {
     fn init(lexer : Lexer) {
         lexer.tokens = Token[0];
         lexer.lines_offsets = u32[0];
-    }
-
-    fn get_line_offset(lexer : Lexer, line : u32) -> u32 {
-        if (line >= lexer.lines_offsets.size) {
-            return lexer.source.size$cast(u32);
-        }
-        return lexer.lines_offsets[line];
-    }
-
-    fn find_line(lexer : Lexer, offset : u32) -> u32 {
-        var lhs : u32 = 0;
-        // TODO make cast deduce type from the left side
-        var rhs : u32 = lexer.lines_offsets.size$cast(u32);
-
-        while (lhs + 1 < rhs) {
-            var mid : u32 = (lhs + rhs) / 2;
-            var mid_offset : u32 = lexer.lines_offsets[mid];
-            if (mid_offset < offset) {
-                lhs = mid;
-            } else if (offset < mid_offset) {
-                rhs = mid;
-            } else {
-                return mid;
-            }
-        }
-        return lhs;
     }
     
     fn is_space(symbol : char) -> bool {
@@ -155,9 +133,17 @@ export class Lexer {
         var char_length : u32 = 1;
         var char_offset = lexer.offset += 1;
 
-        if (lexer@get_symbol() == '\\') {
+        next_symbol = lexer@get_symbol();
+
+        if (next_symbol == '\\') {
             // TODO replace with increment
-            char_length += 1;
+            char_length = 2;
+        }
+
+        if (next_symbol == '\'') {
+            lexer@error(lexer.offset - 1, 2, "Empty char literal.");
+            // TODO error
+            char_length = 0;
         }
 
         if (lexer@parse_next_line(next_symbol)) {
@@ -654,7 +640,8 @@ export class Lexer {
         }
     }
     
-    fn build_tokens(lexer : Lexer, filename : str, source : str) {
+    fn build_tokens(lexer : Lexer, filename : str, source : str, log_accum: LogAccum) {
+        lexer.log_accum = log_accum;
         lexer.filename = filename;
         lexer.source = source;
         lexer.offset = 0;
@@ -708,5 +695,21 @@ export class Lexer {
         }
 
         lexer@add_token(Token.Type.EOF, 0);
+    }
+
+    export fn construct_log_info(lexer : Lexer) -> LogAccum.LogInfo {
+        var info = LogAccum.LogInfo();
+        info.lines_offsets = lexer.lines_offsets;
+        info.filename = lexer.filename;
+        info.source = lexer.source;
+        return info;
+    }
+
+    fn error(lexer : Lexer, offset: u32, length: u32, message: str) {
+        lexer.log_accum@error(
+            lexer@construct_log_info(),
+            FilePointer.construct(offset, offset, length),
+            message 
+        );
     }
 }

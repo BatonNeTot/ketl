@@ -1,0 +1,92 @@
+//🫖ketl
+
+export class StringBuffer {
+    var buffer : str;
+
+    export fn construct() -> StringBuffer {
+        var obj = StringBuffer();
+        obj.buffer = "";
+        return obj;
+    }
+
+    export fn write(buffer: StringBuffer, message : str) -> StringBuffer {
+        buffer.buffer ..= message;
+        return buffer;
+    }
+} 
+
+export class FilePointer {
+    var offset : u32;
+    var pointer : u32;
+    var length : u32;
+
+    export fn construct(offset: u32, pointer: u32, length: u32) -> FilePointer {
+        var obj = FilePointer();
+        obj.offset = offset; 
+        obj.pointer = pointer; 
+        obj.length = length; 
+        return obj;
+    }
+}
+
+cimport printf(message : cstr)
+
+export class LogAccum {
+    var err : StringBuffer;
+    var full : StringBuffer;
+
+    export fn construct() -> LogAccum {
+        var obj = LogAccum();
+        obj.err = StringBuffer.construct();
+        obj.full = StringBuffer.construct();
+        return obj;
+    }
+
+    export class LogInfo {
+        var lines_offsets : u32[];
+        var filename : str;
+        var source : str;
+
+        export fn get_line_offset(info : LogInfo, line : u32) -> u32 {
+            if (line >= info.lines_offsets.size) {
+                return info.source.size$cast(u32);
+            }
+            return info.lines_offsets[line];
+        }
+
+        export fn find_line(info : LogInfo, offset : u32) -> u32 {
+            assert(info.lines_offsets.size < 5000);
+            var lhs : u32 = 0;
+            // TODO make cast deduce type from the left side
+            var rhs : u32 = info.lines_offsets.size$cast(u32);
+
+            while (lhs + 1 < rhs) {
+                var mid : u32 = (lhs + rhs) / 2;
+                var mid_offset : u32 = info.lines_offsets[mid];
+                if (mid_offset < offset) {
+                    lhs = mid;
+                } else if (offset < mid_offset) {
+                    rhs = mid;
+                } else {
+                    return mid;
+                }
+            }
+            return lhs;
+        }
+    }
+
+    export fn error(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
+        var line = info@find_line(pointer.offset);
+        var offset = pointer.offset - info@get_line_offset(line);
+
+        accum.err@write(info.filename)
+            @write(":")@write((line + 1)$cast(str))
+            @write(":")@write((offset + 1)$cast(str))
+            @write(": error: ")@write(message);
+        printf(accum.err.buffer$cast(cstr));
+    }
+
+    export fn warning(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
+
+    }
+}

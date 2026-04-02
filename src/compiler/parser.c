@@ -184,6 +184,12 @@ static ketl_hir_var_id_t push_hir_binary_op(ketl_parser_context* p_context, ketl
     return output_var;
 }
 
+static void push_hir_argument(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
+    _ketl_parse_argument_stack_t_push_back_copy(&p_context->v_argument_stack, var_id);
+}
+
+static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee_id, uint16_t arguments_count, ketl_hir_expr_info_t expr_info);
+
 // returns rhs after casting if happened
 // else returns temp
 static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_context, ketl_hir_used_type_index_t lhs_type, ketl_hir_expr_info_t lhs_info, ketl_hir_var_id_t rhs_var, bool explicit) {
@@ -195,7 +201,7 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         return push_temp_var(p_context, expr_info);
     }
 
-    if (p_rhs_var->type == KETL_HIR_USED_TYPE_LITERAL) {
+    if (p_rhs_var->type == KETL_HIR_USED_TYPE_LITERAL && GET_TYPE(lhs_type)->kind == KETL_TYPE_PRIMITIVE) {
         p_rhs_var->type = lhs_type;
         return rhs_var;
     }
@@ -221,13 +227,41 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         
     // trying to primitive cast
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
-        ((ketl_type_primitive*)p_lhs_type)->is_numeric && ((ketl_type_primitive*)p_rhs_type)->is_numeric) {
+        ((ketl_type_primitive*)p_lhs_type)->is_integer && ((ketl_type_primitive*)p_rhs_type)->is_integer) {
             
         if (explicit || (p_lhs_type->size >= p_rhs_type->size && 
             ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed)) {
             ketl_hir_var_id_t casted_var = ketl_hir_builder_cast_primitive(&p_context->hir_builder, rhs_var, lhs_type);
             return casted_var;
         }
+    }
+
+    if (p_rhs_type->kind == KETL_TYPE_ARRAY && p_lhs_type->kind == KETL_TYPE_CARRAY && 
+        ((ketl_type_array*)p_lhs_type)->p_value_type == ((ketl_type_array*)p_rhs_type)->p_value_type) {
+
+        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "str2cstr", 8);
+        ketl_hir_var_id_t converter_id = ketl_hir_builder_get_var(&p_context->hir_builder, &p_context->p_state->secret_namespace, converter_symbol, converter_symbol, expr_info, true);
+        ANN_ASSERT(GET_VAR(converter_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
+
+        push_hir_argument(p_context, rhs_var);
+        ketl_hir_var_id_t convertion_call_id = push_hir_call(p_context, converter_id, 1, expr_info);
+
+        return convertion_call_id;
+    }
+
+    if ((p_rhs_var->type == KETL_HIR_USED_TYPE_LITERAL || 
+        (p_rhs_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_rhs_type)->is_numeric)) &&
+        p_lhs_type->kind == KETL_TYPE_ARRAY && 
+        ketl_type_is_char_type(((ketl_type_array*)p_lhs_type)->p_value_type)) {
+
+        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "int2str", 8);
+        ketl_hir_var_id_t converter_id = ketl_hir_builder_get_var(&p_context->hir_builder, &p_context->p_state->secret_namespace, converter_symbol, converter_symbol, expr_info, true);
+        ANN_ASSERT(GET_VAR(converter_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
+
+        push_hir_argument(p_context, rhs_var);
+        ketl_hir_var_id_t convertion_call_id = push_hir_call(p_context, converter_id, 1, expr_info);
+
+        return convertion_call_id;
     }
         
     errorf(expr_info.source_offset, expr_info.length, "Incompatible for cast types.");
@@ -254,9 +288,23 @@ static ketl_hir_var_id_t push_hir_append_value(ketl_parser_context* p_context, k
         .tag = KETL_HIR_APPEND_VALUE,
         .file_symbol = p_context->s_filename,
     };
-    ketl_hir_append_value_t instr = {
+    ketl_hir_append_t instr = {
         .array_var = array_var,
         .append_var = value_var,
+    };
+
+    ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
+    return array_var;
+}
+
+static ketl_hir_var_id_t push_hir_append_array(ketl_parser_context* p_context, ketl_hir_var_id_t array_var, ketl_hir_var_id_t other_array_var) {
+    ketl_hir_header_t header = {
+        .tag = KETL_HIR_APPEND_ARRAY,
+        .file_symbol = p_context->s_filename,
+    };
+    ketl_hir_append_t instr = {
+        .array_var = array_var,
+        .append_var = other_array_var,
     };
 
     ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
@@ -300,9 +348,16 @@ static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_va
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(rhs_var).type);
 
     if (p_rhs_type->kind == KETL_TYPE_ARRAY) {
-        ANN_ASSERT(false);
-        // TODO append other array
-        return -1;
+        ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
+        ketl_type_array* p_rhs_array_type = (ketl_type_array*) p_rhs_type;
+
+        if (p_lhs_array_type->p_value_type != p_rhs_array_type->p_value_type) {
+            // TODO implicit casting
+            errorf(expr_info.source_offset, expr_info.length, "Can't append different type.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        return push_hir_append_array(p_context, lhs_var, rhs_var);
     } else {
         ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
 
@@ -399,10 +454,6 @@ static ketl_hir_var_id_t push_hir_variable_declaration(ketl_parser_context* p_co
     return id_var;
 }
 
-static void push_hir_argument(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
-    _ketl_parse_argument_stack_t_push_back_copy(&p_context->v_argument_stack, var_id);
-}
-
 static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_hir_var_id_t callee_id, uint16_t arguments_count, ketl_hir_expr_info_t expr_info) {
     ketl_hir_var_t* p_callee = &GET_VAR(callee_id);
 
@@ -463,19 +514,17 @@ static ketl_hir_var_id_t push_hir_new(ketl_parser_context* p_context, ketl_hir_v
     return output_var;
 }
 
-static ketl_hir_var_id_t push_hir_new_array(ketl_parser_context* p_context, ketl_hir_var_id_t value_type_var, ketl_hir_var_id_t count_var_id, ketl_hir_expr_info_t expr_info) {
+static ketl_hir_var_id_t push_hir_new_array(ketl_parser_context* p_context, ketl_hir_used_type_index_t value_type, ketl_hir_var_id_t count_var_id, ketl_hir_expr_info_t expr_info) {
     ketl_hir_header_t header = {
         .tag = KETL_HIR_CREATE_ARRAY,
         .file_symbol = p_context->s_filename,
     };
-    ketl_hir_var_info_t* p_var_info = get_var_info(p_context, GET_VAR(value_type_var).info);
-    ketl_namespace_node* p_type_node = ketl_namespace_find_by_index(p_var_info->p_namespace, p_var_info->namespace_node_index);
-    ketl_type* p_value_type = p_type_node->variable.p_pointer;
+    ketl_type* p_value_type = GET_TYPE(value_type);
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, 
         ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_array_type(p_context->p_state, p_value_type)));
     ketl_hir_create_array_t instr = {
         .output_var = output_var,
-        .type_var = value_type_var,
+        .type = value_type,
         .count_var_id = count_var_id,
         .const_index = KETL_HIR_CONST_INDEX_NULL,
     };
@@ -490,9 +539,7 @@ static ketl_hir_var_id_t push_hir_new_string_literal(ketl_parser_context* p_cont
         .file_symbol = p_context->s_filename,
     };
     ketl_hir_expr_info_t expr_info = token_extract_info(literal);
-    ketl_namespace_node* p_namespace_node = ketl_namespace_find(p_context->p_namespace, ketl_atomic_strings_get(&p_context->p_state->atomic_strings,"char", 4));
-    ketl_hir_var_id_t value_type_var = ketl_hir_builder_get_global_var(&p_context->hir_builder, p_context->p_namespace, p_namespace_node, 
-        push_symbol_string(p_context, "char", 4), expr_info, KETL_HIR_USED_TYPE_META);
+    ketl_hir_used_type_index_t value_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_char_type(p_context->p_state));
 
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, 
         ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_str_type(p_context->p_state)));
@@ -501,11 +548,14 @@ static ketl_hir_var_id_t push_hir_new_string_literal(ketl_parser_context* p_cont
     uint32_t size_length = (uint32_t)snprintf(a_size_buffer, ANN_ARRAY_SIZE(a_size_buffer), "%"PRIu16, literal.length);
     ketl_hir_var_id_t count_var_id = push_literal_number_symbol(p_context, push_symbol_string(p_context, a_size_buffer, size_length), expr_info);
 
-    ketl_hir_const_index_t const_index = ketl_hir_builder_push_string_literal(&p_context->hir_builder, literal);
+    ketl_hir_const_index_t const_index = (ketl_hir_const_index_t)-1;
+    if (literal.length > 0) {
+        const_index = ketl_hir_builder_push_string_literal(&p_context->hir_builder, literal);
+    }
 
     ketl_hir_create_array_t instr = {
         .output_var = output_var,
-        .type_var = value_type_var,
+        .type = value_type,
         .count_var_id = count_var_id,
         .const_index = const_index,
     };
@@ -1050,8 +1100,17 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
         }
 
         if (p_object->type == KETL_HIR_USED_TYPE_LITERAL || 
-            (GET_TYPE(p_object->type)->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)GET_TYPE(p_object->type))->is_numeric)) {
-            if (!(p_cast_to_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_cast_to_type)->is_numeric)) {
+            (GET_TYPE(p_object->type)->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)GET_TYPE(p_object->type))->is_numeric) ||
+            ketl_type_is_char_type(GET_TYPE(p_object->type))) {
+            if (p_cast_to_type->kind == KETL_TYPE_ARRAY && 
+                ketl_type_is_char_type(((ketl_type_array*)p_cast_to_type)->p_value_type)) {
+                ketl_hir_var_id_t output_var = trying_to_cast_rhs_to_lhs(p_context, 
+                    ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_cast_to_type), expr_info, lhs, true);
+                return output_var;
+            }
+
+            if (!((p_cast_to_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_cast_to_type)->is_numeric) ||
+                ketl_type_is_char_type(p_cast_to_type))) {
                 errorf(expr_info.source_offset, expr_info.length, "Casting of primitives numeric types supported only to primitive numeric types.");
                 return push_temp_var(p_context, expr_info);
             }
@@ -1107,7 +1166,11 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
     ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(var_id).expr_info, token_extract_info(CURRENT_TOKEN(1)));
 
     if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_META) {
-        ketl_hir_var_id_t id_var = push_hir_new_array(p_context, var_id, expr_id, expr_info);
+        ketl_namespace_node* p_value_type_node = ketl_namespace_find_by_index(
+            get_var_info(p_context, GET_VAR(var_id).info)->p_namespace, 
+            get_var_info(p_context, GET_VAR(var_id).info)->namespace_node_index);
+        ketl_type* p_value_type = p_value_type_node->variable.p_pointer;
+        ketl_hir_var_id_t id_var = push_hir_new_array(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_value_type), expr_id, expr_info);
 
         if (!token_match(p_context, KETL_TOKEN_TYPE_CURLY_LEFT)) {
             return id_var;
@@ -1451,7 +1514,10 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
 
     // back to the rtl operator
     ketl_parse_rtl_infix f_rtl_infix = get_parse_rule(CURRENT_TOKEN(1).type)->f_rtl_infix;
-    ANN_ASSERT(f_rtl_infix != NULL);
+    if (f_rtl_infix == NULL) {
+        errorf(CURRENT_TOKEN(2).offset, CURRENT_TOKEN(2).length, "Expected operator.");
+        return push_temp_var(p_context, token_extract_info(CURRENT_TOKEN(2)));
+    }
     lhs = f_rtl_infix(p_context, lhs, rhs);
 
     // restore token iterator

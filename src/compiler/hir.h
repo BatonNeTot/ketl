@@ -44,6 +44,7 @@ enum {
     KETL_HIR_CREATE_ARRAY,
     KETL_HIR_CREATE_SLICE,
     KETL_HIR_APPEND_VALUE,
+    KETL_HIR_APPEND_ARRAY,
 
     KETL_HIR_JUMP,
 
@@ -198,7 +199,7 @@ ANN_DEFINE(ketl_hir_new_t) {
 
 ANN_DEFINE(ketl_hir_create_array_t) {
     ketl_hir_var_id_t output_var;
-    ketl_hir_var_id_t type_var;
+    ketl_hir_used_type_index_t type;
     ketl_hir_var_id_t count_var_id;
     ketl_hir_const_index_t const_index;
 };
@@ -211,7 +212,7 @@ ANN_DEFINE(ketl_hir_create_slice_t) {
     ketl_hir_var_id_t end_var_id;
 };
 
-ANN_DEFINE(ketl_hir_append_value_t) {
+ANN_DEFINE(ketl_hir_append_t) {
     ketl_hir_var_id_t array_var;
     ketl_hir_var_id_t append_var;
 };

@@ -118,7 +118,8 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
         case KETL_HIR_CREATE_SLICE:
             return sizeof(ketl_hir_create_slice_t);
         case KETL_HIR_APPEND_VALUE:
-            return sizeof(ketl_hir_append_value_t);
+        case KETL_HIR_APPEND_ARRAY:
+            return sizeof(ketl_hir_append_t);
 
         case KETL_HIR_JUMP:
             return sizeof(ketl_hir_jump_t);
@@ -502,7 +503,7 @@ static uint32_t ketl_hir_format_instr(ketl_state* p_state, ketl_hir_t* p_hir, ke
         case KETL_HIR_CREATE_ARRAY: {
             INIT_HIR_INFO(ketl_hir_create_array_t);
             FORMAT_VAR(p_hir_info->output_var, var_buffer[0]);
-            FORMAT_VAR(p_hir_info->type_var, var_buffer[1]);
+            ketl_type_format(p_state, p_hir->p_used_types[p_hir_info->type], var_buffer[1], ANN_ARRAY_SIZE(var_buffer[1]));
             FORMAT_VAR(p_hir_info->count_var_id, var_buffer[2]);
             uint32_t count = snprintf(buffer, buffer_size, "%s = %s[%s]", var_buffer[0], var_buffer[1], var_buffer[2]);
             return count;

@@ -45,12 +45,13 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     }
 
     p_module->header_loaded = true;
-    ketl_module_t* p_stashed_module = p_state->p_active_module;
-    p_state->p_active_module = p_module; 
+    ketl_atomic_string stashed_module_name = p_state->active_module_name;
+    p_state->active_module_name = p_module->s_name; 
 
     char a_fullpath[256] = {'\0'};
     uint32_t fullpath_printed = 0;
-    if (p_stashed_module != NULL) { 
+    if (stashed_module_name != KETL_ATOMIC_STRING_EMPTY) { 
+        ketl_module_t* p_stashed_module = &ketl_modules_t_get_or_null(&p_state->modules, stashed_module_name)->value;
         fullpath_printed += snprintf(a_fullpath + fullpath_printed, ANN_ARRAY_SIZE(a_fullpath) - fullpath_printed, "%s", p_stashed_module->p_path);
     }
 
@@ -100,7 +101,7 @@ bool ketl_module_preload(ketl_module_t* p_module, const char* p_module_filename,
     p_state->compile_function_declarations.size = compile_function_mark;
     p_state->error_stream.size = error_stream_mark;
 
-    p_state->p_active_module = p_stashed_module;
+    p_state->active_module_name = stashed_module_name;
 
     if (p_module->p_opcodes == NULL) {
         return false;

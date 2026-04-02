@@ -1594,13 +1594,16 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         }
                         break;
                     case KETL_HIR_ASSIGN_DIV:
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_XOR, size, KETL_ASM_X86_DX, MODRM_REG(KETL_ASM_X86_DX));
                         if (is_signed_hir_type(header.tag)) {
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IDIV, size, MODRM_REG(KETL_ASM_X86_CX));
                         } else {
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_DIV, size, MODRM_REG(KETL_ASM_X86_CX));
                         }
+                        break;
                     case KETL_HIR_ASSIGN_MOD:
                         ANN_ASSERT(size != KETL_ASM_X86_8B);
+                        ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_XOR, size, KETL_ASM_X86_DX, MODRM_REG(KETL_ASM_X86_DX));
                         if (is_signed_hir_type(header.tag)) {
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_IDIV, size, MODRM_REG(KETL_ASM_X86_CX));
                         } else {
@@ -1749,11 +1752,8 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
 
                 if (p_builder->inline_symbols) {
                     char a_stack_size_buffer[16];
-                    ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
-                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_namespace, 
-                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].namespace_node_index);
                     snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(
-                        p_namespace_node->variable.p_pointer
+                        p_hir->p_used_types[p_hir_info->type]
                     ));
 
                     char a_name_buffer[256];
@@ -1798,11 +1798,8 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     char a_gc_address_buffer[16];
                     snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
                     char a_type_address_buffer[16];
-                    ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
-                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].p_namespace, 
-                        p_hir->p_vars_infos[p_hir->p_vars[p_hir_info->type_var].info].namespace_node_index);
                     snprintf(a_type_address_buffer, ANN_ARRAY_SIZE(a_type_address_buffer), "%"PRIu64, 
-                        (uint64_t)p_namespace_node->variable.p_pointer);
+                        (uint64_t)p_hir->p_used_types[p_hir_info->type]);
 
                     char a_p_mem_buffer[16];
                     snprintf(a_p_mem_buffer, ANN_ARRAY_SIZE(a_p_mem_buffer), "%"PRIu64, (uint64_t)p_mem);
@@ -1885,7 +1882,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 continue;
             }
             case KETL_HIR_APPEND_VALUE: {
-                ketl_hir_append_value_t* p_hir_info = (ketl_hir_append_value_t*)p_instr;
+                ketl_hir_append_t* p_hir_info = (ketl_hir_append_t*)p_instr;
 
                 if (p_builder->inline_symbols) {
                     char a_stack_size_buffer[16];
@@ -1923,6 +1920,57 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     void* func_address;
                     #define KETL_POINTER_CONVERTER
                     #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_append_value
+                    #define KETL_POINTER_CONVERTER_VAR  func_address
+                    #define KETL_POINTER_CONVERTER_TYPE void*
+                    #include "meta.i"
+                    
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), (uint64_t)func_address);
+
+                    // call create from gc
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                }
+
+                continue;
+            }
+            case KETL_HIR_APPEND_ARRAY: {
+                ketl_hir_append_t* p_hir_info = (ketl_hir_append_t*)p_instr;
+
+                if (p_builder->inline_symbols) {
+                    char a_stack_size_buffer[16];
+                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(
+                        ((ketl_type_array*)p_hir->p_used_types[p_hir->p_vars[p_hir_info->array_var].type])->p_value_type
+                    ));
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer}, // stack_size
+                        arg_from_hir_var_id(p_hir_info->array_var, p_builder),
+                        arg_from_hir_var_id(p_hir_info->append_var, p_builder),
+                    };
+                    
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    // call __ketl_rt.append_array
+                    ketl_atomic_string s_rt_append_array_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt.append_array", KETL_NULL_TERMINATED_LENGTH_32);
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_rt_append_array_name));
+                } else {
+                    //ketl_gc_append_array(&p_builder->p_state->gc, 
+                    //  p_hir->p_used_types[p_hir_info->array_value], array_var, append_var);
+                    char a_gc_address_buffer[16];
+                    snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
+                    char a_stack_size_buffer[16];
+                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(
+                        ((ketl_type_array*)p_hir->p_used_types[p_hir->p_vars[p_hir_info->array_var].type])->p_value_type
+                    ));
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer},
+                        arg_from_hir_var_id(p_hir_info->array_var, p_builder),
+                        arg_from_hir_var_id(p_hir_info->append_var, p_builder),
+                    };
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    void* func_address;
+                    #define KETL_POINTER_CONVERTER
+                    #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_append_array
                     #define KETL_POINTER_CONVERTER_VAR  func_address
                     #define KETL_POINTER_CONVERTER_TYPE void*
                     #include "meta.i"
@@ -2082,7 +2130,7 @@ static uint32_t ketl_asm_x86_format_reg(ketl_asm_x86_reg_t reg, ketl_asm_x86_siz
             }
         case KETL_ASM_X86_R8:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r8l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r8w"); // can't compile with r8l, need to dig deeper
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r8w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r8d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r8");

@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 
     (void)str_filename;
     (void)str_source;
-    //eval(&str_filename, &str_source);
+    eval(&str_filename, &str_source);
 
     ketl_lexer_t test_lexer;
     ketl_lexer_init(&test_lexer, &ketl_default_allocator);

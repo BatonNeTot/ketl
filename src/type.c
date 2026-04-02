@@ -176,3 +176,8 @@ bool ketl_type_is_raw_type(ketl_type* p_type) {
     return p_type && p_type->size == sizeof(void*) && p_type->kind == KETL_TYPE_PRIMITIVE && 
         !((ketl_type_primitive*)p_type)->is_integer && !((ketl_type_primitive*)p_type)->is_signed && !((ketl_type_primitive*)p_type)->is_numeric;
 }
+
+bool ketl_type_is_char_type(ketl_type* p_type) {
+    return p_type && p_type->size == 1 && p_type->kind == KETL_TYPE_PRIMITIVE && 
+        ((ketl_type_primitive*)p_type)->is_integer && !((ketl_type_primitive*)p_type)->is_signed && !((ketl_type_primitive*)p_type)->is_numeric;
+}

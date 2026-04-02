@@ -45,6 +45,8 @@ void* ketl_gc_create_slice_of_type(ketl_gc* p_gc, ketl_type* p_type, ketl_array*
 
 void ketl_gc_append_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, uint64_t value);
 
+void ketl_gc_append_array(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, ketl_array* p_other_array);
+
 uint64_t ketl_gc_get_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, uint64_t index);
 
 void ketl_gc_reg(ketl_gc* p_gc, void* p_object, ketl_type* p_type, uint64_t count, uint8_t flags);

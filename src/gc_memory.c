@@ -83,6 +83,34 @@ void ketl_gc_append_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_arra
     ketl_memcpy(p_array->p_data + p_array->size++ * value_size, &value, value_size);
 }
 
+void ketl_gc_append_array(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, ketl_array* p_other_array) {
+    uint64_t value_size = stack_size;
+    if (p_array->is_slice) {
+        uint64_t capacity = p_array->size + p_other_array->size;
+        uint8_t* p_data = ketl_alloc(p_gc->p_allocator, value_size * capacity);
+        ketl_memcpy(p_data, p_array->p_mirrored + value_size * p_array->mirrored_offset, value_size * p_array->size);
+        p_array->p_data = p_data;
+        p_array->capacity = capacity;
+        p_array->is_slice = false;
+    } else if (p_array->capacity == 0) {
+        ANN_ASSERT(p_array->p_data == NULL);
+        p_array->capacity = p_other_array->size;
+        p_array->p_data = ketl_alloc(p_gc->p_allocator, value_size * p_array->capacity);
+    } else if (p_array->size + p_other_array->size > p_array->capacity) {
+        ANN_ASSERT(p_array->p_data != NULL);
+        p_array->capacity = p_array->size + p_other_array->size;
+        p_array->p_data = ketl_realloc(p_gc->p_allocator, p_array->p_data, value_size * p_array->capacity);
+    }
+    uint32_t offset = 0;
+    ketl_array* p_array_2cpy = p_other_array;
+    while (p_array_2cpy->is_slice) {
+        offset += p_array_2cpy->mirrored_offset;
+        p_array_2cpy = p_array_2cpy->p_mirrored;
+    }
+    ketl_memcpy(p_array->p_data + p_array->size * value_size, p_array_2cpy->p_data + offset, value_size * p_other_array->size);
+    p_array->size += p_other_array->size;
+}
+
 uint64_t ketl_gc_get_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_array, uint64_t index) {
     (void)p_gc;
     if (p_array->is_slice) {

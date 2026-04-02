@@ -49,7 +49,7 @@ ANN_DEFINE(ketl_state) {
 
     compile_function_declarations_t compile_function_declarations;
     bool loading_modules;
-    ketl_module_t* p_active_module;
+    ketl_atomic_string active_module_name;
 };
 
 void ketl_state_postload(ketl_state* p_state, ketl_lexer_t* p_lexer, ketl_namespace* p_namespace, compile_function_declarations_t* p_compile_function_declarations);

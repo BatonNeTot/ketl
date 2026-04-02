@@ -1,13 +1,17 @@
 //🫖ketl
 
+from common import LogAccum
+
 from lexer import Lexer
 from parser import Parser
 from type import NamedVariable
 
 cexport fn eval(filename : str, source : str) {
+    var log_accum = LogAccum.construct();
+
     var lexer = Lexer();
     lexer@init();
-    lexer@build_tokens(filename, source);
+    lexer@build_tokens(filename, source, log_accum);
 
-    var hir = Parser.build_hir(lexer, NamedVariable[0], null);
+    //var hir = Parser.build_hir(lexer, NamedVariable[0], log_accum);
 }
