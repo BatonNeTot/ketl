@@ -46,6 +46,9 @@ export class Lexer {
     }
 
     fn get_symbol(lexer : Lexer) -> char {
+        // TODO
+        // replace all direct source[index] access with analog of this func
+        // parse escaping character here
         var symbol = '\0';
         var offset = lexer.offset;
         if (offset < lexer.source.size) {
@@ -107,7 +110,6 @@ export class Lexer {
                 }
 
                 if (next_symbol == '\0') {
-                    // TODO ERROR
                     break;
                 }
 
@@ -130,41 +132,57 @@ export class Lexer {
             return false;
         }
 
-        var char_length : u32 = 1;
+        var escaped = false;
         var char_offset = lexer.offset += 1;
 
         next_symbol = lexer@get_symbol();
 
         if (next_symbol == '\\') {
-            // TODO replace with increment
-            char_length = 2;
+            escaped = true;
+            lexer.offset += 1;
+            next_symbol = lexer@get_symbol();
         }
 
-        if (next_symbol == '\'') {
-            lexer@error(lexer.offset - 1, 2, "Empty char literal.");
-            // TODO error
-            char_length = 0;
+        if (next_symbol == '\'' && !escaped) {
+            lexer@error(char_offset - 1, 2, "Empty char literal.");
+            lexer@add_token(Token.Type.LITERAL_CHAR, 0);
+            lexer.offset += 1;
+            return true;
         }
 
         if (lexer@parse_next_line(next_symbol)) {
             // TODO ERROR and decide how to cleverly restore lexing
-            assert(false);
-        }
-
-
-        var end_mark_offset = char_offset + char_length;
-
-        // error correction
-        if (end_mark_offset >= lexer.source.size || lexer.source[end_mark_offset] != '\'') {
-            // TODO ERROR
-            if (end_mark_offset >= lexer.source.size) {
-                char_length = lexer.source.size$cast(u32) - char_offset;
+            var closing_quote_length: u32 = 0;
+            if (lexer@get_symbol() == '\'') {
+                closing_quote_length = 1;
             }
+
+            var char_length = lexer.offset - char_offset;
+            lexer@error(char_offset - 1, char_length + closing_quote_length, "Sudden new line insnide char quotes.");
+            
+            lexer.offset = char_offset;
+            lexer@add_token(Token.Type.LITERAL_CHAR, char_length - 1);
+            lexer.offset += closing_quote_length;
+            return true;
+        }
+        
+        var end_mark_offset = lexer.offset += 1;
+
+        if (end_mark_offset >= lexer.source.size || lexer.source[end_mark_offset] != '\'') {
+            var char_length = end_mark_offset - char_offset;
+            // error correction
+            if (end_mark_offset >= lexer.source.size) {
+                lexer@error(char_offset - 1, lexer.offset - char_offset, "Sudden EOF inside char quotes.");
+                char_length = lexer.source.size$cast(u32) - char_offset;
+            } else {
+                lexer@error(char_offset - 1, lexer.offset - char_offset, "Expected closing char quote.");
+            }
+            lexer.offset = char_offset;
             lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
             return true;
         }
 
-        lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
+        lexer@add_token(Token.Type.LITERAL_CHAR, end_mark_offset - char_offset);
         lexer.offset += 1;
         return true;
     }

@@ -604,6 +604,7 @@ enum {
     KETL_PREC_LOGICAL_AND,
     KETL_PREC_EQUALITY,
     KETL_PREC_COMPARISON,
+    KETL_PREC_CONCAT,
     KETL_PREC_TERM,
     KETL_PREC_FACTOR,
     KETL_PREC_BITWISE_OR,
@@ -627,6 +628,7 @@ ketl_associativity associativity[] = {
     [KETL_PREC_LOGICAL_AND] = KETL_LTR,
     [KETL_PREC_EQUALITY] = KETL_LTR,
     [KETL_PREC_COMPARISON] = KETL_LTR,
+    [KETL_PREC_CONCAT] = KETL_LTR,
     [KETL_PREC_TERM] = KETL_LTR,
     [KETL_PREC_FACTOR] = KETL_LTR,
     [KETL_PREC_BITWISE_OR] = KETL_LTR,
@@ -1201,12 +1203,66 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 static ketl_hir_var_id_t parse_unary_rtl(ketl_parser_context* p_context) {
     ketl_token_t token = CURRENT_TOKEN(1);
     ketl_token_type token_type = token.type;
-    ketl_parse_rule* p_parse_rule = get_parse_rule(token_type);
-    ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence);
+    ketl_hir_var_id_t rhs = parse_precedence(p_context, KETL_PREC_PREFIX);
 
     ANN_SWITCH_STRICT (token_type) {
         case KETL_TOKEN_TYPE_LOGICAL_NOT: return push_hir_unary_op(p_context, KETL_HIR_LOGICAL_NOT, rhs, token_extract_info(token));
+
+        case KETL_TOKEN_TYPE_PLUS:        return push_hir_unary_op(p_context, KETL_HIR_UNARY_PLUS,  rhs, token_extract_info(token));
+        case KETL_TOKEN_TYPE_MINUS:       return push_hir_unary_op(p_context, KETL_HIR_UNARY_MINUS, rhs, token_extract_info(token));
     }
+}
+
+static ketl_hir_var_id_t push_hir_concat(ketl_parser_context* p_context, ketl_hir_var_id_t lhs, ketl_hir_var_id_t rhs, ketl_hir_expr_info_t expr_info) {
+    if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_UNKNOWN || GET_VAR(rhs).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+
+    ketl_type* p_lhs_type = GET_TYPE(GET_VAR(lhs).type);
+    ketl_type* p_rhs_type = GET_TYPE(GET_VAR(rhs).type);
+
+    ketl_type* p_result_value_type = NULL;
+
+    if (p_lhs_type->kind == KETL_TYPE_ARRAY && p_rhs_type->kind == KETL_TYPE_ARRAY) {
+        if (((ketl_type_array*)p_lhs_type)->p_value_type != ((ketl_type_array*)p_rhs_type)->p_value_type) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't concat arrays of different value types.");
+            return push_temp_var(p_context, expr_info);
+        }
+        
+        p_result_value_type = ((ketl_type_array*)p_lhs_type)->p_value_type;
+    } else if (p_lhs_type->kind == KETL_TYPE_ARRAY) {
+        if (((ketl_type_array*)p_lhs_type)->p_value_type != p_rhs_type) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't concat array with different value type.");
+            return push_temp_var(p_context, expr_info);
+        }
+        
+        p_result_value_type = ((ketl_type_array*)p_lhs_type)->p_value_type;
+    } else if (p_rhs_type->kind == KETL_TYPE_ARRAY) {
+        if (((ketl_type_array*)p_rhs_type)->p_value_type != p_lhs_type) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't concat array with different value type.");
+            return push_temp_var(p_context, expr_info);
+        }
+        
+        p_result_value_type = ((ketl_type_array*)p_rhs_type)->p_value_type;
+    } else {
+        if (p_lhs_type != p_rhs_type) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't concat array with different value type.");
+            return push_temp_var(p_context, expr_info);
+        }
+        
+        p_result_value_type = p_lhs_type;
+    }
+
+    ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state));        
+    ketl_hir_var_id_t zero_var = ketl_hir_builder_get_literal(&p_context->hir_builder, 
+        (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_context->hir_builder.symbols, "0", 1), expr_info, size_type);
+
+    ketl_hir_var_id_t output_var = push_hir_new_array(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_result_value_type), zero_var, expr_info);
+
+    output_var = push_append(p_context, output_var, lhs);
+    output_var = push_append(p_context, output_var, rhs);
+
+    return output_var;
 }
 
 static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
@@ -1220,6 +1276,8 @@ static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_h
         case KETL_TOKEN_TYPE_MULTIPLY:         return push_hir_binary_op(p_context, KETL_HIR_MULTY,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
         case KETL_TOKEN_TYPE_DIVIDE:           return push_hir_binary_op(p_context, KETL_HIR_DIV,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
         case KETL_TOKEN_TYPE_REMAINDER:        return push_hir_binary_op(p_context, KETL_HIR_MOD,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+       
+        case KETL_TOKEN_TYPE_CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
         case KETL_TOKEN_TYPE_LESS:             return push_hir_binary_op(p_context, KETL_HIR_LESS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
         case KETL_TOKEN_TYPE_LESS_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
@@ -1329,7 +1387,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_AT   ]                      = { NULL,                parse_at_operator,     NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { parse_unary_rtl,     NULL,                  NULL,             KETL_PREC_PREFIX},
+    [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { parse_unary_rtl,     NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,                parse_short_circuit,   NULL,             KETL_PREC_LOGICAL_AND},
     [KETL_TOKEN_TYPE_LOGICAL_OR]                 = { NULL,                parse_short_circuit,   NULL,             KETL_PREC_LOGICAL_OR},
     [KETL_TOKEN_TYPE_LESS]                       = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_COMPARISON},
@@ -1346,12 +1404,12 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_INCREMENT]                  = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DECREMENT]                  = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_PLUS]                       = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_TERM},
-    [KETL_TOKEN_TYPE_MINUS]                      = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_PLUS]                       = { parse_unary_rtl,     parse_binary_ltr,      NULL,             KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_MINUS]                      = { parse_unary_rtl,     parse_binary_ltr,      NULL,             KETL_PREC_TERM},
     [KETL_TOKEN_TYPE_MULTIPLY]                   = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_FACTOR},
     [KETL_TOKEN_TYPE_DIVIDE]                     = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_FACTOR},
     [KETL_TOKEN_TYPE_REMAINDER]                  = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_FACTOR},
-    [KETL_TOKEN_TYPE_CONCAT]                     = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_TERM},
+    [KETL_TOKEN_TYPE_CONCAT]                     = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_CONCAT},
     [KETL_TOKEN_TYPE_ASSIGN]                     = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
     [KETL_TOKEN_TYPE_ASSIGN_PLUS]                = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},
     [KETL_TOKEN_TYPE_ASSIGN_MINUS]               = { NULL,                NULL,                  parse_binary_rtl, KETL_PREC_ASSIGNMENT},

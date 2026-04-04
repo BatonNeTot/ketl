@@ -42,6 +42,15 @@ export class LogAccum {
         return obj;
     }
 
+    export fn check(self: LogAccum) -> bool {
+        if (self.err.buffer.size > 0) {
+            printf(self.err.buffer$cast(cstr));
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     export class LogInfo {
         var lines_offsets : u32[];
         var filename : str;
@@ -49,7 +58,7 @@ export class LogAccum {
 
         export fn get_line_offset(info : LogInfo, line : u32) -> u32 {
             if (line >= info.lines_offsets.size) {
-                return info.source.size$cast(u32);
+                return info.source.size$cast(u32) - 1;
             }
             return info.lines_offsets[line];
         }
@@ -82,8 +91,10 @@ export class LogAccum {
         accum.err@write(info.filename)
             @write(":")@write((line + 1)$cast(str))
             @write(":")@write((offset + 1)$cast(str))
-            @write(": error: ")@write(message);
-        printf(accum.err.buffer$cast(cstr));
+            @write(": error: ")@write(message)
+            @write("\n");
+
+        // TODO show the source and error placement
     }
 
     export fn warning(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {

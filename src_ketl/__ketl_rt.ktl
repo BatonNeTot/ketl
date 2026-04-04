@@ -208,21 +208,26 @@ export fn int2str(value: i64) -> str {
     var buffer = "";
 
     if (value < 0) {
-        buffer ..= '-';
-        // TODO replace with just negation, for crist sake
-        var negative_value: i64;
-        negative_value -= 1;
-        value *= negative_value; 
+        value = -value; 
+
+        while (value > 0) {
+            var number = value % 10;
+            value /= 10;
+
+            buffer = '0' + number$cast(char) .. buffer;
+        }
+
+        return "-" .. buffer;
+    } else {
+        while (value > 0) {
+            var number = value % 10;
+            value /= 10;
+
+            buffer = '0' + number$cast(char) .. buffer;
+        }
+
+        return buffer;
     }
-
-    while (value > 0) {
-        var number = value % 10;
-        value /= 10;
-
-        buffer ..= '0' + number$cast(char);
-    }
-
-    return buffer;
 }
 
 export fn array_get_value(stack_size : u64, array_header : ArrayHeader, index : u64) -> u64 {
