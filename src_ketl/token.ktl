@@ -45,6 +45,7 @@ export class Token {
         ELSE,
         ENUM,
         EXPORT,
+        EXTEND,
         FN,
         FOR,
         FROM,
@@ -66,7 +67,6 @@ export class Token {
     
     export mimic Length = u16;
     export mimic Offset = u32;
-    export mimic Iterator = u32;
 
     var type : Type;
     var length : Length;

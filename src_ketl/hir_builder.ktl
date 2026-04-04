@@ -1,8 +1,42 @@
 //🫖ketl
 
-from lexer import Lexer
+from common import FilePointer
+from common import LogAccum
+
+from hir import HIR;
 
 class HIRBuilder {
-    // TODO leave only necessary, lexer remove to parser
-    var lexer : Lexer;
+    var log_accum: LogAccum;
+    var log_info: LogAccum.LogInfo;
+
+    var instrs : HIR.Instr[];
+    var vars : HIR.Var[];
+    var vars_infos : HIR.VarInfo[];
+    var block_offsets : HIR.InstrOffset[];
+    var consts_infos : HIR.Const[];
+    var consts : u8[];
+
+    fn error(self: HIRBuilder, offset: u32, length: u32, message: str) {
+        self.log_accum@error(
+            self.log_info,
+            FilePointer.construct(offset, offset, length),
+            message 
+        );
+    }
+
+    export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag) {
+        var instr = HIR.Instr();
+        instr.tag = tag;
+        self.instrs ..= instr;
+    }
+
+    export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, expr_info: HIR.ExprInfo) {
+        // TODO casting
+
+        var instr = HIR.ReturnValue();
+        // TODO fix
+        instr.tag = HIR.Tag.RETURN_VALUE_64;
+        instr.value = var_id;
+        self.instrs ..= instr;
+    }
 }

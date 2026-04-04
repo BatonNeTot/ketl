@@ -123,78 +123,78 @@ export class HIR {
     }
 
     export class InstrWithOutput {
-        unpack Instr;
+        extend Instr;
         var output : VarId;
     }
 
     export class UnaryOp {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var arg : VarId;
     }
 
     export class BinaryOp {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var lhs : VarId;
         var rhs : VarId;
     }
 
     export class Call {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var callee : VarId;
         var args : VarId[];
     }
 
     export class CallVoid {
-        unpack Instr;
+        extend Instr;
         var callee : VarId;
         var args : VarId[];
     }
 
     export class New {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var type : Type;
         var args : VarId[];
     }
 
     export class NewArray {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var type : Type;
         var size : VarId;
         var initial_value : ConstId;
     }
 
     export class NewSlice {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var mirrored : VarId;
         var start : VarId;
         var end : ConstId;
     }
 
     export class AppendValue {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var array : VarId;
         var value : VarId;
     }
 
     export class Assign {
-        unpack InstrWithOutput;
+        extend InstrWithOutput;
         var dst : VarId;
         var src : VarId;
     }
 
     export class Jump {
-        unpack Instr;
+        extend Instr;
         var dst : BlockId;
     }
 
     export class JumpIf {
-        unpack Instr;
+        extend Instr;
         var true_dst : BlockId;
         var false_dst : BlockId;
     }
 
     export class ReturnValue {
-        unpack Instr;
+        extend Instr;
         var value : VarId;
     }
 
@@ -205,6 +205,24 @@ export class HIR {
 
         var source_offset : Token.Offset;
         var length : Length;
+
+        export fn construct_token(token: Token) -> ExprInfo {
+            var self = ExprInfo();
+            self.source_offset = token.offset;
+            self.length = token.length;
+            return self;
+        }
+
+        export fn construct_merge(lhs: ExprInfo, rhs: ExprInfo) -> ExprInfo {
+            var self = ExprInfo();
+            self.source_offset = lhs.source_offset;
+            self.length = rhs@get_end_offset() - lhs.source_offset;
+            return self;
+        }
+
+        export fn get_end_offset(self: ExprInfo) -> Token.Offset {
+            return self.source_offset + self.length;
+        }
     }
 
     export class Var {
@@ -224,17 +242,17 @@ export class HIR {
     }
 
     export class VarCommon {
-        unpack Var;
+        extend Var;
         var info : VarInfoId;
     }
 
     export class VarLiteral {
-        unpack Var;
+        extend Var;
         var value : u64;
     }
 
     export class VarCast {
-        unpack Var;
+        extend Var;
         var casted : VarId;
     }
 

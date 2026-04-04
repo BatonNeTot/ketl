@@ -12,7 +12,6 @@ export class Lexer {
     var filename : str;
     var source : str;
     var offset : u32;
-    var token_iterator : Token.Iterator;
     
     fn init(lexer : Lexer) {
         lexer.tokens = Token[0];
@@ -314,6 +313,10 @@ export class Lexer {
                 }
                 if ("export" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer@add_token(Token.Type.EXPORT, id_length);
+                    return true;
+                }
+                if ("extend" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.EXTEND, id_length);
                     return true;
                 }
             }
@@ -663,7 +666,6 @@ export class Lexer {
         lexer.filename = filename;
         lexer.source = source;
         lexer.offset = 0;
-        lexer.token_iterator = 0;
         lexer.tokens@clear();
         lexer.lines_offsets@clear();
         lexer.lines_offsets ..= 0;
@@ -729,5 +731,35 @@ export class Lexer {
             FilePointer.construct(offset, offset, length),
             message 
         );
+    }
+}
+
+export class TokenIterator {
+    export mimic Index = u32;
+
+    var tokens : Token[];
+    var index : Index;
+
+    export fn construct(lexer: Lexer) -> TokenIterator {
+        var self = TokenIterator();
+        self.tokens = lexer.tokens;
+        self.index = 0;
+        return self;
+    }
+
+    export fn advance(self: TokenIterator) {
+        self.index += 1;
+    }
+
+    export fn current(self: TokenIterator, offset : u64) -> Token {
+        var index = self.index - offset;
+        if (index >= self.tokens.size) {
+            var token = Token();
+            token.type = Token.Type.EOF;
+            token.length = 0;
+            token.offset = self.tokens[self.tokens.size - 1].offset;
+            return token;
+        }
+        return self.tokens[index];
     }
 }

@@ -1,28 +1,40 @@
 //🫖ketl
 
+from common import FilePointer
+from common import LogAccum
+
 from type import Type
 from type import NamedVariable
 from token import Token
+from lexer import TokenIterator
 from lexer import Lexer
 from hir import HIR
+
 from hir_builder import HIRBuilder
 
 class Parser {
 
     class Context {
-        var builder : HIRBuilder;
+        var log_accum: LogAccum;
+        var log_info: LogAccum.LogInfo;
+
+        var source: str;
+        var iterator: TokenIterator;
+        var hir_builder: HIRBuilder;
+
+        var is_global_scope: bool;
     }
 
-    fn current_token(context : Context, offset : u64) -> Token {
-        var index = context.builder.lexer.token_iterator - offset;
-        if (index >= context.builder.lexer.tokens.size) {
-            var token = Token();
-            token.type = Token.Type.EOF;
-            token.length = 0;
-            token.offset = context.builder.lexer.tokens[context.builder.lexer.tokens.size - 1].offset;
-            return token;
-        }
-        return context.builder.lexer.tokens[index];
+    fn error(self: Context, offset: u32, length: u32, message: str) {
+        self.log_accum@error(
+            self.log_info,
+            FilePointer.construct(offset, offset, length),
+            message 
+        );
+    }
+
+    fn current_token(context: Context, offset: u64) -> Token {
+        return context.iterator@current(offset);
     }
 
     fn token_check(context : Context, token_type : Token.Type) -> bool {
@@ -31,13 +43,12 @@ class Parser {
 
     fn token_advance(context : Context) {
         while (true) {
-            context.builder.lexer.token_iterator += 1;
-            var current = context.builder.lexer.token_iterator;
+            context.iterator@advance();
 
-            if (context.builder.lexer.tokens[current].type != Token.Type.ERROR) break;
+            if (context@current_token(0).type != Token.Type.ERROR) break;
 
             // TODO error
-            // assert(false);
+            assert(false);
         }
     }
 
@@ -49,8 +60,14 @@ class Parser {
 
     fn token_consume(context : Context, token_type : Token.Type, message : str) {
         if (!context@token_match(token_type)) {
-            // TODO error message
+            var token = context@current_token(0);
+            context@error(token.offset, token.length, message);
         }
+    }
+
+    fn token_str(context: Context, token: Token) -> str {
+        assert(token.offset < context.source.size && token.offset + token.length <= context.source.size);
+        return context.source[token.offset:token.offset + token.length];
     }
 
     class StatementInfo {
@@ -67,11 +84,124 @@ class Parser {
         }
 
         var return_info : ReturnInfo;
+
+        export fn construct(return_info: ReturnInfo) -> StatementInfo {
+            var self = StatementInfo();
+            self.return_info = return_info;
+            return self;
+        }
+    }
+
+    fn parse_expression(context: Context) -> HIR.VarId {
+        // TODO
+        return (-1)$cast(HIR.VarId);
+    }
+
+    fn parse_from_import(context: Context) -> StatementInfo {
+        assert(context.is_global_scope);
+
+        var path = "";
+        var start_expr_info = HIR.ExprInfo.construct_token(context@current_token(0));
+
+        context@token_advance(); // import
+        var module_literal = context@current_token(0);
+        context@token_advance(); // id
+        while (context@token_match(Token.Type.DOT)) {
+            path ..= context@token_str(module_literal);
+            path ..= "/";
+            module_literal = context@current_token(0);
+            context@token_advance(); // module id
+        }
+
+        context@token_consume(Token.Type.IMPORT, "Expected 'import' keyword after module name.");
+        var name_literal = context@current_token(0);
+        context@token_advance(); // entity id
+
+        var expr_info = HIR.ExprInfo.construct_merge(
+            start_expr_info,
+            HIR.ExprInfo.construct_token(context@current_token(1)));
+
+        var module_name = context@token_str(module_literal);
+
+        // TODO implement
+        /*
+        ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, NULL, p_context->export);
+        if (p_module_namespace == NULL) {
+            errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+            return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+        }
+        */
+
+        var name = context@token_str(name_literal);
+
+        // TODO 
+        /*
+        ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
+
+        if (p_node == NULL) {
+            errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
+                TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
+            return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+        }
+
+        ketl_variable namespace_var = p_node->variable;
+
+        ketl_namespace_node* p_local_node = ketl_namespace_put(p_context->p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_var, 
+            (ketl_namespace_node_info){ .export = p_context->export, .imported = true }, &p_context->p_state->atomic_strings, false);
+        p_local_node->s_name = p_node->s_name;
+        */
+
+        assert(false);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
+    fn parse_import(context: Context) -> StatementInfo {
+        assert(context.is_global_scope);
+
+        var path = "";
+        var start_expr_info = HIR.ExprInfo.construct_token(context@current_token(0));
+
+        context@token_advance(); // import
+        var module_literal = context@current_token(0);
+        context@token_advance(); // id
+        while (context@token_match(Token.Type.DOT)) {
+            path ..= context@token_str(module_literal);
+            path ..= "/";
+            module_literal = context@current_token(0);
+            context@token_advance(); // module id
+        }
+
+        var expr_info = HIR.ExprInfo.construct_merge(
+            start_expr_info,
+            HIR.ExprInfo.construct_token(context@current_token(1)));
+
+        var module_name = context@token_str(module_literal);
+
+        // TODO implement
+        /*
+        if (!ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, p_context->p_namespace, p_context->export)) {
+            errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+        }
+        */
+
+        assert(false);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
     fn parse_declaration(context : Context) -> StatementInfo {
-        // TODO
-        return null;
+        switch (context@current_token(0).type) {
+            //case Token.Type.IMPORT  -> return context@parse_import();
+            //case Token.Type.FROM    -> return context@parse_from_import();
+            //case Token.Type.VAR     -> return context@parse_var_declaration();
+            //case Token.Type.CIMPORT -> return context@parse_cimport_declaration();
+            //case Token.Type.FN      -> return context@parse_function_declaration();
+            //case Token.Type.CLASS   -> return context@parse_class_declaration();
+            //case Token.Type.ENUM    -> return context@parse_enum_declaration();
+            //case Token.Type.MIMIC   -> return context@parse_mimic_declaration();
+            //case Token.Type.EXPORT  -> return context@parse_export_declaration();
+            //case Token.Type.CEXPORT -> return context@parse_cexport_declaration();
+            default                 -> return context@parse_statement();
+        }
     }
 
     fn parse_block_statement_inner(context : Context) -> StatementInfo {
@@ -85,6 +215,7 @@ class Parser {
                 var statement_end = last_token.offset + last_token.length;
 
                 // TODO error
+                assert(false);
 
                 return_info |= decl_return_info;
             } else {
@@ -105,14 +236,58 @@ class Parser {
         // TODO pop_symbol_map
 
         context@token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of the block.");
-        return null;
+        return statement_info;
     }
 
-    export fn build_hir(lexer : Lexer, parameters : NamedVariable[], return_type : Type) -> HIR {
+    fn parse_return_statement(context: Context) -> StatementInfo {
+        context@token_advance(); // return
+        if (context@token_match(Token.Type.TERMINATION_CHARACTER)) {
+            context.hir_builder@push_tagonly_instr(HIR.Tag.RETURN);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysNone);
+        } else {
+            context.hir_builder@push_return_value(context@parse_expression(), HIR.ExprInfo.construct_token(context@current_token(1)));
+            context@token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after return statement expression.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysValue);
+        }
+    }
+
+    fn parse_expression_statement(context: Context) -> StatementInfo {
+        context@parse_expression();
+        context@token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after expression.");
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
+    fn parse_statement(context: Context) -> StatementInfo {
+        switch (context@current_token(0).type) {
+            //case Token.Type.CURLY_LEFT            -> return context@parse_block_statement();
+            //case Token.Type.IF                    -> return context@parse_if_statement();
+            //case Token.Type.WHILE                 -> return context@parse_while_statement();
+            //case Token.Type.FOR                   -> return context@parse_for_statement();
+            //case Token.Type.SWITCH                -> return context@parse_switch_statement();
+            //case Token.Type.BREAK                 -> return context@parse_break_statement();
+            //case Token.Type.CONTINUE              -> return context@parse_continue_statement();
+            case Token.Type.RETURN                -> return context@parse_return_statement();
+            case Token.Type.TERMINATION_CHARACTER -> { 
+                context@token_advance(); 
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            }
+            default                               -> return context@parse_expression_statement();
+        }
+    }
+
+    export fn build_hir(lexer : Lexer, parameters : NamedVariable[], return_type : Type, log_accum: LogAccum) -> HIR {
         var context = Context();
 
-        context.builder = HIRBuilder();
-        context.builder.lexer = lexer;
+        context.log_accum = log_accum;
+        context.log_info = lexer@construct_log_info();
+
+        context.source = lexer.source;
+        context.iterator = TokenIterator.construct(lexer);
+        context.is_global_scope = false;
+
+        context.hir_builder = HIRBuilder();
+        context.hir_builder.log_accum = context.log_accum;
+        context.hir_builder.log_info = context.log_info;
 
         for (var parameter -> parameters) {
             // TODO

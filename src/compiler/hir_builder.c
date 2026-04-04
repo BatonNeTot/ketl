@@ -395,6 +395,7 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
                 });
                 return var_id;
             } else {
+                get_var_info(p_hir_builder, p_bucket->value)->last_var_id = -1;
                 return -1;
             }
         }
@@ -427,9 +428,26 @@ ketl_hir_var_id_t ketl_hir_builder_get_var(ketl_hir_builder_t* p_hir_builder, ke
         return var_id;
     } 
 
+    ketl_hir_var_id_t var_id = get_var_info(p_hir_builder, p_bucket->value)->last_var_id;
+    if (var_id == (ketl_hir_var_id_t)-1) {
+        if (force) {
+            ketl_hir_var_id_t var_id = (ketl_hir_var_id_t)p_hir_builder->vars.size;
+            get_var_info(p_hir_builder, p_bucket->value)->last_var_id = var_id;
+
+            hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
+                .info = p_bucket->value,
+                .type = KETL_HIR_USED_TYPE_UNKNOWN,
+                .uid = KETL_HIR_VAR_UID_GLOBAL,
+                .expr_info = expr_info,
+            });
+            return var_id;
+        } else {
+            return -1;
+        }
+    }
     ketl_hir_var_t var = GET_VAR(get_var_info(p_hir_builder, p_bucket->value)->last_var_id);
 
-    ketl_hir_var_id_t var_id = (ketl_hir_var_id_t)p_hir_builder->vars.size;
+    var_id = (ketl_hir_var_id_t)p_hir_builder->vars.size;
     get_var_info(p_hir_builder, p_bucket->value)->last_var_id = var_id;
 
     var.expr_info = expr_info;
@@ -546,6 +564,11 @@ void ketl_hir_builder_insert_unary_op(ketl_hir_builder_t* p_hir_builder, ketl_hi
         // if any var is undefined, the op is undefined
         if (p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
             return;
+        }
+
+        if (p_rhs_var->type == KETL_HIR_USED_TYPE_LITERAL) {
+            p_rhs_var->type = ketl_hir_builder_get_used_type_index(p_hir_builder, 
+                ketl_state_get_u64(p_hir_builder->p_state));
         }
 
         // first type is return type, ignored during search
@@ -925,13 +948,9 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
     ketl_type* p_lhs_type = GET_TYPE(target_type); 
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(var).type); 
 
-    if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) {
-        ANN_ASSERT(p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE);
-        ketl_type_primitive* p_lhs_primitive_type = (ketl_type_primitive*)p_lhs_type;
-        ketl_type_primitive* p_rhs_primitive_type = (ketl_type_primitive*)p_rhs_type;
-        ANN_ASSERT(p_lhs_primitive_type->is_integer && p_rhs_primitive_type->is_integer);
-        ANN_ASSERT(!(p_lhs_primitive_type->is_numeric && p_rhs_primitive_type->is_numeric) || p_lhs_primitive_type->is_signed == p_rhs_primitive_type->is_signed);
-    }
+    ANN_ASSERT((p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) ||
+        (ketl_type_is_pointer_type(p_lhs_type) && ketl_type_is_raw_type(p_rhs_type)) || 
+        (ketl_type_is_pointer_type(p_rhs_type) && ketl_type_is_raw_type(p_lhs_type)));
 
     ketl_hir_var_id_t casted_var = (ketl_hir_var_id_t)p_hir_builder->vars.size;
     hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){

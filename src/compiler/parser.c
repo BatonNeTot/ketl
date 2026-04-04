@@ -263,6 +263,29 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
 
         return convertion_call_id;
     }
+
+    if (p_rhs_type->kind == KETL_TYPE_CLASS) {
+        uint16_t extended_offset = ketl_type_find_extended_class_offset(p_rhs_type, p_lhs_type);
+        if (extended_offset != (uint16_t)-1) {
+            ketl_hir_var_id_t raw_var = trying_to_cast_rhs_to_lhs(p_context, 
+                ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_raw_type(p_context->p_state)), 
+                expr_info, rhs_var, false);
+
+            if (extended_offset > 0) {
+                char a_offset_buffer[16];
+                uint32_t offset_length = snprintf(a_offset_buffer, ANN_ARRAY_SIZE(a_offset_buffer), "%"PRIu16, extended_offset);
+                ketl_hir_symbol_offset_t offset_symbol = push_symbol_string(p_context, a_offset_buffer, offset_length);
+
+                ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state));
+                ketl_hir_var_id_t offset_var = ketl_hir_builder_get_literal(&p_context->hir_builder, offset_symbol, expr_info, size_type);
+                raw_var = push_hir_binary_op(p_context, KETL_HIR_PLUS, raw_var, offset_var, expr_info);
+            }
+
+            ketl_hir_var_id_t casted_var = trying_to_cast_rhs_to_lhs(p_context, lhs_type, expr_info, raw_var, false);
+
+            return casted_var;
+        }
+    }
         
     errorf(expr_info.source_offset, expr_info.length, "Incompatible for cast types.");
     return push_temp_var(p_context, expr_info);
@@ -361,7 +384,11 @@ static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_va
     } else {
         ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
 
-        if (p_lhs_array_type->p_value_type != p_rhs_type) {
+        if (p_rhs_type->kind == KETL_TYPE_CLASS && p_lhs_array_type->p_value_type->kind == KETL_TYPE_CLASS &&
+            ketl_type_find_extended_class_offset(p_rhs_type, p_lhs_array_type->p_value_type) != (uint16_t)-1) {
+            rhs_var = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_lhs_array_type->p_value_type), 
+                expr_info, rhs_var, false);
+        } else if (p_lhs_array_type->p_value_type != p_rhs_type) {
             // TODO implicit casting
             errorf(expr_info.source_offset, expr_info.length, "Can't append different type.");
             return push_temp_var(p_context, expr_info);
@@ -1009,9 +1036,9 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
 }
 
 static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
-    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after colon operator.");
+    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after '@' operator.");
     ketl_token_t id_literal = CURRENT_TOKEN(1);
-    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after id of a colon operator.");
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after id of a '@' operator.");
 
     push_hir_argument(p_context, lhs);
     uint16_t argument_count = 1;
@@ -1027,6 +1054,11 @@ static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_
     ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(lhs).expr_info, token_extract_info(CURRENT_TOKEN(1)));
     
     if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+
+    if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_META) {
+        errorf(expr_info.source_offset, expr_info.length, "Can't use '@' operator with types or namespaces.");
         return push_temp_var(p_context, expr_info);
     }
 
@@ -1104,13 +1136,14 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
         if (p_object->type == KETL_HIR_USED_TYPE_LITERAL || 
             (GET_TYPE(p_object->type)->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)GET_TYPE(p_object->type))->is_numeric) ||
             ketl_type_is_char_type(GET_TYPE(p_object->type))) {
+            // casting to integer to str
             if (p_cast_to_type->kind == KETL_TYPE_ARRAY && 
                 ketl_type_is_char_type(((ketl_type_array*)p_cast_to_type)->p_value_type)) {
                 ketl_hir_var_id_t output_var = trying_to_cast_rhs_to_lhs(p_context, 
                     ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_cast_to_type), expr_info, lhs, true);
                 return output_var;
             }
-
+  
             if (!((p_cast_to_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_cast_to_type)->is_numeric) ||
                 ketl_type_is_char_type(p_cast_to_type))) {
                 errorf(expr_info.source_offset, expr_info.length, "Casting of primitives numeric types supported only to primitive numeric types.");
@@ -1118,7 +1151,7 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
             }
         }
 
-        if (ketl_type_is_raw_type(GET_TYPE(p_object->type))) {
+        if (p_object->type < KETL_HIR_USED_TYPE_LAST && ketl_type_is_raw_type(GET_TYPE(p_object->type))) {
             if (p_cast_to_type->kind != KETL_TYPE_ARRAY && p_cast_to_type->kind != KETL_TYPE_CLASS) {
                 errorf(expr_info.source_offset, expr_info.length, "Casting of raw type supported only to classes or arrays.");
                 return push_temp_var(p_context, expr_info);
@@ -2442,8 +2475,8 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
             ++(*p_class_field_count);
             break;
         }
-        case KETL_TOKEN_TYPE_UNPACK: {
-            token_advance(p_context); // unpack
+        case KETL_TOKEN_TYPE_EXTEND: {
+            token_advance(p_context); // extend
             p_class_fields[*p_class_field_count].info.p_type = parse_type(p_context);
 
             token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");

@@ -13,7 +13,7 @@ cexport fn eval(filename : str, source : str) {
     lexer@init();
     lexer@build_tokens(filename, source, log_accum);
 
-    //var hir = Parser.build_hir(lexer, NamedVariable[0], log_accum);
+    var hir = Parser.build_hir(lexer, NamedVariable[0], null, log_accum);
 
     if (!log_accum@check()) {
         // TODO something on error

@@ -614,16 +614,16 @@ void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_cl
         p_fields_copy[i].s_name = ketl_atomic_strings_get(&p_state->atomic_strings, p_fields[i].p_name, p_fields[i].name_length);
 
         if (p_fields[i].p_name == NULL) {
-            ketl_type* p_unpacked_type = p_fields[i].info.p_type;
-            ANN_ASSERT(p_unpacked_type->kind == KETL_TYPE_CLASS);
-            ketl_type_class* p_unpacked_class = (ketl_type_class*)p_unpacked_type;
-            ketl_namespace* p_unpacked_namespace = &p_unpacked_class->namespace;
+            ketl_type* p_extended_type = p_fields[i].info.p_type;
+            ANN_ASSERT(p_extended_type->kind == KETL_TYPE_CLASS);
+            ketl_type_class* p_extended_class = (ketl_type_class*)p_extended_type;
+            ketl_namespace* p_extended_namespace = &p_extended_class->namespace;
 
-            for (uint32_t i = 0; i < p_unpacked_namespace->v_nodes.size; ++i) {
-                ketl_namespace_node* p_unpacked_node = &p_unpacked_namespace->v_nodes.p_data[i];
-                ketl_namespace_node_info info = p_unpacked_node->info;
+            for (uint32_t i = 0; i < p_extended_namespace->v_nodes.size; ++i) {
+                ketl_namespace_node* p_extended_node = &p_extended_namespace->v_nodes.p_data[i];
+                ketl_namespace_node_info info = p_extended_node->info;
                 info.imported = true;
-                ketl_namespace_put(&p_class_type->namespace, p_unpacked_node->s_key, p_unpacked_node->s_name, p_unpacked_node->variable, info, &p_state->atomic_strings, false);
+                ketl_namespace_put(&p_class_type->namespace, p_extended_node->s_key, p_extended_node->s_name, p_extended_node->variable, info, &p_state->atomic_strings, false);
             }
         }
     }

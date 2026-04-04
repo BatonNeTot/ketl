@@ -120,6 +120,8 @@ ketl_type* ketl_type_find_field_type(ketl_type* p_type, ketl_atomic_string s_nam
 
 uint16_t ketl_type_get_field_offset(ketl_type* p_type, ketl_atomic_string s_name, ketl_state* p_state);
 
+uint16_t ketl_type_find_extended_class_offset(ketl_type* p_type, ketl_type* p_cast_target_type);
+
 ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_string s_name);
 
 bool ketl_type_is_pointer_type(ketl_type* p_type);
