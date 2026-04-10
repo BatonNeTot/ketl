@@ -378,6 +378,16 @@ export class Lexer {
                     return true;
                 }
             }
+            case 's' -> {
+                if ("shared" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.SHARED, id_length);
+                    return true;
+                }
+                if ("switch" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer@add_token(Token.Type.SWITCH, id_length);
+                    return true;
+                }
+            }
             case 't' -> {
                 if ("true" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer@add_token(Token.Type.LITERAL_TRUE, id_length);

@@ -55,6 +55,7 @@ export class Token {
         NONE,
         RAW,
         RETURN,
+        SHARED,
         STRUCT,
         SWITCH,
         UNION,

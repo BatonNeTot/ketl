@@ -92,10 +92,66 @@ class Parser {
         }
     }
 
-    fn parse_expression(context: Context) -> HIR.VarId {
+    enum Precedence : u8 {
+        None,
+        Assigment,
+        LogicalOr,
+        LogicalAnd,
+        Equality,
+        Comparison,
+        Concat,
+        Term,
+        Factor,
+        BitwiseOr,
+        BitwiseXor,
+        BitwiseAnd,
+        Prefix,
+        Call,
+        Primary,
+    }
+
+    enum Associativity : u8 {
+        LTR, // Left To Right
+        RTL, // Right To Left
+    }
+
+    class ParseRule {
+        var prefix: (Context) -> HIR.VarId;
+        var ltr_infix: (Context, HIR.VarId) -> HIR.VarId;
+        var rtl_infix: (Context, HIR.VarId, HIR.VarId) -> HIR.VarId;
+        var precedence: Precedence;
+
+        export fn construct(prefix: (Context) -> HIR.VarId, 
+                            ltr_infix: (Context, HIR.VarId) -> HIR.VarId, 
+                            rtl_infix: (Context, HIR.VarId, HIR.VarId) -> HIR.VarId,
+                            precedence: Precedence) -> ParseRule {
+            var self = ParseRule();
+            self.prefix = prefix;
+            self.ltr_infix = ltr_infix;
+            self.rtl_infix = rtl_infix;
+            self.precedence = precedence;
+            return self;
+        }
+    }
+
+    fn parse_identificator(context: Context, precedence: Precedence) -> HIR.VarId {
+        // TODO
+        // return push_literal_id(p_context, CURRENT_TOKEN(1));
+        return (-1)$cast(HIR.VarId);
+    }
+
+    fn parse_presedence(context: Context, precedence: Precedence) -> HIR.VarId {
         // TODO
         return (-1)$cast(HIR.VarId);
     }
+
+    fn parse_expression(context: Context) -> HIR.VarId {
+        return context@parse_presedence(Precedence.Assigment);
+    }
+
+    shared parse_rules = ParseRule[Token.Type$count]{
+        Token.Type.ID -> ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+    };
 
     fn parse_from_import(context: Context) -> StatementInfo {
         assert(context.is_global_scope);

@@ -930,7 +930,11 @@ static bool namespace_has_vars(ketl_namespace* p_namespace) {
             continue;
         }
         ketl_variable* p_variable = &p_namespace->v_nodes.p_data[i].variable;
-        if (variable_is_var(p_variable)) {
+        if (variable_is_class(p_variable)) {
+            if (namespace_has_vars(&((ketl_type_class*)p_variable->p_pointer)->namespace)) {
+                return true;
+            }
+        } else if (variable_is_var(p_variable)) {
             return true;
         }
     }
@@ -971,7 +975,7 @@ static bool consts_non_empty(hir_consts* p_consts) {
 }
 
 static void printout_read_only_data_namespace(ketl_namespace* p_namespace, ketl_state* p_state) {
-    char a_size_name_buffer[16];
+    char a_size_name_buffer[256];
 
     for (uint32_t i = 0; i < p_namespace->v_nodes.size; ++i) {
         ketl_namespace_node* p_node = &p_namespace->v_nodes.p_data[i];
@@ -1013,6 +1017,34 @@ static void printout_read_only_data_namespace(ketl_namespace* p_namespace, ketl_
     }
 }
 
+static void printout_zero_initialized_variables_namespace(ketl_namespace* p_namespace, ketl_state* p_state) {
+    char a_size_name_buffer[256];
+
+    for (uint32_t i = 0; i < p_namespace->v_nodes.size; ++i) {
+        ketl_namespace_node* p_node = &p_namespace->v_nodes.p_data[i];
+        if (p_node->info.imported) {
+            continue;
+        }
+
+        if (variable_is_class(&p_node->variable)) {
+            printout_zero_initialized_variables_namespace(&((ketl_type_class*)p_node->variable.p_pointer)->namespace, p_state);
+            continue;
+        }
+
+        if (!variable_is_var(&p_node->variable)) {
+            continue;
+        }
+        
+        const char* p_variable_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name);
+
+        printf("    .globl    %s                    # @%s\n", p_variable_name, p_variable_name);
+        printf("    .p2align  %d, 0x0\n", p_node->variable.p_type->align_enum);
+        printf("%s:\n", p_variable_name);
+        ketl_asm_x86_format_directive_size(ketl_type_get_stack_size(p_node->variable.p_type), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
+        printf("    .%s   0\n", a_size_name_buffer);
+    }
+}
+
 void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, uint32_t length) {
     size_t after_last_slash_index = length;
     while (after_last_slash_index != 0 && p_filepath[after_last_slash_index - 1] != '/' && p_filepath[after_last_slash_index - 1] != '\\') {
@@ -1043,8 +1075,8 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
     ketl_atomic_string stashed_module_name = p_state->active_module_name;
     p_state->active_module_name = p_module->s_name;
-
     ANN_ASSERT(stashed_module_name == KETL_ATOMIC_STRING_EMPTY);
+
     uint32_t path_length = after_last_slash_index;
     p_module->p_path = ketl_alloc(p_state->p_allocator, path_length + 1);
     ketl_memcpy(p_module->p_path, p_filepath, path_length);
@@ -1263,25 +1295,10 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
     ///////////////////////////////
 
-    char a_size_name_buffer[16];
-
     if (namespace_has_vars(&p_module->namespace)) {
         printf("    .bss                    # -- Zero-initialized Variables\n");
-    }
 
-    for (uint32_t i = 0; i < p_module->namespace.v_nodes.size; ++i) {
-        ketl_namespace_node* p_node = &p_module->namespace.v_nodes.p_data[i];
-        if (p_node->info.imported || !variable_is_var(&p_node->variable)) {
-            continue;
-        }
-        
-        const char* p_variable_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_node->s_name);
-
-        printf("    .globl    %s                    # @%s\n", p_variable_name, p_variable_name);
-        printf("    .p2align  %d, 0x0\n", p_node->variable.p_type->align_enum);
-        printf("%s:\n", p_variable_name);
-        ketl_asm_x86_format_directive_size(ketl_type_get_stack_size(p_node->variable.p_type), a_size_name_buffer, ANN_ARRAY_SIZE(a_size_name_buffer));
-        printf("    .%s   0\n", a_size_name_buffer);
+        printout_zero_initialized_variables_namespace(&p_module->namespace, p_state);
     }
 
     ///////////////////////////////
@@ -1309,9 +1326,14 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
 
     printout_read_only_data_namespace(&p_module->namespace, p_state);
 
+
     {
         char a_buffer[256];
         snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%.*s..init", module_name_length, p_module_name);
+
+        printf("    .section .ctors,\"dw\",unique,0\n");
+        printf("    .p2align    3, 0x0\n");
+        printf("    .quad %s\n", a_buffer);
         
         printf("    .p2align    2, 0x0\n");
         printf("    .addrsig\n");

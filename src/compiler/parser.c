@@ -637,7 +637,6 @@ enum {
     KETL_PREC_BITWISE_OR,
     KETL_PREC_BITWISE_XOR,
     KETL_PREC_BITWISE_AND,
-    KETL_PREC_PREFIX,
     KETL_PREC_CALL,
     KETL_PREC_PRIMARY,
 };
@@ -661,7 +660,6 @@ ketl_associativity associativity[] = {
     [KETL_PREC_BITWISE_OR] = KETL_LTR,
     [KETL_PREC_BITWISE_XOR] = KETL_LTR,
     [KETL_PREC_BITWISE_AND] = KETL_LTR,
-    [KETL_PREC_PREFIX] = KETL_RTL,
     [KETL_PREC_CALL] = KETL_LTR,
     [KETL_PREC_PRIMARY] = KETL_LTR,
 };
@@ -747,8 +745,35 @@ static ketl_hir_var_id_t parse_identificator(ketl_parser_context* p_context) {
 }
 
 static ketl_type* parse_type(ketl_parser_context* p_context) {
-    ketl_token_t id_literal = CURRENT_TOKEN(0);
+    ketl_variable_type_info_t a_arg_types[16] = {0};
+    uint8_t arg_types_count = 0;
+    if (token_match(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT)) {
+        do {
+            if (token_check(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT)) {
+                break;
+            }
+
+            a_arg_types[++arg_types_count].p_type = parse_type(p_context);
+        } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
+
+        token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')'.");
+
+        if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+            a_arg_types[0].p_type = parse_type(p_context);
+            
+            ketl_function_parameters function_parameters = {
+                .p_parameters = a_arg_types,
+                .parameters_count = arg_types_count + 1,
+            };
+            ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
+            return function_type;
+        }
+
+        ANN_ASSERT(false);
+    }
+
     token_advance(p_context);
+    ketl_token_t id_literal = CURRENT_TOKEN(1);
     
     ketl_atomic_string s_id = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     ketl_namespace_node* p_node = ketl_namespace_find(p_context->p_namespace, s_id);
@@ -1087,6 +1112,28 @@ static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_
     return push_hir_call(p_context, callee, argument_count, expr_info);
 }
 
+static ketl_hir_var_id_t parse_dollar_prefix(ketl_parser_context* p_context) {
+    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after '$' prefix.");
+    ketl_token_t id_literal = CURRENT_TOKEN(1);
+
+    ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(2)), token_extract_info(id_literal));
+
+    /*
+    if (ketl_str_is_equal_n("module_init", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+        ketl_atomic_string s_module_name = p_context->p_state->active_module_name;
+        if (s_module_name == KETL_ATOMIC_STRING_EMPTY) {
+            // TODO something
+            ANN_ASSERT(false);
+        }
+
+        ketl_module_t* p_module = &ketl_modules_t_get_or_null(&p_context->p_state->modules, s_module_name)->value;
+    }
+    */
+
+    errorf(expr_info.source_offset, expr_info.length, "Unknown '$' property '%.*s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
+    return push_temp_var(p_context, expr_info);
+}
+
 static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
     ketl_hir_var_t* p_object = &GET_VAR(lhs);
     token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after meta access operator.");
@@ -1111,6 +1158,20 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
         
         if (ketl_str_is_equal_n("size", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
             uint64_t type_size = ketl_type_get_size(p_type);
+
+            char a_buffer[256];
+            uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
+
+            return push_literal_number_symbol(p_context, push_symbol_string(p_context, a_buffer, length), expr_info);
+        }
+
+        if (ketl_str_is_equal_n("count", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+            if (p_type->kind != KETL_TYPE_ENUM) {
+                errorf(expr_info.source_offset, expr_info.length, "Only enum has meta property '%.*s'", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
+                return push_temp_var(p_context, expr_info);
+            }
+
+            uint64_t type_size = ((ketl_type_enum*)p_type)->constants_count;
 
             char a_buffer[256];
             uint32_t length = (uint32_t)snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%"PRIu64, type_size);
@@ -1211,22 +1272,34 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
             return id_var;
         }
 
-        uint64_t index = 0;
-        if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
-            do {
-                ketl_hir_var_id_t value_var = parse_expression(p_context);
-                char a_literal_buffer[256] = {0};
-                uint32_t literal_length = snprintf(a_literal_buffer, ANN_ARRAY_SIZE(a_literal_buffer), "%"PRIu64, index);
-                ketl_hir_var_id_t index_literal = push_literal_symbol_of_type(p_context, push_symbol_string(p_context, a_literal_buffer, literal_length),
-                    GET_VAR(value_var).expr_info, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state)));
-                ketl_hir_var_id_t indexed_var = push_array_index(p_context, id_var, index_literal, GET_VAR(value_var).expr_info);
+        ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state)); 
+        ketl_hir_var_id_t index_var = -1;
+        do {
+            if (token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
+                break;
+            }
 
-                push_hir_assign(p_context, KETL_HIR_ASSIGN, indexed_var, value_var);
-                ++index;
-            } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
-        }
+            ketl_hir_var_id_t value_var = parse_expression(p_context);
+
+            if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+                index_var = value_var;
+                value_var = parse_expression(p_context);
+            } else if (index_var == (ketl_hir_var_id_t)-1) {
+                index_var = ketl_hir_builder_create_temp_var(&p_context->hir_builder, expr_info, size_type);
+                ketl_hir_var_id_t zero_var = ketl_hir_builder_get_literal(&p_context->hir_builder, KETL_HIR_LITERAL_NULL, expr_info, size_type);
+                ketl_hir_builder_push_assign(&p_context->hir_builder, KETL_HIR_ASSIGN, index_var, zero_var);
+            } else {
+                ketl_hir_var_id_t one_var = ketl_hir_builder_get_literal(&p_context->hir_builder, 
+                    (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_context->hir_builder.symbols, "1", 1), expr_info, GET_VAR(index_var).type);
+                index_var = push_hir_binary_op(p_context, KETL_HIR_PLUS, index_var, one_var, expr_info);
+            }
+
+            ketl_hir_var_id_t indexed_var = push_array_index(p_context, id_var, index_var, GET_VAR(value_var).expr_info);
+
+            push_hir_assign(p_context, KETL_HIR_ASSIGN, indexed_var, value_var);
+        } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
         
-        token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after array initial values.");
+        token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after array initialization values.");
         return id_var;
     } else {
         return push_array_index(p_context, var_id, expr_id, expr_info);
@@ -1236,7 +1309,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 static ketl_hir_var_id_t parse_unary_rtl(ketl_parser_context* p_context) {
     ketl_token_t token = CURRENT_TOKEN(1);
     ketl_token_type token_type = token.type;
-    ketl_hir_var_id_t rhs = parse_precedence(p_context, KETL_PREC_PREFIX);
+    ketl_hir_var_id_t rhs = parse_precedence(p_context, KETL_PREC_CALL);
 
     ANN_SWITCH_STRICT (token_type) {
         case KETL_TOKEN_TYPE_LOGICAL_NOT: return push_hir_unary_op(p_context, KETL_HIR_LOGICAL_NOT, rhs, token_extract_info(token));
@@ -1415,7 +1488,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_DOT]                        = { NULL,                parse_dot_operator,    NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_COMMA]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_DOLLAR]                     = { NULL,                parse_dollar_operator, NULL,             KETL_PREC_CALL},
+    [KETL_TOKEN_TYPE_DOLLAR]                     = { parse_dollar_prefix, parse_dollar_operator, NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_AT   ]                      = { NULL,                parse_at_operator,     NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
@@ -2050,37 +2123,37 @@ static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context
     ketl_variable_set_type(&current_value, (ketl_type*)p_parent_primitive);
     --current_value.uint64;
 
-    if (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
-        do {
-            ketl_token_t constant_literal = CURRENT_TOKEN(0);
-            a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_literal), TOKEN_LENGTH(constant_literal));
-            token_advance(p_context); // id
+    do {
+        if (token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT)) {
+            break;
+        }
 
-            if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
-                ketl_token_t constant = CURRENT_TOKEN(0); 
-                token_advance(p_context); // literal
+        ketl_token_t constant_literal = CURRENT_TOKEN(0);
+        a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_literal), TOKEN_LENGTH(constant_literal));
+        token_advance(p_context); // id
 
-                char a_buffer[16] = {'\0'};
-                ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
-                int64_t value = strtoll(a_buffer, NULL, 0);
+        if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
+            ketl_token_t constant = CURRENT_TOKEN(0); 
+            token_advance(p_context); // literal
 
-                current_value.int64 = value;
-            } else {
-                ++current_value.uint64;
-            }
+            char a_buffer[16] = {'\0'};
+            ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+            int64_t value = strtoll(a_buffer, NULL, 0);
 
-            a_enum_constants[enum_constants_count].literal = current_value;
+            current_value.int64 = value;
+        } else {
+            ++current_value.uint64;
+        }
 
-            ++enum_constants_count;
+        a_enum_constants[enum_constants_count].literal = current_value;
 
-            // TODO make optional for the last one
-            token_consume(p_context, KETL_TOKEN_TYPE_COMMA, "Expected ',' after constant declaration.");
-        } while (token_check(p_context, KETL_TOKEN_TYPE_ID));
-    }
+        ++enum_constants_count;
+    } while (token_match(p_context, KETL_TOKEN_TYPE_COMMA));
+
+    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' at the end of enum declaration.");
     
     ketl_state_define_enum(p_context->p_state, p_context->p_namespace, 
         TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_parent_primitive, a_enum_constants, enum_constants_count, p_context->export);
-    token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' in the end of a enum declaration.");
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
@@ -2475,6 +2548,10 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
             ++(*p_class_field_count);
             break;
         }
+        case KETL_TOKEN_TYPE_SHARED: {
+            parse_var_declaration(p_context);
+            break;
+        }
         case KETL_TOKEN_TYPE_EXTEND: {
             token_advance(p_context); // extend
             p_class_fields[*p_class_field_count].info.p_type = parse_type(p_context);
@@ -2512,6 +2589,8 @@ static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
         case KETL_TOKEN_TYPE_FROM   : return parse_from_import         (p_context); break;
         case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context); break;
         case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context); break;
+        case KETL_TOKEN_TYPE_SHARED : errorf(token_extract_info(CURRENT_TOKEN(0)).source_offset, token_extract_info(CURRENT_TOKEN(0)).length, "Can't use 'shared' outside class declaration.");
+                                      return parse_var_declaration     (p_context); break;
         case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context); break;
         case KETL_TOKEN_TYPE_CLASS  : return parse_class_declaration   (p_context); break;
         case KETL_TOKEN_TYPE_ENUM   : return parse_enum_declaration    (p_context); break;
