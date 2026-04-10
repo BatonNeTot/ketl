@@ -190,6 +190,10 @@ export fn array_clear(array_header : ArrayHeader) {
         array_header.size = 0;
     }
 }
+export fn array_pop(array_header : ArrayHeader) {
+    assert(array_header.size > 0);
+    array_header.size -= 1;
+}
 export fn str2cstr(string: ArrayHeader) -> cstr {
     if (string == null) {
         return null;

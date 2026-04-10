@@ -115,6 +115,23 @@ class Parser {
         RTL, // Right To Left
     }
 
+    shared associativity = Associativity[Precedence$count]{
+        Precedence.None       -> Associativity.LTR,
+        Precedence.Assigment  -> Associativity.RTL,
+        Precedence.LogicalOr  -> Associativity.LTR,
+        Precedence.LogicalAnd -> Associativity.LTR,
+        Precedence.Equality   -> Associativity.LTR,
+        Precedence.Comparison -> Associativity.LTR,
+        Precedence.Concat     -> Associativity.LTR,
+        Precedence.Term       -> Associativity.LTR,
+        Precedence.Factor     -> Associativity.LTR,
+        Precedence.BitwiseOr  -> Associativity.LTR,
+        Precedence.BitwiseXor -> Associativity.LTR,
+        Precedence.BitwiseAnd -> Associativity.LTR,
+        Precedence.Call       -> Associativity.LTR,
+        Precedence.Primary    -> Associativity.LTR,
+    };
+
     class ParseRule {
         var prefix: (Context) -> HIR.VarId;
         var ltr_infix: (Context, HIR.VarId) -> HIR.VarId;
@@ -134,19 +151,155 @@ class Parser {
         }
     }
 
-    fn parse_identificator(context: Context, precedence: Precedence) -> HIR.VarId {
-        // TODO
-        // return push_literal_id(p_context, CURRENT_TOKEN(1));
-        return (-1)$cast(HIR.VarId);
+    shared parse_rule_default = ParseRule.construct(null, null, null, Precedence.None);
+    
+    fn get_parse_rule(token_type: Token.Type) -> ParseRule {
+        var parse_rule = parse_rules[token_type];
+        if (parse_rule != null) {
+            return parse_rule;
+        } else {
+            return parse_rule_default;
+        }
     }
 
-    fn parse_presedence(context: Context, precedence: Precedence) -> HIR.VarId {
+    enum Bracket: u8 {
+        PARENTHESIS,
+        CURLY,
+        SQUARE,
+    }
+
+    // returns true if closing bracket met
+    fn dummy_parse_bracket(brackets: Bracket[], token_type: Token.Type) -> bool {
+        switch (token_type) {
+            case Token.Type.PARENTHESIS_LEFT -> {
+                brackets ..= Bracket.PARENTHESIS;
+                return false;
+            }
+            case Token.Type.CURLY_LEFT -> {
+                brackets ..= Bracket.CURLY;
+                return false;
+            }
+            case Token.Type.SQUARE_LEFT -> {
+                brackets ..= Bracket.SQUARE;
+                return false;
+            }
+            case Token.Type.PARENTHESIS_RIGHT -> {
+                if (brackets.size <= 0) {
+                    return false;
+                }
+                var bracket = brackets[brackets.size - 1];
+                assert(bracket == Bracket.PARENTHESIS);
+                brackets@pop();
+                return true;
+            }
+            case Token.Type.CURLY_RIGHT -> {
+                if (brackets.size <= 0) {
+                    return false;
+                }
+                var bracket = brackets[brackets.size - 1];
+                assert(bracket == Bracket.CURLY);
+                brackets@pop();
+                return true;
+            }
+            case Token.Type.SQUARE_RIGHT -> {
+                if (brackets.size <= 0) {
+                    return false;
+                }
+                var bracket = brackets[brackets.size - 1];
+                assert(bracket == Bracket.SQUARE);
+                brackets@pop();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn parse_identificator(context: Context, precedence: Precedence) -> HIR.VarId {
         // TODO
+        // return push_literal_id(p_context, context@current_token(1));
         return (-1)$cast(HIR.VarId);
+    }
+    
+    fn parse_lhs_operand(context: Context, precedence: Precedence) -> HIR.VarId {    
+        var prefix_rule = context@current_token(1).type@get_parse_rule().prefix;
+        if (prefix_rule == null) {
+            context@error(context@current_token(1).offset, context@current_token(1).length, "Expected expression.");
+            return context.hir_builder@push_temp_var(HIR.ExprInfo.construct_token(context@current_token(1)));
+        }
+
+        var lhs = context@prefix_rule();
+
+        while (precedence < context@current_token(0).type@get_parse_rule().precedence ||
+            (associativity[precedence] == Associativity.LTR && precedence == context@current_token(0).type@get_parse_rule().precedence)) {
+            context@token_advance();
+            var ltr_infix_rule = get_parse_rule(context@current_token(1).type).ltr_infix;
+            if (ltr_infix_rule == null) {
+                context@error(context@current_token(1).offset, context@current_token(1).length, "Expected operator.");
+                return context.hir_builder@push_temp_var(HIR.ExprInfo.construct_token(context@current_token(1)));
+            }
+            lhs = context@ltr_infix_rule(lhs);
+        }
+    
+        return lhs;
+    }
+
+    fn parse_precedence(context: Context, precedence: Precedence) -> HIR.VarId {
+        context@token_advance();
+
+        if (associativity[precedence] == Associativity.LTR) {
+            var lhs = context@parse_lhs_operand(precedence);
+            return lhs;
+        }
+
+        // looking for the rtl operator
+        var start_pos = context.iterator@mark();
+        var brackets_stack = Bracket[0];
+
+        brackets_stack@dummy_parse_bracket(context@current_token(1).type);
+        var parse_rule = context@current_token(1).type@get_parse_rule();
+        var token_precedence = parse_rule.precedence;
+        while (precedence < token_precedence) {
+            context@token_advance();
+            parse_rule = context@current_token(1).type@get_parse_rule();
+            if (!brackets_stack@dummy_parse_bracket(context@current_token(1).type)) {
+                token_precedence = parse_rule.precedence;
+            }
+        }
+
+        // we coudln't find rtl operator, restoring token iterator and do simple ltr
+        if (precedence != token_precedence) {
+            context.iterator@rewind(start_pos);
+            
+            var lhs = context@parse_lhs_operand(precedence);
+            return lhs;
+        }
+
+        // parse after the operator, rhs operand
+        var rhs = context@parse_precedence(precedence);
+
+        // saving end of the rhs operand for restoring later
+        var end_pos = context.iterator@mark();
+        context.iterator@rewind(start_pos);
+
+        var lhs = context@parse_lhs_operand(precedence);
+            
+        context@token_advance();
+
+        // back to the rtl operator
+        var rtl_infix = context@current_token(1).type@get_parse_rule().rtl_infix;
+        if (rtl_infix == null) {
+            context@error(context@current_token(2).offset, context@current_token(2).length, "Expected operator.");
+            return context.hir_builder@push_temp_var(HIR.ExprInfo.construct_token(context@current_token(2)));
+        }
+        lhs = context@rtl_infix(lhs, rhs);
+
+        // restore token iterator
+        context.iterator@rewind(end_pos);
+        return lhs;
     }
 
     fn parse_expression(context: Context) -> HIR.VarId {
-        return context@parse_presedence(Precedence.Assigment);
+        return context@parse_precedence(Precedence.Assigment);
     }
 
     shared parse_rules = ParseRule[Token.Type$count]{
@@ -181,8 +334,8 @@ class Parser {
 
         // TODO implement
         /*
-        ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, NULL, p_context->export);
-        if (p_module_namespace == NULL) {
+        ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context->p_state, s_module_name, a_path_buffer, null, p_context->export);
+        if (p_module_namespace == null) {
             errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         }
@@ -194,7 +347,7 @@ class Parser {
         /*
         ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
 
-        if (p_node == NULL) {
+        if (p_node == null) {
             errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
                 TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };

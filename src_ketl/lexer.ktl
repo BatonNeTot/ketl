@@ -772,4 +772,12 @@ export class TokenIterator {
         }
         return self.tokens[index];
     }
-}
+
+    export fn mark(self: TokenIterator) -> Index {
+        return self.index;
+    }
+
+    export fn rewind(self: TokenIterator, index: Index) {
+        self.index = index;
+    }
+ }

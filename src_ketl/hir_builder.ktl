@@ -39,4 +39,8 @@ class HIRBuilder {
         instr.value = var_id;
         self.instrs ..= instr;
     }
+
+    export fn push_temp_var(self: HIRBuilder, expr_info: HIR.ExprInfo) -> HIR.VarId {
+        return (-1)$cast(HIR.VarId);
+    }
 }

@@ -129,6 +129,11 @@ static void array_clear(ketl_array* p_array) {
     }
 }
 
+static void array_pop(ketl_array* p_array) {
+    ANN_ASSERT(p_array->size > 0);
+    --p_array->size;
+}
+
 #include <stdlib.h>
 #include <string.h>
 static const char* str2cstr(ketl_array* p_str) {
@@ -351,6 +356,21 @@ do {\
         ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("array_clear"));
         ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.array_clear"));
         ketl_state_define_cfunction(p_state, &p_state->secret_namespace, s_key, s_name, p_func_type, (void(*)(void))&array_clear, false);
+    }
+
+    {
+        ketl_variable_type_info_t a_parameters[] = {
+            { .p_type = p_none },
+            { .p_type = p_raw },
+        };
+        ketl_function_parameters clear_func_params = {
+            .p_parameters = a_parameters,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters),
+        };
+        ketl_type* p_func_type = ketl_state_get_cfunction_type(p_state, &clear_func_params);
+        ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("array_pop"));
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.array_pop"));
+        ketl_state_define_cfunction(p_state, &p_state->secret_namespace, s_key, s_name, p_func_type, (void(*)(void))&array_pop, false);
     }
 
     {
@@ -1171,7 +1191,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             printf("%s:\n", a_buffer);
             printf(".seh_proc %s\n", a_buffer);
 
-            char arr_buffer[4096];
+            char arr_buffer[8192];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
 

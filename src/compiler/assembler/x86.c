@@ -1015,13 +1015,17 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_a
         if (p_builder->inline_symbols) {
             ketl_atomic_string s_name = p_namespace_node->s_name;
             if (p_arg->var.type == KETL_HIR_USED_TYPE_META) {
-                if (s_name == KETL_ATOMIC_STRING_EMPTY) {
-                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(target_reg), 0);
-                } else {
+                if (s_name != KETL_ATOMIC_STRING_EMPTY) {
                     ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                } else {
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(target_reg), 0);
                 }
             } else {
-                push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                if (p_arg->p_type->kind == KETL_TYPE_CFUNCTION) {
+                    ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                } else {
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                }
             }
         } else {
             ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
@@ -1675,7 +1679,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                 push_function_arguments_hir(p_hir_info->a_arguments, p_hir_info->arguments_count, p_builder);
 
                 // call
-                if (p_builder->inline_symbols) {
+                if (p_builder->inline_symbols && callee.uid == KETL_HIR_VAR_UID_GLOBAL) {
                     ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
                         p_builder->p_hir->p_vars_infos[callee.info].p_namespace,
                         p_builder->p_hir->p_vars_infos[callee.info].namespace_node_index);
@@ -2386,7 +2390,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
         case KETL_ASM_X86_M:
             printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, p_instr->size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.indir && p_instr->modrm.label) {
+            if (p_instr->modrm.label && p_instr->modrm.indir && p_instr->modrm.base != KETL_ASM_X86_REG_NONE) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2403,7 +2407,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
             printed += ketl_asm_x86_format_modrm(p_state, p_instr->modrm, rhs_size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.indir && p_instr->modrm.label) {
+            if (p_instr->modrm.label && p_instr->modrm.indir && p_instr->modrm.base != KETL_ASM_X86_REG_NONE) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2413,7 +2417,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             printed += snprintf(p_buffer + printed, buffer_size - printed, ", ");
             printed += ketl_asm_x86_format_reg(p_instr->reg, p_instr->size, p_buffer + printed, buffer_size - printed);
 
-            if (p_instr->modrm.indir && p_instr->modrm.label) {
+            if (p_instr->modrm.label && p_instr->modrm.indir && p_instr->modrm.base != KETL_ASM_X86_REG_NONE) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2434,7 +2438,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
                     break;
             }
 
-            if (p_instr->modrm.indir && p_instr->modrm.label) {
+            if (p_instr->modrm.label && p_instr->modrm.indir && p_instr->modrm.base != KETL_ASM_X86_REG_NONE) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;
@@ -2450,7 +2454,7 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
                     break;
             }
 
-            if (p_instr->modrm.indir && p_instr->modrm.label) {
+            if (p_instr->modrm.label && p_instr->modrm.indir && p_instr->modrm.base != KETL_ASM_X86_REG_NONE) {
                 printed += snprintf(p_buffer + printed, buffer_size - printed, " # %s", ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_instr->modrm.s_literal));
             }
             break;

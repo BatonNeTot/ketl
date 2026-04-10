@@ -940,6 +940,15 @@ static ketl_hir_var_id_t find_field(ketl_parser_context* p_context, ketl_hir_var
         return var_id;
     }
 
+    if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("pop", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+        ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
+
+        ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "array_pop", 9);
+        ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, symbol, symbol, expr_info, force);
+        ANN_ASSERT(!force || GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
+        return var_id;
+    }
+
     if (force) {
         return ketl_hir_builder_create_temp_var(&p_context->hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
     } else {
@@ -1087,7 +1096,13 @@ static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_
         return push_temp_var(p_context, expr_info);
     }
 
-    ketl_type* p_object_type = GET_TYPE(GET_VAR(lhs).type);
+    ketl_type* p_object_type;
+
+    if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_LITERAL) {
+        p_object_type = ketl_state_get_i64(p_context->p_state);
+    } else {
+        p_object_type = GET_TYPE(GET_VAR(lhs).type);
+    }
 
     if (p_object_type->kind == KETL_TYPE_CLASS || p_object_type->kind == KETL_TYPE_ARRAY) {
         callee = find_field(p_context, lhs, id_literal, expr_info, false);
@@ -1095,8 +1110,8 @@ static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_
 
     if (callee == (ketl_hir_var_id_t)(-1)) {
         // check global namespace
-        callee = ketl_hir_builder_get_var(&p_context->hir_builder, p_context->p_namespace, push_symbol(p_context, id_literal), 
-            push_symbol_string(p_context, p_context->p_lexer->p_source + expr_info.source_offset, expr_info.length), expr_info, true);
+        ketl_hir_symbol_offset_t name = push_symbol(p_context, id_literal);
+        callee = ketl_hir_builder_get_var(&p_context->hir_builder, p_context->p_namespace, name, name, expr_info, true);
     }
 
     ANN_ASSERT(GET_VAR(callee).info != KETL_HIR_VAR_INFO_TEMP);
@@ -2376,7 +2391,8 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     
     token_consume(p_context, KETL_TOKEN_TYPE_CURLY_LEFT, "Expected '{' after function declaration.");
 
-    ketl_type* function_type = ketl_state_get_function_type(p_context->p_state, &function_parameters);
+    // TODO use function instead cfunction
+    ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
     ketl_atomic_string s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
     ketl_namespace_node* p_func_node = ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
         s_name, p_context->cexport ? s_name : KETL_ATOMIC_STRING_EMPTY, function_type, NULL, p_context->export);
