@@ -254,7 +254,21 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         p_lhs_type->kind == KETL_TYPE_ARRAY && 
         ketl_type_is_char_type(((ketl_type_array*)p_lhs_type)->p_value_type)) {
 
-        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "int2str", 8);
+        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "int2str", 7);
+        ketl_hir_var_id_t converter_id = ketl_hir_builder_get_var(&p_context->hir_builder, &p_context->p_state->secret_namespace, converter_symbol, converter_symbol, expr_info, true);
+        ANN_ASSERT(GET_VAR(converter_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
+
+        push_hir_argument(p_context, rhs_var);
+        ketl_hir_var_id_t convertion_call_id = push_hir_call(p_context, converter_id, 1, expr_info);
+
+        return convertion_call_id;
+    }
+
+    if ((p_lhs_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_lhs_type)->is_numeric && p_lhs_type->size == 8) &&
+        p_rhs_type->kind == KETL_TYPE_ARRAY && 
+        ketl_type_is_char_type(((ketl_type_array*)p_rhs_type)->p_value_type)) {
+
+        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "str2uint", 8);
         ketl_hir_var_id_t converter_id = ketl_hir_builder_get_var(&p_context->hir_builder, &p_context->p_state->secret_namespace, converter_symbol, converter_symbol, expr_info, true);
         ANN_ASSERT(GET_VAR(converter_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
 
@@ -758,7 +772,7 @@ static ketl_type* parse_type(ketl_parser_context* p_context) {
 
         token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')'.");
 
-        if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+        if (token_match(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT)) {
             a_arg_types[0].p_type = parse_type(p_context);
             
             ketl_function_parameters function_parameters = {
@@ -782,27 +796,30 @@ static ketl_type* parse_type(ketl_parser_context* p_context) {
         switch (CURRENT_TOKEN(0).type) {
             case KETL_TOKEN_TYPE_SQUARE_LEFT: {
                 ANN_ASSERT(p_node == NULL || p_node->variable.kind == KETL_VARIABLE_TYPE);
-
-                token_advance(p_context); // '['
-                ketl_type* p_index_type = NULL;
-                if (!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
-                    p_index_type = parse_type(p_context);
-                }
-
-                if (p_index_type != NULL) {
-                    // TODO implement dict
-                    (void)p_index_type;
-                    ANN_ASSERT(false);
-                }
-
-                ANN_ASSERT(!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_LEFT) && "Multi-dimensional arrays are not supported for now");
-
                 if (p_node == NULL) {
                     errorf(id_literal.offset, id_literal.length, "'%.*s' is not a known type.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
                     return NULL;
                 }
 
-                return ketl_state_get_array_type(p_context->p_state, p_node->variable.p_pointer);
+                ketl_type* p_type = p_node->variable.p_pointer;
+
+                while (token_match(p_context, KETL_TOKEN_TYPE_SQUARE_LEFT)) {
+                    ketl_type* p_index_type = NULL;
+                    if (!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
+                        p_index_type = parse_type(p_context);
+                        token_consume(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT, "Expected ']'.");
+                    }
+
+                    if (p_index_type != NULL) {
+                        // TODO implement dict
+                        (void)p_index_type;
+                        ANN_ASSERT(false);
+                    }
+
+                    p_type = ketl_state_get_array_type(p_context->p_state, p_type);
+                }
+
+                return p_type;
 
                 //continue;
             }
@@ -1069,10 +1086,10 @@ static ketl_hir_var_id_t parse_dot_operator(ketl_parser_context* p_context, ketl
     }
 }
 
-static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
-    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after '@' operator.");
+static ketl_hir_var_id_t parse_arrow_operator(ketl_parser_context* p_context, ketl_hir_var_id_t lhs) {
+    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after arrow operator.");
     ketl_token_t id_literal = CURRENT_TOKEN(1);
-    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after id of a '@' operator.");
+    token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_LEFT, "Expected '(' after id of a arrow operator.");
 
     push_hir_argument(p_context, lhs);
     uint16_t argument_count = 1;
@@ -1092,7 +1109,7 @@ static ketl_hir_var_id_t parse_at_operator(ketl_parser_context* p_context, ketl_
     }
 
     if (GET_VAR(lhs).type == KETL_HIR_USED_TYPE_META) {
-        errorf(expr_info.source_offset, expr_info.length, "Can't use '@' operator with types or namespaces.");
+        errorf(expr_info.source_offset, expr_info.length, "Can't use arrow operator with types or namespaces.");
         return push_temp_var(p_context, expr_info);
     }
 
@@ -1250,14 +1267,28 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
 }
 
 static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
+    ketl_type* p_type = NULL;
     if (token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
-        // TODO using array-type as start of an expression is forbidden for now
-        ANN_ASSERT(false);
+        ANN_ASSERT(GET_VAR(var_id).type == KETL_HIR_USED_TYPE_META);
+        ketl_namespace_node* p_node_type = ketl_namespace_find_by_index(
+            get_var_info(p_context, GET_VAR(var_id).info)->p_namespace,
+            get_var_info(p_context, GET_VAR(var_id).info)->namespace_node_index
+        );
+        ANN_ASSERT(p_node_type && p_node_type->variable.kind == KETL_VARIABLE_TYPE);
+        p_type = p_node_type->variable.p_pointer;
+
+        p_type = ketl_state_get_array_type(p_context->p_state, p_type);
+
+        if (!token_match(p_context, KETL_TOKEN_TYPE_SQUARE_LEFT)) {
+            ANN_ASSERT(false);
+        }
     }
 
     ketl_hir_var_id_t expr_id = parse_expression(p_context);
 
     if (token_match(p_context, KETL_TOKEN_TYPE_COLON)) {
+        ANN_ASSERT(p_type == NULL);
+
         ketl_hir_var_id_t start_id = expr_id;
         ketl_hir_var_id_t end_id = parse_expression(p_context);
 
@@ -1277,10 +1308,13 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
     ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(var_id).expr_info, token_extract_info(CURRENT_TOKEN(1)));
 
     if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_META) {
-        ketl_namespace_node* p_value_type_node = ketl_namespace_find_by_index(
-            get_var_info(p_context, GET_VAR(var_id).info)->p_namespace, 
-            get_var_info(p_context, GET_VAR(var_id).info)->namespace_node_index);
-        ketl_type* p_value_type = p_value_type_node->variable.p_pointer;
+        ketl_type* p_value_type = p_type;
+        if (p_value_type == NULL) {
+            ketl_namespace_node* p_value_type_node = ketl_namespace_find_by_index(
+                get_var_info(p_context, GET_VAR(var_id).info)->p_namespace, 
+                get_var_info(p_context, GET_VAR(var_id).info)->namespace_node_index);
+            p_value_type = p_value_type_node->variable.p_pointer;
+        }
         ketl_hir_var_id_t id_var = push_hir_new_array(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_value_type), expr_id, expr_info);
 
         if (!token_match(p_context, KETL_TOKEN_TYPE_CURLY_LEFT)) {
@@ -1296,7 +1330,7 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
 
             ketl_hir_var_id_t value_var = parse_expression(p_context);
 
-            if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+            if (token_match(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT)) {
                 index_var = value_var;
                 value_var = parse_expression(p_context);
             } else if (index_var == (ketl_hir_var_id_t)-1) {
@@ -1505,8 +1539,9 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_QUESTION_MARK]              = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DOLLAR]                     = { parse_dollar_prefix, parse_dollar_operator, NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_COLON]                      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_AT   ]                      = { NULL,                parse_at_operator,     NULL,             KETL_PREC_CALL},
-    [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_AT]                         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT]         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_ARROW_RIGHT]                = { NULL,                parse_arrow_operator,  NULL,             KETL_PREC_CALL},
     [KETL_TOKEN_TYPE_TERMINATION_CHARACTER]      = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_NOT]                = { parse_unary_rtl,     NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_LOGICAL_AND]                = { NULL,                parse_short_circuit,   NULL,             KETL_PREC_LOGICAL_AND},
@@ -1905,7 +1940,7 @@ static ketl_statement_info parse_for_statement(ketl_parser_context* p_context) {
         var_type = parse_type_as_index(p_context);
     }
 
-    token_consume(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT, "Expected '->' after 'var' declaration.");
+    token_consume(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, "Expected '=>' after 'var' declaration.");
     ketl_hir_var_id_t array_var = parse_expression(p_context);
 
     ANN_ASSERT(GET_VAR(array_var).type < KETL_HIR_USED_TYPE_LAST);
@@ -2011,7 +2046,7 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                     ketl_hir_builder_set_block(&p_context->hir_builder, next_cmp_block);
                     ketl_hir_var_id_t case_expr = parse_expression(p_context);
 
-                    token_consume(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT, "Expected '->' after 'case' statement expression.");
+                    token_consume(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
 
                     expr_info = expr_info_merge(expr_info, token_extract_info(CURRENT_TOKEN(1)));
                     ketl_hir_var_id_t cmp_expr = push_hir_binary_op(p_context, KETL_HIR_EQUAL, expr, case_expr, expr_info);
@@ -2037,7 +2072,7 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                 case KETL_TOKEN_TYPE_DEFAULT: {
                     token_advance(p_context); // default
 
-                    token_consume(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT, "Expected '->' after 'default' statement expression.");
+                    token_consume(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, "Expected '=>' after 'default' statement expression.");
 
                     ANN_ASSERT(default_block == (ketl_hir_block_index_t)-1);
                     default_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
@@ -2236,8 +2271,10 @@ static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
     ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
 
     if (p_node == NULL) {
-        errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
-            TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
+        errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", 
+            TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal),
+            TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal)
+        );
         return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
     }
 
@@ -2328,7 +2365,7 @@ static ketl_statement_info parse_cimport_declaration(ketl_parser_context* p_cont
     token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after parameters.");
 
     ketl_type* return_type = NULL;
-    if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+    if (token_match(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT)) {
         return_type = parse_type(p_context);
     }
     if (return_type == NULL) {
@@ -2378,7 +2415,7 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     token_consume(p_context, KETL_TOKEN_TYPE_PARENTHESIS_RIGHT, "Expected ')' after parameters.");
 
     ketl_type* return_type = NULL;
-    if (token_match(p_context, KETL_TOKEN_TYPE_ARROW_RIGHT)) {
+    if (token_match(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT)) {
         return_type = parse_type(p_context);
     }
     if (return_type == NULL) {

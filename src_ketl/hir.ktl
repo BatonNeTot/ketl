@@ -106,7 +106,7 @@ export class HIR {
         RETURN_VALUE_64,
     }
 
-    export fn is_terminator(tag : Tag) -> bool {
+    export fn is_terminator(tag : Tag) => bool {
         return tag >= Tag.JUMP;
     }
 
@@ -118,8 +118,34 @@ export class HIR {
 
 ////////////////////////////
 
+    export class SrcInfo {
+        export mimic Length = u32;
+
+        var source_offset : Token.Offset;
+        var length : Length;
+
+        export fn construct_token(token: Token) => SrcInfo {
+            var self = SrcInfo();
+            self.source_offset = token.offset;
+            self.length = token.length;
+            return self;
+        }
+
+        export fn construct_merge(lhs: SrcInfo, rhs: SrcInfo) => SrcInfo {
+            var self = SrcInfo();
+            self.source_offset = lhs.source_offset;
+            self.length = rhs->get_end_offset() - lhs.source_offset;
+            return self;
+        }
+
+        export fn get_end_offset(self: SrcInfo) => Token.Offset {
+            return self.source_offset + self.length;
+        }
+    }
+
     export class Instr {
         var tag : Tag;
+        var src_info: SrcInfo;
     }
 
     export class InstrWithOutput {
@@ -200,31 +226,6 @@ export class HIR {
 
 ////////////////////////
 
-    export class ExprInfo {
-        export mimic Length = u32;
-
-        var source_offset : Token.Offset;
-        var length : Length;
-
-        export fn construct_token(token: Token) -> ExprInfo {
-            var self = ExprInfo();
-            self.source_offset = token.offset;
-            self.length = token.length;
-            return self;
-        }
-
-        export fn construct_merge(lhs: ExprInfo, rhs: ExprInfo) -> ExprInfo {
-            var self = ExprInfo();
-            self.source_offset = lhs.source_offset;
-            self.length = rhs@get_end_offset() - lhs.source_offset;
-            return self;
-        }
-
-        export fn get_end_offset(self: ExprInfo) -> Token.Offset {
-            return self.source_offset + self.length;
-        }
-    }
-
     export class Var {
         export enum Kind : u8 {
             Regular,
@@ -238,7 +239,7 @@ export class HIR {
 
         var kind : Kind;
         var type : Type;
-        var expr_info : ExprInfo;
+        var expr_info : SrcInfo;
     }
 
     export class VarCommon {
@@ -294,7 +295,7 @@ export class HIR {
     var parameters_count : u8;
     var max_call_arg_count : u8;
 
-    fn format(hir : HIR) -> str {
+    fn format(hir : HIR) => str {
         // TODO
         return "";
     }

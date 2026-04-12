@@ -3,13 +3,13 @@
 export class StringBuffer {
     var buffer : str;
 
-    export fn construct() -> StringBuffer {
+    export fn construct() => StringBuffer {
         var obj = StringBuffer();
         obj.buffer = "";
         return obj;
     }
 
-    export fn write(buffer: StringBuffer, message : str) -> StringBuffer {
+    export fn write(buffer: StringBuffer, message : str) => StringBuffer {
         buffer.buffer ..= message;
         return buffer;
     }
@@ -20,7 +20,7 @@ export class FilePointer {
     var pointer : u32;
     var length : u32;
 
-    export fn construct(offset: u32, pointer: u32, length: u32) -> FilePointer {
+    export fn construct(offset: u32, pointer: u32, length: u32) => FilePointer {
         var obj = FilePointer();
         obj.offset = offset; 
         obj.pointer = pointer; 
@@ -35,14 +35,14 @@ export class LogAccum {
     var err : StringBuffer;
     var full : StringBuffer;
 
-    export fn construct() -> LogAccum {
+    export fn construct() => LogAccum {
         var obj = LogAccum();
         obj.err = StringBuffer.construct();
         obj.full = StringBuffer.construct();
         return obj;
     }
 
-    export fn check(self: LogAccum) -> bool {
+    export fn check(self: LogAccum) => bool {
         if (self.err.buffer.size > 0) {
             printf(self.err.buffer$cast(cstr));
             return false;
@@ -56,14 +56,14 @@ export class LogAccum {
         var filename : str;
         var source : str;
 
-        export fn get_line_offset(info : LogInfo, line : u32) -> u32 {
+        export fn get_line_offset(info : LogInfo, line : u32) => u32 {
             if (line >= info.lines_offsets.size) {
                 return info.source.size$cast(u32) - 1;
             }
             return info.lines_offsets[line];
         }
 
-        export fn find_line(info : LogInfo, offset : u32) -> u32 {
+        export fn find_line(info : LogInfo, offset : u32) => u32 {
             assert(info.lines_offsets.size < 5000);
             var lhs : u32 = 0;
             // TODO make cast deduce type from the left side
@@ -85,14 +85,14 @@ export class LogAccum {
     }
 
     export fn error(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
-        var line = info@find_line(pointer.offset);
-        var offset = pointer.offset - info@get_line_offset(line);
+        var line = info->find_line(pointer.offset);
+        var offset = pointer.offset - info->get_line_offset(line);
 
-        accum.err@write(info.filename)
-            @write(":")@write((line + 1)$cast(str))
-            @write(":")@write((offset + 1)$cast(str))
-            @write(": error: ")@write(message)
-            @write("\n");
+        accum.err->write(info.filename)
+            ->write(":")->write((line + 1)$cast(str))
+            ->write(":")->write((offset + 1)$cast(str))
+            ->write(": error: ")->write(message)
+            ->write("\n");
 
         // TODO show the source and error placement
     }
@@ -100,4 +100,20 @@ export class LogAccum {
     export fn warning(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
 
     }
+}
+
+export class Value {
+    export enum Kind: u8 {
+        None,
+        Type,
+        Namespace,
+        Pointer,
+        Func,
+        CFunc,
+        Bool,
+        Int,
+        UInt,
+    }
+    
+    var value: u64;
 }

@@ -71,7 +71,6 @@ static bool is_func_parameters_equal(const ketl_function_parameters* p_lhs_param
 KETL_HASH_MAP_DEFINITION(function_types_map, ketl_function_parameters, function_type_composite, FUNC_SIGNATURE_HASH, IS_FUNC_SIGNATURES_EQUAL)
 KETL_HASH_MAP_DEFINITION(array_types_map_t, ketl_type*, ketl_type*, ANN_HASH, ANN_EQUAL)
 
-KETL_VECTOR_DEFINITION(types, ketl_type*)
 KETL_VECTOR_DEFINITION(string_builder_t, char)
 
 KETL_HASH_MAP_DEFINITION(ketl_modules_t, ketl_atomic_string, ketl_module_t, ANN_HASH, ANN_EQUAL)
@@ -405,6 +404,21 @@ do {\
 
     {
         ketl_variable_type_info_t a_parameters[] = {
+            { .p_type = p_u64 },
+            { .p_type = p_str },
+        };
+        ketl_function_parameters clear_func_params = {
+            .p_parameters = a_parameters,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters),
+        };
+        ketl_type* p_func_type = ketl_state_get_cfunction_type(p_state, &clear_func_params);
+        ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("str2uint"));
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.str2uint"));
+        ketl_state_define_cfunction(p_state, &p_state->secret_namespace, s_key, s_name, p_func_type, (void(*)(void))NULL, false);
+    }
+
+    {
+        ketl_variable_type_info_t a_parameters[] = {
             { .p_type = p_none },
             { .p_type = p_bool },
         };
@@ -530,14 +544,18 @@ ketl_type* ketl_state_get_type_impl(ketl_state* p_state, ketl_namespace* p_names
 }
 
 ketl_type* ketl_state_get_array_type(ketl_state* p_state, ketl_type* p_type) {
-    ketl_type_array* p_array_type = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_array));
-    *p_array_type = (ketl_type_array){
-        .kind = KETL_TYPE_ARRAY,
-        .align_enum = p_type->align_enum,
-        .size = sizeof(ketl_array),
-        .p_value_type = p_type,
-    };
-    return (ketl_type*)p_array_type;
+    array_types_map_t_bucket* p_array_bucket = array_types_map_t_get_or_insert_copy(&p_state->array_types, p_type, NULL); 
+    if (p_array_bucket->value == NULL) {
+        ketl_type_array* p_array_type = ketl_alloc(p_state->p_allocator, sizeof(ketl_type_array));
+        *p_array_type = (ketl_type_array){
+            .kind = KETL_TYPE_ARRAY,
+            .align_enum = p_type->align_enum,
+            .size = sizeof(ketl_array),
+            .p_value_type = p_type,
+        };
+        p_array_bucket->value = (ketl_type*)p_array_type;
+    }
+    return p_array_bucket->value;
 }
 
 ketl_type* ketl_state_get_carray_type(ketl_state* p_state, ketl_type* p_type) {

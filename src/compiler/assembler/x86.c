@@ -2151,56 +2151,56 @@ static uint32_t ketl_asm_x86_format_reg(ketl_asm_x86_reg_t reg, ketl_asm_x86_siz
             }
         case KETL_ASM_X86_R8:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r8w"); // can't compile with r8l, need to dig deeper
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r8b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r8w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r8d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r8");
             }
         case KETL_ASM_X86_R9:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r9l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r9b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r9w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r9d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r9");
             }
         case KETL_ASM_X86_R10:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r10l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r10b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r10w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r10d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r10");
             }
         case KETL_ASM_X86_R11:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r11l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r11b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r11w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r11d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r11");
             }
         case KETL_ASM_X86_R12:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r12l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r12b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r12w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r12d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r12");
             }
         case KETL_ASM_X86_R13:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r13l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r13b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r13w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r13d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r13");
             }
         case KETL_ASM_X86_R14:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r14l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r14b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r14w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r14d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r14");
             }
         case KETL_ASM_X86_R15:
             ANN_SWITCH_STRICT (size) {
-                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r15l");
+                case KETL_ASM_X86_8B: return snprintf(p_buffer, buffer_size,  "r15b");
                 case KETL_ASM_X86_16B: return snprintf(p_buffer, buffer_size, "r15w");
                 case KETL_ASM_X86_32B: return snprintf(p_buffer, buffer_size, "r15d");
                 case KETL_ASM_X86_64B: return snprintf(p_buffer, buffer_size, "r15");

@@ -472,6 +472,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
 
         if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_EQUAL, 2);
+        } else if (second_symbol == '>') {
+            ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, 2);
         } else {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ASSIGN, 1);
         }

@@ -512,6 +512,13 @@ ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_bu
         .expr_info = expr_info,
     });
 
+    // TODO hack, cause indexing goes through function with 3-4 arguments
+    uint8_t call_arg_count = 4;
+    if (p_hir_builder->max_call_arg_count == (uint8_t)-1 ||
+        p_hir_builder->max_call_arg_count < call_arg_count) {
+        p_hir_builder->max_call_arg_count = call_arg_count;
+    }
+
     return value;
 }
 

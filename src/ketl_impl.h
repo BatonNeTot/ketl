@@ -23,7 +23,6 @@ ANN_DEFINE(function_type_composite) {
 KETL_HASH_MAP_DECLARATION(function_types_map, ketl_function_parameters, function_type_composite)
 KETL_HASH_MAP_DECLARATION(array_types_map_t, ketl_type*, ketl_type*)
 
-KETL_VECTOR_DECLARATION(types, ketl_type*)
 KETL_VECTOR_DECLARATION(string_builder_t, char)
 
 KETL_HASH_MAP_DECLARATION(ketl_modules_t, ketl_atomic_string, ketl_module_t)

@@ -4,18 +4,18 @@ from common import LogAccum
 
 from lexer import Lexer
 from parser import Parser
-from type import NamedVariable
+from variable import VariableDecl
 
 cexport fn eval(filename : str, source : str) {
     var log_accum = LogAccum.construct();
 
     var lexer = Lexer();
-    lexer@init();
-    lexer@build_tokens(filename, source, log_accum);
+    lexer->init();
+    lexer->build_tokens(filename, source, log_accum);
 
-    var hir = Parser.build_hir(lexer, NamedVariable[0], null, log_accum);
+    var hir = Parser.build_hir(lexer, VariableDecl[0], null, log_accum);
 
-    if (!log_accum@check()) {
+    if (!log_accum->check()) {
         // TODO something on error
     }
 }

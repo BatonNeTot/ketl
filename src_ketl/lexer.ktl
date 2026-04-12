@@ -18,15 +18,15 @@ export class Lexer {
         lexer.lines_offsets = u32[0];
     }
     
-    fn is_space(symbol : char) -> bool {
+    fn is_space(symbol : char) => bool {
         return symbol == ' ' || (symbol >= '\t' && symbol <= '\r');
     }
 
-    fn is_numeric(symbol : char) -> bool {
+    fn is_numeric(symbol : char) => bool {
         return symbol >= '0' && symbol <= '9';
     }
 
-    fn is_alpha(symbol : char) -> bool {
+    fn is_alpha(symbol : char) => bool {
         return (symbol >= 'a' && symbol <= 'z') || (symbol >= 'A' && symbol <= 'Z');
     }
 
@@ -44,7 +44,7 @@ export class Lexer {
         lexer.offset += length;
     }
 
-    fn get_symbol(lexer : Lexer) -> char {
+    fn get_symbol(lexer : Lexer) => char {
         // TODO
         // replace all direct source[index] access with analog of this func
         // parse escaping character here
@@ -56,7 +56,7 @@ export class Lexer {
         return symbol;
     }
 
-    fn parse_next_line(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_next_line(lexer : Lexer, next_symbol : char) => bool {
         if (next_symbol == '\r') {
 
             var offset = lexer.offset;
@@ -65,20 +65,20 @@ export class Lexer {
             } else {
                 lexer.offset += 1;
             }
-            lexer@increment_line();
+            lexer->increment_line();
             return true;
         }
 
         if (next_symbol == '\n') {
             lexer.offset += 2;
-            lexer@increment_line();
+            lexer->increment_line();
             return true;
         }
 
         return false;
     }
 
-    fn parse_comments(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_comments(lexer : Lexer, next_symbol : char) => bool {
         var offset = lexer.offset;
         if (next_symbol != '/' || offset + 1 >= lexer.source.size) {
             return false;
@@ -90,8 +90,8 @@ export class Lexer {
         if (next_symbol == '/') {
             lexer.offset += 2;
             while (true) {
-                next_symbol = lexer@get_symbol();
-                if (next_symbol == '\0' || lexer@parse_next_line(next_symbol)) {
+                next_symbol = lexer->get_symbol();
+                if (next_symbol == '\0' || lexer->parse_next_line(next_symbol)) {
                     break;
                 }
                 lexer.offset += 1;
@@ -103,8 +103,8 @@ export class Lexer {
         if (next_symbol == '*') {
             lexer.offset += 2;
             while (true) {
-                next_symbol = lexer@get_symbol();
-                if (lexer@parse_next_line(next_symbol)) {
+                next_symbol = lexer->get_symbol();
+                if (lexer->parse_next_line(next_symbol)) {
                     continue;
                 }
 
@@ -126,7 +126,7 @@ export class Lexer {
         return false;
     }
 
-    fn parse_literal_char(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_literal_char(lexer : Lexer, next_symbol : char) => bool {
         if (next_symbol != '\'') {
             return false;
         }
@@ -134,33 +134,33 @@ export class Lexer {
         var escaped = false;
         var char_offset = lexer.offset += 1;
 
-        next_symbol = lexer@get_symbol();
+        next_symbol = lexer->get_symbol();
 
         if (next_symbol == '\\') {
             escaped = true;
             lexer.offset += 1;
-            next_symbol = lexer@get_symbol();
+            next_symbol = lexer->get_symbol();
         }
 
         if (next_symbol == '\'' && !escaped) {
-            lexer@error(char_offset - 1, 2, "Empty char literal.");
-            lexer@add_token(Token.Type.LITERAL_CHAR, 0);
+            lexer->error(char_offset - 1, 2, "Empty char literal.");
+            lexer->add_token(Token.Type.LITERAL_CHAR, 0);
             lexer.offset += 1;
             return true;
         }
 
-        if (lexer@parse_next_line(next_symbol)) {
+        if (lexer->parse_next_line(next_symbol)) {
             // TODO ERROR and decide how to cleverly restore lexing
             var closing_quote_length: u32 = 0;
-            if (lexer@get_symbol() == '\'') {
+            if (lexer->get_symbol() == '\'') {
                 closing_quote_length = 1;
             }
 
             var char_length = lexer.offset - char_offset;
-            lexer@error(char_offset - 1, char_length + closing_quote_length, "Sudden new line insnide char quotes.");
+            lexer->error(char_offset - 1, char_length + closing_quote_length, "Sudden new line insnide char quotes.");
             
             lexer.offset = char_offset;
-            lexer@add_token(Token.Type.LITERAL_CHAR, char_length - 1);
+            lexer->add_token(Token.Type.LITERAL_CHAR, char_length - 1);
             lexer.offset += closing_quote_length;
             return true;
         }
@@ -171,30 +171,30 @@ export class Lexer {
             var char_length = end_mark_offset - char_offset;
             // error correction
             if (end_mark_offset >= lexer.source.size) {
-                lexer@error(char_offset - 1, lexer.offset - char_offset, "Sudden EOF inside char quotes.");
+                lexer->error(char_offset - 1, lexer.offset - char_offset, "Sudden EOF inside char quotes.");
                 char_length = lexer.source.size$cast(u32) - char_offset;
             } else {
-                lexer@error(char_offset - 1, lexer.offset - char_offset, "Expected closing char quote.");
+                lexer->error(char_offset - 1, lexer.offset - char_offset, "Expected closing char quote.");
             }
             lexer.offset = char_offset;
-            lexer@add_token(Token.Type.LITERAL_CHAR, char_length);
+            lexer->add_token(Token.Type.LITERAL_CHAR, char_length);
             return true;
         }
 
-        lexer@add_token(Token.Type.LITERAL_CHAR, end_mark_offset - char_offset);
+        lexer->add_token(Token.Type.LITERAL_CHAR, end_mark_offset - char_offset);
         lexer.offset += 1;
         return true;
     }
 
-    fn parse_literal_string(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_literal_string(lexer : Lexer, next_symbol : char) => bool {
         if (next_symbol != '"') {
             return false;
         }
 
         var literal_start_offset = lexer.offset += 1;
         while (true) {
-            next_symbol = lexer@get_symbol();
-            if (lexer@parse_next_line(next_symbol)) {
+            next_symbol = lexer->get_symbol();
+            if (lexer->parse_next_line(next_symbol)) {
                 // TODO ERROR
                 continue;
             }
@@ -213,12 +213,12 @@ export class Lexer {
 
         var literal_length = lexer.offset - literal_start_offset;
         lexer.offset = literal_start_offset;
-        lexer@add_token(Token.Type.LITERAL_STRING, literal_length);
+        lexer->add_token(Token.Type.LITERAL_STRING, literal_length);
         lexer.offset += 1;
         return true;
     }
 
-    fn parse_literal_integer(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_literal_integer(lexer : Lexer, next_symbol : char) => bool {
         if (!lexer.is_numeric(next_symbol)) {
             return false;
         }
@@ -228,7 +228,7 @@ export class Lexer {
 
 
         while (true) {
-            next_symbol = lexer@get_symbol();
+            next_symbol = lexer->get_symbol();
             if (!lexer.is_numeric(next_symbol)) {
                 break;
             }
@@ -238,11 +238,11 @@ export class Lexer {
 
         var literal_length = lexer.offset - literal_start_offset;
         lexer.offset = literal_start_offset;
-        lexer@add_token(Token.Type.LITERAL_INTEGER, literal_length);
+        lexer->add_token(Token.Type.LITERAL_INTEGER, literal_length);
         return true;
     }
     
-    fn parse_id(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_id(lexer : Lexer, next_symbol : char) => bool {
         if (next_symbol != '_' && !lexer.is_alpha(next_symbol)) {
             return false;
         }
@@ -251,7 +251,7 @@ export class Lexer {
         lexer.offset = id_start_offset + 1;
 
         while (true) {
-            next_symbol = lexer@get_symbol();
+            next_symbol = lexer->get_symbol();
             if (next_symbol != '_' && !lexer.is_alpha(next_symbol) && !lexer.is_numeric(next_symbol)) {
                 break;
             }
@@ -262,412 +262,412 @@ export class Lexer {
         var id_length = lexer.offset - id_start_offset;
         lexer.offset = id_start_offset;
 
-        var first_symbol = lexer@get_symbol();
+        var first_symbol = lexer->get_symbol();
         switch (first_symbol) {
-            case 'b' -> {
+            case 'b' => {
                 if ("break" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.BREAK, id_length);
+                    lexer->add_token(Token.Type.BREAK, id_length);
                     return true;
                 }
             }
-            case 'c' -> {
+            case 'c' => {
                 if ("case" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.CASE, id_length);
+                    lexer->add_token(Token.Type.CASE, id_length);
                     return true;
                 }
                 if ("cexport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.CEXPORT, id_length);
+                    lexer->add_token(Token.Type.CEXPORT, id_length);
                     return true;
                 }
                 if ("cimport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.CIMPORT, id_length);
+                    lexer->add_token(Token.Type.CIMPORT, id_length);
                     return true;
                 }
                 if ("class" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.CLASS, id_length);
+                    lexer->add_token(Token.Type.CLASS, id_length);
                     return true;
                 }
                 if ("continue" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.CONTINUE, id_length);
+                    lexer->add_token(Token.Type.CONTINUE, id_length);
                     return true;
                 }
             }
-            case 'd' -> {
+            case 'd' => {
                 if ("default" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.DEFAULT, id_length);
+                    lexer->add_token(Token.Type.DEFAULT, id_length);
                     return true;
                 }
                 if ("do" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.DO, id_length);
+                    lexer->add_token(Token.Type.DO, id_length);
                     return true;
                 }
             }
-            case 'e' -> {
+            case 'e' => {
                 if ("else" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.ELSE, id_length);
+                    lexer->add_token(Token.Type.ELSE, id_length);
                     return true;
                 }
                 if ("enum" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.ENUM, id_length);
+                    lexer->add_token(Token.Type.ENUM, id_length);
                     return true;
                 }
                 if ("export" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.EXPORT, id_length);
+                    lexer->add_token(Token.Type.EXPORT, id_length);
                     return true;
                 }
                 if ("extend" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.EXTEND, id_length);
+                    lexer->add_token(Token.Type.EXTEND, id_length);
                     return true;
                 }
             }
-            case 'f' -> {
+            case 'f' => {
                 if ("false" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.LITERAL_FALSE, id_length);
+                    lexer->add_token(Token.Type.FALSE, id_length);
                     return true;
                 }
                 if ("fn" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.FN, id_length);
+                    lexer->add_token(Token.Type.FN, id_length);
                     return true;
                 }
                 if ("for" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.FOR, id_length);
+                    lexer->add_token(Token.Type.FOR, id_length);
                     return true;
                 }
                 if ("from" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.FROM, id_length);
+                    lexer->add_token(Token.Type.FROM, id_length);
                     return true;
                 }
             }
-            case 'i' -> {
+            case 'i' => {
                 if ("if" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.IF, id_length);
+                    lexer->add_token(Token.Type.IF, id_length);
                     return true;
                 }
                 if ("import" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.IMPORT, id_length);
+                    lexer->add_token(Token.Type.IMPORT, id_length);
                     return true;
                 }
                 if ("i64" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.I64, id_length);
+                    lexer->add_token(Token.Type.I64, id_length);
                     return true;
                 }
             }
-            case 'm' -> {
+            case 'm' => {
                 if ("mimic" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.MIMIC, id_length);
+                    lexer->add_token(Token.Type.MIMIC, id_length);
                     return true;
                 }
             }
-            case 'n' -> {
+            case 'n' => {
                 if ("none" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.NONE, id_length);
+                    lexer->add_token(Token.Type.NONE, id_length);
                     return true;
                 }
                 if ("null" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.LITERAL_NULL, id_length);
+                    lexer->add_token(Token.Type.NULL, id_length);
                     return true;
                 }
             }
-            case 'r' -> {
+            case 'r' => {
                 if ("raw" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.RAW, id_length);
+                    lexer->add_token(Token.Type.RAW, id_length);
                     return true;
                 }
                 if ("return" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.RETURN, id_length);
+                    lexer->add_token(Token.Type.RETURN, id_length);
                     return true;
                 }
             }
-            case 's' -> {
+            case 's' => {
                 if ("shared" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.SHARED, id_length);
+                    lexer->add_token(Token.Type.SHARED, id_length);
                     return true;
                 }
                 if ("switch" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.SWITCH, id_length);
+                    lexer->add_token(Token.Type.SWITCH, id_length);
                     return true;
                 }
             }
-            case 't' -> {
+            case 't' => {
                 if ("true" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.LITERAL_TRUE, id_length);
+                    lexer->add_token(Token.Type.TRUE, id_length);
                     return true;
                 }
             }
-            case 'u' -> {
+            case 'u' => {
                 if ("unpack" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.UNPACK, id_length);
+                    lexer->add_token(Token.Type.UNPACK, id_length);
                     return true;
                 }
             }
-            case 'v' -> {
+            case 'v' => {
                 if ("var" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.VAR, id_length);
+                    lexer->add_token(Token.Type.VAR, id_length);
                     return true;
                 }
             }
-            case 'w' -> {
+            case 'w' => {
                 if ("while" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer@add_token(Token.Type.WHILE, id_length);
+                    lexer->add_token(Token.Type.WHILE, id_length);
                     return true;
                 }
             }
         }
 
-        lexer@add_token(Token.Type.ID, id_length);
+        lexer->add_token(Token.Type.ID, id_length);
         return true;
     }
     
-    fn parse_operator(lexer : Lexer, next_symbol : char) -> bool {
+    fn parse_operator(lexer : Lexer, next_symbol : char) => bool {
         switch (next_symbol) {  
-            case '(' -> {
-                lexer@add_token(Token.Type.PARENTHESIS_LEFT, 1);
+            case '(' => {
+                lexer->add_token(Token.Type.PARENTHESIS_LEFT, 1);
                 return true;
             } 
-            case ')' -> {
-                lexer@add_token(Token.Type.PARENTHESIS_RIGHT, 1);
+            case ')' => {
+                lexer->add_token(Token.Type.PARENTHESIS_RIGHT, 1);
                 return true;
             } 
-            case '{' -> {
-                lexer@add_token(Token.Type.CURLY_LEFT, 1);
+            case '{' => {
+                lexer->add_token(Token.Type.CURLY_LEFT, 1);
                 return true;
             } 
-            case '}' -> {
-                lexer@add_token(Token.Type.CURLY_RIGHT, 1);
+            case '}' => {
+                lexer->add_token(Token.Type.CURLY_RIGHT, 1);
                 return true;
             } 
-            case '[' -> {
-                lexer@add_token(Token.Type.SQUARE_LEFT, 1);
+            case '[' => {
+                lexer->add_token(Token.Type.SQUARE_LEFT, 1);
                 return true;
             } 
-            case ']' -> {
-                lexer@add_token(Token.Type.SQUARE_RIGHT, 1);
+            case ']' => {
+                lexer->add_token(Token.Type.SQUARE_RIGHT, 1);
                 return true;
             } 
-            case '.' -> {
+            case '.' => {
                 
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '.') {
                     lexer.offset += 2;
-                    var third_symbol = lexer@get_symbol();
+                    var third_symbol = lexer->get_symbol();
                     lexer.offset -= 2;
 
                     if (third_symbol == '=') {
-                        lexer@add_token(Token.Type.ASSIGN_CONCAT, 3);
+                        lexer->add_token(Token.Type.ASSIGN_CONCAT, 3);
                     } else {
-                        lexer@add_token(Token.Type.CONCAT, 2);
+                        lexer->add_token(Token.Type.CONCAT, 2);
                     }
                 } else {
-                    lexer@add_token(Token.Type.DOT, 1);
+                    lexer->add_token(Token.Type.DOT, 1);
                 }
                 return true;
             } 
-            case ',' -> {
-                lexer@add_token(Token.Type.COMMA, 1);
+            case ',' => {
+                lexer->add_token(Token.Type.COMMA, 1);
                 return true;
             } 
-            case '?' -> {
-                lexer@add_token(Token.Type.QUESTION_MARK, 1);
+            case '?' => {
+                lexer->add_token(Token.Type.QUESTION_MARK, 1);
                 return true;
             } 
-            case '$' -> {
-                lexer@add_token(Token.Type.DOLLAR, 1);
+            case '$' => {
+                lexer->add_token(Token.Type.DOLLAR, 1);
                 return true;
             } 
-            case '@' -> {
-                lexer@add_token(Token.Type.AT, 1);
+            case '@' => {
+                lexer->add_token(Token.Type.AT, 1);
                 return true;
             } 
-            case ':' -> {
-                lexer@add_token(Token.Type.COLON, 1);
+            case ':' => {
+                lexer->add_token(Token.Type.COLON, 1);
                 return true;
             } 
-            case ';' -> {
-                lexer@add_token(Token.Type.TERMINATION_CHARACTER, 1);
+            case ';' => {
+                lexer->add_token(Token.Type.TERMINATION_CHARACTER, 1);
                 return true;
             } 
-            case '~' -> {
-                lexer@add_token(Token.Type.BITWISE_NOT, 1);
+            case '~' => {
+                lexer->add_token(Token.Type.BITWISE_NOT, 1);
                 return true;
             } 
-            case '=' -> {
+            case '=' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.EQUAL, 2);
+                    lexer->add_token(Token.Type.EQUAL, 2);
                 } else {
-                    lexer@add_token(Token.Type.ASSIGN, 1);
+                    lexer->add_token(Token.Type.ASSIGN, 1);
                 }
                 return true;
             } 
-            case '^' -> {
+            case '^' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_BITWISE_XOR, 2);
+                    lexer->add_token(Token.Type.ASSIGN_BITWISE_XOR, 2);
                 } else {
-                    lexer@add_token(Token.Type.BITWISE_XOR, 1);
+                    lexer->add_token(Token.Type.BITWISE_XOR, 1);
                 }
                 return true;
             } 
-            case '*' -> {
+            case '*' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_MULTIPLY, 2);
+                    lexer->add_token(Token.Type.ASSIGN_MULTIPLY, 2);
                 } else {
-                    lexer@add_token(Token.Type.MULTIPLY, 1);
+                    lexer->add_token(Token.Type.MULTIPLY, 1);
                 }
                 return true;
             } 
-            case '/' -> {
+            case '/' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_DIVIDE, 2);
+                    lexer->add_token(Token.Type.ASSIGN_DIVIDE, 2);
                 } else {
-                    lexer@add_token(Token.Type.DIVIDE, 1);
+                    lexer->add_token(Token.Type.DIVIDE, 1);
                 }
                 return true;
             } 
-            case '%' -> {
+            case '%' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_REMAINDER, 2);
+                    lexer->add_token(Token.Type.ASSIGN_REMAINDER, 2);
                 } else {
-                    lexer@add_token(Token.Type.REMAINDER, 1);
+                    lexer->add_token(Token.Type.REMAINDER, 1);
                 }
                 return true;
             } 
-            case '!' -> {
+            case '!' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.NOT_EQUAL, 2);
+                    lexer->add_token(Token.Type.NOT_EQUAL, 2);
                 } else {
-                    lexer@add_token(Token.Type.LOGICAL_NOT, 1);
+                    lexer->add_token(Token.Type.LOGICAL_NOT, 1);
                 }
                 return true;
             } 
-            case '+' -> {
+            case '+' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_PLUS, 2);
+                    lexer->add_token(Token.Type.ASSIGN_PLUS, 2);
                 } else if (second_symbol == '+') {
-                    lexer@add_token(Token.Type.INCREMENT, 2);
+                    lexer->add_token(Token.Type.INCREMENT, 2);
                 } else {
-                    lexer@add_token(Token.Type.PLUS, 1);
+                    lexer->add_token(Token.Type.PLUS, 1);
                 }
                 return true;
             } 
-            case '-' -> {
+            case '-' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_MINUS, 2);
+                    lexer->add_token(Token.Type.ASSIGN_MINUS, 2);
                 } else if (second_symbol == '-') {
-                    lexer@add_token(Token.Type.DECREMENT, 2);
+                    lexer->add_token(Token.Type.DECREMENT, 2);
                 } else if (second_symbol == '>') {
-                    lexer@add_token(Token.Type.ARROW_RIGHT, 2);
+                    lexer->add_token(Token.Type.ARROW_RIGHT, 2);
                 } else {
-                    lexer@add_token(Token.Type.MINUS, 1);
+                    lexer->add_token(Token.Type.MINUS, 1);
                 }
                 return true;
             } 
-            case '&' -> {
+            case '&' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_BITWISE_AND, 2);
+                    lexer->add_token(Token.Type.ASSIGN_BITWISE_AND, 2);
                 } else if (second_symbol == next_symbol) {
-                    lexer@add_token(Token.Type.LOGICAL_AND, 2);
+                    lexer->add_token(Token.Type.LOGICAL_AND, 2);
                 } else {
-                    lexer@add_token(Token.Type.BITWISE_AND, 1);
+                    lexer->add_token(Token.Type.BITWISE_AND, 1);
                 }
                 return true;
             } 
-            case '|' -> {
+            case '|' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.ASSIGN_BITWISE_OR, 2);
+                    lexer->add_token(Token.Type.ASSIGN_BITWISE_OR, 2);
                 } else if (second_symbol == next_symbol) {
-                    lexer@add_token(Token.Type.LOGICAL_OR, 2);
+                    lexer->add_token(Token.Type.LOGICAL_OR, 2);
                 } else {
-                    lexer@add_token(Token.Type.BITWISE_OR, 1);
+                    lexer->add_token(Token.Type.BITWISE_OR, 1);
                 }
                 return true;
             } 
-            case '<' -> {
+            case '<' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.LESS_OR_EQUAL, 2);
+                    lexer->add_token(Token.Type.LESS_OR_EQUAL, 2);
                 } else if (second_symbol == next_symbol) {
                     lexer.offset += 2;
-                    var third_symbol = lexer@get_symbol();
+                    var third_symbol = lexer->get_symbol();
                     lexer.offset -= 2;
 
                     if (third_symbol == '=') {
-                        lexer@add_token(Token.Type.ASSIGN_BITWISE_SHIFT_LEFT, 3);
+                        lexer->add_token(Token.Type.ASSIGN_BITWISE_SHIFT_LEFT, 3);
                     } else {
-                        lexer@add_token(Token.Type.BITWISE_SHIFT_LEFT, 2);
+                        lexer->add_token(Token.Type.BITWISE_SHIFT_LEFT, 2);
                     }
                 } else {
-                    lexer@add_token(Token.Type.LESS, 1);
+                    lexer->add_token(Token.Type.LESS, 1);
                 }
                 return true;
             } 
-            case '>' -> {
+            case '>' => {
                 lexer.offset += 1;
-                var second_symbol = lexer@get_symbol();
+                var second_symbol = lexer->get_symbol();
                 lexer.offset -= 1;
                 
                 if (second_symbol == '=') {
-                    lexer@add_token(Token.Type.GREATER_OR_EQUAL, 2);
+                    lexer->add_token(Token.Type.GREATER_OR_EQUAL, 2);
                 } else if (second_symbol == next_symbol) {
                     lexer.offset += 2;
-                    var third_symbol = lexer@get_symbol();
+                    var third_symbol = lexer->get_symbol();
                     lexer.offset -= 2;
 
                     if (third_symbol == '=') {
-                        lexer@add_token(Token.Type.ASSIGN_BITWISE_SHIFT_RIGHT, 3);
+                        lexer->add_token(Token.Type.ASSIGN_BITWISE_SHIFT_RIGHT, 3);
                     } else {
-                        lexer@add_token(Token.Type.BITWISE_SHIFT_RIGHT, 2);
+                        lexer->add_token(Token.Type.BITWISE_SHIFT_RIGHT, 2);
                     }
                 } else {
-                    lexer@add_token(Token.Type.GREATER, 1);
+                    lexer->add_token(Token.Type.GREATER, 1);
                 }
                 return true;
             } 
-            default -> return false;
+            default => return false;
         }
     }
     
@@ -676,18 +676,18 @@ export class Lexer {
         lexer.filename = filename;
         lexer.source = source;
         lexer.offset = 0;
-        lexer.tokens@clear();
-        lexer.lines_offsets@clear();
+        lexer.tokens->clear();
+        lexer.lines_offsets->clear();
         lexer.lines_offsets ..= 0;
 
         while (true) {
-            var next_symbol = lexer@get_symbol();
+            var next_symbol = lexer->get_symbol();
 
             if (next_symbol == '\0') {
                 break;
             }
 
-            if (lexer@parse_next_line(next_symbol)) {
+            if (lexer->parse_next_line(next_symbol)) {
                 continue;
             }
 
@@ -696,27 +696,27 @@ export class Lexer {
                 continue;
             }
 
-            if (lexer@parse_comments(next_symbol)) {
+            if (lexer->parse_comments(next_symbol)) {
                 continue;
             }
 
-            if (lexer@parse_literal_char(next_symbol)) {
+            if (lexer->parse_literal_char(next_symbol)) {
                 continue;
             }
 
-            if (lexer@parse_literal_string(next_symbol)) {
+            if (lexer->parse_literal_string(next_symbol)) {
                 continue;
             }
 
-            if (lexer@parse_literal_integer(next_symbol)) {
+            if (lexer->parse_literal_integer(next_symbol)) {
                 continue;
             }
 
-            if (lexer@parse_id(next_symbol)) {
+            if (lexer->parse_id(next_symbol)) {
                 continue;
             }
 
-            if (lexer@parse_operator(next_symbol)) {
+            if (lexer->parse_operator(next_symbol)) {
                 continue;
             }
 
@@ -724,10 +724,10 @@ export class Lexer {
             break;
         }
 
-        lexer@add_token(Token.Type.EOF, 0);
+        lexer->add_token(Token.Type.EOF, 0);
     }
 
-    export fn construct_log_info(lexer : Lexer) -> LogAccum.LogInfo {
+    export fn construct_log_info(lexer : Lexer) => LogAccum.LogInfo {
         var info = LogAccum.LogInfo();
         info.lines_offsets = lexer.lines_offsets;
         info.filename = lexer.filename;
@@ -736,8 +736,8 @@ export class Lexer {
     }
 
     fn error(lexer : Lexer, offset: u32, length: u32, message: str) {
-        lexer.log_accum@error(
-            lexer@construct_log_info(),
+        lexer.log_accum->error(
+            lexer->construct_log_info(),
             FilePointer.construct(offset, offset, length),
             message 
         );
@@ -750,7 +750,7 @@ export class TokenIterator {
     var tokens : Token[];
     var index : Index;
 
-    export fn construct(lexer: Lexer) -> TokenIterator {
+    export fn construct(lexer: Lexer) => TokenIterator {
         var self = TokenIterator();
         self.tokens = lexer.tokens;
         self.index = 0;
@@ -761,7 +761,7 @@ export class TokenIterator {
         self.index += 1;
     }
 
-    export fn current(self: TokenIterator, offset : u64) -> Token {
+    export fn current(self: TokenIterator, offset : u64) => Token {
         var index = self.index - offset;
         if (index >= self.tokens.size) {
             var token = Token();
@@ -773,7 +773,7 @@ export class TokenIterator {
         return self.tokens[index];
     }
 
-    export fn mark(self: TokenIterator) -> Index {
+    export fn mark(self: TokenIterator) => Index {
         return self.index;
     }
 

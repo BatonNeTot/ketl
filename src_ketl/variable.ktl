@@ -1,0 +1,8 @@
+//🫖ketl
+
+from type import Type
+
+export class VariableDecl {
+    var type : Type;
+    var name : str;
+}
