@@ -1269,7 +1269,11 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
 static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir_var_id_t var_id) {
     ketl_type* p_type = NULL;
     if (token_match(p_context, KETL_TOKEN_TYPE_SQUARE_RIGHT)) {
-        ANN_ASSERT(GET_VAR(var_id).type == KETL_HIR_USED_TYPE_META);
+        if (GET_VAR(var_id).type != KETL_HIR_USED_TYPE_META) {
+            ketl_hir_expr_info_t expr_info = expr_info_merge(GET_VAR(var_id).expr_info, token_extract_info(CURRENT_TOKEN(1)));
+            errorf(expr_info.source_offset, expr_info.length, "Unsupported target for empty index operator.");
+            return push_temp_var(p_context, expr_info);
+        }
         ketl_namespace_node* p_node_type = ketl_namespace_find_by_index(
             get_var_info(p_context, GET_VAR(var_id).info)->p_namespace,
             get_var_info(p_context, GET_VAR(var_id).info)->namespace_node_index
@@ -1663,22 +1667,19 @@ static bool dummy_parse_bracket(ketl_token_type token_type, ketl_parser_bracket_
                 return false;
             }
             bracket = p_brackets_stack[--(*bracket_stack_count)];
-            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_PARENTHESIS);
-            return true;
+            return (bracket == KETL_PARSER_BRACKET_PARENTHESIS);
         case KETL_TOKEN_TYPE_CURLY_RIGHT:
             if (*bracket_stack_count <= 0) {
                 return false;
             }
             bracket = p_brackets_stack[--(*bracket_stack_count)];
-            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_CURLY);
-            return true;
+            return (bracket == KETL_PARSER_BRACKET_CURLY);
         case KETL_TOKEN_TYPE_SQUARE_RIGHT:
             if (*bracket_stack_count <= 0) {
                 return false;
             }
             bracket = p_brackets_stack[--(*bracket_stack_count)];
-            ANN_ASSERT(bracket == KETL_PARSER_BRACKET_SQUARE);
-            return true;
+            return (bracket == KETL_PARSER_BRACKET_SQUARE);
     }
     return false;
 }
@@ -1940,10 +1941,13 @@ static ketl_statement_info parse_for_statement(ketl_parser_context* p_context) {
         var_type = parse_type_as_index(p_context);
     }
 
-    token_consume(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, "Expected '=>' after 'var' declaration.");
+    token_consume(p_context, KETL_TOKEN_TYPE_ARROW_LEFT, "Expected '<-' after 'var' declaration.");
     ketl_hir_var_id_t array_var = parse_expression(p_context);
 
-    ANN_ASSERT(GET_VAR(array_var).type < KETL_HIR_USED_TYPE_LAST);
+    if (GET_VAR(array_var).type >= KETL_HIR_USED_TYPE_LAST) {
+        return (ketl_statement_info){ .return_info = KETL_RETURN_NONE };
+    }
+
     ketl_type* p_array_type = GET_TYPE(GET_VAR(array_var).type);
     ANN_ASSERT(p_array_type->kind == KETL_TYPE_ARRAY);
 
@@ -2519,72 +2523,8 @@ static ketl_statement_info parse_mimic_declaration(ketl_parser_context* p_contex
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
-static ketl_statement_info parse_export_declaration(ketl_parser_context* p_context) {
-    ketl_token_t literal = CURRENT_TOKEN(0);
-    token_advance(p_context);
-    if (p_context->export) {
-        // TODO do warning instead
-        errorf(literal.offset, literal.length, "Redundant 'export' keyword.");
-    }
-
-    p_context->export = true;
-
-    ketl_statement_info info;
-    switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_IMPORT :
-        case KETL_TOKEN_TYPE_FROM   :
-        case KETL_TOKEN_TYPE_CIMPORT:
-        case KETL_TOKEN_TYPE_VAR    :
-        case KETL_TOKEN_TYPE_FN     :
-        case KETL_TOKEN_TYPE_CLASS  :
-        case KETL_TOKEN_TYPE_ENUM   :
-        case KETL_TOKEN_TYPE_MIMIC  : 
-        case KETL_TOKEN_TYPE_EXPORT :
-        case KETL_TOKEN_TYPE_CEXPORT: info = parse_declaration(p_context); break;
-        default:
-            // TODO do warning instead?
-            errorf(literal.offset, literal.length, "Expected declaration after 'export'.");
-            p_context->export = false;
-            return parse_statement(p_context);
-    }
-    p_context->export = false;
-    return info;
-}
-
-static ketl_statement_info parse_cexport_declaration(ketl_parser_context* p_context) {
-    ketl_token_t literal = CURRENT_TOKEN(0);
-    token_advance(p_context);
-    if (p_context->cexport) {
-        // TODO do warning instead
-        errorf(literal.offset, literal.length, "Redundant 'cexport' keyword.");
-    }
-
-    p_context->cexport = true;
-
-    ketl_statement_info info;
-    switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_IMPORT :
-        case KETL_TOKEN_TYPE_FROM   :
-        case KETL_TOKEN_TYPE_CIMPORT:
-        case KETL_TOKEN_TYPE_VAR    :
-        case KETL_TOKEN_TYPE_FN     :
-        case KETL_TOKEN_TYPE_CLASS  :
-        case KETL_TOKEN_TYPE_ENUM   :
-        case KETL_TOKEN_TYPE_MIMIC  : 
-        case KETL_TOKEN_TYPE_EXPORT :
-        case KETL_TOKEN_TYPE_CEXPORT: info = parse_declaration(p_context); break;
-        default:
-            // TODO do warning instead?
-            errorf(literal.offset, literal.length, "Expected declaration after 'cexport'.");
-            p_context->cexport = false;
-            return parse_statement(p_context);
-    }
-    p_context->cexport = false;
-    return info;
-}
-
 static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_named_variable_type_info_t* p_class_fields, uint32_t* p_class_field_count) {
-    switch (CURRENT_TOKEN(0).type) {
+    ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
         case KETL_TOKEN_TYPE_VAR    : {
             token_advance(p_context); // var
             ketl_token_t field_literal = CURRENT_TOKEN(0);
@@ -2599,11 +2539,11 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
             token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
             ++(*p_class_field_count);
-            break;
+            return;
         }
         case KETL_TOKEN_TYPE_SHARED: {
             parse_var_declaration(p_context);
-            break;
+            return;
         }
         case KETL_TOKEN_TYPE_EXTEND: {
             token_advance(p_context); // extend
@@ -2612,45 +2552,89 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
             token_consume(p_context, KETL_TOKEN_TYPE_TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
             ++(*p_class_field_count);
-            break;
+            return;
         }
-        case KETL_TOKEN_TYPE_CIMPORT: parse_cimport_declaration (p_context); break;
-        case KETL_TOKEN_TYPE_FN     : parse_function_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_CLASS  : parse_class_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_ENUM   : parse_enum_declaration    (p_context); break;
-        case KETL_TOKEN_TYPE_MIMIC  : parse_mimic_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_EXPORT : parse_export_declaration  (p_context); break;
-        case KETL_TOKEN_TYPE_CEXPORT: parse_cexport_declaration (p_context); break;
+        case KETL_TOKEN_TYPE_CIMPORT: parse_cimport_declaration (p_context); return;
+        case KETL_TOKEN_TYPE_FN     : parse_function_declaration(p_context); return;
+        case KETL_TOKEN_TYPE_CLASS  : parse_class_declaration   (p_context); return;
+        case KETL_TOKEN_TYPE_ENUM   : parse_enum_declaration    (p_context); return;
+        case KETL_TOKEN_TYPE_MIMIC  : parse_mimic_declaration   (p_context); return;
+        case KETL_TOKEN_TYPE_EXPORT : {
+            token_advance(p_context);
+            if (p_context->export) {
+                ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
+                errorf(expr_info.source_offset, expr_info.length, "Excessive 'export' operator.");
+                continue;
+            }
+            p_context->export = true;
+            parse_class_declaration_inner(p_context, p_class_fields, p_class_field_count);
+            p_context->export = false;
+            return;
+        }
+        case KETL_TOKEN_TYPE_CEXPORT: {
+            token_advance(p_context);
+            if (p_context->cexport) {
+                ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
+                errorf(expr_info.source_offset, expr_info.length, "Excessive 'cexport' operator.");
+                continue;
+            }
+            p_context->cexport = true;
+            parse_class_declaration_inner(p_context, p_class_fields, p_class_field_count);
+            p_context->cexport = false;
+            return;
+        }
         case KETL_TOKEN_TYPE_IMPORT : 
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
             parse_import(p_context);
-            break;
+            return;
         case KETL_TOKEN_TYPE_FROM   : 
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
             parse_from_import(p_context);
-            break;
+            return;
         default: 
             errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "Statements are not supported inside class declaration.");
             parse_statement(p_context);
-            break;
+            return;
     }
 }
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
-    switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_IMPORT : return parse_import              (p_context); break;
-        case KETL_TOKEN_TYPE_FROM   : return parse_from_import         (p_context); break;
-        case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context); break;
-        case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context); break;
+    ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
+        case KETL_TOKEN_TYPE_IMPORT : return parse_import              (p_context);
+        case KETL_TOKEN_TYPE_FROM   : return parse_from_import         (p_context);
+        case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context);
+        case KETL_TOKEN_TYPE_VAR    : return parse_var_declaration     (p_context);
         case KETL_TOKEN_TYPE_SHARED : errorf(token_extract_info(CURRENT_TOKEN(0)).source_offset, token_extract_info(CURRENT_TOKEN(0)).length, "Can't use 'shared' outside class declaration.");
-                                      return parse_var_declaration     (p_context); break;
-        case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context); break;
-        case KETL_TOKEN_TYPE_CLASS  : return parse_class_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_ENUM   : return parse_enum_declaration    (p_context); break;
-        case KETL_TOKEN_TYPE_MIMIC  : return parse_mimic_declaration   (p_context); break;
-        case KETL_TOKEN_TYPE_EXPORT : return parse_export_declaration  (p_context); break;
-        case KETL_TOKEN_TYPE_CEXPORT: return parse_cexport_declaration (p_context); break;
-        default                     : return parse_statement           (p_context); break;
+                                      return parse_var_declaration     (p_context);
+        case KETL_TOKEN_TYPE_FN     : return parse_function_declaration(p_context);
+        case KETL_TOKEN_TYPE_CLASS  : return parse_class_declaration   (p_context);
+        case KETL_TOKEN_TYPE_ENUM   : return parse_enum_declaration    (p_context);
+        case KETL_TOKEN_TYPE_MIMIC  : return parse_mimic_declaration   (p_context);
+        case KETL_TOKEN_TYPE_EXPORT : {
+            token_advance(p_context);
+            if (p_context->export) {
+                ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
+                errorf(expr_info.source_offset, expr_info.length, "Excessive 'export' operator.");
+                continue;
+            }
+            p_context->export = true;
+            ketl_statement_info result = parse_declaration(p_context);
+            p_context->export = false;
+            return result;
+        }
+        case KETL_TOKEN_TYPE_CEXPORT: {
+            token_advance(p_context);
+            if (p_context->cexport) {
+                ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
+                errorf(expr_info.source_offset, expr_info.length, "Excessive 'cexport' operator.");
+                continue;
+            }
+            p_context->cexport = true;
+            ketl_statement_info result = parse_declaration(p_context);
+            p_context->cexport = false;
+            return result;
+        }
+        default                     : return parse_statement           (p_context);
     }
 }
 

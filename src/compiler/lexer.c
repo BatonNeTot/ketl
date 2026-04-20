@@ -604,6 +604,8 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         
         if (second_symbol == '=') {
             ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_LESS_OR_EQUAL, 2);
+        } else if (second_symbol == '-') {
+            ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_ARROW_LEFT, 2);
         } else if (second_symbol == next_symbol) {
             p_lexer->offset += 2;
             char third_symbol = ketl_lexer_get_symbol(p_lexer);

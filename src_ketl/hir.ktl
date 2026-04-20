@@ -11,52 +11,18 @@ export class HIR {
 
         LOGICAL_NOT,
 
-        PLUS_8,
-        PLUS_16,
-        PLUS_32,
-        PLUS_64,
+        PLUS,
+        MINUS,
 
-        MINUS_8,
-        MINUS_16,
-        MINUS_32,
-        MINUS_64,
+        MULTY,
+        IMULTY,
+        DIVIDE,
+        IDIVIDE,
+        MOD,
+        IMOD,
 
-        MULTY_8,
-        MULTY_16,
-        MULTY_32,
-        MULTY_64,
-        IMULTY_8,
-        IMULTY_16,
-        IMULTY_32,
-        IMULTY_64,
-
-        DIVIDE_8,
-        DIVIDE_16,
-        DIVIDE_32,
-        DIVIDE_64,
-        IDIVIDE_8,
-        IDIVIDE_16,
-        IDIVIDE_32,
-        IDIVIDE_64,
-
-        MOD_8,
-        MOD_16,
-        MOD_32,
-        MOD_64,
-        IMOD_8,
-        IMOD_16,
-        IMOD_32,
-        IMOD_64,
-
-        COMPARE_8,
-        COMPARE_16,
-        COMPARE_32,
-        COMPARE_64,
-
-        TEST_8,
-        TEST_16,
-        TEST_32,
-        TEST_64,
+        COMPARE,
+        TEST,
 
         EQUAL,
         NOT_EQUAL,
@@ -69,10 +35,7 @@ export class HIR {
         GREATER_OR_EQUAL,
         IGREATER_OR_EQUAL,
 
-        ASSIGN_8,
-        ASSIGN_16,
-        ASSIGN_32,
-        ASSIGN_64,
+        ASSIGN,
 
         CALL_VOID,
         CALL,
@@ -100,10 +63,7 @@ export class HIR {
         JUMP_IF_IGREATER_OR_EQAUL,
 
         RETURN,
-        RETURN_VALUE_8,
-        RETURN_VALUE_16,
-        RETURN_VALUE_32,
-        RETURN_VALUE_64,
+        RETURN_VALUE,
     }
 
     export fn is_terminator(tag : Tag) => bool {
@@ -239,7 +199,7 @@ export class HIR {
 
         var kind : Kind;
         var type : Type;
-        var expr_info : SrcInfo;
+        var src_info : SrcInfo;
     }
 
     export class VarCommon {

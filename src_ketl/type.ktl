@@ -21,6 +21,18 @@ export class Type {
         Size16Byte,
     }
 
+    export fn find_align(align: u8) => Align {
+        switch (align) {
+            case 1 =>  return Align.Size1Byte;
+            case 2 =>  return Align.Size2Byte;
+            case 4 =>  return Align.Size4Byte;
+            case 8 =>  return Align.Size8Byte;
+            case 16 => return Align.Size16Byte;
+        }
+        assert(false);
+        return Align.Size1Byte;
+    }
+ 
     var kind : Kind;
     var align : Align;
     var size : u16;
@@ -54,6 +66,20 @@ export class TypePrimitive {
     var is_integer: bool;
     var is_signed: bool;
     var is_numeric: bool;
+
+    fn construct(size: u8, name: str, is_integer: bool, is_signed: bool, is_numeric: bool) => TypePrimitive {
+        var self = TypePrimitive();
+
+        self.kind = Kind.Primitive;
+        self.align = find_align(size);
+        self.size = size;
+        self.name = name;
+        self.is_integer = is_integer;
+        self.is_signed = is_signed;
+        self.is_numeric = is_numeric;
+
+        return self;
+    }
 }
 
 export class TypeEnum {
@@ -80,4 +106,45 @@ export class TypeArray {
 
     extend Type;
     var value : Type;
+}
+
+class Types {
+
+    var type_void: TypePrimitive;
+    var type_bool: TypePrimitive;
+    var type_char: TypePrimitive;
+    var type_raw: TypePrimitive;
+
+    var type_i8: TypePrimitive;
+    var type_i16: TypePrimitive;
+    var type_i32: TypePrimitive;
+    var type_i64: TypePrimitive;
+    
+    var type_u8: TypePrimitive;
+    var type_u16: TypePrimitive;
+    var type_u32: TypePrimitive;
+    var type_u64: TypePrimitive;
+
+    fn construct() => Types {
+        var self = Types();
+
+        self.type_void = TypePrimitive.construct(0, "void", false, false, false);
+        self.type_bool = TypePrimitive.construct(1, "bool", false, false, false);
+        self.type_char = TypePrimitive.construct(1, "char", true,  false, false);
+        self.type_raw  = TypePrimitive.construct(8, "raw",  false, false, false);
+
+        self.type_i8   = TypePrimitive.construct(1, "i8",   true,  true,  true);
+        self.type_i16  = TypePrimitive.construct(2, "i16",  true,  true,  true);
+        self.type_i32  = TypePrimitive.construct(4, "i32",  true,  true,  true);
+        self.type_i64  = TypePrimitive.construct(8, "i64",  true,  true,  true);
+        
+        self.type_u8   = TypePrimitive.construct(1, "u8",   true,  false, true);
+        self.type_u16  = TypePrimitive.construct(2, "u16",  true,  false, true);
+        self.type_u32  = TypePrimitive.construct(4, "u32",  true,  false, true);
+        self.type_u64  = TypePrimitive.construct(8, "u64",  true,  false, true);
+
+        return self;
+    }
+
+    export shared singltone = Types.construct(); 
 }

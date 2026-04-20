@@ -235,10 +235,10 @@ class Parser {
         var rhs = context->parse_precedence(Precedence.Call);
 
         switch (token_type) {
-            //case KETL_TOKEN_TYPE_LOGICAL_NOT => return context->push_hir_unary_op(KETL_HIR_LOGICAL_NOT, rhs, HIR.SrcInfo.construct_token(token));
+            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(KETL_HIR_LOGICAL_NOT, rhs, HIR.SrcInfo.construct_token(token));
 
-            //case KETL_TOKEN_TYPE_PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.construct_token(token));
-            //case KETL_TOKEN_TYPE_MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.construct_token(token));
+            //case Token.Type.PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.construct_token(token));
+            //case Token.Type.MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.construct_token(token));
         }
     }
 
@@ -246,47 +246,50 @@ class Parser {
         var token_type = context->current_token(1).type;
         var parse_rule = token_type->get_parse_rule();
         var rhs = context->parse_precedence(parse_rule.precedence + 1);
-        var expr_info = HIR.SrcInfo.construct_merge(context->get_var(lhs).expr_info, context->get_var(rhs).expr_info);
+        var src_info = HIR.SrcInfo.construct_merge(context->get_var(lhs).src_info, context->get_var(rhs).src_info);
 
         switch (token_type) {
-            //case KETL_TOKEN_TYPE_PLUS            => return context.hir_builder->push_hir_binary_op(p_context, KETL_HIR_PLUS,             lhs, rhs, expr_info);
-            //case KETL_TOKEN_TYPE_MINUS           => return context.hir_builder->push_hir_binary_op(p_context, KETL_HIR_MINUS,            lhs, rhs, expr_info);
-            //case KETL_TOKEN_TYPE_MULTIPLY:         return push_hir_binary_op(p_context, KETL_HIR_MULTY,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_DIVIDE:           return push_hir_binary_op(p_context, KETL_HIR_DIV,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_REMAINDER:        return push_hir_binary_op(p_context, KETL_HIR_MOD,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            case Token.Type.PLUS            => return context.hir_builder->push_binary_op(HIR.Tag.PLUS,             lhs, rhs, src_info);
+            case Token.Type.MINUS           => return context.hir_builder->push_binary_op(HIR.Tag.MINUS,            lhs, rhs, src_info);
+            //case Token.Type.MULTIPLY:         return push_hir_binary_op(p_context, KETL_HIR_MULTY,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.DIVIDE:           return push_hir_binary_op(p_context, KETL_HIR_DIV,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.REMAINDER:        return push_hir_binary_op(p_context, KETL_HIR_MOD,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
         
-            //case KETL_TOKEN_TYPE_CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
-            //case KETL_TOKEN_TYPE_LESS:             return push_hir_binary_op(p_context, KETL_HIR_LESS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_LESS_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_GREATER:          return push_hir_binary_op(p_context, KETL_HIR_GREATER,          lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_GREATER_OR_EQUAL: return push_hir_binary_op(p_context, KETL_HIR_GREATER_OR_EQUAL, lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_EQUAL:            return push_hir_binary_op(p_context, KETL_HIR_EQUAL,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_NOT_EQUAL:        return push_hir_binary_op(p_context, KETL_HIR_NOT_EQUAL,        lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.LESS:             return push_hir_binary_op(p_context, KETL_HIR_LESS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.LESS_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.GREATER:          return push_hir_binary_op(p_context, KETL_HIR_GREATER,          lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.GREATER_OR_EQUAL: return push_hir_binary_op(p_context, KETL_HIR_GREATER_OR_EQUAL, lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.EQUAL:            return push_hir_binary_op(p_context, KETL_HIR_EQUAL,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.NOT_EQUAL:        return push_hir_binary_op(p_context, KETL_HIR_NOT_EQUAL,        lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
-            //case KETL_TOKEN_TYPE_BITWISE_AND:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_AND,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_BITWISE_OR:       return push_hir_binary_op(p_context, KETL_HIR_BITWISE_OR,       lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case KETL_TOKEN_TYPE_BITWISE_XOR:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_XOR,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.BITWISE_AND:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_AND,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.BITWISE_OR:       return push_hir_binary_op(p_context, KETL_HIR_BITWISE_OR,       lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.BITWISE_XOR:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_XOR,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
         }
+
+        assert(false);
+        return (-1)$cast(HIR.VarId);
     }
 
     fn parse_binary_rtl(context: Context, lhs: HIR.VarId, rhs: HIR.VarId) => HIR.VarId {
         var token_type = context->current_token(1).type;
 
         switch (token_type) {
-            //case KETL_TOKEN_TYPE_ASSIGN            : return push_hir_assign(p_context, KETL_HIR_ASSIGN, lhs, rhs);
+            //case Token.Type.ASSIGN            : return push_hir_assign(p_context, KETL_HIR_ASSIGN, lhs, rhs);
 
-            //case KETL_TOKEN_TYPE_ASSIGN_PLUS       : return push_hir_assign(p_context, KETL_HIR_ASSIGN_PLUS, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_MINUS      : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MINUS, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_MULTIPLY   : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MULTY, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_DIVIDE     : return push_hir_assign(p_context, KETL_HIR_ASSIGN_DIV, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_REMAINDER  : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MOD, lhs, rhs);
+            //case Token.Type.ASSIGN_PLUS       : return push_hir_assign(p_context, KETL_HIR_ASSIGN_PLUS, lhs, rhs);
+            //case Token.Type.ASSIGN_MINUS      : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MINUS, lhs, rhs);
+            //case Token.Type.ASSIGN_MULTIPLY   : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MULTY, lhs, rhs);
+            //case Token.Type.ASSIGN_DIVIDE     : return push_hir_assign(p_context, KETL_HIR_ASSIGN_DIV, lhs, rhs);
+            //case Token.Type.ASSIGN_REMAINDER  : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MOD, lhs, rhs);
 
-            //case KETL_TOKEN_TYPE_ASSIGN_BITWISE_AND: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_AND, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_BITWISE_OR : return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_OR, lhs, rhs);
-            //case KETL_TOKEN_TYPE_ASSIGN_BITWISE_XOR: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_XOR, lhs, rhs);
+            //case Token.Type.ASSIGN_BITWISE_AND: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_AND, lhs, rhs);
+            //case Token.Type.ASSIGN_BITWISE_OR : return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_OR, lhs, rhs);
+            //case Token.Type.ASSIGN_BITWISE_XOR: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_XOR, lhs, rhs);
 
-            //case KETL_TOKEN_TYPE_ASSIGN_CONCAT     : return push_append    (p_context, lhs, rhs);
+            //case Token.Type.ASSIGN_CONCAT     : return push_append    (p_context, lhs, rhs);
         }
     }
     
@@ -404,7 +407,7 @@ class Parser {
         var name_literal = context->current_token(0);
         context->token_advance(); // entity id
 
-        var expr_info = HIR.SrcInfo.construct_merge(
+        var src_info = HIR.SrcInfo.construct_merge(
             start_expr_info,
             HIR.SrcInfo.construct_token(context->current_token(1)));
 
@@ -458,7 +461,7 @@ class Parser {
             context->token_advance(); // module id
         }
 
-        var expr_info = HIR.SrcInfo.construct_merge(
+        var src_info = HIR.SrcInfo.construct_merge(
             start_expr_info,
             HIR.SrcInfo.construct_token(context->current_token(1)));
 
@@ -584,7 +587,7 @@ class Parser {
         context.hir_builder.consts_infos = HIR.Const[0];
         context.hir_builder.consts = u8[0];
 
-        for (var parameter => parameters) {
+        for (var parameter <- parameters) {
             // TODO
         }
 

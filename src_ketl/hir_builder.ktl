@@ -4,6 +4,7 @@ from common import FilePointer
 from common import LogAccum
 
 from type import Type;
+from type import Types;
 
 from hir import HIR;
 
@@ -28,25 +29,45 @@ class HIRBuilder {
         );
     }
 
+    fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
+        return Types.singltone.type_i64;
+    }
+
     export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag, src_info: HIR.SrcInfo) {
         var instr = HIR.Instr();
         instr.tag = tag;
         instr.src_info = src_info;
         self.blocks[self.current_block] ..= instr;
     }
+    
+    export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        // TODO casting
+
+        // TODO do deducing
+        var type = self->get_type(lhs);
+
+        var instr = HIR.BinaryOp();
+        instr.tag = tag;
+        instr.src_info = src_info;
+        instr.output = self->push_temp_var_of_type(src_info, type);
+        instr.lhs = lhs;
+        instr.rhs = rhs;
+        self.blocks[self.current_block] ..= instr;
+
+        return instr.output;
+    }
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
         // TODO casting
 
         var instr = HIR.ReturnValue();
-        // TODO fix
-        instr.tag = HIR.Tag.RETURN_VALUE_64;
+        instr.tag = HIR.Tag.RETURN_VALUE;
         instr.src_info = src_info;
         instr.value = var_id;
         self.blocks[self.current_block] ..= instr;
     }
 
-    export fn push_temp_var_of_type(self: HIRBuilder, expr_info: HIR.SrcInfo, type: Type) => HIR.VarId {
+    export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
         var temp_info_id = self.vars_infos.size$cast(HIR.VarInfoId);
         var temp_info = HIR.VarInfo();
         temp_info.name = "tmp" .. self.temp_counter$cast(str);
@@ -55,22 +76,22 @@ class HIRBuilder {
         var temp_var = HIR.VarCommon();
         temp_var.kind = HIR.Var.Kind.Regular;
         temp_var.type = type;
-        temp_var.expr_info = expr_info;
+        temp_var.src_info = src_info;
         temp_var.info = temp_info_id;
 
         return temp_var_id;
     }
 
-    export fn push_temp_var(self: HIRBuilder, expr_info: HIR.SrcInfo) => HIR.VarId {
-        return self->push_temp_var_of_type(expr_info, null);
+    export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_temp_var_of_type(src_info, null);
     }
 
-    export fn push_literal_number(self: HIRBuilder, value: u64, expr_info: HIR.SrcInfo) => HIR.VarId {
+    export fn push_literal_number(self: HIRBuilder, value: u64, src_info: HIR.SrcInfo) => HIR.VarId {
         var literal_var_id = self.vars.size$cast(HIR.VarId);
         var literal_var = HIR.VarLiteral();
         literal_var.kind = HIR.Var.Kind.Literal;
         literal_var.type = null;
-        literal_var.expr_info = expr_info;
+        literal_var.src_info = src_info;
         literal_var.value = value;
 
         return literal_var_id;
