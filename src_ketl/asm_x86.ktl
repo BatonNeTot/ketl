@@ -4,6 +4,12 @@ from hir import HIR
 
 export class ASMX86 {
 
+    enum ABI: u8 {
+        WINDOWS,
+        // TODO SYSTEM_V,
+        DEFAULT,
+    }
+
     export enum Tag: u8 {
         LABEL,
         DIRECTIVE,
@@ -125,15 +131,123 @@ export class ASMX86 {
         var opcode_offset: u64;
     }
 
+    var instrs: Instr[];
+
+    shared parameters_regs = Reg[][ABI$count] {
+        Reg[4]{
+            Reg.CX,
+            Reg.DX,
+            Reg.R8,
+            Reg.R9,
+        },
+        Reg[6]{
+            Reg.DI,
+            Reg.SI,
+            Reg.DX,
+            Reg.CX,
+            Reg.R8,
+            Reg.R9,
+        },
+    };
+
     export class Builder {
-        export fn construct() => Builder {
+
+        class ArgInfo {
+            var stack_offset: u32;
+            var name: str;
+
+            export fn construct(stack_offset: u32, name: str) => ArgInfo {
+                var self = ArgInfo();
+
+                self.stack_offset = stack_offset;
+                self.name = name;
+
+                return self;
+            }
+        };
+
+        var instrs: Instr[];
+        var hir: HIR;
+        var abi: ABI;
+        
+        export fn construct(abi: ABI) => Builder {
             var self = Builder();
+
+            self.abi = abi;
+            if (abi == ABI.DEFAULT) {
+                // TODO actually deduce from the system
+                abi = ABI.WINDOWS;
+            }
 
             return self;
         }
 
         export fn build(self: Builder, hir: HIR) => ASMX86 {
-            return ASMX86();
+            self.instrs = Instr[0];
+            self.hir = hir;
+
+            var stack_reserved_size: u32;
+
+            assert(self.abi == ABI.WINDOWS);
+            {
+                if (self.hir.max_call_arg_count != (-1)$cast(u8) && self.hir.max_call_arg_count > 0) {
+                    var parameters_needed = parameters_regs[self.abi].size;
+                    if (parameters_needed < self.hir.max_call_arg_count) {
+                        parameters_needed = self.hir.max_call_arg_count;
+                    }
+                    stack_reserved_size = self.hir.max_call_arg_count * raw$size; // size of reg parameters, has to be preallocated
+                }
+            }
+
+            for (var varr <- self.hir.vars[self.hir.parameters_count:self.hir.vars.size]) {
+                if (varr.kind != HIR.Var.Kind.Regular &&
+                    varr.kind != HIR.Var.Kind.Field) {
+                    continue;
+                }
+
+                if (varr.kind == HIR.Var.Kind.Field) {
+                    assert(false);
+                    // TODO
+                    /*
+                    ketl_hir_var_id_t object_id = p_hir->p_vars_infos[var.info].parent_id;
+                    ketl_hir_var_t object = p_hir->p_vars[object_id];
+
+                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name);
+
+                    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
+                    ketl_asm_x86_offset_t field_offset = ketl_type_get_field_offset(p_hir->p_used_types[object.type], s_field_name, p_builder->p_state);
+
+                    ketl_asm_x86_arg_info_t arg_info = {
+                        .stack_offset = field_offset,
+                        .s_name = s_field_name,
+                    };
+
+                    ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var.info, arg_info);
+                    */
+                }
+
+                var var_common = varr$cast(HIR.VarCommon);
+                var var_info_index = var_common.info;
+                var var_info = self.hir.vars_infos[var_info_index];
+
+                // local or temporary variable
+                var arg_info = ArgInfo.construct(stack_reserved_size, var_info.name);
+
+
+                // TODO
+                /*
+                ketl_asm_x86_variables_t_bucket* p_bucket = ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var_info_index, arg_info);
+                ANN_ASSERT(var.info != KETL_HIR_VAR_INFO_TEMP || p_bucket->value.stack_offset == arg_info.stack_offset);
+                if (p_bucket->value.stack_offset == arg_info.stack_offset) {
+                    // TODO FIX take into account type size and alignment
+                    stack_reserved_size += sizeof(int64_t);
+                }
+                */
+            }
+
+            var asm = ASMX86();
+            asm.instrs = self.instrs;
+            return asm;
         }
     }
 }

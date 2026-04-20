@@ -48,6 +48,9 @@ void* ketl_gc_create_array_of_type(ketl_gc* p_gc, ketl_type* p_type, uint64_t si
 void* ketl_gc_create_slice_of_type(ketl_gc* p_gc, ketl_type* p_type, ketl_array* mirrored_array, uint64_t start, uint64_t end, uint8_t flags) {
     ketl_array* p_slice_obj = ketl_alloc(p_gc->p_allocator, sizeof(ketl_array));
     uint64_t mirrored_offset = start;
+    if (start > end) {
+        end = start;
+    }
     uint64_t size = end - start;
     while (mirrored_array != NULL && mirrored_array->is_slice) {
         mirrored_offset += mirrored_array->mirrored_offset;

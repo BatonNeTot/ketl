@@ -279,15 +279,32 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     }
 
     if (p_rhs_type->kind == KETL_TYPE_CLASS) {
+        bool related = false;
+        int16_t signed_extended_offset;
+
         uint16_t extended_offset = ketl_type_find_extended_class_offset(p_rhs_type, p_lhs_type);
         if (extended_offset != (uint16_t)-1) {
+            related = true;
+            signed_extended_offset = extended_offset;
+        } else if (explicit) {
+            extended_offset = ketl_type_find_extended_class_offset(p_lhs_type, p_rhs_type);
+            if (extended_offset != (uint16_t)-1) {
+                related = true;
+                signed_extended_offset = -extended_offset;
+            }
+        }
+
+        if (related) {
             ketl_hir_var_id_t raw_var = trying_to_cast_rhs_to_lhs(p_context, 
                 ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_raw_type(p_context->p_state)), 
                 expr_info, rhs_var, false);
 
-            if (extended_offset > 0) {
+            if (signed_extended_offset != 0) {
+                // TODO
+                ANN_ASSERT(signed_extended_offset > 0);
+
                 char a_offset_buffer[16];
-                uint32_t offset_length = snprintf(a_offset_buffer, ANN_ARRAY_SIZE(a_offset_buffer), "%"PRIu16, extended_offset);
+                uint32_t offset_length = snprintf(a_offset_buffer, ANN_ARRAY_SIZE(a_offset_buffer), "%"PRId16, signed_extended_offset);
                 ketl_hir_symbol_offset_t offset_symbol = push_symbol_string(p_context, a_offset_buffer, offset_length);
 
                 ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state));
@@ -2547,7 +2564,9 @@ static ketl_statement_info parse_mimic_declaration(ketl_parser_context* p_contex
 
 static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_named_variable_type_info_t* p_class_fields, uint32_t* p_class_field_count) {
     ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
-        case KETL_TOKEN_TYPE_TERMINATION_CHARACTER: return;
+        case KETL_TOKEN_TYPE_TERMINATION_CHARACTER: 
+            token_advance(p_context); // ;
+            return;
         case KETL_TOKEN_TYPE_VAR    : {
             token_advance(p_context); // var
             ketl_token_t field_literal = CURRENT_TOKEN(0);

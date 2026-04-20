@@ -71,6 +71,9 @@ class GC {
     export fn new_slice(gc : GC, mirrored_array : TypeArray.Header, start : u64, end : u64, flags : u64) => raw {
         var array_header = TypeArray.Header();
         var mirrored_offset = start;
+        if (start > end) {
+            end = start;
+        }
         var size = end - start;
         while (mirrored_array != null && mirrored_array.is_slice) {
             mirrored_offset += mirrored_array.capacity; // capacity is mirrored_offset when is_slice == true
