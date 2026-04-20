@@ -14,23 +14,23 @@ export class Type {
     }
 
     export enum Align : u8 {
-        Size1Byte,
-        Size2Byte,
-        Size4Byte,
-        Size8Byte,
-        Size16Byte,
+        Byte,
+        Bytes2,
+        Bytes4,
+        Bytes8,
+        Bytes16,
     }
 
     export fn find_align(align: u8) => Align {
         switch (align) {
-            case 1 =>  return Align.Size1Byte;
-            case 2 =>  return Align.Size2Byte;
-            case 4 =>  return Align.Size4Byte;
-            case 8 =>  return Align.Size8Byte;
-            case 16 => return Align.Size16Byte;
+            case 1 =>  return Align.Byte;
+            case 2 =>  return Align.Bytes2;
+            case 4 =>  return Align.Bytes4;
+            case 8 =>  return Align.Bytes8;
+            case 16 => return Align.Bytes16;
         }
         assert(false);
-        return Align.Size1Byte;
+        return Align.Byte;
     }
  
     var kind : Kind;

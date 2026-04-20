@@ -2182,19 +2182,41 @@ static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context
             break;
         }
 
-        ketl_token_t constant_literal = CURRENT_TOKEN(0);
-        a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_literal), TOKEN_LENGTH(constant_literal));
+        ketl_token_t constant_name = CURRENT_TOKEN(0);
+        a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_name), TOKEN_LENGTH(constant_name));
         token_advance(p_context); // id
 
         if (token_match(p_context, KETL_TOKEN_TYPE_ASSIGN)) {
-            ketl_token_t constant = CURRENT_TOKEN(0); 
-            token_advance(p_context); // literal
+            ketl_token_t constant = CURRENT_TOKEN(0);
+            if (token_match(p_context, KETL_TOKEN_TYPE_LITERAL_INTEGER)) {
+                char a_buffer[16] = {'\0'};
+                ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+                int64_t value = strtoll(a_buffer, NULL, 0);
 
-            char a_buffer[16] = {'\0'};
-            ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
-            int64_t value = strtoll(a_buffer, NULL, 0);
+                current_value.int64 = value;
+            } else if (token_match(p_context, KETL_TOKEN_TYPE_ID)) {
+                ketl_atomic_string s_constant_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
 
-            current_value.int64 = value;
+                bool found = false;
+                for (uint32_t i = 0u; i < enum_constants_count; ++i) {
+                    if (a_enum_constants[i].s_name == s_constant_name) {
+                        current_value = a_enum_constants[i].literal;
+
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    ketl_hir_expr_info_t expr_info = token_extract_info(constant);
+                    errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
+                    ++current_value.uint64;
+                }
+            } else {
+                ketl_hir_expr_info_t expr_info = token_extract_info(constant);
+                errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
+                ++current_value.uint64;
+            }
         } else {
             ++current_value.uint64;
         }
@@ -2525,6 +2547,7 @@ static ketl_statement_info parse_mimic_declaration(ketl_parser_context* p_contex
 
 static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_named_variable_type_info_t* p_class_fields, uint32_t* p_class_field_count) {
     ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
+        case KETL_TOKEN_TYPE_TERMINATION_CHARACTER: return;
         case KETL_TOKEN_TYPE_VAR    : {
             token_advance(p_context); // var
             ketl_token_t field_literal = CURRENT_TOKEN(0);

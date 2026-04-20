@@ -1,5 +1,139 @@
 //🫖ketl
 
-class ASMX86Builder {
-    
+from hir import HIR
+
+export class ASMX86 {
+
+    export enum Tag: u8 {
+        LABEL,
+        DIRECTIVE,
+
+        PUSH,
+        POP,
+
+        MOV,
+        LEA,
+
+        MOVSX8,
+        MOVSX16,
+        MOVSX32,
+
+        MOVZX8,
+        MOVZX16,
+
+        ADD,
+        SUB,
+        NEG,
+        MUL,
+        IMUL,
+        DIV,
+        IDIV,
+        
+        AND,
+        OR,
+        XOR,
+        NOT,
+
+        CMP,
+        TEST,
+
+        SETE,
+        SETZ = SETE,
+        SETNE,
+        SETNZ = SETNE,
+
+        SETG,
+        SETNLE = SETG,
+        SETGE,
+        SETNL = SETGE,
+        SETL,
+        SETNGE = SETL,
+        SETLE,
+        SETNG = SETLE,
+
+        JMP,
+
+        JE,
+        JZ = JE,
+        JNE,
+        JNZ = JNE,
+
+        CALL,
+        RET,
+    }
+
+    export enum Size: u8 {
+        Bit8    = 1,
+        Bit16   = 2,
+        Bit32   = 4,
+        Bit64   = 8,
+        Ptr     = 8, // sizeof(void*)
+        None    = 0,
+    }
+
+    export enum ArgType: u8 {
+        EMPTY,
+        M,         // ModRM:r/m (r, w)
+        RM,        // ModRM:reg (w),        ModRM:r/m (r)
+        MR,        // ModRM:r/m (w),        ModRM:reg (r)
+        MI,        // ModRM:r/m (r, w),     imm
+        MI_CHAR,   // ModRM:r/m (r, w),     char
+        JI,        // .imm
+    }
+
+    export enum Reg: u8 {
+        AX,
+        CX,
+        DX,
+        BX,
+        SP,
+        BP,
+        SI,
+        DI,
+        R8,
+        R9,
+        R10,
+        R11,
+        R12,
+        R13,
+        R14,
+        R15,
+        NONE,
+    }
+
+    export class ModRM {
+        var indir: bool;
+        var label: bool;
+        var base: Reg;
+        var index: Reg;
+        var scale_power: Size;
+        var disp: i32;
+        var literal: str;
+    }
+
+    mimic Offset = u32;
+
+    export class Instr {
+        var tag: Tag;
+        var size: Size;
+        var arg_type: ArgType;
+        var opcode_size: u8;
+        var modrm: ModRM;
+        var reg: Reg;
+        var imm64: i64;
+        var goto_offset: Offset;
+        var opcode_offset: u64;
+    }
+
+    export class Builder {
+        export fn construct() => Builder {
+            var self = Builder();
+
+            return self;
+        }
+
+        export fn build(self: Builder, hir: HIR) => ASMX86 {
+            return ASMX86();
+        }
+    }
 }
