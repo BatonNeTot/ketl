@@ -1209,7 +1209,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             printf("%s:\n", a_buffer);
             printf(".seh_proc %s\n", a_buffer);
 
-            char arr_buffer[8192];
+            char arr_buffer[16384];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
 

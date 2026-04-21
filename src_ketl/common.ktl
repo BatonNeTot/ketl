@@ -1,5 +1,136 @@
 //🫖ketl
 
+export class IntHashMap {
+
+    export class Bucket {
+        var next: Bucket;
+        var key: u64;
+        var value: raw;
+    }
+
+    shared prime_capacities = u32[31]{
+        /*1, */3, 11, 23, 53, 97, 193, 389,
+        769, 1543, 3079, 6151, 12289,
+        24593, 49157, 98317, 196613, 393241,
+        786433, 1572869, 3145739, 6291469,
+        12582917, 25165843, 50331653, 100663319,
+        201326611, 402653189, 805306457,
+        1610612741, 3221225473, 4294967291
+    };
+
+    var buckets: Bucket[];
+	var size: u32;
+    var capacity_index: u32;
+
+    export fn construct() => IntHashMap {
+        var initial_capacity_index: u32;
+        var initial_capacity = prime_capacities[initial_capacity_index];
+
+        var buckets = Bucket[initial_capacity];
+        
+        var self = IntHashMap();
+        self.buckets = buckets;
+        return self;
+    }
+
+    export fn get_or_null(self: IntHashMap, key: u64) => Bucket {
+        var capacity = prime_capacities[self.capacity_index];
+        var index = key % capacity;
+        var bucket = self.buckets[index];
+    
+        while (bucket != null) {
+            if (bucket.key == key) {
+                return bucket;
+            }
+    
+            bucket = bucket.next;
+        }
+        return null;
+    }
+
+    export fn get_or_insert_copy(self: IntHashMap, key: u64, value: raw) => Bucket {
+        var capacity = prime_capacities[self.capacity_index];
+        var index = key % capacity;
+        var bucket = self.buckets[index];
+    
+        while (bucket != null) {
+            if (bucket.key == key) {
+                return bucket;
+            }
+    
+            bucket = bucket.next;
+        }
+            
+        var buckets = self.buckets;
+    
+        self.size += 1;
+        if (self.size > capacity) {
+            var new_capacity_index = self.capacity_index + 1;
+            assert(new_capacity_index < prime_capacities.size);
+
+            self.capacity_index = new_capacity_index;
+            var new_capacity = prime_capacities[new_capacity_index];
+            var new_buckets = Bucket[new_capacity];
+            
+            self.buckets = new_buckets;
+    
+            var i: u32;
+            while (i < capacity) {
+                bucket = buckets[i];
+                while (bucket != null) {
+                    var next = bucket.next;
+    
+                    var new_index = bucket.key % new_capacity;
+                    bucket.next = new_buckets[new_index];
+                    new_buckets[new_index] = bucket;
+    
+                    bucket = next;
+                }
+
+                i += 1;
+            }
+            
+            index = key % new_capacity;
+            buckets = new_buckets;
+        }
+    
+        bucket = Bucket();
+
+        bucket.key = key;
+        bucket.value = value;
+        bucket.next = buckets[index];
+
+        buckets[index] = bucket;
+        return bucket;
+    }
+
+    // returns true if erase was successful
+    export fn erase(self: IntHashMap, bucket: Bucket) => bool {
+        var capacity = prime_capacities[self.capacity_index];
+        var index = bucket.key % capacity;
+        var head_bucket = self.buckets[index];
+    
+        if (head_bucket == bucket) {
+            self.buckets[index] = bucket.next;
+            return true;
+        }
+    
+        while (head_bucket != null) {
+            if (head_bucket.next == bucket) {
+                head_bucket.next = bucket.next;
+                return true;
+            }
+            head_bucket = head_bucket.next;
+        }
+
+        return false;
+    }
+
+    export fn clear(self: IntHashMap) {
+        self.size = 0;
+    }
+}
+
 export class StringBuffer {
     var buffer : str;
 

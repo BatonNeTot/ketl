@@ -186,6 +186,7 @@ void ANN_CONCAT(name,_clear)(name* p_map) {\
             p_bucket = p_next;\
         }\
     }\
+    p_map->size = 0;\
 }\
 
 #define KETL_HASH_MAP_FOREACH(name, p_map, runnable)\
