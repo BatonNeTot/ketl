@@ -48,7 +48,7 @@ export class IntHashMap {
         return null;
     }
 
-    export fn get_or_insert_copy(self: IntHashMap, key: u64, value: raw) => Bucket {
+    export fn get_or_insert(self: IntHashMap, key: u64, value: raw) => Bucket {
         var capacity = prime_capacities[self.capacity_index];
         var index = key % capacity;
         var bucket = self.buckets[index];
@@ -129,6 +129,10 @@ export class IntHashMap {
     export fn clear(self: IntHashMap) {
         self.size = 0;
     }
+}
+
+export fn align_forward(size: u64, alignment: u8) => u64 {
+    return (size + (alignment - 1)) & ~(alignment - 1);
 }
 
 export class StringBuffer {

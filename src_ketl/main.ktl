@@ -16,9 +16,11 @@ cexport fn eval(filename : str, source : str) {
 
     var hir = Parser.build_hir(lexer, VariableDecl[0], null, log_accum);
 
-    var asm = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
+    var asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
 
     if (!log_accum->check()) {
         // TODO something on error
     }
+
+    asm_x86->print();
 }

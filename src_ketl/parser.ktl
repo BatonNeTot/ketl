@@ -587,14 +587,36 @@ class Parser {
         context.hir_builder.consts_infos = HIR.Const[0];
         context.hir_builder.consts = u8[0];
 
+        // TODO get as parameter
+        var end_pos = lexer.tokens.size;
+
         for (var parameter <- parameters) {
             // TODO
         }
 
         if (lexer.tokens.size > 0) {
             var statement_info = context->parse_block_statement_inner();
-            // TODO
+            if ((statement_info.return_info & StatementInfo.ReturnInfo.Undef) == StatementInfo.ReturnInfo.Undef ||
+                (!(statement_info.return_info & StatementInfo.ReturnInfo.Always) && !!(statement_info.return_info & StatementInfo.ReturnInfo.AlwaysValue))) {
+                // TODO POS?
+                context->error(lexer.tokens[end_pos - 1].offset, 1, "Not all control returns value.");
+            }
+
+            /* // Doesn't look like necessary
+            if (p_context->reserved_break != (ketl_hir_block_index_t)-1 ||
+                p_context->reserved_continue != (ketl_hir_block_index_t)-1) {
+                errorf(p_lexer->tokens.p_data[end_pos - 1].offset, 1, "Expected statement.");
+            }
+            */
+
+            if (!(statement_info.return_info & StatementInfo.ReturnInfo.Always)) {
+                // we need to return eventually
+                context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, HIR.SrcInfo.construct(lexer.tokens[end_pos - 1].offset, 1));
+            }
         }
 
+        var hir = HIR();
+        context.hir_builder->flush(hir);
+        return hir;
     }
 }

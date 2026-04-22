@@ -61,6 +61,7 @@ enum {
     // pre-shifted instructions
 
     __KETL_HIR_LOGICAL_NOT              = 1,
+    __KETL_HIR_BITWISE_NOT,
     __KETL_HIR_UNARY_PLUS,
     __KETL_HIR_UNARY_MINUS,
 
@@ -106,6 +107,7 @@ enum {
     // shifted instructions
 
     KETL_HIR_LOGICAL_NOT              = __KETL_HIR_LOGICAL_NOT << KETL_HIR_TYPE_INSTR_SHIFT,
+    KETL_HIR_BITWISE_NOT              = __KETL_HIR_BITWISE_NOT << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_UNARY_PLUS               = __KETL_HIR_UNARY_PLUS << KETL_HIR_TYPE_INSTR_SHIFT,
     KETL_HIR_UNARY_MINUS              = __KETL_HIR_UNARY_MINUS << KETL_HIR_TYPE_INSTR_SHIFT,
 

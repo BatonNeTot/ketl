@@ -224,6 +224,12 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
             ketl_hir_var_id_t casted_var = ketl_hir_builder_cast_primitive(&p_context->hir_builder, rhs_var, lhs_type);
             return casted_var;
     }
+
+    if ((ketl_type_is_u64_type(p_lhs_type) && ketl_type_is_raw_type(p_rhs_type)) ||
+        (ketl_type_is_u64_type(p_rhs_type) && ketl_type_is_raw_type(p_lhs_type))) {
+            ketl_hir_var_id_t casted_var = ketl_hir_builder_cast_primitive(&p_context->hir_builder, rhs_var, lhs_type);
+            return casted_var;
+    }
         
     // trying to primitive cast
     if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
@@ -1262,7 +1268,8 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
         }
 
         if (p_object->type < KETL_HIR_USED_TYPE_LAST && ketl_type_is_raw_type(GET_TYPE(p_object->type))) {
-            if (p_cast_to_type->kind != KETL_TYPE_ARRAY && p_cast_to_type->kind != KETL_TYPE_CLASS) {
+            if (p_cast_to_type->kind != KETL_TYPE_ARRAY && p_cast_to_type->kind != KETL_TYPE_CLASS &&
+                !ketl_type_is_u64_type(p_cast_to_type)) {
                 errorf(expr_info.source_offset, expr_info.length, "Casting of raw type supported only to classes or arrays.");
                 return push_temp_var(p_context, expr_info);
             }
@@ -1383,6 +1390,7 @@ static ketl_hir_var_id_t parse_unary_rtl(ketl_parser_context* p_context) {
 
     ANN_SWITCH_STRICT (token_type) {
         case KETL_TOKEN_TYPE_LOGICAL_NOT: return push_hir_unary_op(p_context, KETL_HIR_LOGICAL_NOT, rhs, token_extract_info(token));
+        case KETL_TOKEN_TYPE_BITWISE_NOT: return push_hir_unary_op(p_context, KETL_HIR_BITWISE_NOT, rhs, token_extract_info(token));
 
         case KETL_TOKEN_TYPE_PLUS:        return push_hir_unary_op(p_context, KETL_HIR_UNARY_PLUS,  rhs, token_extract_info(token));
         case KETL_TOKEN_TYPE_MINUS:       return push_hir_unary_op(p_context, KETL_HIR_UNARY_MINUS, rhs, token_extract_info(token));
@@ -1573,7 +1581,7 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_GREATER_OR_EQUAL]           = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_COMPARISON},
     [KETL_TOKEN_TYPE_EQUAL]                      = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_EQUALITY},
     [KETL_TOKEN_TYPE_NOT_EQUAL]                  = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_EQUALITY},
-    [KETL_TOKEN_TYPE_BITWISE_NOT]                = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_NOT]                = { parse_unary_rtl,     NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_BITWISE_AND]                = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_AND},
     [KETL_TOKEN_TYPE_BITWISE_OR]                 = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_OR},
     [KETL_TOKEN_TYPE_BITWISE_XOR]                = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_XOR},

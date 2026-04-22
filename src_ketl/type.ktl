@@ -23,13 +23,11 @@ export class Type {
 
     export fn find_align(align: u8) => Align {
         switch (align) {
-            case 1 =>  return Align.Byte;
             case 2 =>  return Align.Bytes2;
             case 4 =>  return Align.Bytes4;
             case 8 =>  return Align.Bytes8;
             case 16 => return Align.Bytes16;
         }
-        assert(false);
         return Align.Byte;
     }
  
@@ -146,5 +144,5 @@ class Types {
         return self;
     }
 
-    export shared singltone = Types.construct(); 
+    export shared instance = Types.construct(); 
 }

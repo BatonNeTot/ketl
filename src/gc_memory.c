@@ -80,7 +80,7 @@ void ketl_gc_append_value(ketl_gc* p_gc, uint64_t stack_size, ketl_array* p_arra
         p_array->p_data = ketl_alloc(p_gc->p_allocator, value_size * p_array->capacity);
     } else if (p_array->size >= p_array->capacity) {
         ANN_ASSERT(p_array->p_data != NULL);
-        p_array->capacity += p_array->capacity / 2;
+        p_array->capacity += (p_array->capacity + 1) / 2;
         p_array->p_data = ketl_realloc(p_gc->p_allocator, p_array->p_data, value_size * p_array->capacity);
     }
     ketl_memcpy(p_array->p_data + p_array->size++ * value_size, &value, value_size);

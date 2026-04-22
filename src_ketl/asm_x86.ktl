@@ -1,12 +1,17 @@
 //🫖ketl
 
+from common import IntHashMap
+from common import align_forward
+
 from hir import HIR
+
+cimport printf(message: cstr)
 
 export class ASMX86 {
 
     enum ABI: u8 {
         WINDOWS,
-        // TODO SYSTEM_V,
+        SYSTEM_V,
         DEFAULT,
     }
 
@@ -104,7 +109,7 @@ export class ASMX86 {
         R13,
         R14,
         R15,
-        NONE,
+        None,
     }
 
     export class ModRM {
@@ -115,6 +120,72 @@ export class ASMX86 {
         var scale_power: Size;
         var disp: i32;
         var literal: str;
+
+        fn construct_empty() => ModRM {
+            var self = ModRM();
+
+            self.base = Reg.None;
+            self.index = Reg.None;
+
+            return self;
+        }
+
+        fn construct_literal(literal: str) => ModRM {
+            var self = ModRM();
+
+            self.label = true;
+            self.base = Reg.None;
+            self.index = Reg.None;
+            self.literal = literal;
+
+            return self;
+        }
+
+        fn construct_reg(reg: Reg) => ModRM {
+            var self = ModRM();
+
+            self.base = reg;
+            self.index = Reg.None;
+
+            return self;
+        }
+
+        fn construct_indir_base_disp(base: Reg, disp: i32) => ModRM {
+            var self = ModRM();
+
+            self.indir = true;
+            self.base = base;
+            self.index = Reg.None;
+            self.disp = disp;
+
+            return self;
+        }
+
+        fn construct_indir_base_label(base: Reg, label: str, disp: i32) => ModRM {
+            var self = ModRM();
+
+            self.indir = true;
+            self.label = true;
+            self.base = base;
+            self.index = Reg.None;
+            self.disp = disp;
+            self.literal = label;
+
+            return self;
+        }
+
+        fn construct_indir_rip_label(label: str) => ModRM {
+            var self = ModRM();
+
+            self.indir = true;
+            self.label = true;
+            self.base = Reg.None;
+            self.index = Reg.None;
+            self.literal = label;
+
+            return self;
+        }
+
     }
 
     mimic Offset = u32;
@@ -169,6 +240,8 @@ export class ASMX86 {
         var instrs: Instr[];
         var hir: HIR;
         var abi: ABI;
+        var variables: IntHashMap;
+        var stack_reserved_size: u32;
         
         export fn construct(abi: ABI) => Builder {
             var self = Builder();
@@ -176,17 +249,158 @@ export class ASMX86 {
             self.abi = abi;
             if (abi == ABI.DEFAULT) {
                 // TODO actually deduce from the system
-                abi = ABI.WINDOWS;
+                self.abi = ABI.WINDOWS;
             }
+            self.variables = IntHashMap.construct();
 
             return self;
+        }
+
+        fn label(self: Builder, directive: str) {
+            var instr = Instr();
+
+            instr.tag = Tag.LABEL;
+            instr.size = Size.None;
+            instr.arg_type = ArgType.EMPTY;
+            instr.modrm = ModRM.construct_literal(directive);
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
+        }
+
+        fn directive(self: Builder, directive: str) {
+            var instr = Instr();
+
+            instr.tag = Tag.DIRECTIVE;
+            instr.size = Size.None;
+            instr.arg_type = ArgType.EMPTY;
+            instr.modrm = ModRM.construct_literal(directive);
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert(self: Builder, tag: Tag) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = Size.None;
+            instr.arg_type = ArgType.EMPTY;
+            instr.modrm = ModRM.construct_empty();
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_rm(self: Builder, tag: Tag, size: Size, modrm: ModRM) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.M;
+            instr.modrm = modrm;
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_reg_rm(self: Builder, tag: Tag, size: Size, lhs: Reg, rhs: ModRM) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.RM;
+            instr.modrm = rhs;
+            instr.reg = lhs;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_rm_reg(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: Reg) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.MR;
+            instr.modrm = lhs;
+            instr.reg = rhs;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_rm_imm(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: u64) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.MI;
+            instr.modrm = lhs;
+            instr.imm64 = rhs$cast(i64);
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_rm_char(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: char) {
+            var instr = Instr();
+
+            assert(size == Size.Bit8);
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.MI_CHAR;
+            instr.modrm = lhs;
+            instr.imm64 = rhs$cast(i64);
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_jimm(self: Builder, tag: Tag, size: Size, val: Offset) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.JI;
+            instr.modrm = ModRM.construct_empty();
+            instr.goto_offset = val;
+
+            self.instrs ..= instr;
+        }
+
+        fn finalize_stask_size(self: Builder) {
+            var has_calls = self.hir.max_call_arg_count != (-1)$cast(u8);
+
+            switch (self.abi) {
+                case ABI.WINDOWS => {
+                    var WINDOWS_SHADOW_STACK_SPACE: u32 = 8; // I'm not sure about it, I came to this during msvc disasm study
+                    if (!has_calls && self.stack_reserved_size <= 0) {
+                        self.stack_reserved_size = 0;
+                        return;
+                    }
+
+                    self.stack_reserved_size = align_forward(self.stack_reserved_size, 16)$cast(u32); // 16-bites aligned
+                    self.stack_reserved_size += WINDOWS_SHADOW_STACK_SPACE; // add shadow space AFTER alignment
+                    return;
+                }
+                case ABI.SYSTEM_V => {
+                    var SYSTEM_V_SHADOW_STACK_SPACE: u32 = 128;
+                    if (!((has_calls && self.stack_reserved_size > 0) || (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE))) {
+                        return;
+                    }
+
+                    if (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE) {
+                        self.stack_reserved_size -= SYSTEM_V_SHADOW_STACK_SPACE;
+                    }
+                    self.stack_reserved_size = align_forward(self.stack_reserved_size, 16)$cast(u32); // 16-bites aligned
+                }
+            };
         }
 
         export fn build(self: Builder, hir: HIR) => ASMX86 {
             self.instrs = Instr[0];
             self.hir = hir;
+            self.variables->clear();
 
-            var stack_reserved_size: u32;
+            self.stack_reserved_size = 0;
 
             assert(self.abi == ABI.WINDOWS);
             {
@@ -195,7 +409,7 @@ export class ASMX86 {
                     if (parameters_needed < self.hir.max_call_arg_count) {
                         parameters_needed = self.hir.max_call_arg_count;
                     }
-                    stack_reserved_size = self.hir.max_call_arg_count * raw$size; // size of reg parameters, has to be preallocated
+                    self.stack_reserved_size = self.hir.max_call_arg_count * raw$size; // size of reg parameters, has to be preallocated
                 }
             }
 
@@ -231,23 +445,110 @@ export class ASMX86 {
                 var var_info = self.hir.vars_infos[var_info_index];
 
                 // local or temporary variable
-                var arg_info = ArgInfo.construct(stack_reserved_size, var_info.name);
+                var arg_info = ArgInfo.construct(self.stack_reserved_size, var_info.name);
 
 
-                // TODO
-                /*
-                ketl_asm_x86_variables_t_bucket* p_bucket = ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var_info_index, arg_info);
-                ANN_ASSERT(var.info != KETL_HIR_VAR_INFO_TEMP || p_bucket->value.stack_offset == arg_info.stack_offset);
-                if (p_bucket->value.stack_offset == arg_info.stack_offset) {
+                var bucket = self.variables->get_or_insert(var_info_index, arg_info);
+                if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
                     // TODO FIX take into account type size and alignment
-                    stack_reserved_size += sizeof(int64_t);
+                    self.stack_reserved_size += i64$size;
                 }
-                */
             }
 
-            var asm = ASMX86();
-            asm.instrs = self.instrs;
-            return asm;
+            self->finalize_stask_size();
+            assert(self.abi != ABI.WINDOWS || self.stack_reserved_size < 4096); // TODO additional call for win32 if reserved stack size bigger then a page
+
+            assert(self.abi == ABI.WINDOWS);
+            {
+                if (self.stack_reserved_size > 0) {
+                    self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+
+                    self->directive("seh_stackalloc " .. self.stack_reserved_size$cast(str));
+                    self->directive("seh_endprologue");
+                }
+
+                var var_id = self.hir.parameters_count;
+                while (var_id > 0) {
+                    var_id -= 1;
+                    var varr = self.hir.vars[var_id];
+
+                    assert(false);
+                    // TODO
+                    /*
+                    ANN_ASSERT(var.uid == KETL_HIR_VAR_UID_PARAMETER);
+
+                    ketl_asm_x86_arg_info_t arg_info = {
+                        .stack_offset = (var_id + 1) * sizeof(void*) + stack_reserved_size,
+                        .s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
+                        KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name), KETL_NULL_TERMINATED_LENGTH_32),
+                    };
+
+                    ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var.info, arg_info);
+
+                    if (var_id < get_reg_paramters_count(p_builder->abi_type)) {
+                        ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, modrm_stack(p_builder, KETL_ASM_X86_64B, arg_info), 
+                            get_reg_parameter(p_builder->abi_type, var_id));
+                    }
+                    */
+                }
+            }
+
+            var first_instr_in_block = true;
+            var block_counter: u16;
+
+            var i: u32;
+            while (i < self.hir.instrs.size) {
+                if (first_instr_in_block) {
+                    first_instr_in_block = false;
+                    
+                    /*
+                    ketl_hir_to_asm_offsets_t_get_or_insert_copy(&p_builder->hir_to_asm_offsets, i, p_builder->instrs.size);
+
+                    char a_label_buffer[256] = {'\0'};
+                    uint32_t label_length = snprintf(a_label_buffer, ANN_ARRAY_SIZE(a_label_buffer), ".LBB%"PRIu16"_%"PRIu16, func_index, block_counter);
+                    ketl_atomic_string s_label = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_label_buffer, label_length);
+                    ++block_counter;
+
+                    ketl_asm_label(p_builder, s_label);
+                    */
+                }
+
+                var instr = self.hir.instrs[i];
+
+                switch (instr.tag) {
+                    default => assert(false);
+                    case HIR.Tag.PLUS => {
+
+                    }
+
+
+                    case HIR.Tag.RETURN_VALUE => {
+                        var hir_info = instr$cast(HIR.ReturnValue);
+                        // TODO fix, get from the value
+                        var size = Size.Bit64;
+                        // TODO
+                        //push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->value_var, size, p_builder);
+                        if (self.stack_reserved_size > 0) {
+                            self->directive("seh_startepilogue");
+                            self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                            self->directive("seh_endepilogue");
+                        }
+                        self->insert(Tag.RET);
+
+                        first_instr_in_block = true;
+                    }
+                }
+
+                i += 1;
+            }
+
+            var asm_x86 = ASMX86();
+            asm_x86.instrs = self.instrs;
+            return asm_x86;
         }
     }
+
+    export fn print(self: ASMX86) {
+        printf("TEST"$cast(cstr));
+    } 
 }

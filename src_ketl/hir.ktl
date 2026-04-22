@@ -84,6 +84,13 @@ export class HIR {
         var source_offset : Token.Offset;
         var length : Length;
 
+        export fn construct(source_offset : Token.Offset, length : Length) => SrcInfo {
+            var self = SrcInfo();
+            self.source_offset = source_offset;
+            self.length = length;
+            return self;
+        }
+
         export fn construct_token(token: Token) => SrcInfo {
             var self = SrcInfo();
             self.source_offset = token.offset;

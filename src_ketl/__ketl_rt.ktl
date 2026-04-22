@@ -105,7 +105,7 @@ class GC {
         } else if (array_header.size >= array_header.capacity) {
             assert(array_header.data != null);
             var old_capacity = array_header.capacity;
-            array_header.capacity += array_header.capacity / 2;
+            array_header.capacity += (array_header.capacity + 1) / 2;
             array_header.data = array_header.data->recalloc(value_size * old_capacity, value_size * array_header.capacity);
         }
         // TODO replace with template/generic 
@@ -195,9 +195,9 @@ export fn str2cstr(string: TypeArray.Header) => cstr {
         return null;
     }
 
-    string$cast(raw)$cast(str) ..= '\0'; 
-    var cstring = malloc(string.size);
+    var cstring = malloc(string.size + 1);
     memcpy(cstring, string.data, string.size);
+    (cstring + string.size)$cast(GC.U8Wrapper).value = '\0';
     return cstring;
 }
 export fn int2str(value: i64) => str {
@@ -252,7 +252,7 @@ export fn array_get_value(stack_size : u64, array_header : TypeArray.Header, ind
     if (array_header.is_slice) {
         pointer = (array_header.data$cast(TypeArray.Header).data + stack_size * (array_header.capacity + index));
     } else {
-        assert(array_header.size > index);
+        assert(index < array_header.size);
         pointer = (array_header.data + stack_size * index);
     }
     // TODO replace with template/generic 

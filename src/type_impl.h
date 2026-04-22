@@ -130,5 +130,7 @@ bool ketl_type_is_raw_type(ketl_type* p_type);
 
 bool ketl_type_is_char_type(ketl_type* p_type);
 
+bool ketl_type_is_u64_type(ketl_type* p_type);
+
 
 #endif // ketl_type_impl_h
