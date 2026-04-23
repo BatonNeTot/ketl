@@ -3,6 +3,10 @@
 from common import IntHashMap
 from common import align_forward
 
+from type import Type
+from type import TypePrimitive
+from type import TypeEnum
+from type import Types
 from hir import HIR
 
 cimport printf(message: cstr)
@@ -82,6 +86,26 @@ export class ASMX86 {
         None    = 0,
     }
 
+    fn print_ptr_size(size: Size) {
+        switch (size) {
+            case Size.Bit8  => printf("byte"$cast(cstr));
+            case Size.Bit16 => printf("word"$cast(cstr));
+            case Size.Bit32 => printf("dword"$cast(cstr));
+            case Size.Bit64 => printf("qword"$cast(cstr));
+            default => printf("error"$cast(cstr)); 
+        }
+    }
+
+    fn print_directive_size(size: Size) {
+        switch (size) {
+            case Size.Bit8  => printf("byte"$cast(cstr));
+            case Size.Bit16 => printf("2byte"$cast(cstr));
+            case Size.Bit32 => printf("4byte"$cast(cstr));
+            case Size.Bit64 => printf("8byte"$cast(cstr));
+            default => printf("error"$cast(cstr)); 
+        }
+    }
+
     export enum ArgType: u8 {
         EMPTY,
         M,         // ModRM:r/m (r, w)
@@ -112,12 +136,146 @@ export class ASMX86 {
         None,
     }
 
+    fn print_reg(reg: Reg, size: Size) {
+        switch (reg) {
+            case Reg.AX =>
+                switch (size) {
+                    case Size.Bit8  => printf("al"$cast(cstr));
+                    case Size.Bit16 => printf("ax"$cast(cstr));
+                    case Size.Bit32 => printf("eax"$cast(cstr));
+                    case Size.Bit64 => printf("rax"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.CX =>
+                switch (size) {
+                    case Size.Bit8  => printf("cl"$cast(cstr));
+                    case Size.Bit16 => printf("cx"$cast(cstr));
+                    case Size.Bit32 => printf("ecx"$cast(cstr));
+                    case Size.Bit64 => printf("rcx"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.DX =>
+                switch (size) {
+                    case Size.Bit8  => printf("dl"$cast(cstr));
+                    case Size.Bit16 => printf("dx"$cast(cstr));
+                    case Size.Bit32 => printf("edx"$cast(cstr));
+                    case Size.Bit64 => printf("rdx"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.BX =>
+                switch (size) {
+                    case Size.Bit8  => printf("bl"$cast(cstr));
+                    case Size.Bit16 => printf("bx"$cast(cstr));
+                    case Size.Bit32 => printf("ebx"$cast(cstr));
+                    case Size.Bit64 => printf("rbx"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.SP =>
+                switch (size) {
+                    case Size.Bit8  => printf("spl"$cast(cstr));
+                    case Size.Bit16 => printf("sp"$cast(cstr));
+                    case Size.Bit32 => printf("esp"$cast(cstr));
+                    case Size.Bit64 => printf("rsp"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.BP =>
+                switch (size) {
+                    case Size.Bit8  => printf("bpl"$cast(cstr));
+                    case Size.Bit16 => printf("bp"$cast(cstr));
+                    case Size.Bit32 => printf("ebp"$cast(cstr));
+                    case Size.Bit64 => printf("rbp"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.SI =>
+                switch (size) {
+                    case Size.Bit8  => printf("sil"$cast(cstr));
+                    case Size.Bit16 => printf("si"$cast(cstr));
+                    case Size.Bit32 => printf("esi"$cast(cstr));
+                    case Size.Bit64 => printf("rsi"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.DI =>
+                switch (size) {
+                    case Size.Bit8  => printf("dil"$cast(cstr));
+                    case Size.Bit16 => printf("di"$cast(cstr));
+                    case Size.Bit32 => printf("edi"$cast(cstr));
+                    case Size.Bit64 => printf("rdi"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R8 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r8b"$cast(cstr));
+                    case Size.Bit16 => printf("r8w"$cast(cstr));
+                    case Size.Bit32 => printf("r8d"$cast(cstr));
+                    case Size.Bit64 => printf("r8"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R9 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r9b"$cast(cstr));
+                    case Size.Bit16 => printf("r9w"$cast(cstr));
+                    case Size.Bit32 => printf("r9d"$cast(cstr));
+                    case Size.Bit64 => printf("r9"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R10 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r10b"$cast(cstr));
+                    case Size.Bit16 => printf("r10w"$cast(cstr));
+                    case Size.Bit32 => printf("r10d"$cast(cstr));
+                    case Size.Bit64 => printf("r10"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R11 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r11b"$cast(cstr));
+                    case Size.Bit16 => printf("r11w"$cast(cstr));
+                    case Size.Bit32 => printf("r11d"$cast(cstr));
+                    case Size.Bit64 => printf("r11"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R12 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r12b"$cast(cstr));
+                    case Size.Bit16 => printf("r12w"$cast(cstr));
+                    case Size.Bit32 => printf("r12d"$cast(cstr));
+                    case Size.Bit64 => printf("r12"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R13 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r13b"$cast(cstr));
+                    case Size.Bit16 => printf("r13w"$cast(cstr));
+                    case Size.Bit32 => printf("r13d"$cast(cstr));
+                    case Size.Bit64 => printf("r13"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R14 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r14b"$cast(cstr));
+                    case Size.Bit16 => printf("r14w"$cast(cstr));
+                    case Size.Bit32 => printf("r14d"$cast(cstr));
+                    case Size.Bit64 => printf("r14"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            case Reg.R15 =>
+                switch (size) {
+                    case Size.Bit8  => printf("r15b"$cast(cstr));
+                    case Size.Bit16 => printf("r15w"$cast(cstr));
+                    case Size.Bit32 => printf("r15d"$cast(cstr));
+                    case Size.Bit64 => printf("r15"$cast(cstr));
+                    default => printf("$reg-error"$cast(cstr));
+                }
+            default => printf("$reg-error"$cast(cstr));
+        }
+    }
+
     export class ModRM {
         var indir: bool;
         var label: bool;
         var base: Reg;
         var index: Reg;
-        var scale_power: Size;
+        var scale_power: u8;
         var disp: i32;
         var literal: str;
 
@@ -186,6 +344,53 @@ export class ASMX86 {
             return self;
         }
 
+        shared scale_powers = u8[4]{
+            1, 2, 4, 8
+        };
+
+        fn print(modrm: ModRM, size: Size) {
+            if (!modrm.indir) {
+                if (modrm.label) {
+                    printf(modrm.literal$cast(cstr));
+                } else {
+                    modrm.base->print_reg(size);
+                }
+                return;
+            }
+
+            size->print_ptr_size();
+            printf(" ptr ["$cast(cstr));
+
+            if (modrm.base == Reg.None && modrm.label) {
+                printf("rip + "$cast(cstr));
+                printf(modrm.literal$cast(cstr));
+                printf("]"$cast(cstr));
+                return;
+            }
+
+            modrm.base->print_reg(Size.Ptr);
+            
+            if (modrm.index != Reg.None) {
+                printf(" + ("$cast(cstr));
+                modrm.index->print_reg(Size.Ptr);
+                printf(" * "$cast(cstr));
+                printf(scale_powers[modrm.scale_power]$cast(str)$cast(cstr));
+                printf(")"$cast(cstr));
+            }
+
+            if (modrm.disp != 0) {
+                if (modrm.disp >= 0) {
+                    printf(" + 0x"$cast(cstr));
+                    printf(modrm.disp$cast(str)$cast(cstr));
+                } else {
+                    printf(" - 0x"$cast(cstr));
+                    printf((-modrm.disp)$cast(str)$cast(cstr));
+                }
+            }
+
+            printf("]"$cast(cstr));
+        }
+
     }
 
     mimic Offset = u32;
@@ -200,6 +405,131 @@ export class ASMX86 {
         var imm64: i64;
         var goto_offset: Offset;
         var opcode_offset: u64;
+
+        fn print(instr: Instr, instrs: Instr[]) {
+            if (instr.tag == Tag.LABEL) {
+                printf(instr.modrm.literal$cast(cstr));
+                printf(":"$cast(cstr));
+                return;
+            } else {
+                printf("    "$cast(cstr));
+            }
+
+            switch (instr.tag) {
+                case Tag.DIRECTIVE => {
+                    printf("."$cast(cstr));
+                    printf(instr.modrm.literal$cast(cstr));
+                }
+
+                case Tag.PUSH => printf("push "$cast(cstr));
+                case Tag.POP => printf("pop "$cast(cstr));
+
+                case Tag.MOV => printf("mov "$cast(cstr));
+                case Tag.LEA => printf("lea "$cast(cstr));
+
+                case Tag.MOVSX8 => printf("movsx "$cast(cstr));
+                case Tag.MOVSX16 => printf("movsx "$cast(cstr));
+                case Tag.MOVSX32 => printf("movsxd "$cast(cstr));
+                case Tag.MOVZX8 => printf("movzx "$cast(cstr));
+                case Tag.MOVZX16 => printf("movzx "$cast(cstr));
+
+                case Tag.ADD => printf("add "$cast(cstr));
+                case Tag.SUB => printf("sub "$cast(cstr));
+                case Tag.NEG => printf("neg "$cast(cstr));
+                case Tag.MUL => printf("mul "$cast(cstr));
+                case Tag.IMUL => printf("imul "$cast(cstr));
+                case Tag.DIV => printf("div "$cast(cstr));
+                case Tag.IDIV => printf("idiv "$cast(cstr));
+
+                case Tag.AND => printf("and "$cast(cstr));
+                case Tag.OR => printf("or "$cast(cstr));
+                case Tag.XOR => printf("xor "$cast(cstr));
+                case Tag.NOT => printf("not "$cast(cstr));
+
+                case Tag.CMP => printf("cmp "$cast(cstr));
+                case Tag.TEST => printf("test "$cast(cstr));
+                    
+                case Tag.SETE => printf("sete "$cast(cstr));
+                case Tag.SETNE => printf("setne "$cast(cstr));
+                case Tag.SETG => printf("setg "$cast(cstr));
+                case Tag.SETGE => printf("setge "$cast(cstr));
+                case Tag.SETL => printf("setl "$cast(cstr));
+                case Tag.SETLE => printf("setle "$cast(cstr));
+
+                case Tag.JMP => printf("jmp "$cast(cstr));
+                case Tag.JNE => printf("jne "$cast(cstr));
+
+                case Tag.CALL => printf("call "$cast(cstr));
+                case Tag.RET => printf("ret"$cast(cstr));
+            }
+
+            switch (instr.arg_type) {
+                case ArgType.EMPTY => break;
+                case ArgType.M => {
+                    instr.modrm->print(instr.size);
+
+                    if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
+                        printf(" # "$cast(cstr));
+                        printf(instr.modrm.literal$cast(cstr));
+                    }
+                }
+                case ArgType.RM => {
+                    var rhs_size = instr.size;
+                    switch (instr.tag) {
+                        case Tag.MOVSX8  => rhs_size = Size.Bit8;
+                        case Tag.MOVSX16 => rhs_size = Size.Bit16;
+                        case Tag.MOVSX32 => rhs_size = Size.Bit32;
+                        case Tag.MOVZX8  => rhs_size = Size.Bit8;
+                        case Tag.MOVZX16 => rhs_size = Size.Bit16;
+                    }
+                    instr.reg->print_reg(instr.size);
+                    printf(", "$cast(cstr));
+                    instr.modrm->print(rhs_size);
+
+                    if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
+                        printf(" # "$cast(cstr));
+                        printf(instr.modrm.literal$cast(cstr));
+                    }
+                }
+                case ArgType.MR => {
+                    instr.modrm->print(instr.size);
+                    printf(", "$cast(cstr));
+                    instr.reg->print_reg(instr.size);
+
+                    if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
+                        printf(" # "$cast(cstr));
+                        printf(instr.modrm.literal$cast(cstr));
+                    }
+                }
+                case ArgType.MI => {
+                    instr.modrm->print(instr.size);
+                    printf(", "$cast(cstr)); // TODO make 0x version
+                    printf(instr.imm64$cast(str)$cast(cstr));
+
+                    if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
+                        printf(" # "$cast(cstr));
+                        printf(instr.modrm.literal$cast(cstr));
+                    }
+                }
+                case ArgType.MI_CHAR => {
+                    instr.modrm->print(instr.size);
+                    printf(", "$cast(cstr)); // TODO make 0x version
+                    printf(instr.imm64$cast(str)$cast(cstr));
+                    // TODO ketl_lexer_is_character_escaped
+                    // printf("    # '\\"$cast(cstr));
+                    printf("    # '"$cast(cstr));
+                    // printf(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char))$cast(cstr));
+                    printf(("" .. instr.imm64$cast(char))$cast(cstr));
+                    printf("'"$cast(cstr));
+
+                    if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
+                        printf(" # "$cast(cstr));
+                        printf(instr.modrm.literal$cast(cstr));
+                    }
+                }
+                case ArgType.JI => printf(instrs[instr.goto_offset].modrm.literal$cast(cstr));
+            }
+        }
     }
 
     var instrs: Instr[];
@@ -366,6 +696,399 @@ export class ASMX86 {
             self.instrs ..= instr;
         }
 
+        class MovArg {
+            var varr: HIR.Var;
+            var var_id: HIR.VarId;
+            var var_info: HIR.VarInfo;
+            var literal: u64;
+            var type: Type;
+
+            fn construct(var_id: HIR.VarId, builder: Builder) => MovArg {
+                var varr = builder.hir.vars[var_id];
+
+                // TODO
+                /*
+                while (var.uid == KETL_HIR_VAR_UID_CAST) {
+                    var_id = var.cast_target;
+                    var = p_builder->p_hir->p_vars[var_id];
+                }
+                */
+
+                var var_info: HIR.VarInfo;
+                if (varr.kind == HIR.Var.Kind.Regular) {
+                    var var_common = varr$cast(HIR.VarCommon);
+                    var_info = builder.hir.vars_infos[var_common.info];
+                }
+                var literal: u64;
+                if (varr.kind == HIR.Var.Kind.Literal) {
+                    var var_literal = varr$cast(HIR.VarLiteral);
+                    literal = var_literal.value;
+                }
+                // TODO placeholder
+                var type = Types.instance.type_i64;
+                
+                var self = MovArg();
+                self.varr = varr;
+                self.var_id = var_id;
+                self.var_info = var_info;
+                self.literal = literal;
+                self.type = type;
+                return self;
+            }
+        }
+
+        fn modrm_stack(self: Builder, size: Size, arg_info: ArgInfo) => ModRM {
+            switch (self.abi) {
+                case ABI.WINDOWS =>
+                    // TODO self.inline_symbols
+                    if (true) {
+                        return ModRM.construct_indir_base_label(Reg.SP, arg_info.name, arg_info.stack_offset);
+                    } else {
+                        return ModRM.construct_indir_base_disp(Reg.SP, arg_info.stack_offset);
+                    }
+                case ABI.SYSTEM_V =>
+                    // TODO 4294967296 => 0x100000000
+                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - arg_info.stack_offset - size));
+            }
+
+            assert(false);
+            return ModRM.construct_empty();
+        }
+
+        fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
+            var rhs_type_size = Size.Bit64; // TODO ketl_type_get_stack_size(p_rhs_type);
+            assert(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)));
+
+            if (size > rhs_type_size) {
+                if (rhs_type.kind == Type.Kind.Enum) {
+                    rhs_type = rhs_type$cast(TypeEnum).parent;
+                }
+                var rhs_primitive_type = rhs_type$cast(TypePrimitive);
+                if (rhs_primitive_type.is_signed) {
+                    switch (rhs_type_size) {
+                        case Size.Bit8 =>
+                            if (size < Size.Bit64) {
+                                self->insert_reg_rm(Tag.MOVSX8, Size.Bit32, target_reg, rhs);
+                            } else {
+                                self->insert_reg_rm(Tag.MOVSX8, Size.Bit64, target_reg, rhs);
+                            }
+                        case Size.Bit16 =>
+                            if (size < Size.Bit64) {
+                                self->insert_reg_rm(Tag.MOVSX16, Size.Bit32, target_reg, rhs);
+                            } else {
+                                self->insert_reg_rm(Tag.MOVSX16, Size.Bit64, target_reg, rhs);
+                            }
+                        case Size.Bit32 =>
+                            if (size < Size.Bit64) {
+                                self->insert_reg_rm(Tag.MOVSX32, Size.Bit32, target_reg, rhs);
+                            } else {
+                                self->insert_reg_rm(Tag.MOVSX32, Size.Bit64, target_reg, rhs);
+                            }
+                    }
+                } else {
+                    switch (rhs_type_size) {
+                        case Size.Bit8 =>
+                            self->insert_reg_rm(Tag.MOVZX8, Size.Bit32, target_reg, rhs);
+                        case Size.Bit16 =>
+                            self->insert_reg_rm(Tag.MOVZX16, Size.Bit32, target_reg, rhs);
+                        case Size.Bit32 =>
+                            self->insert_reg_rm(Tag.MOV, Size.Bit32, target_reg, rhs);
+                    }
+                }
+            } else {
+                self->insert_reg_rm(Tag.MOV, size, target_reg, rhs); 
+            }
+        }
+
+        fn push_mov_from_stack(self: Builder, target_reg: Reg, arg: MovArg, size: Size) {
+            if (arg.varr.kind == HIR.Var.Kind.Literal) {
+                var literal = arg.literal;
+
+                var type = arg.type;
+                assert(type == null || type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum);
+
+                if (type == Types.instance.type_char$cast(Type)) {
+                    var value = literal$cast(char);
+                    self->insert_rm_char(Tag.MOV, Size.Bit8, ModRM.construct_reg(target_reg), value);
+                } else {
+                    var value = literal$cast(i64);
+
+                    // TODO FIX
+                    // get type size and use appropriate load global bytecode
+                    self->insert_rm_imm(Tag.MOV, Size.Bit64, ModRM.construct_reg(target_reg), value);
+                }
+
+                return;
+            }
+
+            /*
+            if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_GLOBAL) {
+                ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(p_arg->p_var_info->p_namespace, p_arg->p_var_info->namespace_node_index);
+
+                if (p_builder->inline_symbols) {
+                    ketl_atomic_string s_name = p_namespace_node->s_name;
+                    if (p_arg->var.type == KETL_HIR_USED_TYPE_META) {
+                        if (s_name != KETL_ATOMIC_STRING_EMPTY) {
+                            ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                        } else {
+                            ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(target_reg), 0);
+                        }
+                    } else {
+                        if (p_arg->p_type->kind == KETL_TYPE_CFUNCTION) {
+                            ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_LEA, KETL_ASM_X86_PTRSIZE, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                        } else {
+                            push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_RIP_LABEL(s_name));
+                        }
+                    }
+                } else {
+                    ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
+                    // TODO FIX
+                    // get type size and use appropriate load global bytecode
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(target_reg), (int64_t)&p_namespace_node->variable);
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(target_reg, 0));
+                }
+                return;
+            }
+
+            if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_FIELD) {
+                ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
+                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+
+                while (object.uid == KETL_HIR_VAR_UID_CAST) {
+                    object_id = object.cast_target;
+                    object = p_builder->p_hir->p_vars[object_id];
+                }
+
+                ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, p_arg->var.info);
+                ANN_ASSERT(object_bucket != NULL);
+
+                ketl_asm_x86_reg_t donor_reg = target_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
+                
+                push_mov_from_stack_hir(donor_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
+                if (p_builder->inline_symbols) {
+                    char a_fullname_buffer[256];
+                    uint32_t fullname_length = 0;
+
+                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, p_arg->p_var_info->name);
+
+                    ketl_type* p_object_type = p_builder->p_hir->p_used_types[p_builder->p_hir->p_vars[p_arg->p_var_info->parent_id].type];
+
+                    if (p_object_type->kind == KETL_TYPE_CLASS) {
+                        ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
+                        bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
+
+                        const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
+                        if (is_export) {
+                            ++p_class_name; // skip dot
+                        }
+                        
+                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "%s.%s", p_class_name, p_field_name);
+                    } else {
+                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "__ketl_rt.ArrayHeader.%s", p_field_name);
+                    }
+
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_LABEL(donor_reg, 
+                        ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_fullname_buffer, fullname_length),
+                        object_bucket->value.stack_offset)); 
+                } else {
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset)); 
+                }
+                return;
+            }
+
+            if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_INDEX) {
+                ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
+                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+                ketl_hir_var_id_t arg_id = p_arg->p_var_info->arg_id;
+
+                ANN_ASSERT(object.type != KETL_HIR_USED_TYPE_UNKNOWN);
+                ketl_type* p_object_type = p_builder->p_hir->p_used_types[object.type];
+                ketl_type* p_value_type = ((ketl_type_array*)p_object_type)->p_value_type;
+
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, KETL_ASM_X86_R9, MODRM_REG(KETL_ASM_X86_CX)); 
+
+                if (p_builder->inline_symbols) {
+                    char a_stack_size_buffer[16];
+                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(p_value_type));
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer}, // stack_size
+                        arg_from_hir_var_id(object_id, p_builder),
+                        arg_from_hir_var_id(arg_id, p_builder),
+                    };
+                    
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    // call __ketl_rt.array_get_value
+                    ketl_atomic_string s_rt_array_get_value_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt.array_get_value", KETL_NULL_TERMINATED_LENGTH_32);
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_rt_array_get_value_name));
+                } else {
+                    //ketl_gc_get_value(&p_builder->p_state->gc, 
+                    //  p_hir->p_used_types[p_hir_info->array_value], array_var, append_var);
+                    char a_gc_address_buffer[16];
+                    snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
+                    char a_stack_size_buffer[16];
+                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(p_value_type));
+                    push_mov_arg a_arguments[] = {
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
+                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer},
+                        arg_from_hir_var_id(object_id, p_builder),
+                        arg_from_hir_var_id(arg_id, p_builder),
+                    };
+                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
+
+                    void* func_address;
+                    #define KETL_POINTER_CONVERTER
+                    #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_get_value
+                    #define KETL_POINTER_CONVERTER_VAR  func_address
+                    #define KETL_POINTER_CONVERTER_TYPE void*
+                    #include "meta.i"
+                    
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), (uint64_t)func_address);
+
+                    // call get_value from gc
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
+                }
+
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, KETL_ASM_X86_CX, MODRM_REG(KETL_ASM_X86_R9)); 
+
+                if (target_reg != KETL_ASM_X86_AX) {
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_REG(KETL_ASM_X86_AX)); 
+                }
+                return;
+            }
+            */
+
+            var var_info_index = arg.varr$cast(HIR.VarCommon).info;
+
+            var bucket = self.variables->get_or_null(var_info_index);
+            assert(bucket != null);
+
+            self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, bucket.value));
+        }
+
+        fn push_mov_from_stack_hir(self: Builder, target_reg: Reg, var_id: HIR.VarId, size: Size) {
+            var arg = MovArg.construct(var_id, self);
+            self->push_mov_from_stack(target_reg, arg, size);
+        }
+
+        fn push_mov_to_stack_hir(self: Builder, var_id: HIR.VarId, source_reg: Reg, size: Size) {
+            var varr = self.hir.vars[var_id];
+            assert(varr.kind != HIR.Var.Kind.Literal);
+
+            /*
+            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_GLOBAL) {
+                ANN_ASSERT(var.type != KETL_HIR_USED_TYPE_META);
+
+                ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
+                    p_builder->p_hir->p_vars_infos[var.info].p_namespace, p_builder->p_hir->p_vars_infos[var.info].namespace_node_index);
+
+                if (p_builder->inline_symbols) {
+                    ketl_atomic_string s_name = p_namespace_node->s_name;
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_RIP_LABEL(s_name), source_reg); 
+                } else {
+                    ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
+                    // TODO get proper size
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(donor_reg), (int64_t)&p_namespace_node->variable);
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, 0), source_reg); 
+                }
+                return;
+            }
+
+            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
+                ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
+                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+
+                while (object.uid == KETL_HIR_VAR_UID_CAST) {
+                    object_id = object.cast_target;
+                    object = p_builder->p_hir->p_vars[object_id];
+                }
+
+                ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, var.info);
+                ANN_ASSERT(object_bucket != NULL);
+                
+                ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
+                
+                push_mov_from_stack_hir(donor_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
+                if (p_builder->inline_symbols) {
+                    char a_fullname_buffer[256];
+                    uint32_t fullname_length = 0;
+
+                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, p_builder->p_hir->p_vars_infos[var.info].name);
+
+                    ketl_type* p_object_type = p_builder->p_hir->p_used_types[p_builder->p_hir->p_vars[p_builder->p_hir->p_vars_infos[var.info].parent_id].type];
+
+                    if (p_object_type->kind == KETL_TYPE_CLASS) {
+                        ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
+                        bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
+
+                        const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
+                        if (is_export) {
+                            ++p_class_name; // skip dot
+                        }
+                        
+                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "%s.%s", p_class_name, p_field_name);
+                    } else {
+                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "__ketl_rt.ArrayHeader.%s", p_field_name);
+                    }
+
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_LABEL(donor_reg, 
+                        ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_fullname_buffer, fullname_length),
+                        object_bucket->value.stack_offset), source_reg); 
+                } else {
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset), source_reg);
+                } 
+                return;
+            }
+
+            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_INDEX) {
+                ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
+                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+                ketl_hir_var_id_t arg_id = p_builder->p_hir->p_vars_infos[var.info].arg_id;
+
+                ANN_ASSERT(object.type != KETL_HIR_USED_TYPE_UNKNOWN);
+                ketl_type* p_object_type = p_builder->p_hir->p_used_types[object.type];
+                ketl_type* p_value_type = ((ketl_type_array*)p_object_type)->p_value_type;
+
+                ketl_asm_x86_reg_t donor_arg_reg = KETL_ASM_X86_AX;
+                ketl_asm_x86_reg_t donor_object_reg = KETL_ASM_X86_DX;
+
+                ketl_asm_x86_reg_t save_reg = KETL_ASM_X86_R9;
+
+                // save value from source reg
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, save_reg, MODRM_REG(source_reg));
+
+                // get argument into rax
+                push_mov_from_stack_hir(donor_arg_reg, arg_id, size, p_builder);
+                uint16_t value_stack_size = ketl_type_get_stack_size(p_value_type);
+                if (value_stack_size > 1) {
+                    // get type size into rcx
+                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), value_stack_size);
+                    // multiply, result in rax
+                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_MUL, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg));
+                }
+
+                // get array
+                push_mov_from_stack_hir(donor_object_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, donor_object_reg, MODRM_INDIR_BASE_LABEL(donor_object_reg, 
+                    ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt.ArrayHeader.data", KETL_NULL_TERMINATED_LENGTH_32), 0));
+
+                // add multiplication result, result in rax
+                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, KETL_ASM_X86_PTRSIZE, donor_arg_reg, MODRM_REG(donor_object_reg));
+
+                // indirect write 
+                ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_arg_reg, 0), save_reg);
+                return;
+            }
+            */
+
+            var var_info_index = varr$cast(HIR.VarCommon).info;
+
+            var bucket = self.variables->get_or_null(var_info_index);
+            assert(bucket != null);
+
+            self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg);     
+        }
+
         fn finalize_stask_size(self: Builder) {
             var has_calls = self.hir.max_call_arg_count != (-1)$cast(u8);
 
@@ -463,7 +1186,7 @@ export class ASMX86 {
                 if (self.stack_reserved_size > 0) {
                     self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
 
-                    self->directive("seh_stackalloc " .. self.stack_reserved_size$cast(str));
+                    self->directive(("seh_stackalloc " .. self.stack_reserved_size$cast(str)));
                     self->directive("seh_endprologue");
                 }
 
@@ -486,7 +1209,7 @@ export class ASMX86 {
                     ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var.info, arg_info);
 
                     if (var_id < get_reg_paramters_count(p_builder->abi_type)) {
-                        ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, modrm_stack(p_builder, KETL_ASM_X86_64B, arg_info), 
+                        ketl_asm_x86_insert_rm_reg(p_builder, Tag.MOV, Tag.64B, modrm_stack(p_builder, Tag.64B, arg_info), 
                             get_reg_parameter(p_builder->abi_type, var_id));
                     }
                     */
@@ -503,14 +1226,15 @@ export class ASMX86 {
                     
                     /*
                     ketl_hir_to_asm_offsets_t_get_or_insert_copy(&p_builder->hir_to_asm_offsets, i, p_builder->instrs.size);
-
-                    char a_label_buffer[256] = {'\0'};
-                    uint32_t label_length = snprintf(a_label_buffer, ANN_ARRAY_SIZE(a_label_buffer), ".LBB%"PRIu16"_%"PRIu16, func_index, block_counter);
-                    ketl_atomic_string s_label = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_label_buffer, label_length);
-                    ++block_counter;
-
-                    ketl_asm_label(p_builder, s_label);
                     */
+
+                    var label = ".LBB";
+                    label ..= "0"; // TODO func_index$cast(str);
+                    label ..= "_";
+                    label ..= block_counter$cast(str);
+                    block_counter += 1;
+
+                    self->label(label);
                 }
 
                 var instr = self.hir.instrs[i];
@@ -518,7 +1242,13 @@ export class ASMX86 {
                 switch (instr.tag) {
                     default => assert(false);
                     case HIR.Tag.PLUS => {
-
+                        var hir_info = instr$cast(HIR.BinaryOp);
+                        // TODO fix, get from the value
+                        var size = Size.Bit64;
+                        self->push_mov_from_stack_hir(Reg.CX, hir_info.rhs, size);
+                        self->push_mov_from_stack_hir(Reg.AX, hir_info.lhs, size);
+                        self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                        self->push_mov_to_stack_hir(hir_info.output, Reg.AX, size);
                     }
 
 
@@ -526,8 +1256,7 @@ export class ASMX86 {
                         var hir_info = instr$cast(HIR.ReturnValue);
                         // TODO fix, get from the value
                         var size = Size.Bit64;
-                        // TODO
-                        //push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->value_var, size, p_builder);
+                        self->push_mov_from_stack_hir(Reg.AX, hir_info.value, size);
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
@@ -549,6 +1278,9 @@ export class ASMX86 {
     }
 
     export fn print(self: ASMX86) {
-        printf("TEST"$cast(cstr));
+        for (var instr <- self.instrs) {
+            instr->print(self.instrs);
+            printf("\n"$cast(cstr));
+        }
     } 
 }

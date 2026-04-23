@@ -2488,7 +2488,9 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
 
 uint32_t ketl_asm_x86_format(ketl_state* p_state, ketl_asm_x86_t* p_asm_x86, char* p_buffer, uint32_t buffer_size, bool verbose) {
     opcodes_t opcodes;
-    opcodes_t_init(&opcodes, 16, p_state->p_allocator);
+    if (verbose) {
+        opcodes_t_init(&opcodes, 16, p_state->p_allocator);
+    }
 
     uint32_t printed = 0;
     
@@ -2506,7 +2508,9 @@ uint32_t ketl_asm_x86_format(ketl_state* p_state, ketl_asm_x86_t* p_asm_x86, cha
         printed += snprintf(p_buffer + printed, buffer_size - printed, "\n");
     }
 
-    opcodes_t_deinit(&opcodes);
+    if (verbose) {
+        opcodes_t_deinit(&opcodes);
+    }
 
     return printed;
 }

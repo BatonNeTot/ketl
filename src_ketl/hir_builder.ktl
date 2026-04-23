@@ -34,6 +34,7 @@ class HIRBuilder {
     }
 
     fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
+        // TODO placeholder
         return Types.instance.type_i64;
     }
 
@@ -71,12 +72,11 @@ class HIRBuilder {
         self->get_current_block() ..= instr;
     }
 
-cimport printf(message: cstr)
-
     export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
         var temp_info_id = self.vars_infos.size$cast(HIR.VarInfoId);
         var temp_info = HIR.VarInfo();
-        temp_info.name = "tmp" .. self.temp_counter$cast(str);
+        temp_info.name = "~tmp" .. self.temp_counter$cast(str);
+        self.temp_counter += 1;
         self.vars_infos ..= temp_info;
 
         var temp_var_id = self.vars.size$cast(HIR.VarId);

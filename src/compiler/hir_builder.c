@@ -956,8 +956,10 @@ ketl_hir_var_id_t ketl_hir_builder_cast_primitive(ketl_hir_builder_t* p_hir_buil
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(var).type); 
 
     ANN_ASSERT((p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) ||
+        (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_ENUM) ||
+        (p_lhs_type->kind == KETL_TYPE_ENUM && p_rhs_type->kind == KETL_TYPE_PRIMITIVE) ||
         (ketl_type_is_pointer_type(p_lhs_type) && ketl_type_is_raw_type(p_rhs_type)) || 
-        (ketl_type_is_pointer_type(p_rhs_type) && ketl_type_is_raw_type(p_lhs_type)));
+        (ketl_type_is_raw_type(p_lhs_type) && ketl_type_is_pointer_type(p_rhs_type)));
 
     ketl_hir_var_id_t casted_var = (ketl_hir_var_id_t)p_hir_builder->vars.size;
     hir_builder_vars_t_push_back_copy(&p_hir_builder->vars, (ketl_hir_var_t){
