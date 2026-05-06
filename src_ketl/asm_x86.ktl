@@ -2,14 +2,13 @@
 
 from common import IntHashMap
 from common import align_forward
+import common
 
 from type import Type
 from type import TypePrimitive
 from type import TypeEnum
 from type import Types
 from hir import HIR
-
-cimport printf(message: cstr)
 
 export class ASMX86 {
 
@@ -88,21 +87,21 @@ export class ASMX86 {
 
     fn print_ptr_size(size: Size) {
         switch (size) {
-            case Size.Bit8  => printf("byte"$cast(cstr));
-            case Size.Bit16 => printf("word"$cast(cstr));
-            case Size.Bit32 => printf("dword"$cast(cstr));
-            case Size.Bit64 => printf("qword"$cast(cstr));
-            default => printf("error"$cast(cstr)); 
+            case Size.Bit8  => common.print("byte");
+            case Size.Bit16 => common.print("word");
+            case Size.Bit32 => common.print("dword");
+            case Size.Bit64 => common.print("qword");
+            default => common.print("error"); 
         }
     }
 
     fn print_directive_size(size: Size) {
         switch (size) {
-            case Size.Bit8  => printf("byte"$cast(cstr));
-            case Size.Bit16 => printf("2byte"$cast(cstr));
-            case Size.Bit32 => printf("4byte"$cast(cstr));
-            case Size.Bit64 => printf("8byte"$cast(cstr));
-            default => printf("error"$cast(cstr)); 
+            case Size.Bit8  => common.print("byte");
+            case Size.Bit16 => common.print("2byte");
+            case Size.Bit32 => common.print("4byte");
+            case Size.Bit64 => common.print("8byte");
+            default => common.print("error"); 
         }
     }
 
@@ -140,133 +139,133 @@ export class ASMX86 {
         switch (reg) {
             case Reg.AX =>
                 switch (size) {
-                    case Size.Bit8  => printf("al"$cast(cstr));
-                    case Size.Bit16 => printf("ax"$cast(cstr));
-                    case Size.Bit32 => printf("eax"$cast(cstr));
-                    case Size.Bit64 => printf("rax"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("al");
+                    case Size.Bit16 => common.print("ax");
+                    case Size.Bit32 => common.print("eax");
+                    case Size.Bit64 => common.print("rax");
+                    default => common.print("$reg-error");
                 }
             case Reg.CX =>
                 switch (size) {
-                    case Size.Bit8  => printf("cl"$cast(cstr));
-                    case Size.Bit16 => printf("cx"$cast(cstr));
-                    case Size.Bit32 => printf("ecx"$cast(cstr));
-                    case Size.Bit64 => printf("rcx"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("cl");
+                    case Size.Bit16 => common.print("cx");
+                    case Size.Bit32 => common.print("ecx");
+                    case Size.Bit64 => common.print("rcx");
+                    default => common.print("$reg-error");
                 }
             case Reg.DX =>
                 switch (size) {
-                    case Size.Bit8  => printf("dl"$cast(cstr));
-                    case Size.Bit16 => printf("dx"$cast(cstr));
-                    case Size.Bit32 => printf("edx"$cast(cstr));
-                    case Size.Bit64 => printf("rdx"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("dl");
+                    case Size.Bit16 => common.print("dx");
+                    case Size.Bit32 => common.print("edx");
+                    case Size.Bit64 => common.print("rdx");
+                    default => common.print("$reg-error");
                 }
             case Reg.BX =>
                 switch (size) {
-                    case Size.Bit8  => printf("bl"$cast(cstr));
-                    case Size.Bit16 => printf("bx"$cast(cstr));
-                    case Size.Bit32 => printf("ebx"$cast(cstr));
-                    case Size.Bit64 => printf("rbx"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("bl");
+                    case Size.Bit16 => common.print("bx");
+                    case Size.Bit32 => common.print("ebx");
+                    case Size.Bit64 => common.print("rbx");
+                    default => common.print("$reg-error");
                 }
             case Reg.SP =>
                 switch (size) {
-                    case Size.Bit8  => printf("spl"$cast(cstr));
-                    case Size.Bit16 => printf("sp"$cast(cstr));
-                    case Size.Bit32 => printf("esp"$cast(cstr));
-                    case Size.Bit64 => printf("rsp"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("spl");
+                    case Size.Bit16 => common.print("sp");
+                    case Size.Bit32 => common.print("esp");
+                    case Size.Bit64 => common.print("rsp");
+                    default => common.print("$reg-error");
                 }
             case Reg.BP =>
                 switch (size) {
-                    case Size.Bit8  => printf("bpl"$cast(cstr));
-                    case Size.Bit16 => printf("bp"$cast(cstr));
-                    case Size.Bit32 => printf("ebp"$cast(cstr));
-                    case Size.Bit64 => printf("rbp"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("bpl");
+                    case Size.Bit16 => common.print("bp");
+                    case Size.Bit32 => common.print("ebp");
+                    case Size.Bit64 => common.print("rbp");
+                    default => common.print("$reg-error");
                 }
             case Reg.SI =>
                 switch (size) {
-                    case Size.Bit8  => printf("sil"$cast(cstr));
-                    case Size.Bit16 => printf("si"$cast(cstr));
-                    case Size.Bit32 => printf("esi"$cast(cstr));
-                    case Size.Bit64 => printf("rsi"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("sil");
+                    case Size.Bit16 => common.print("si");
+                    case Size.Bit32 => common.print("esi");
+                    case Size.Bit64 => common.print("rsi");
+                    default => common.print("$reg-error");
                 }
             case Reg.DI =>
                 switch (size) {
-                    case Size.Bit8  => printf("dil"$cast(cstr));
-                    case Size.Bit16 => printf("di"$cast(cstr));
-                    case Size.Bit32 => printf("edi"$cast(cstr));
-                    case Size.Bit64 => printf("rdi"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("dil");
+                    case Size.Bit16 => common.print("di");
+                    case Size.Bit32 => common.print("edi");
+                    case Size.Bit64 => common.print("rdi");
+                    default => common.print("$reg-error");
                 }
             case Reg.R8 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r8b"$cast(cstr));
-                    case Size.Bit16 => printf("r8w"$cast(cstr));
-                    case Size.Bit32 => printf("r8d"$cast(cstr));
-                    case Size.Bit64 => printf("r8"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r8b");
+                    case Size.Bit16 => common.print("r8w");
+                    case Size.Bit32 => common.print("r8d");
+                    case Size.Bit64 => common.print("r8");
+                    default => common.print("$reg-error");
                 }
             case Reg.R9 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r9b"$cast(cstr));
-                    case Size.Bit16 => printf("r9w"$cast(cstr));
-                    case Size.Bit32 => printf("r9d"$cast(cstr));
-                    case Size.Bit64 => printf("r9"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r9b");
+                    case Size.Bit16 => common.print("r9w");
+                    case Size.Bit32 => common.print("r9d");
+                    case Size.Bit64 => common.print("r9");
+                    default => common.print("$reg-error");
                 }
             case Reg.R10 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r10b"$cast(cstr));
-                    case Size.Bit16 => printf("r10w"$cast(cstr));
-                    case Size.Bit32 => printf("r10d"$cast(cstr));
-                    case Size.Bit64 => printf("r10"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r10b");
+                    case Size.Bit16 => common.print("r10w");
+                    case Size.Bit32 => common.print("r10d");
+                    case Size.Bit64 => common.print("r10");
+                    default => common.print("$reg-error");
                 }
             case Reg.R11 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r11b"$cast(cstr));
-                    case Size.Bit16 => printf("r11w"$cast(cstr));
-                    case Size.Bit32 => printf("r11d"$cast(cstr));
-                    case Size.Bit64 => printf("r11"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r11b");
+                    case Size.Bit16 => common.print("r11w");
+                    case Size.Bit32 => common.print("r11d");
+                    case Size.Bit64 => common.print("r11");
+                    default => common.print("$reg-error");
                 }
             case Reg.R12 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r12b"$cast(cstr));
-                    case Size.Bit16 => printf("r12w"$cast(cstr));
-                    case Size.Bit32 => printf("r12d"$cast(cstr));
-                    case Size.Bit64 => printf("r12"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r12b");
+                    case Size.Bit16 => common.print("r12w");
+                    case Size.Bit32 => common.print("r12d");
+                    case Size.Bit64 => common.print("r12");
+                    default => common.print("$reg-error");
                 }
             case Reg.R13 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r13b"$cast(cstr));
-                    case Size.Bit16 => printf("r13w"$cast(cstr));
-                    case Size.Bit32 => printf("r13d"$cast(cstr));
-                    case Size.Bit64 => printf("r13"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r13b");
+                    case Size.Bit16 => common.print("r13w");
+                    case Size.Bit32 => common.print("r13d");
+                    case Size.Bit64 => common.print("r13");
+                    default => common.print("$reg-error");
                 }
             case Reg.R14 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r14b"$cast(cstr));
-                    case Size.Bit16 => printf("r14w"$cast(cstr));
-                    case Size.Bit32 => printf("r14d"$cast(cstr));
-                    case Size.Bit64 => printf("r14"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r14b");
+                    case Size.Bit16 => common.print("r14w");
+                    case Size.Bit32 => common.print("r14d");
+                    case Size.Bit64 => common.print("r14");
+                    default => common.print("$reg-error");
                 }
             case Reg.R15 =>
                 switch (size) {
-                    case Size.Bit8  => printf("r15b"$cast(cstr));
-                    case Size.Bit16 => printf("r15w"$cast(cstr));
-                    case Size.Bit32 => printf("r15d"$cast(cstr));
-                    case Size.Bit64 => printf("r15"$cast(cstr));
-                    default => printf("$reg-error"$cast(cstr));
+                    case Size.Bit8  => common.print("r15b");
+                    case Size.Bit16 => common.print("r15w");
+                    case Size.Bit32 => common.print("r15d");
+                    case Size.Bit64 => common.print("r15");
+                    default => common.print("$reg-error");
                 }
-            default => printf("$reg-error"$cast(cstr));
+            default => common.print("$reg-error");
         }
     }
 
@@ -351,7 +350,7 @@ export class ASMX86 {
         fn print(modrm: ModRM, size: Size) {
             if (!modrm.indir) {
                 if (modrm.label) {
-                    printf(modrm.literal$cast(cstr));
+                    common.print(modrm.literal);
                 } else {
                     modrm.base->print_reg(size);
                 }
@@ -359,36 +358,36 @@ export class ASMX86 {
             }
 
             size->print_ptr_size();
-            printf(" ptr ["$cast(cstr));
+            common.print(" ptr [");
 
             if (modrm.base == Reg.None && modrm.label) {
-                printf("rip + "$cast(cstr));
-                printf(modrm.literal$cast(cstr));
-                printf("]"$cast(cstr));
+                common.print("rip + ");
+                common.print(modrm.literal);
+                common.print("]");
                 return;
             }
 
             modrm.base->print_reg(Size.Ptr);
             
             if (modrm.index != Reg.None) {
-                printf(" + ("$cast(cstr));
+                common.print(" + (");
                 modrm.index->print_reg(Size.Ptr);
-                printf(" * "$cast(cstr));
-                printf(scale_powers[modrm.scale_power]$cast(str)$cast(cstr));
-                printf(")"$cast(cstr));
+                common.print(" * ");
+                common.print(scale_powers[modrm.scale_power]$cast(str));
+                common.print(")");
             }
 
             if (modrm.disp != 0) {
                 if (modrm.disp >= 0) {
-                    printf(" + 0x"$cast(cstr));
-                    printf(modrm.disp$cast(str)$cast(cstr));
+                    common.print(" + 0x");
+                    common.print(modrm.disp$cast(str));
                 } else {
-                    printf(" - 0x"$cast(cstr));
-                    printf((-modrm.disp)$cast(str)$cast(cstr));
+                    common.print(" - 0x");
+                    common.print((-modrm.disp)$cast(str));
                 }
             }
 
-            printf("]"$cast(cstr));
+            common.print("]");
         }
 
     }
@@ -408,59 +407,59 @@ export class ASMX86 {
 
         fn print(instr: Instr, instrs: Instr[]) {
             if (instr.tag == Tag.LABEL) {
-                printf(instr.modrm.literal$cast(cstr));
-                printf(":"$cast(cstr));
+                common.print(instr.modrm.literal);
+                common.print(":");
                 return;
             } else {
-                printf("    "$cast(cstr));
+                common.print("    ");
             }
 
             switch (instr.tag) {
                 case Tag.DIRECTIVE => {
-                    printf("."$cast(cstr));
-                    printf(instr.modrm.literal$cast(cstr));
+                    common.print(".");
+                    common.print(instr.modrm.literal);
                 }
 
-                case Tag.PUSH => printf("push "$cast(cstr));
-                case Tag.POP => printf("pop "$cast(cstr));
+                case Tag.PUSH => common.print("push ");
+                case Tag.POP => common.print("pop ");
 
-                case Tag.MOV => printf("mov "$cast(cstr));
-                case Tag.LEA => printf("lea "$cast(cstr));
+                case Tag.MOV => common.print("mov ");
+                case Tag.LEA => common.print("lea ");
 
-                case Tag.MOVSX8 => printf("movsx "$cast(cstr));
-                case Tag.MOVSX16 => printf("movsx "$cast(cstr));
-                case Tag.MOVSX32 => printf("movsxd "$cast(cstr));
-                case Tag.MOVZX8 => printf("movzx "$cast(cstr));
-                case Tag.MOVZX16 => printf("movzx "$cast(cstr));
+                case Tag.MOVSX8 => common.print("movsx ");
+                case Tag.MOVSX16 => common.print("movsx ");
+                case Tag.MOVSX32 => common.print("movsxd ");
+                case Tag.MOVZX8 => common.print("movzx ");
+                case Tag.MOVZX16 => common.print("movzx ");
 
-                case Tag.ADD => printf("add "$cast(cstr));
-                case Tag.SUB => printf("sub "$cast(cstr));
-                case Tag.NEG => printf("neg "$cast(cstr));
-                case Tag.MUL => printf("mul "$cast(cstr));
-                case Tag.IMUL => printf("imul "$cast(cstr));
-                case Tag.DIV => printf("div "$cast(cstr));
-                case Tag.IDIV => printf("idiv "$cast(cstr));
+                case Tag.ADD => common.print("add ");
+                case Tag.SUB => common.print("sub ");
+                case Tag.NEG => common.print("neg ");
+                case Tag.MUL => common.print("mul ");
+                case Tag.IMUL => common.print("imul ");
+                case Tag.DIV => common.print("div ");
+                case Tag.IDIV => common.print("idiv ");
 
-                case Tag.AND => printf("and "$cast(cstr));
-                case Tag.OR => printf("or "$cast(cstr));
-                case Tag.XOR => printf("xor "$cast(cstr));
-                case Tag.NOT => printf("not "$cast(cstr));
+                case Tag.AND => common.print("and ");
+                case Tag.OR => common.print("or ");
+                case Tag.XOR => common.print("xor ");
+                case Tag.NOT => common.print("not ");
 
-                case Tag.CMP => printf("cmp "$cast(cstr));
-                case Tag.TEST => printf("test "$cast(cstr));
+                case Tag.CMP => common.print("cmp ");
+                case Tag.TEST => common.print("test ");
                     
-                case Tag.SETE => printf("sete "$cast(cstr));
-                case Tag.SETNE => printf("setne "$cast(cstr));
-                case Tag.SETG => printf("setg "$cast(cstr));
-                case Tag.SETGE => printf("setge "$cast(cstr));
-                case Tag.SETL => printf("setl "$cast(cstr));
-                case Tag.SETLE => printf("setle "$cast(cstr));
+                case Tag.SETE => common.print("sete ");
+                case Tag.SETNE => common.print("setne ");
+                case Tag.SETG => common.print("setg ");
+                case Tag.SETGE => common.print("setge ");
+                case Tag.SETL => common.print("setl ");
+                case Tag.SETLE => common.print("setle ");
 
-                case Tag.JMP => printf("jmp "$cast(cstr));
-                case Tag.JNE => printf("jne "$cast(cstr));
+                case Tag.JMP => common.print("jmp ");
+                case Tag.JNE => common.print("jne ");
 
-                case Tag.CALL => printf("call "$cast(cstr));
-                case Tag.RET => printf("ret"$cast(cstr));
+                case Tag.CALL => common.print("call ");
+                case Tag.RET => common.print("ret");
             }
 
             switch (instr.arg_type) {
@@ -469,8 +468,8 @@ export class ASMX86 {
                     instr.modrm->print(instr.size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        printf(" # "$cast(cstr));
-                        printf(instr.modrm.literal$cast(cstr));
+                        common.print(" # ");
+                        common.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.RM => {
@@ -483,51 +482,51 @@ export class ASMX86 {
                         case Tag.MOVZX16 => rhs_size = Size.Bit16;
                     }
                     instr.reg->print_reg(instr.size);
-                    printf(", "$cast(cstr));
+                    common.print(", ");
                     instr.modrm->print(rhs_size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        printf(" # "$cast(cstr));
-                        printf(instr.modrm.literal$cast(cstr));
+                        common.print(" # ");
+                        common.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MR => {
                     instr.modrm->print(instr.size);
-                    printf(", "$cast(cstr));
+                    common.print(", ");
                     instr.reg->print_reg(instr.size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        printf(" # "$cast(cstr));
-                        printf(instr.modrm.literal$cast(cstr));
+                        common.print(" # ");
+                        common.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MI => {
                     instr.modrm->print(instr.size);
-                    printf(", "$cast(cstr)); // TODO make 0x version
-                    printf(instr.imm64$cast(str)$cast(cstr));
+                    common.print(", "); // TODO make 0x version
+                    common.print(instr.imm64$cast(str));
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        printf(" # "$cast(cstr));
-                        printf(instr.modrm.literal$cast(cstr));
+                        common.print(" # ");
+                        common.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MI_CHAR => {
                     instr.modrm->print(instr.size);
-                    printf(", "$cast(cstr)); // TODO make 0x version
-                    printf(instr.imm64$cast(str)$cast(cstr));
+                    common.print(", "); // TODO make 0x version
+                    common.print(instr.imm64$cast(str));
                     // TODO ketl_lexer_is_character_escaped
-                    // printf("    # '\\"$cast(cstr));
-                    printf("    # '"$cast(cstr));
-                    // printf(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char))$cast(cstr));
-                    printf(("" .. instr.imm64$cast(char))$cast(cstr));
-                    printf("'"$cast(cstr));
+                    // common.print("    # '\\");
+                    common.print("    # '");
+                    // common.print(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char)));
+                    common.print(("" .. instr.imm64$cast(char)));
+                    common.print("'");
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        printf(" # "$cast(cstr));
-                        printf(instr.modrm.literal$cast(cstr));
+                        common.print(" # ");
+                        common.print(instr.modrm.literal);
                     }
                 }
-                case ArgType.JI => printf(instrs[instr.goto_offset].modrm.literal$cast(cstr));
+                case ArgType.JI => common.print(instrs[instr.goto_offset].modrm.literal);
             }
         }
     }
@@ -1280,7 +1279,7 @@ export class ASMX86 {
     export fn print(self: ASMX86) {
         for (var instr <- self.instrs) {
             instr->print(self.instrs);
-            printf("\n"$cast(cstr));
+            common.print("\n");
         }
     } 
 }

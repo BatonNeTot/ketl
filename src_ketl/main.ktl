@@ -14,7 +14,8 @@ cexport fn eval(filename : str, source : str) {
     lexer->init();
     lexer->build_tokens(filename, source, log_accum);
 
-    var hir = Parser.build_hir(lexer, VariableDecl[0], null, log_accum);
+    var namespace: raw;
+    var hir = Parser.build_hir(lexer, lexer.tokens.size, namespace, VariableDecl[0], null, 0, true, log_accum);
 
     var asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
 

@@ -66,6 +66,9 @@ ketl_hir_instr_offset_t ketl_hir_get_instr_size(ketl_hir_tag_t tag, uint8_t* p_i
         case KETL_HIR_BITWISE_OR:
         case KETL_HIR_BITWISE_XOR:
 
+        case KETL_HIR_BITWISE_SHIFT_LEFT:
+        case KETL_HIR_BITWISE_SHIFT_RIGHT:
+
         case KETL_HIR_EQUAL:
         case KETL_HIR_NOT_EQUAL:
         case KETL_HIR_LESS:

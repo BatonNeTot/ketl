@@ -1,0 +1,91 @@
+//🫖ketl
+
+from common import Value
+from common import StrHashMap
+
+class Namespace {
+    class Info {
+        // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
+        var exxport: bool;
+        var imported: bool;
+    }
+
+    class Node {
+        var value: Value;
+        var name: str;
+        var key: str;
+        var info: Info;
+    }
+
+    var nodes: StrHashMap;
+    var parent: Namespace;
+    var name: str;
+    var fullname: str;
+
+    export fn construct(name: str, parent: Namespace) => Namespace {
+        var self = Namespace();
+        
+        self.nodes = StrHashMap.construct();
+        self.parent = parent;
+        self.name = name;
+
+        if (parent == null) {
+            self.fullname = name;
+        } else {
+            self.fullname = parent.fullname .. "." .. name;
+        }
+    }
+
+    export fn is_empty(self: Namespace) => bool {
+        return self.nodes == 0;
+    }
+
+    export fn put(self: Namespace, key: str, name: str, value: Value, info: Namespace.Info, force: bool) => Node {
+        if (name == "") {
+            name = key;
+            if (self.parent != null) {
+                assert(self.name != "");
+
+                if (info.exxport) {
+                    // skip first dot
+                    name = self.fullname[1:self.fullname.size] .. "." .. name;
+                } else {
+                    name = self.fullname .. "." .. name;
+                }
+            }
+        }
+
+        var new_node = Node();
+        new_node.value = value;
+        new_node.name = name;
+        new_node.key = key;
+        new_node.info = info;
+
+        var bucket = self.nodes->get_or_insert(key, new_node);
+        if (bucket.value != new_node) {
+            if (!force) {
+                // TODO check const stuff
+                // replace if replacement possible
+                // do error if not
+                assert(false);
+            }
+            
+            bucket.value == new_node;
+        }
+
+        return bucket.value;
+    }
+
+    export fn find(self: Namespace, key: str) => Node {
+        var bucket = self.nodes->get_or_null(key);
+        if (bucket != null) {
+            return bucket.value;
+        }
+
+        if (self.parent != null) {
+            return self.parent->find(key);
+        }
+
+        return null;
+    }
+}

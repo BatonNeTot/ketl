@@ -669,6 +669,7 @@ enum {
     KETL_PREC_EQUALITY,
     KETL_PREC_COMPARISON,
     KETL_PREC_CONCAT,
+    KETL_PREC_SHIFT,
     KETL_PREC_TERM,
     KETL_PREC_FACTOR,
     KETL_PREC_BITWISE_OR,
@@ -692,6 +693,7 @@ ketl_associativity associativity[] = {
     [KETL_PREC_EQUALITY] = KETL_LTR,
     [KETL_PREC_COMPARISON] = KETL_LTR,
     [KETL_PREC_CONCAT] = KETL_LTR,
+    [KETL_PREC_SHIFT] = KETL_LTR,
     [KETL_PREC_TERM] = KETL_LTR,
     [KETL_PREC_FACTOR] = KETL_LTR,
     [KETL_PREC_BITWISE_OR] = KETL_LTR,
@@ -1455,24 +1457,27 @@ static ketl_hir_var_id_t parse_binary_ltr(ketl_parser_context* p_context, ketl_h
     ketl_hir_var_id_t rhs = parse_precedence(p_context, p_parse_rule->precedence + 1);
 
     ANN_SWITCH_STRICT (token_type) {
-        case KETL_TOKEN_TYPE_PLUS:             return push_hir_binary_op(p_context, KETL_HIR_PLUS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_MINUS:            return push_hir_binary_op(p_context, KETL_HIR_MINUS,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_MULTIPLY:         return push_hir_binary_op(p_context, KETL_HIR_MULTY,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_DIVIDE:           return push_hir_binary_op(p_context, KETL_HIR_DIV,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_REMAINDER:        return push_hir_binary_op(p_context, KETL_HIR_MOD,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_PLUS:                return push_hir_binary_op(p_context, KETL_HIR_PLUS,                lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_MINUS:               return push_hir_binary_op(p_context, KETL_HIR_MINUS,               lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_MULTIPLY:            return push_hir_binary_op(p_context, KETL_HIR_MULTY,               lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_DIVIDE:              return push_hir_binary_op(p_context, KETL_HIR_DIV,                 lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_REMAINDER:           return push_hir_binary_op(p_context, KETL_HIR_MOD,                 lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
        
-        case KETL_TOKEN_TYPE_CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_CONCAT:              return push_hir_concat   (p_context,                               lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
-        case KETL_TOKEN_TYPE_LESS:             return push_hir_binary_op(p_context, KETL_HIR_LESS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_LESS_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_GREATER:          return push_hir_binary_op(p_context, KETL_HIR_GREATER,          lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_GREATER_OR_EQUAL: return push_hir_binary_op(p_context, KETL_HIR_GREATER_OR_EQUAL, lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_EQUAL:            return push_hir_binary_op(p_context, KETL_HIR_EQUAL,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_NOT_EQUAL:        return push_hir_binary_op(p_context, KETL_HIR_NOT_EQUAL,        lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_LESS:                return push_hir_binary_op(p_context, KETL_HIR_LESS,                lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_LESS_OR_EQUAL:       return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,       lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_GREATER:             return push_hir_binary_op(p_context, KETL_HIR_GREATER,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_GREATER_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_GREATER_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_EQUAL:               return push_hir_binary_op(p_context, KETL_HIR_EQUAL,               lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_NOT_EQUAL:           return push_hir_binary_op(p_context, KETL_HIR_NOT_EQUAL,           lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
-        case KETL_TOKEN_TYPE_BITWISE_AND:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_AND,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_BITWISE_OR:       return push_hir_binary_op(p_context, KETL_HIR_BITWISE_OR,       lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        case KETL_TOKEN_TYPE_BITWISE_XOR:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_XOR,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_BITWISE_AND:         return push_hir_binary_op(p_context, KETL_HIR_BITWISE_AND,         lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_BITWISE_OR:          return push_hir_binary_op(p_context, KETL_HIR_BITWISE_OR,          lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_BITWISE_XOR:         return push_hir_binary_op(p_context, KETL_HIR_BITWISE_XOR,         lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+
+        case KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT:  return push_hir_binary_op(p_context, KETL_HIR_BITWISE_SHIFT_LEFT,  lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+        case KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT: return push_hir_binary_op(p_context, KETL_HIR_BITWISE_SHIFT_RIGHT, lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
     }
 }
 
@@ -1585,8 +1590,8 @@ ketl_parse_rule parse_rules[] = {
     [KETL_TOKEN_TYPE_BITWISE_AND]                = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_AND},
     [KETL_TOKEN_TYPE_BITWISE_OR]                 = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_OR},
     [KETL_TOKEN_TYPE_BITWISE_XOR]                = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_BITWISE_XOR},
-    [KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT]         = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
-    [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
+    [KETL_TOKEN_TYPE_BITWISE_SHIFT_LEFT]         = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_SHIFT},
+    [KETL_TOKEN_TYPE_BITWISE_SHIFT_RIGHT]        = { NULL,                parse_binary_ltr,      NULL,             KETL_PREC_SHIFT},
     [KETL_TOKEN_TYPE_INCREMENT]                  = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_DECREMENT]                  = { NULL,                NULL,                  NULL,             KETL_PREC_NONE},
     [KETL_TOKEN_TYPE_PLUS]                       = { parse_unary_rtl,     parse_binary_ltr,      NULL,             KETL_PREC_TERM},

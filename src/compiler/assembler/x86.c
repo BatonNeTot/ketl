@@ -2,6 +2,7 @@
 #include "x86.h"
 
 #include "ketl_impl.h"
+#include "str.h"
 #include "gc_memory.h"
 
 // for escape character resolution
@@ -428,6 +429,42 @@ static void ketl_asm_x86_push_opcode(opcodes_t* p_opcodes, ketl_asm_x86_instr_t*
                     ketl_asm_x86_push_prefix(p_opcodes, p_instr);
                     opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0xf6 : 0xf7);
                     ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 2);
+                    break;
+            }
+            break;
+        case KETL_ASM_X86_SAL: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_M: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0xd2 : 0xd3);
+                    ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 4);
+                    break;
+            }
+            break;
+        case KETL_ASM_X86_SAR: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_M: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0xd2 : 0xd3);
+                    ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 7);
+                    break;
+            }
+            break;
+        case KETL_ASM_X86_SHL: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_M: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0xd2 : 0xd3);
+                    ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 4);
+                    break;
+            }
+            break;
+        case KETL_ASM_X86_SHR: ///////////////////////////////////////
+            ANN_SWITCH_STRICT (p_instr->arg_type) {
+                case KETL_ASM_X86_M: 
+                    ketl_asm_x86_push_prefix(p_opcodes, p_instr);
+                    opcodes_t_push_back_copy(p_opcodes, p_instr->size == KETL_ASM_X86_8B ? 0xd2 : 0xd3);
+                    ketl_asm_x86_push_postfix_opcode(p_opcodes, p_instr, 5);
                     break;
             }
             break;
@@ -994,7 +1031,8 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_a
         const char* p_literal = p_arg->p_literal;
 
         ketl_type* p_type = p_arg->p_type;
-        ANN_ASSERT(p_type == NULL || p_type->kind == KETL_TYPE_PRIMITIVE || p_type->kind == KETL_TYPE_ENUM);
+        ANN_ASSERT(p_type == NULL || p_type->kind == KETL_TYPE_PRIMITIVE || p_type->kind == KETL_TYPE_ENUM ||
+            (ketl_type_is_pointer_type(p_type) && ketl_str_is_equal(p_literal, "0")));
 
         if (p_type && p_type->kind == KETL_TYPE_PRIMITIVE &&
             !((ketl_type_primitive*)p_arg->p_type)->is_numeric && 
@@ -1515,6 +1553,9 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
             case KETL_HIR_BITWISE_OR: 
             case KETL_HIR_BITWISE_XOR: 
 
+            case KETL_HIR_BITWISE_SHIFT_LEFT: 
+            case KETL_HIR_BITWISE_SHIFT_RIGHT: 
+
             case KETL_HIR_EQUAL:
             case KETL_HIR_NOT_EQUAL:
             case KETL_HIR_LESS:
@@ -1565,6 +1606,22 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         break;
                     case KETL_HIR_BITWISE_XOR:
                         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_XOR, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
+                        break;
+                    case KETL_HIR_BITWISE_SHIFT_LEFT:
+                        // use of CL is implied
+                        if (is_signed_hir_type(header.tag)) {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SAL, size, MODRM_REG(KETL_ASM_X86_AX));
+                        } else {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SHL, size, MODRM_REG(KETL_ASM_X86_CX));
+                        }
+                        break;
+                    case KETL_HIR_BITWISE_SHIFT_RIGHT:
+                        // use of CL is implied
+                        if (is_signed_hir_type(header.tag)) {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SAR, size, MODRM_REG(KETL_ASM_X86_AX));
+                        } else {
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_SHR, size, MODRM_REG(KETL_ASM_X86_CX));
+                        }
                         break;
                     case KETL_HIR_EQUAL:
                         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_CMP, size, KETL_ASM_X86_AX, MODRM_REG(KETL_ASM_X86_CX));
@@ -2360,6 +2417,19 @@ static uint32_t ketl_asm_x86_format_instr(ketl_state* p_state, ketl_asm_x86_inst
             break;
         case KETL_ASM_X86_NOT:
             printed += snprintf(p_buffer + printed, buffer_size - printed, "not ");
+            break;
+             
+        case KETL_ASM_X86_SAL:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "sal ");
+            break;
+        case KETL_ASM_X86_SAR:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "sar ");
+            break;
+        case KETL_ASM_X86_SHL:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "shl ");
+            break;
+        case KETL_ASM_X86_SHR:
+            printed += snprintf(p_buffer + printed, buffer_size - printed, "shr ");
             break;
 
         case KETL_ASM_X86_CMP:

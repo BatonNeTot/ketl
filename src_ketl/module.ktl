@@ -1,0 +1,37 @@
+//🫖ketl
+
+from namespace import Namespace
+
+from lexer import Lexer
+
+from asm_x86 import ASMX86
+
+class Module {
+
+    class CompileFunctionDeclaration {
+
+    }
+
+    var name: str;
+    var path: str;
+    var namespace: Namespace;
+    var lexer: Lexer;
+    var compile_function_declarations: CompileFunctionDeclaration[];
+    var asm_x86: ASMX86;
+    var header_loaded: bool; // after preload
+    var body_loaded: bool; // after load
+}
+
+class Modules {
+
+    var modules: Module[];
+
+    fn construct() => Modules {
+        var self = Modules();
+        self.modules = Module[0];
+        return self;
+    }
+
+    shared instance = construct();
+
+}

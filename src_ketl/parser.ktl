@@ -9,6 +9,7 @@ from token import Token
 from lexer import TokenIterator
 from lexer import Lexer
 from hir import HIR
+from namespace import Namespace
 
 from hir_builder import HIRBuilder
 
@@ -19,7 +20,9 @@ class Parser {
         var log_info: LogAccum.LogInfo;
 
         var source: str;
+        var namespace: Namespace;
         var iterator: TokenIterator;
+        var end_pos: TokenIterator.Index;
         var hir_builder: HIRBuilder;
 
         var is_global_scope: bool;
@@ -249,25 +252,24 @@ class Parser {
         var src_info = HIR.SrcInfo.construct_merge(context->get_var(lhs).src_info, context->get_var(rhs).src_info);
 
         switch (token_type) {
-            case Token.Type.PLUS            => return context.hir_builder->push_binary_op(HIR.Tag.PLUS,             lhs, rhs, src_info);
-            case Token.Type.MINUS           => return context.hir_builder->push_binary_op(HIR.Tag.MINUS,            lhs, rhs, src_info);
-            //case Token.Type.MULTIPLY:         return push_hir_binary_op(p_context, KETL_HIR_MULTY,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.DIVIDE:           return push_hir_binary_op(p_context, KETL_HIR_DIV,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.REMAINDER:        return push_hir_binary_op(p_context, KETL_HIR_MOD,              lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        
+            case Token.Type.PLUS             => return context.hir_builder->push_binary_op(HIR.Tag.PLUS,             lhs, rhs, src_info);
+            case Token.Type.MINUS            => return context.hir_builder->push_binary_op(HIR.Tag.MINUS,            lhs, rhs, src_info);
+            case Token.Type.MULTIPLY         => return context.hir_builder->push_binary_op(HIR.Tag.MULTY,            lhs, rhs, src_info);
+            case Token.Type.DIVIDE           => return context.hir_builder->push_binary_op(HIR.Tag.DIVIDE,              lhs, rhs, src_info);
+            case Token.Type.REMAINDER        => return context.hir_builder->push_binary_op(HIR.Tag.MOD,              lhs, rhs, src_info);
+            
             //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
 
-            //case Token.Type.LESS:             return push_hir_binary_op(p_context, KETL_HIR_LESS,             lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.LESS_OR_EQUAL:    return push_hir_binary_op(p_context, KETL_HIR_LESS_OR_EQUAL,    lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.GREATER:          return push_hir_binary_op(p_context, KETL_HIR_GREATER,          lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.GREATER_OR_EQUAL: return push_hir_binary_op(p_context, KETL_HIR_GREATER_OR_EQUAL, lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.EQUAL:            return push_hir_binary_op(p_context, KETL_HIR_EQUAL,            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.NOT_EQUAL:        return push_hir_binary_op(p_context, KETL_HIR_NOT_EQUAL,        lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-
-            //case Token.Type.BITWISE_AND:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_AND,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.BITWISE_OR:       return push_hir_binary_op(p_context, KETL_HIR_BITWISE_OR,       lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-            //case Token.Type.BITWISE_XOR:      return push_hir_binary_op(p_context, KETL_HIR_BITWISE_XOR,      lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
-        }
+            case Token.Type.LESS             => return context.hir_builder->push_binary_op(HIR.Tag.LESS,             lhs, rhs, src_info);
+            case Token.Type.LESS_OR_EQUAL    => return context.hir_builder->push_binary_op(HIR.Tag.LESS_OR_EQUAL,    lhs, rhs, src_info);
+            case Token.Type.GREATER          => return context.hir_builder->push_binary_op(HIR.Tag.GREATER,          lhs, rhs, src_info);
+            case Token.Type.GREATER_OR_EQUAL => return context.hir_builder->push_binary_op(HIR.Tag.GREATER_OR_EQUAL, lhs, rhs, src_info);
+            case Token.Type.EQUAL            => return context.hir_builder->push_binary_op(HIR.Tag.EQUAL,            lhs, rhs, src_info);
+            case Token.Type.NOT_EQUAL        => return context.hir_builder->push_binary_op(HIR.Tag.NOT_EQUAL,        lhs, rhs, src_info);
+            
+            case Token.Type.BITWISE_AND      => return context.hir_builder->push_binary_op(HIR.Tag.BITWISE_AND,      lhs, rhs, src_info);
+            case Token.Type.BITWISE_OR       => return context.hir_builder->push_binary_op(HIR.Tag.BITWISE_OR,       lhs, rhs, src_info);
+            case Token.Type.BITWISE_XOR      => return context.hir_builder->push_binary_op(HIR.Tag.BITWISE_XOR,      lhs, rhs, src_info);}
 
         assert(false);
         return (-1)$cast(HIR.VarId);
@@ -376,15 +378,32 @@ class Parser {
     }
 
     shared parse_rules = ParseRule[Token.Type$count]{
-        Token.Type.ID              => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
-        Token.Type.LITERAL_INTEGER => ParseRule.construct(parse_number,        null,                  null,             Precedence.Primary), 
-        Token.Type.PLUS            => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,      null,             Precedence.Term),
-        Token.Type.MINUS           => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,      null,             Precedence.Term),
-        Token.Type.MULTIPLY        => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
-        Token.Type.DIVIDE          => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
-        Token.Type.REMAINDER       => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
-        Token.Type.CONCAT          => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Concat),
-        Token.Type.ASSIGN          => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                  null,             Precedence.Primary), 
+        Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
+        //Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),
+        //Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalOr),
+        Token.Type.LESS                => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
+        Token.Type.LESS_OR_EQUAL       => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
+        Token.Type.GREATER             => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
+        Token.Type.GREATER_OR_EQUAL    => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
+        Token.Type.EQUAL               => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Equality),
+        Token.Type.NOT_EQUAL           => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Equality),
+        Token.Type.BITWISE_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
+        Token.Type.BITWISE_AND         => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.BitwiseAnd),
+        Token.Type.BITWISE_OR          => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.BitwiseOr),
+        Token.Type.BITWISE_XOR         => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.BitwiseXor),
+        Token.Type.BITWISE_SHIFT_LEFT  => ParseRule.construct(null,                null,                  null,             Precedence.None),
+        Token.Type.BITWISE_SHIFT_RIGHT => ParseRule.construct(null,                null,                  null,             Precedence.None),
+        Token.Type.INCREMENT           => ParseRule.construct(null,                null,                  null,             Precedence.None),
+        Token.Type.DECREMENT           => ParseRule.construct(null,                null,                  null,             Precedence.None),
+        Token.Type.PLUS                => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,      null,             Precedence.Term),
+        Token.Type.MINUS               => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,      null,             Precedence.Term),
+        Token.Type.MULTIPLY            => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
+        Token.Type.DIVIDE              => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
+        Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
+        Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Concat),
+        Token.Type.ASSIGN              => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
     };
 
     fn parse_from_import(context: Context) => StatementInfo {
@@ -567,7 +586,7 @@ class Parser {
         }
     }
 
-    export fn build_hir(lexer : Lexer, parameters : VariableDecl[], return_type : Type, log_accum: LogAccum) => HIR {
+    export fn build_hir(lexer : Lexer, end_pos: TokenIterator.Index, namespace: Namespace, parameters : VariableDecl[], return_type : Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
         var context = Context();
 
         context.log_accum = log_accum;
@@ -575,7 +594,8 @@ class Parser {
 
         context.source = lexer.source;
         context.iterator = TokenIterator.construct(lexer);
-        context.is_global_scope = false;
+        context.end_pos = end_pos;
+        context.is_global_scope = is_global_scope;
 
         context.hir_builder = HIRBuilder();
         context.hir_builder.log_accum = context.log_accum;
@@ -586,9 +606,6 @@ class Parser {
         context.hir_builder.vars_infos = HIR.VarInfo[0];
         context.hir_builder.consts_infos = HIR.Const[0];
         context.hir_builder.consts = u8[0];
-
-        // TODO get as parameter
-        var end_pos = lexer.tokens.size;
 
         for (var parameter <- parameters) {
             // TODO

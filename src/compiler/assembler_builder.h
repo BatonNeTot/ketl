@@ -40,6 +40,11 @@ enum {
     KETL_ASM_X86_XOR,
     KETL_ASM_X86_NOT,
 
+    KETL_ASM_X86_SAL, // signed shift left
+    KETL_ASM_X86_SAR, // signed shift right
+    KETL_ASM_X86_SHL, // unsigned shift left
+    KETL_ASM_X86_SHR, // unsigned shift right
+
     KETL_ASM_X86_CMP,
     KETL_ASM_X86_TEST,
 

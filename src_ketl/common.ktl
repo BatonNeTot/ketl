@@ -131,6 +131,232 @@ export class IntHashMap {
     }
 }
 
+export class StrHashMap {
+
+    export class Bucket {
+        var next: Bucket;
+        var hash: u64;
+        var key: str;
+        var value: raw;
+    }
+
+    shared prime_capacities = u32[31]{
+        /*1, */3, 11, 23, 53, 97, 193, 389,
+        769, 1543, 3079, 6151, 12289,
+        24593, 49157, 98317, 196613, 393241,
+        786433, 1572869, 3145739, 6291469,
+        12582917, 25165843, 50331653, 100663319,
+        201326611, 402653189, 805306457,
+        1610612741, 3221225473, 4294967291
+    };
+
+    var buckets: Bucket[];
+	var size: u32;
+    var capacity_index: u32;
+
+    export fn construct() => StrHashMap {
+        var initial_capacity_index: u32;
+        var initial_capacity = prime_capacities[initial_capacity_index];
+
+        var buckets = Bucket[initial_capacity];
+        
+        var self = StrHashMap();
+        self.buckets = buckets;
+        return self;
+    }
+
+    // TODO make m's and p's bigger
+    shared m1: u32 = 1000000007;
+    shared m2: u32 = 1000000009;
+
+    shared MAX_STRING_LENGTH: u64 = 100;
+
+    shared pow_p1 = u64[MAX_STRING_LENGTH]{
+        1, 31, 961, 29791, 923521, 28629151, 
+        887503681, 512613922, 891031477, 621975598, 
+        281243405, 718545499, 274910315, 522219709, 
+        188810867, 853136842, 447241920, 864499429, 
+        799482117, 783945459, 302309061, 371580828, 
+        519005591, 89173209, 764369465, 695453254, 
+        559050727, 330572418, 247744888, 680091479, 
+        82835702, 567906748, 605109069, 758381013, 
+        509811242, 804148397, 928600139, 786604113, 
+        384727335, 926547308, 722966352, 411956758, 
+        770659414, 890441673, 603691674, 714441768, 
+        147694654, 578534246, 934561507, 971406521, 
+        113601941, 521660150, 171464538, 315400643, 
+        777419870, 100015802, 100489841, 115185050, 
+        570736529, 692832280, 477800533, 811816425, 
+        166309000, 155578965, 822947887, 511384322, 
+        852913877, 440330005, 650230064, 157131844, 
+        871087136, 3701027, 114731837, 556686926, 
+        257294587, 976132148, 260096378, 62987662, 
+        952617515, 531142762, 465425510, 428190712, 
+        273911981, 491271355, 229411900, 111768851, 
+        464834360, 409865062, 705816838, 880321831, 
+        289976572, 989273676, 667483746, 691995986, 
+        451875419, 8137891, 252274621, 820513202, 
+        435909087, 513181606
+    };
+    shared pow_p2 = u64[MAX_STRING_LENGTH]{
+        1, 37, 1369, 50653, 1874161, 69343957, 
+        565726391, 931876287, 479422313, 738625428, 
+        329140593, 178201833, 593467767, 958307190, 
+        457365715, 922531311, 133658201, 945353401, 
+        978075531, 188794323, 985389897, 459425865, 
+        998756861, 954003533, 298130406, 30824923, 
+        140522142, 199319209, 374810670, 867994673, 
+        115802613, 284696645, 533775775, 749703504, 
+        739029405, 344087742, 731246346, 56114559, 
+        76238665, 820830587, 370731449, 717063496, 
+        531349118, 659917195, 416935999, 426631828, 
+        785377501, 58967276, 181789194, 726200124, 
+        869404354, 167960810, 214549916, 938346829, 
+        718832367, 596797345, 81501567, 15557952, 
+        575644224, 298836099, 56935564, 106615850, 
+        944786423, 957097345, 412601450, 266253515, 
+        851379974, 501058759, 539173921, 949434906, 
+        129091207, 776374623, 725860799, 856849329, 
+        703424894, 26720844, 988671228, 580835112, 
+        490898955, 163261173, 40663347, 504543830, 
+        668121548, 720497060, 658390986, 360466266, 
+        337251725, 478313717, 697607376, 811472687, 
+        24489149, 906098513, 525644684, 448853137, 
+        607565925, 479939027, 757743846, 36522050, 
+        351315841, 998686009
+    };
+
+    fn get_hash(string: str) => u64 {
+        if (string == null) {
+            return 0;
+        }
+        assert(string.size < MAX_STRING_LENGTH);
+
+        var first_part: u32;
+        var second_part: u32;
+
+        var counter: u64;
+
+        while (true) {
+            var symbol = string[counter];
+            if (symbol == '\0' || counter >= string.size) {
+                return (first_part$cast(u64) << 32) + second_part;
+            }
+
+            if (counter >= MAX_STRING_LENGTH) {
+                return 0;
+            }
+
+            first_part = ((first_part + (symbol - ' ')$cast(u64) * pow_p1[counter]) % m1)$cast(u32);
+            second_part = ((second_part + (symbol - ' ')$cast(u64) * pow_p2[counter]) % m2)$cast(u32);
+
+            counter += 1;
+        }
+
+        return 0;
+    }
+
+    export fn get_or_null(self: StrHashMap, key: str) => Bucket {
+        var capacity = prime_capacities[self.capacity_index];
+        var hash = get_hash(key);
+        var index = hash % capacity;
+        var bucket = self.buckets[index];
+    
+        while (bucket != null) {
+            if (bucket.hash == hash && bucket.key == key) {
+                return bucket;
+            }
+    
+            bucket = bucket.next;
+        }
+        return null;
+    }
+
+    export fn get_or_insert(self: StrHashMap, key: str, value: raw) => Bucket {
+        var capacity = prime_capacities[self.capacity_index];
+        var hash = get_hash(key);
+        var index = hash % capacity;
+        var bucket = self.buckets[index];
+    
+        while (bucket != null) {
+            if (bucket.hash == hash && bucket.key == key) {
+                return bucket;
+            }
+    
+            bucket = bucket.next;
+        }
+            
+        var buckets = self.buckets;
+    
+        self.size += 1;
+        if (self.size > capacity) {
+            var new_capacity_index = self.capacity_index + 1;
+            assert(new_capacity_index < prime_capacities.size);
+
+            self.capacity_index = new_capacity_index;
+            var new_capacity = prime_capacities[new_capacity_index];
+            var new_buckets = Bucket[new_capacity];
+            
+            self.buckets = new_buckets;
+    
+            var i: u32;
+            while (i < capacity) {
+                bucket = buckets[i];
+                while (bucket != null) {
+                    var next = bucket.next;
+    
+                    var new_index = bucket.hash % new_capacity;
+                    bucket.next = new_buckets[new_index];
+                    new_buckets[new_index] = bucket;
+    
+                    bucket = next;
+                }
+
+                i += 1;
+            }
+            
+            index = hash % new_capacity;
+            buckets = new_buckets;
+        }
+    
+        bucket = Bucket();
+
+        bucket.hash = hash;
+        bucket.key = key;
+        bucket.value = value;
+        bucket.next = buckets[index];
+
+        buckets[index] = bucket;
+        return bucket;
+    }
+
+    // returns true if erase was successful
+    export fn erase(self: StrHashMap, bucket: Bucket) => bool {
+        var capacity = prime_capacities[self.capacity_index];
+        var index = bucket.hash % capacity;
+        var head_bucket = self.buckets[index];
+    
+        if (head_bucket == bucket) {
+            self.buckets[index] = bucket.next;
+            return true;
+        }
+    
+        while (head_bucket != null) {
+            if (head_bucket.next == bucket) {
+                head_bucket.next = bucket.next;
+                return true;
+            }
+            head_bucket = head_bucket.next;
+        }
+
+        return false;
+    }
+
+    export fn clear(self: StrHashMap) {
+        self.size = 0;
+    }
+}
+
 export fn align_forward(size: u64, alignment: u8) => u64 {
     return (size + (alignment - 1)) & ~(alignment - 1);
 }
@@ -166,6 +392,10 @@ export class FilePointer {
 
 cimport printf(message : cstr)
 
+export fn print(message: str) {
+    printf(message$cast(cstr));
+}
+
 export class LogAccum {
     var err : StringBuffer;
     var full : StringBuffer;
@@ -179,7 +409,7 @@ export class LogAccum {
 
     export fn check(self: LogAccum) => bool {
         if (self.err.buffer.size > 0) {
-            printf(self.err.buffer$cast(cstr));
+            print(self.err.buffer);
             return false;
         } else {
             return true;

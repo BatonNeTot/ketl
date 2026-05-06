@@ -146,6 +146,34 @@ static const char* str2cstr(ketl_array* p_str) {
     return p_cstr;
 }
 
+void register_unary_operator(ketl_state* p_state, ketl_hir_tag_t op, ketl_type* p_arg_type, ketl_type* p_return_type, ketl_hir_tag_t type) {
+    ketl_variable_type_info_t parameters_array[] = { {.p_type = p_return_type}, {.p_type = p_arg_type} };
+    ketl_function_parameters parameters = {
+        .p_parameters = parameters_array,
+        .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)
+    };
+
+    const function_type_composite* p_func_type_composite = get_function_type_composite(p_state, &parameters);
+    parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;
+
+    operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + 
+        ((op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, op | type);\
+}
+
+void register_binary_operator(ketl_state* p_state, ketl_hir_tag_t op, ketl_type* p_lhs_type, ketl_type* p_rhs_type, ketl_type* p_return_type, ketl_hir_tag_t type) {
+    ketl_variable_type_info_t parameters_array[] = { {.p_type = p_return_type}, {.p_type = p_lhs_type}, {.p_type = p_rhs_type} };
+    ketl_function_parameters parameters = {
+        .p_parameters = parameters_array,
+        .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)
+    };
+
+    const function_type_composite* p_func_type_composite = get_function_type_composite(p_state, &parameters);
+    parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;
+
+    operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + 
+        ((op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, op | type);
+}
+
 ketl_state* ketl_state_create(const ketl_allocator* p_allocator) {
     ketl_state* p_state = ketl_alloc(p_allocator, sizeof(ketl_state));
     *p_state = (ketl_state){
@@ -229,108 +257,81 @@ ketl_namespace_put(&p_state->global_namespace, s_name, KETL_ATOMIC_STRING_EMPTY,
     CREATE_PRIMITIVE_TYPE(p_u32, "u32",  4, true,  false, true);
     CREATE_PRIMITIVE_TYPE(p_u64, "u64",  8, true,  false, true);
 
-#define REGISTER_UNARY_OPERATOR(_hir_tag_op, _arg_type, _return_type, _hir_type)\
-do {\
-    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _arg_type} };\
-    ketl_function_parameters parameters = {\
-        .p_parameters = parameters_array,\
-        .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)\
-    };\
-\
-    const function_type_composite* p_func_type_composite = get_function_type_composite(p_state, &parameters);\
-    parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;\
-\
-    operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + \
-        ((_hir_tag_op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
-} while (false)
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_bool, p_bool, KETL_HIR_U8);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_char, p_bool, KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_raw,  p_bool, KETL_HIR_U64);
 
-#define REGISTER_BINARY_OPERATOR(_hir_tag_op, _lhs_arg_type, _rhs_arg_type, _return_type, _hir_type)\
-do {\
-    ketl_variable_type_info_t parameters_array[] = { {.p_type = _return_type}, {.p_type = _lhs_arg_type}, {.p_type = _rhs_arg_type} };\
-    ketl_function_parameters parameters = {\
-        .p_parameters = parameters_array,\
-        .parameters_count = sizeof(parameters_array) / sizeof(*parameters_array)\
-    };\
-\
-    const function_type_composite* p_func_type_composite = get_function_type_composite(p_state, &parameters);\
-    parameters.p_parameters = p_func_type_composite->p_signature->a_parameters;\
-\
-    operator_overloading_map_get_or_insert_copy(p_state->am_hiroperator_overloading + \
-        ((_hir_tag_op - KETL_HIR_FIRST_OVERLOADABLE_OPERATOR) >> KETL_HIR_TYPE_INSTR_SHIFT), parameters, _hir_tag_op | _hir_type);\
-} while (false)
-
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_bool, p_bool, KETL_HIR_U8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_char, p_bool, KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_raw,  p_bool, KETL_HIR_U64);
-
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i8,   p_bool, KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i16,  p_bool, KETL_HIR_I16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i32,  p_bool, KETL_HIR_I32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_i64,  p_bool, KETL_HIR_I64);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_i8,   p_bool, KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_i16,  p_bool, KETL_HIR_I16);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_i32,  p_bool, KETL_HIR_I32);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_i64,  p_bool, KETL_HIR_I64);
     
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u8,   p_bool, KETL_HIR_U8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u16,  p_bool, KETL_HIR_U16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u32,  p_bool, KETL_HIR_U32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_LOGICAL_NOT, p_u64,  p_bool, KETL_HIR_U64);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_u8,   p_bool, KETL_HIR_U8);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_u16,  p_bool, KETL_HIR_U16);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_u32,  p_bool, KETL_HIR_U32);
+    register_unary_operator(p_state, KETL_HIR_LOGICAL_NOT, p_u64,  p_bool, KETL_HIR_U64);
     
 
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_i8,   p_i8,   KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_i16,  p_i16,  KETL_HIR_I16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_i32,  p_i32,  KETL_HIR_I32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_i64,  p_i64,  KETL_HIR_I64);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_i8,   p_i8,   KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_i16,  p_i16,  KETL_HIR_I16);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_i32,  p_i32,  KETL_HIR_I32);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_i64,  p_i64,  KETL_HIR_I64);
     
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_u8,   p_u8,   KETL_HIR_U8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_u16,  p_u16,  KETL_HIR_U16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_u32,  p_u32,  KETL_HIR_U32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_BITWISE_NOT, p_u64,  p_u64,  KETL_HIR_U64);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_u8,   p_u8,   KETL_HIR_U8);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_u16,  p_u16,  KETL_HIR_U16);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_u32,  p_u32,  KETL_HIR_U32);
+    register_unary_operator(p_state, KETL_HIR_BITWISE_NOT, p_u64,  p_u64,  KETL_HIR_U64);
 
 
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_char, p_char, KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_char, p_char, KETL_HIR_I8);
 
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_i8,   p_i8,   KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_i16,  p_i16,  KETL_HIR_I16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_i32,  p_i32,  KETL_HIR_I32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_i64,  p_i64,  KETL_HIR_I64);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_i8,   p_i8,   KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_i16,  p_i16,  KETL_HIR_I16);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_i32,  p_i32,  KETL_HIR_I32);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_i64,  p_i64,  KETL_HIR_I64);
     
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_u8,   p_u8,   KETL_HIR_U8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_u16,  p_u16,  KETL_HIR_U16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_u32,  p_u32,  KETL_HIR_U32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_PLUS, p_u64,  p_u64,  KETL_HIR_U64);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_u8,   p_u8,   KETL_HIR_U8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_u16,  p_u16,  KETL_HIR_U16);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_u32,  p_u32,  KETL_HIR_U32);
+    register_unary_operator(p_state, KETL_HIR_UNARY_PLUS, p_u64,  p_u64,  KETL_HIR_U64);
 
     
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_char, p_char, KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_char, p_char, KETL_HIR_I8);
 
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_i8,   p_i8,   KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_i16,  p_i16,  KETL_HIR_I16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_i32,  p_i32,  KETL_HIR_I32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_i64,  p_i64,  KETL_HIR_I64);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_i8,   p_i8,   KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_i16,  p_i16,  KETL_HIR_I16);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_i32,  p_i32,  KETL_HIR_I32);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_i64,  p_i64,  KETL_HIR_I64);
     
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_u8,   p_i8,   KETL_HIR_I8);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_u16,  p_i16,  KETL_HIR_I16);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_u32,  p_i32,  KETL_HIR_I32);
-    REGISTER_UNARY_OPERATOR(KETL_HIR_UNARY_MINUS, p_u64,  p_i64,  KETL_HIR_I64);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_u8,   p_i8,   KETL_HIR_I8);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_u16,  p_i16,  KETL_HIR_I16);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_u32,  p_i32,  KETL_HIR_I32);
+    register_unary_operator(p_state, KETL_HIR_UNARY_MINUS, p_u64,  p_i64,  KETL_HIR_I64);
     
 #define REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(_hir_tag_op, _arg_type, _return_type, _hir_type)\
-    REGISTER_BINARY_OPERATOR(_hir_tag_op, _arg_type, _arg_type, _return_type, _hir_type)
+    register_binary_operator(p_state, _hir_tag_op, _arg_type, _arg_type, _return_type, _hir_type)
 
 #define REGISTER_PRIMITIVE_BINARY_OPERATORS(_arg_type, _hir_type)\
 do {\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_PLUS,             _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MINUS,            _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MULTY,            _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_DIV,              _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MOD,              _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_PLUS,                _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MINUS,               _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MULTY,               _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_DIV,                 _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_MOD,                 _arg_type, _arg_type, _hir_type);\
 \
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_AND,      _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_OR,       _arg_type, _arg_type, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_XOR,      _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_AND,         _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_OR,          _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_XOR,         _arg_type, _arg_type, _hir_type);\
 \
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,            _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL,        _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS,             _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS_OR_EQUAL,    _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER,          _arg_type, p_bool, _hir_type);\
-    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER_OR_EQUAL, _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_SHIFT_LEFT,  _arg_type, _arg_type, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_BITWISE_SHIFT_RIGHT, _arg_type, _arg_type, _hir_type);\
+\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,               _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL,           _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS,                _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_LESS_OR_EQUAL,       _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER,             _arg_type, p_bool, _hir_type);\
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_GREATER_OR_EQUAL,    _arg_type, p_bool, _hir_type);\
 } while (false)
 
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_char,  KETL_HIR_I8);
@@ -345,10 +346,10 @@ do {\
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u32, KETL_HIR_U32);
     REGISTER_PRIMITIVE_BINARY_OPERATORS(p_u64, KETL_HIR_U64);
 
-    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,   p_raw, p_u64, p_raw, KETL_HIR_U64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_PLUS,   p_u64, p_raw, p_raw, KETL_HIR_U64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,  p_raw, p_u64, p_raw, KETL_HIR_U64);
-    REGISTER_BINARY_OPERATOR(KETL_HIR_MINUS,  p_u64, p_raw, p_raw, KETL_HIR_U64);
+    register_binary_operator(p_state, KETL_HIR_PLUS,   p_raw, p_u64, p_raw, KETL_HIR_U64);
+    register_binary_operator(p_state, KETL_HIR_PLUS,   p_u64, p_raw, p_raw, KETL_HIR_U64);
+    register_binary_operator(p_state, KETL_HIR_MINUS,  p_raw, p_u64, p_raw, KETL_HIR_U64);
+    register_binary_operator(p_state, KETL_HIR_MINUS,  p_u64, p_raw, p_raw, KETL_HIR_U64);
 
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,     p_raw, p_bool, KETL_HIR_U64);
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL, p_raw, p_bool, KETL_HIR_U64);
@@ -1220,7 +1221,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             printf("%s:\n", a_buffer);
             printf(".seh_proc %s\n", a_buffer);
 
-            char arr_buffer[16384];
+            char arr_buffer[131078];
             uint32_t length = ketl_asm_x86_format(p_state, &asm_x86, arr_buffer, ANN_ARRAY_SIZE(arr_buffer), false);
             printf("%.*s", length, arr_buffer);
 
