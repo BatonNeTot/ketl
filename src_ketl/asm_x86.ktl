@@ -1240,6 +1240,8 @@ export class ASMX86 {
 
                 switch (instr.tag) {
                     default => {
+                        common.print("unknown tag: ");
+                        common.println(instr.tag$cast(str));
                         assert(false);
                     }
                     case HIR.Tag.PLUS => {

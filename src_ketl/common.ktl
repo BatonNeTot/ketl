@@ -414,9 +414,23 @@ export class File {
 
     cimport malloc(size : u64) => raw
 
+    class IntPointer {
+        var value: i32;
+    }
+
+    cimport _errno() => IntPointer
+
+    fn get_last_error() => i32 {
+        return _errno().value;
+    }
+
     export fn read(path: str) => str {
-        var file = fopen(path$cast(cstr), "rb");
-        assert(file != null);
+        var file = fopen(path$cast(cstr), "rb"$cast(cstr));
+        if (file == null) {
+            print("error opening file: ");
+            println(get_last_error()$cast(str));
+            assert(false);
+        }
         
         var SEEK_END: i32 = 2;
         fseek(file, 0, SEEK_END);

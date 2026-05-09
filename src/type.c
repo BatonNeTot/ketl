@@ -125,7 +125,7 @@ static bool ketl_type_get_class_field_offset(ketl_type_class* p_type, ketl_atomi
 
             *p_offset = ANN_ALIGN_FORWARD(*p_offset, align);
 
-            uint16_t offset;
+            uint16_t offset = 0;
             if (ketl_type_get_class_field_offset((ketl_type_class*)p_fields[i].info.p_type, s_name, &offset)) {
                 *p_offset = offset;
                 return true;
