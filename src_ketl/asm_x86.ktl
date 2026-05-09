@@ -1239,7 +1239,9 @@ export class ASMX86 {
                 var instr = self.hir.instrs[i];
 
                 switch (instr.tag) {
-                    default => assert(false);
+                    default => {
+                        assert(false);
+                    }
                     case HIR.Tag.PLUS => {
                         var hir_info = instr$cast(HIR.BinaryOp);
                         // TODO fix, get from the value

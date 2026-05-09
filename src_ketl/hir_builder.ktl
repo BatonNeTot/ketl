@@ -2,6 +2,7 @@
 
 from common import FilePointer
 from common import LogAccum
+from common import println
 
 from type import Type;
 from type import Types;
@@ -47,6 +48,8 @@ class HIRBuilder {
     
     export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
         // TODO casting
+        println("binary");
+        println(tag$cast(str));
 
         // TODO do deducing
         var type = self->get_type(lhs);

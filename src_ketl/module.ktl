@@ -1,5 +1,8 @@
 //🫖ketl
 
+from common import StrHashMap
+from common import File
+
 from namespace import Namespace
 
 from lexer import Lexer
@@ -20,18 +23,155 @@ class Module {
     var asm_x86: ASMX86;
     var header_loaded: bool; // after preload
     var body_loaded: bool; // after load
+
+    fn construct(name: str) => Module {
+        var self = Module();
+
+        self.name = name;
+        self.namespace = Namespace.construct(name, null); // TODO global namespaace?
+        self.compile_function_declarations = CompileFunctionDeclaration[0];
+
+        return self;
+    }
+
+    fn add_to_namespace(module: Module, namespace: Namespace, namespace_info: Namespace.Info) {
+        // TODO
+    }
+
+    fn preload(module: Module, module_filename: str, folder_path: str, namespace: Namespace, exxport: bool) => bool {
+        if (module.header_loaded) {
+            if (namespace != null) {
+                module->add_to_namespace(namespace, Namespace.Info.construct(exxport, false));
+            }
+
+            return true;
+        }
+
+        module.header_loaded = true;
+        var stashed_module_name = Modules.instance.active_module_name;
+        Modules.instance.active_module_name = module.name; 
+
+        var fullpath = "";
+        {
+            if (stashed_module_name != null) { 
+                var stashed_module = Modules.instance.modules->get_or_null(stashed_module_name).value$cast(Module);
+                fullpath ..= stashed_module.path;
+            }
+
+            if (folder_path != null && folder_path.size > 0) {
+                fullpath ..= folder_path;
+            }
+
+            module.path = fullpath;
+        }
+
+        var fullpath_filename = fullpath .. module_filename;
+        var source = File.read(fullpath_filename);
+
+        /*
+
+        uint32_t compile_function_mark = p_state->compile_function_declarations.size;
+        uint32_t error_stream_mark = p_state->error_stream.size;
+
+        ketl_lexer_init(&p_module->lexer, p_state->p_allocator);
+        ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, p_module_filename, KETL_NULL_TERMINATED_LENGTH_32), p_module->p_source, filesize);
+
+        ketl_variable output_variable;
+        p_module->opcodes_size = 0u;
+        p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, 
+            NULL, 0, ketl_state_get_none_type(p_state), 0, true, &output_variable);
+
+        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
+            compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
+        }
+
+        p_state->compile_function_declarations.size = compile_function_mark;
+        p_state->error_stream.size = error_stream_mark;
+
+        p_state->active_module_name = stashed_module_name;
+
+        if (p_module->p_opcodes == NULL) {
+            return false;
+        }
+
+        if (p_namespace != NULL) {
+            ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
+        }
+        */
+
+        return true;
+    }
+
+    fn load(self: Module) {
+        // TODO
+    }
 }
 
 class Modules {
 
-    var modules: Module[];
+    var modules: StrHashMap;
+    var active_module_name: str;
+    var loading_modules: bool;
 
     fn construct() => Modules {
         var self = Modules();
-        self.modules = Module[0];
+        //self.modules = StrHashMap.construct();
         return self;
     }
 
+    fn init_if_needed(self: Modules) {
+        if (self.modules == null) {
+            self.modules = StrHashMap.construct();
+        }
+    }
+
     shared instance = construct();
+
+    export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Namespace {
+        self->init_if_needed();
+
+        var module_filename = module_name .. ".ktl";
+
+        var modules_size = self.modules.size;
+        var module_bucket = self.modules->get_or_insert(module_name, null);
+        // old insert
+        if (modules_size == self.modules.size) {
+            var module = module_bucket.value$cast(Module);
+            module->preload(module_filename, folder_path, namespace, exxport);
+            return module.namespace;
+        }
+
+        var top_loading = !self.loading_modules;
+        self.loading_modules = true;
+
+        var module = Module.construct(module_name);
+        module_bucket.value = module;
+
+        // preloading
+        if (!module->preload(module_filename, folder_path, namespace, exxport)) {
+            self.modules->erase(module_bucket);
+            return null;
+        }
+
+        // load will be done later in bulk
+        if (!top_loading) {
+            return module.namespace;
+        }
+
+        // postloading everything
+        for (var tmp_bucket <- self.modules.buckets) {
+            while (tmp_bucket != null) {
+                var tmp_module = tmp_bucket.value$cast(Module);
+                if (tmp_module.header_loaded && !tmp_module.body_loaded) {
+                    tmp_module->load();
+                }
+                tmp_bucket = tmp_bucket.next;
+            }
+        }
+
+        self.loading_modules = false;
+
+        return module.namespace;
+    }
 
 }

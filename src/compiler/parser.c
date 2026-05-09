@@ -214,6 +214,10 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     ketl_type* p_lhs_type = GET_TYPE(lhs_type);
     ketl_type* p_rhs_type = GET_TYPE(p_rhs_var->type);
 
+    if (p_rhs_type->kind == KETL_TYPE_ENUM) {
+        p_rhs_type = (ketl_type*)((ketl_type_enum*)p_rhs_type)->p_parent_primitive;
+    }
+
     if ((p_lhs_type->kind == KETL_TYPE_ARRAY && p_rhs_type->kind == KETL_TYPE_ARRAY && 
         ((ketl_type_array*)p_lhs_type)->p_value_type == ((ketl_type_array*)p_rhs_type)->p_value_type)) {
         return rhs_var;

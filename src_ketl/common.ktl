@@ -1,5 +1,7 @@
 //🫖ketl
 
+from type import TypeArray
+
 export class IntHashMap {
 
     export class Bucket {
@@ -396,6 +398,50 @@ export fn print(message: str) {
     printf(message$cast(cstr));
 }
 
+export fn println(message: str) {
+    printf(message$cast(cstr));
+    printf("\n"$cast(cstr));
+}
+
+export class File {
+
+    cimport fopen(path: cstr, mode: cstr) => File
+    cimport fseek(file: File, offset: i64, origin: i32)
+    cimport ftell(file: File) => i64
+    cimport fread(buffer: raw, size: u64, count: u64, file: File)
+    cimport ferror(file: File) => i32
+    cimport fclose(file: File)
+
+    cimport malloc(size : u64) => raw
+
+    export fn read(path: str) => str {
+        var file = fopen(path$cast(cstr), "rb");
+        assert(file != null);
+        
+        var SEEK_END: i32 = 2;
+        fseek(file, 0, SEEK_END);
+        var filesize = ftell(file);
+        assert(filesize >= 0);
+
+        var buffer = malloc(filesize$cast(u64));
+
+        var SEEK_SET: i32 = 0;
+        fseek(file, 0, SEEK_SET);
+        fread(buffer, 1, filesize, file);
+        assert(ferror(file) == 0);
+
+        fclose(file);
+
+        var string = TypeArray.Header();
+
+        string.data = buffer;
+        string.capacity = filesize$cast(u64);
+        string.size = string.capacity;
+
+        return string$cast(raw)$cast(str);
+    }
+} 
+
 export class LogAccum {
     var err : StringBuffer;
     var full : StringBuffer;
@@ -463,22 +509,6 @@ export class LogAccum {
     }
 
     export fn warning(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
-
+        // TODO
     }
-}
-
-export class Value {
-    export enum Kind: u8 {
-        None,
-        Type,
-        Namespace,
-        Pointer,
-        Func,
-        CFunc,
-        Bool,
-        Int,
-        UInt,
-    }
-    
-    var value: u64;
 }

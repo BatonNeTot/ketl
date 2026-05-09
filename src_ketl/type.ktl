@@ -1,6 +1,20 @@
 //🫖ketl
 
-from common import Value
+export class Value {
+    export enum Kind: u8 {
+        None,
+        Type,
+        Namespace,
+        Pointer,
+        Func,
+        CFunc,
+        Bool,
+        Int,
+        UInt,
+    }
+    
+    var value: u64;
+}
 
 export class Type {
     export enum Kind : u8{

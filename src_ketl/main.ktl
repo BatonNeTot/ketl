@@ -1,13 +1,14 @@
 //🫖ketl
 
 from common import LogAccum
+from common import File
 
 from lexer import Lexer
 from parser import Parser
 from variable import VariableDecl
 from asm_x86 import ASMX86;
 
-cexport fn eval(filename : str, source : str) {
+cexport fn eval(filename : str, source : str) => str {
     var log_accum = LogAccum.construct();
 
     var lexer = Lexer();
@@ -24,4 +25,6 @@ cexport fn eval(filename : str, source : str) {
     }
 
     asm_x86->print();
+
+    return File.read(filename);
 }

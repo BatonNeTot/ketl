@@ -30,6 +30,7 @@ export fn recalloc(old_pointer : raw, old_size : u64, new_size : u64) => raw {
 
 export fn assert(expr : bool) {
     if (!expr) {
+        (null)$cast(TypeArray.Header).data = null; // to fall with better message
         _assert(null, null, 0);
     }
 }

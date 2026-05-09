@@ -1,13 +1,20 @@
 //🫖ketl
 
-from common import Value
 from common import StrHashMap
+from type import Value
 
 class Namespace {
     class Info {
         // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
         var exxport: bool;
         var imported: bool;
+
+        export fn construct(exxport: bool, imported: bool) => Info {
+            var self = Info();
+            self.exxport = exxport;
+            self.imported = imported;
+            return self;
+        }
     }
 
     class Node {
