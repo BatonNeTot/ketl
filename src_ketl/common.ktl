@@ -2,6 +2,16 @@
 
 from type import TypeArray
 
+var prime_capacities = u32[31]{
+    /*1, */3, 11, 23, 53, 97, 193, 389,
+    769, 1543, 3079, 6151, 12289,
+    24593, 49157, 98317, 196613, 393241,
+    786433, 1572869, 3145739, 6291469,
+    12582917, 25165843, 50331653, 100663319,
+    201326611, 402653189, 805306457,
+    1610612741, 3221225473, 4294967291
+};
+
 export class IntHashMap {
 
     export class Bucket {
@@ -9,16 +19,6 @@ export class IntHashMap {
         var key: u64;
         var value: raw;
     }
-
-    shared prime_capacities = u32[31]{
-        /*1, */3, 11, 23, 53, 97, 193, 389,
-        769, 1543, 3079, 6151, 12289,
-        24593, 49157, 98317, 196613, 393241,
-        786433, 1572869, 3145739, 6291469,
-        12582917, 25165843, 50331653, 100663319,
-        201326611, 402653189, 805306457,
-        1610612741, 3221225473, 4294967291
-    };
 
     var buckets: Bucket[];
 	var size: u32;
@@ -142,16 +142,6 @@ export class StrHashMap {
         var value: raw;
     }
 
-    shared prime_capacities = u32[31]{
-        /*1, */3, 11, 23, 53, 97, 193, 389,
-        769, 1543, 3079, 6151, 12289,
-        24593, 49157, 98317, 196613, 393241,
-        786433, 1572869, 3145739, 6291469,
-        12582917, 25165843, 50331653, 100663319,
-        201326611, 402653189, 805306457,
-        1610612741, 3221225473, 4294967291
-    };
-
     var buckets: Bucket[];
 	var size: u32;
     var capacity_index: u32;
@@ -239,11 +229,8 @@ export class StrHashMap {
 
         var counter: u64;
 
-        while (true) {
+        while (counter < string.size) {
             var symbol = string[counter];
-            if (symbol == '\0' || counter >= string.size) {
-                return (first_part$cast(u64) << 32) + second_part;
-            }
 
             if (counter >= MAX_STRING_LENGTH) {
                 return 0;
@@ -255,7 +242,7 @@ export class StrHashMap {
             counter += 1;
         }
 
-        return 0;
+        return (first_part$cast(u64) << 32) + second_part;
     }
 
     export fn get_or_null(self: StrHashMap, key: str) => Bucket {
@@ -427,7 +414,9 @@ export class File {
     export fn read(path: str) => str {
         var file = fopen(path$cast(cstr), "rb"$cast(cstr));
         if (file == null) {
-            print("error opening file: ");
+            print("error opening file '");
+            print(path);
+            print("':");
             println(get_last_error()$cast(str));
             assert(false);
         }

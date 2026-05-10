@@ -7,7 +7,12 @@ from parser import Parser
 from variable import VariableDecl
 from asm_x86 import ASMX86;
 
-cexport fn eval(filename : str, source : str) {
+from module import Modules
+
+cexport fn eval(module_name : str) {
+    var module = Modules.instance->load(module_name, null, null, true);
+    module->print_asm();
+    /*
     var log_accum = LogAccum.construct();
 
     var lexer = Lexer();
@@ -24,4 +29,5 @@ cexport fn eval(filename : str, source : str) {
     }
 
     asm_x86->print();
+    */
 }

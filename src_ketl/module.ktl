@@ -1,12 +1,16 @@
 //🫖ketl
 
 from common import StrHashMap
+from common import LogAccum
 from common import File
+
+from type import Types
 
 from namespace import Namespace
 
 from lexer import Lexer
-
+from parser import Parser
+from variable import VariableDecl
 from asm_x86 import ASMX86
 
 class Module {
@@ -28,10 +32,14 @@ class Module {
         var self = Module();
 
         self.name = name;
-        self.namespace = Namespace.construct(name, null); // TODO global namespaace?
+        self.namespace = Namespace.construct(name, null); // TODO global namespace?
         self.compile_function_declarations = CompileFunctionDeclaration[0];
 
         return self;
+    }
+
+    export fn print_asm(module: Module) {
+        module.asm_x86->print();
     }
 
     fn add_to_namespace(module: Module, namespace: Namespace, namespace_info: Namespace.Info) {
@@ -48,13 +56,12 @@ class Module {
         }
 
         module.header_loaded = true;
-        var stashed_module_name = Modules.instance.active_module_name;
-        Modules.instance.active_module_name = module.name; 
+        var stashed_module = Modules.instance.active_module;
+        Modules.instance.active_module = module; 
 
         var fullpath = "";
         {
-            if (stashed_module_name != null) { 
-                var stashed_module = Modules.instance.modules->get_or_null(stashed_module_name).value$cast(Module);
+            if (stashed_module != null) { 
                 fullpath ..= stashed_module.path;
             }
 
@@ -68,37 +75,28 @@ class Module {
         var fullpath_filename = fullpath .. module_filename;
         var source = File.read(fullpath_filename);
 
-        /*
+        var log_accum = LogAccum.construct();
+        var lexer = Lexer();
+        module.lexer = lexer;
+        lexer->init();
+        lexer->build_tokens(module_filename, source, log_accum);
 
-        uint32_t compile_function_mark = p_state->compile_function_declarations.size;
-        uint32_t error_stream_mark = p_state->error_stream.size;
+        var hir = Parser.build_hir(lexer, lexer.tokens.size, module.namespace, VariableDecl[0], Types.instance.type_void, 
+            0, true, log_accum);
 
-        ketl_lexer_init(&p_module->lexer, p_state->p_allocator);
-        ketl_lexer_build_tokens(&p_module->lexer, ketl_atomic_strings_get(&p_state->atomic_strings, p_module_filename, KETL_NULL_TERMINATED_LENGTH_32), p_module->p_source, filesize);
+        module.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
 
-        ketl_variable output_variable;
-        p_module->opcodes_size = 0u;
-        p_module->p_opcodes = ketl_state_compile_function(p_state, &p_module->lexer, p_module->lexer.tokens.size, &p_module->namespace, &p_module->opcodes_size, 
-            NULL, 0, ketl_state_get_none_type(p_state), 0, true, &output_variable);
-
-        for (uint32_t i = compile_function_mark; i < p_state->compile_function_declarations.size; ++i) {
-            compile_function_declarations_t_push_back_ref(&p_module->compile_function_declarations, &p_state->compile_function_declarations.p_data[i]);
-        }
-
-        p_state->compile_function_declarations.size = compile_function_mark;
-        p_state->error_stream.size = error_stream_mark;
-
-        p_state->active_module_name = stashed_module_name;
-
-        if (p_module->p_opcodes == NULL) {
+        Modules.instance.active_module = stashed_module;
+        
+        if (!log_accum->check()) {
+            // TODO something on error
             return false;
         }
 
-        if (p_namespace != NULL) {
-            ketl_module_add_to_namespace(p_module, p_namespace, (ketl_namespace_node_info){ .export = export, }, &p_state->atomic_strings);
+        if (namespace != null) {
+            module->add_to_namespace(namespace, Namespace.Info.construct(exxport, false));
         }
-        */
-
+        
         return true;
     }
 
@@ -110,7 +108,7 @@ class Module {
 class Modules {
 
     var modules: StrHashMap;
-    var active_module_name: str;
+    var active_module: Module;
     var loading_modules: bool;
 
     fn construct() => Modules {
@@ -127,7 +125,7 @@ class Modules {
 
     shared instance = construct();
 
-    export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Namespace {
+    export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Module {
         self->init_if_needed();
 
         var module_filename = module_name .. ".ktl";
@@ -138,7 +136,7 @@ class Modules {
         if (modules_size == self.modules.size) {
             var module = module_bucket.value$cast(Module);
             module->preload(module_filename, folder_path, namespace, exxport);
-            return module.namespace;
+            return module;
         }
 
         var top_loading = !self.loading_modules;
@@ -155,7 +153,7 @@ class Modules {
 
         // load will be done later in bulk
         if (!top_loading) {
-            return module.namespace;
+            return module;
         }
 
         // postloading everything
@@ -171,7 +169,7 @@ class Modules {
 
         self.loading_modules = false;
 
-        return module.namespace;
+        return module;
     }
 
 }

@@ -10,7 +10,8 @@ typedef struct array_t {
     bool is_slice;
 } array_t;
 
-void eval(array_t* p_filename, array_t* p_source);
+//void eval(array_t* p_filename, array_t* p_source);
+void eval(array_t* p_module_name);
 
 #include "compiler/lexer.h"
 }
@@ -53,7 +54,19 @@ int main(int argc, char** argv) {
 
     (void)str_filename;
     (void)str_source;
-    eval(&str_filename, &str_source);
+    //eval(&str_filename, &str_source);
+
+    
+    const char* p_module_name = "test_case";
+    uint64_t module_name_length = strlen(p_module_name);
+    array_t str_module_name = {
+        .data = reinterpret_cast<const void*>(p_module_name),
+        .capacity = module_name_length,
+        .size = module_name_length,
+        .is_slice = false,
+    };
+    (void)
+    eval(&str_module_name);
 
     ketl_lexer_t test_lexer;
     ketl_lexer_init(&test_lexer, &ketl_default_allocator);
