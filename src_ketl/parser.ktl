@@ -2,9 +2,11 @@
 
 from common import FilePointer
 from common import LogAccum
+import common
 from variable import VariableDecl
 
 from type import Type
+from type import Value
 from token import Token
 from lexer import TokenIterator
 from lexer import Lexer
@@ -26,6 +28,7 @@ class Parser {
         var hir_builder: HIRBuilder;
 
         var is_global_scope: bool;
+        var exxport: bool;
     }
 
     fn error(self: Context, offset: u32, length: u32, message: str) {
@@ -222,14 +225,15 @@ class Parser {
     }
 
     fn parse_identificator(context: Context, precedence: Precedence) => HIR.VarId {
-        // TODO
-        // return push_literal_id(p_context, context->current_token(1));
-        return (-1)$cast(HIR.VarId);
+        var token = context->current_token(1);
+        var name = context->token_str(token);
+        var src_info = HIR.SrcInfo.from_token(token);
+        return context.hir_builder->get_var(context.namespace, name, name, src_info);
     }
 
     fn parse_number(context: Context, precedence: Precedence) => HIR.VarId {
         var token = context->current_token(1);
-        return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.construct_token(token));
+        return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.from_token(token));
     }
 
     fn parse_unary_rtl(context: Context) => HIR.VarId {
@@ -238,10 +242,10 @@ class Parser {
         var rhs = context->parse_precedence(Precedence.Call);
 
         switch (token_type) {
-            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(KETL_HIR_LOGICAL_NOT, rhs, HIR.SrcInfo.construct_token(token));
+            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(KETL_HIR_LOGICAL_NOT, rhs, HIR.SrcInfo.from_token(token));
 
-            //case Token.Type.PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.construct_token(token));
-            //case Token.Type.MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.construct_token(token));
+            //case Token.Type.PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.from_token(token));
+            //case Token.Type.MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.from_token(token));
         }
     }
 
@@ -249,16 +253,16 @@ class Parser {
         var token_type = context->current_token(1).type;
         var parse_rule = token_type->get_parse_rule();
         var rhs = context->parse_precedence(parse_rule.precedence + 1);
-        var src_info = HIR.SrcInfo.construct_merge(context->get_var(lhs).src_info, context->get_var(rhs).src_info);
+        var src_info = HIR.SrcInfo.merge(context->get_var(lhs).src_info, context->get_var(rhs).src_info);
 
         switch (token_type) {
             case Token.Type.PLUS             => return context.hir_builder->push_binary_op(HIR.Tag.PLUS,             lhs, rhs, src_info);
             case Token.Type.MINUS            => return context.hir_builder->push_binary_op(HIR.Tag.MINUS,            lhs, rhs, src_info);
             case Token.Type.MULTIPLY         => return context.hir_builder->push_binary_op(HIR.Tag.MULTY,            lhs, rhs, src_info);
-            case Token.Type.DIVIDE           => return context.hir_builder->push_binary_op(HIR.Tag.DIVIDE,              lhs, rhs, src_info);
+            case Token.Type.DIVIDE           => return context.hir_builder->push_binary_op(HIR.Tag.DIVIDE,           lhs, rhs, src_info);
             case Token.Type.REMAINDER        => return context.hir_builder->push_binary_op(HIR.Tag.MOD,              lhs, rhs, src_info);
             
-            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).expr_info, GET_VAR(rhs).expr_info));
+            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).src_info, GET_VAR(rhs).src_info));
 
             case Token.Type.LESS             => return context.hir_builder->push_binary_op(HIR.Tag.LESS,             lhs, rhs, src_info);
             case Token.Type.LESS_OR_EQUAL    => return context.hir_builder->push_binary_op(HIR.Tag.LESS_OR_EQUAL,    lhs, rhs, src_info);
@@ -299,7 +303,7 @@ class Parser {
         var prefix_rule = context->current_token(1).type->get_parse_rule().prefix;
         if (prefix_rule == null) {
             context->error(context->current_token(1).offset, context->current_token(1).length, "Expected expression.");
-            return context.hir_builder->push_temp_var(HIR.SrcInfo.construct_token(context->current_token(1)));
+            return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(1)));
         }
 
         var lhs = context->prefix_rule();
@@ -310,7 +314,7 @@ class Parser {
             var ltr_infix_rule = get_parse_rule(context->current_token(1).type).ltr_infix;
             if (ltr_infix_rule == null) {
                 context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator.");
-                return context.hir_builder->push_temp_var(HIR.SrcInfo.construct_token(context->current_token(1)));
+                return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(1)));
             }
             lhs = context->ltr_infix_rule(lhs);
         }
@@ -364,7 +368,7 @@ class Parser {
         var rtl_infix = context->current_token(1).type->get_parse_rule().rtl_infix;
         if (rtl_infix == null) {
             context->error(context->current_token(2).offset, context->current_token(2).length, "Expected operator.");
-            return context.hir_builder->push_temp_var(HIR.SrcInfo.construct_token(context->current_token(2)));
+            return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(2)));
         }
         lhs = context->rtl_infix(lhs, rhs);
 
@@ -375,6 +379,21 @@ class Parser {
 
     fn parse_expression(context: Context) => HIR.VarId {
         return context->parse_precedence(Precedence.Assigment);
+    }
+
+    fn parse_type(context: Context) => Type {
+        var type_var_id = context->parse_expression();
+        var type_var = context->get_var(type_var_id);
+        // TODO error
+        assert(type_var.kind == HIR.Var.Kind.Common);
+        var decl_id = type_var$cast(HIR.VarCommon).decl;
+        var decl = context.hir_builder.decls[decl_id];
+        // TODO error
+        assert(decl.kind == HIR.Decl.Kind.Global);
+        var decl_global = decl$cast(HIR.DeclGlobal);
+        // TODO error
+        assert(decl_global.node != null && decl_global.node.value.kind == Value.Kind.Type);
+        return decl_global.node.value.value$cast(raw);
     }
 
     shared parse_rules = ParseRule[Token.Type$count]{
@@ -410,7 +429,7 @@ class Parser {
         assert(context.is_global_scope);
 
         var path = "";
-        var start_expr_info = HIR.SrcInfo.construct_token(context->current_token(0));
+        var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
         var module_literal = context->current_token(0);
@@ -426,9 +445,9 @@ class Parser {
         var name_literal = context->current_token(0);
         context->token_advance(); // entity id
 
-        var src_info = HIR.SrcInfo.construct_merge(
+        var src_info = HIR.SrcInfo.merge(
             start_expr_info,
-            HIR.SrcInfo.construct_token(context->current_token(1)));
+            HIR.SrcInfo.from_token(context->current_token(1)));
 
         var module_name = context->token_str(module_literal);
 
@@ -436,7 +455,7 @@ class Parser {
         /*
         ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, null, p_context=>export);
         if (p_module_namespace == null) {
-            errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         }
         */
@@ -448,7 +467,7 @@ class Parser {
         ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
 
         if (p_node == null) {
-            errorf(expr_info.source_offset, expr_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
+            errorf(src_info.source_offset, src_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
                 TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         }
@@ -468,7 +487,7 @@ class Parser {
         assert(context.is_global_scope);
 
         var path = "";
-        var start_expr_info = HIR.SrcInfo.construct_token(context->current_token(0));
+        var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
         var module_literal = context->current_token(0);
@@ -480,28 +499,93 @@ class Parser {
             context->token_advance(); // module id
         }
 
-        var src_info = HIR.SrcInfo.construct_merge(
+        var src_info = HIR.SrcInfo.merge(
             start_expr_info,
-            HIR.SrcInfo.construct_token(context->current_token(1)));
+            HIR.SrcInfo.from_token(context->current_token(1)));
 
         var module_name = context->token_str(module_literal);
 
         // TODO implement
         /*
         if (!ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, p_context=>p_namespace, p_context=>export)) {
-            errorf(expr_info.source_offset, expr_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
         }
         */
 
         assert(false);
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
+    
+    fn declare_var(context: Context, name: str, type: Type, init_value: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        var var_id: HIR.VarId;
+        if (context.is_global_scope) {
+            var namespace_node = context.namespace->declare_var(name, type, context.exxport);
+            var_id = context.hir_builder->get_global_var(namespace_node, name, src_info);
+        } else {
+            assert(false);
+            /*
+            var_id = ketl_hir_builder_register_var(&p_context->hir_builder, p_context->p_namespace, 
+                name, src_info, type_index);
+                */
+        }
+
+        if (context.hir_builder->get_type(var_id) == null) {
+            return var_id;
+        }
+
+        // TODO if const zero and global omit assign
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN, var_id, init_value, src_info);
+        return var_id;
+    }
+
+    fn parse_var_declaration(context: Context) => StatementInfo {
+        var src_info = HIR.SrcInfo.from_token(context->current_token(0));
+
+        context->token_advance(); // var
+        var id_literal = context->current_token(0);
+        var name = context->token_str(id_literal);
+        context->token_advance(); // id
+
+        var type: Type = null;
+        var initial_value = (-1)$cast(HIR.VarId);
+        if (context->token_match(Token.Type.COLON)) {
+            type = context->parse_type();
+        }
+        if (context->token_match(Token.Type.ASSIGN)) {
+            initial_value = context->parse_expression();
+            src_info = HIR.SrcInfo.merge(src_info, context->get_var(initial_value).src_info);
+            
+            if (type == null) {
+                type = context.hir_builder->get_type(initial_value);
+            } else {
+                initial_value = context.hir_builder->cast_to_type(initial_value, type, false);
+            }
+        } else {
+            if (type == null) {
+                src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+                context->error(src_info.source_offset, src_info.length, "Variable declaration without a type expects an initial expression.");
+
+                initial_value = context.hir_builder->push_temp_var(src_info);
+            } else {
+                assert(false);
+                //initial_value = push_default_initial_value(p_context, p_type, token_extract_info(id_literal));
+            }
+        }
+        if (type == null) {
+            context->error(src_info.source_offset, src_info.length, "Can't deduce var type.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        }
+        
+        context->declare_var(name, type, initial_value, src_info);
+        context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
 
     fn parse_declaration(context : Context) => StatementInfo {
         switch (context->current_token(0).type) {
-            //case Token.Type.IMPORT  => return context->parse_import();
-            //case Token.Type.FROM    => return context->parse_from_import();
-            //case Token.Type.VAR     => return context->parse_var_declaration();
+            case Token.Type.IMPORT  => return context->parse_import();
+            case Token.Type.FROM    => return context->parse_from_import();
+            case Token.Type.VAR     => return context->parse_var_declaration();
             //case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             //case Token.Type.FN      => return context->parse_function_declaration();
             //case Token.Type.CLASS   => return context->parse_class_declaration();
@@ -551,7 +635,7 @@ class Parser {
 
     fn parse_return_statement(context: Context) => StatementInfo {
         context->token_advance(); // return
-        var src_info = HIR.SrcInfo.construct_token(context->current_token(1));
+        var src_info = HIR.SrcInfo.from_token(context->current_token(1));
         if (context->token_match(Token.Type.TERMINATION_CHARACTER)) {
             context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, src_info);
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysNone);
@@ -593,19 +677,12 @@ class Parser {
         context.log_info = lexer->construct_log_info();
 
         context.source = lexer.source;
+        context.namespace = namespace;
         context.iterator = TokenIterator.construct(lexer);
         context.end_pos = end_pos;
         context.is_global_scope = is_global_scope;
 
-        context.hir_builder = HIRBuilder();
-        context.hir_builder.log_accum = context.log_accum;
-        context.hir_builder.log_info = context.log_info;
-
-        context.hir_builder.blocks = HIR.Instr[][1]{ HIR.Instr[0] };
-        context.hir_builder.vars = HIR.Var[0];
-        context.hir_builder.vars_infos = HIR.VarInfo[0];
-        context.hir_builder.consts_infos = HIR.Const[0];
-        context.hir_builder.consts = u8[0];
+        context.hir_builder = HIRBuilder.construct(context.log_accum, context.log_info);
 
         for (var parameter <- parameters) {
             // TODO

@@ -84,6 +84,8 @@ class Module {
         var hir = Parser.build_hir(lexer, lexer.tokens.size, module.namespace, VariableDecl[0], Types.instance.type_void, 
             0, true, log_accum);
 
+        //hir->print();
+
         module.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
 
         Modules.instance.active_module = stashed_module;

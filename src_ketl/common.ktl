@@ -114,12 +114,14 @@ export class IntHashMap {
     
         if (head_bucket == bucket) {
             self.buckets[index] = bucket.next;
+            self.size -= 1;
             return true;
         }
     
         while (head_bucket != null) {
             if (head_bucket.next == bucket) {
                 head_bucket.next = bucket.next;
+                self.size -= 1;
                 return true;
             }
             head_bucket = head_bucket.next;

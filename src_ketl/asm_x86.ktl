@@ -502,8 +502,8 @@ export class ASMX86 {
                 }
                 case ArgType.MI => {
                     instr.modrm->print(instr.size);
-                    common.print(", "); // TODO make 0x version
-                    common.print(instr.imm64$cast(str));
+                    common.print(", "); 
+                    common.print(instr.imm64$cast(str)); // TODO make 0x version
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
                         common.print(" # ");
@@ -512,8 +512,8 @@ export class ASMX86 {
                 }
                 case ArgType.MI_CHAR => {
                     instr.modrm->print(instr.size);
-                    common.print(", "); // TODO make 0x version
-                    common.print(instr.imm64$cast(str));
+                    common.print(", ");
+                    common.print(instr.imm64$cast(str)); // TODO make 0x version
                     // TODO ketl_lexer_is_character_escaped
                     // common.print("    # '\\");
                     common.print("    # '");
@@ -698,7 +698,7 @@ export class ASMX86 {
         class MovArg {
             var varr: HIR.Var;
             var var_id: HIR.VarId;
-            var var_info: HIR.VarInfo;
+            var decl: HIR.Decl;
             var literal: u64;
             var type: Type;
 
@@ -713,10 +713,10 @@ export class ASMX86 {
                 }
                 */
 
-                var var_info: HIR.VarInfo;
-                if (varr.kind == HIR.Var.Kind.Regular) {
+                var decl: HIR.Decl;
+                if (varr.kind == HIR.Var.Kind.Common) {
                     var var_common = varr$cast(HIR.VarCommon);
-                    var_info = builder.hir.vars_infos[var_common.info];
+                    decl = builder.hir.decls[var_common.decl];
                 }
                 var literal: u64;
                 if (varr.kind == HIR.Var.Kind.Literal) {
@@ -729,7 +729,7 @@ export class ASMX86 {
                 var self = MovArg();
                 self.varr = varr;
                 self.var_id = var_id;
-                self.var_info = var_info;
+                self.decl = decl;
                 self.literal = literal;
                 self.type = type;
                 return self;
@@ -957,9 +957,9 @@ export class ASMX86 {
             }
             */
 
-            var var_info_index = arg.varr$cast(HIR.VarCommon).info;
+            var var_decl_id = arg.varr$cast(HIR.VarCommon).decl;
 
-            var bucket = self.variables->get_or_null(var_info_index);
+            var bucket = self.variables->get_or_null(var_decl_id);
             assert(bucket != null);
 
             self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, bucket.value));
@@ -1080,9 +1080,9 @@ export class ASMX86 {
             }
             */
 
-            var var_info_index = varr$cast(HIR.VarCommon).info;
+            var var_decl_id = varr$cast(HIR.VarCommon).decl;
 
-            var bucket = self.variables->get_or_null(var_info_index);
+            var bucket = self.variables->get_or_null(var_decl_id);
             assert(bucket != null);
 
             self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg);     
@@ -1136,7 +1136,7 @@ export class ASMX86 {
             }
 
             for (var varr <- self.hir.vars[self.hir.parameters_count:self.hir.vars.size]) {
-                if (varr.kind != HIR.Var.Kind.Regular &&
+                if (varr.kind != HIR.Var.Kind.Common &&
                     varr.kind != HIR.Var.Kind.Field) {
                     continue;
                 }
@@ -1163,14 +1163,14 @@ export class ASMX86 {
                 }
 
                 var var_common = varr$cast(HIR.VarCommon);
-                var var_info_index = var_common.info;
-                var var_info = self.hir.vars_infos[var_info_index];
+                var var_decl_id = var_common.decl;
+                var var_decl = self.hir.decls[var_decl_id];
 
                 // local or temporary variable
-                var arg_info = ArgInfo.construct(self.stack_reserved_size, var_info.name);
+                var arg_info = ArgInfo.construct(self.stack_reserved_size, var_decl.name);
 
 
-                var bucket = self.variables->get_or_insert(var_info_index, arg_info);
+                var bucket = self.variables->get_or_insert(var_decl_id, arg_info);
                 if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
                     // TODO FIX take into account type size and alignment
                     self.stack_reserved_size += i64$size;
@@ -1244,16 +1244,58 @@ export class ASMX86 {
                         common.println(instr.tag$cast(str));
                         assert(false);
                     }
-                    case HIR.Tag.PLUS => {
+                    case HIR.Tag.PLUS
+                    case HIR.Tag.MINUS
+
+                    case HIR.Tag.MULTY
+                    case HIR.Tag.DIVIDE
+                    case HIR.Tag.MOD
+
+                    case HIR.Tag.BITWISE_AND
+                    case HIR.Tag.BITWISE_OR
+                    case HIR.Tag.BITWISE_XOR => {
                         var hir_info = instr$cast(HIR.BinaryOp);
-                        // TODO fix, get from the value
-                        var size = Size.Bit64;
+                        var type = self.hir.vars[hir_info.output].type;
+                        var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.CX, hir_info.rhs, size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.lhs, size);
-                        self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+
+                        switch (instr.tag) {
+                            case HIR.Tag.PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.MINUS => self->insert_reg_rm(Tag.SUB, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            
+                            case HIR.Tag.MULTY => // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.DIVIDE => {
+                                self->insert_reg_rm(Tag.IMUL, size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                            }
+                            case HIR.Tag.MOD => {
+                                self->insert_reg_rm(Tag.XOR, size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.MOV, size, Reg.AX, ModRM.construct_reg(Reg.DX));
+                            }
+                            
+                            case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                        }
+
                         self->push_mov_to_stack_hir(hir_info.output, Reg.AX, size);
                     }
 
+                    case HIR.Tag.ASSIGN => {
+                        var hir_info = instr$cast(HIR.Assign);
+                        var type = self.hir.vars[hir_info.dst].type;
+                        var size = type->get_stack_size()$cast(Size);
+                        self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
+                        self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
+                    }
 
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);

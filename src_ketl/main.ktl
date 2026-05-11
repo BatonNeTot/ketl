@@ -1,33 +1,8 @@
 //🫖ketl
 
-from common import LogAccum
-
-from lexer import Lexer
-from parser import Parser
-from variable import VariableDecl
-from asm_x86 import ASMX86;
-
 from module import Modules
 
 cexport fn eval(module_name : str) {
     var module = Modules.instance->load(module_name, null, null, true);
     module->print_asm();
-    /*
-    var log_accum = LogAccum.construct();
-
-    var lexer = Lexer();
-    lexer->init();
-    lexer->build_tokens(filename, source, log_accum);
-
-    var namespace: raw;
-    var hir = Parser.build_hir(lexer, lexer.tokens.size, namespace, VariableDecl[0], null, 0, true, log_accum);
-
-    var asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
-
-    if (!log_accum->check()) {
-        // TODO something on error
-    }
-
-    asm_x86->print();
-    */
 }

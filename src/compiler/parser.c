@@ -236,11 +236,18 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     }
         
     // trying to primitive cast
-    if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
-        ((ketl_type_primitive*)p_lhs_type)->is_integer && ((ketl_type_primitive*)p_rhs_type)->is_integer) {
+    ketl_type_primitive* p_primitive_lhs_type = NULL;
+    if (p_lhs_type->kind == KETL_TYPE_PRIMITIVE) {
+        p_primitive_lhs_type = (ketl_type_primitive*)p_lhs_type;
+    } else if (p_lhs_type->kind == KETL_TYPE_ENUM) {
+        p_primitive_lhs_type = ((ketl_type_enum*)p_lhs_type)->p_parent_primitive;
+    }
+
+    if (p_primitive_lhs_type != NULL && p_rhs_type->kind == KETL_TYPE_PRIMITIVE && 
+        p_primitive_lhs_type->is_integer && ((ketl_type_primitive*)p_rhs_type)->is_integer) {
             
-        if (explicit || (p_lhs_type->size >= p_rhs_type->size && 
-            ((ketl_type_primitive*)p_lhs_type)->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed)) {
+        if (explicit || (p_primitive_lhs_type->size >= p_rhs_type->size && 
+            p_primitive_lhs_type->is_signed == ((ketl_type_primitive*)p_rhs_type)->is_signed)) {
             ketl_hir_var_id_t casted_var = ketl_hir_builder_cast_primitive(&p_context->hir_builder, rhs_var, lhs_type);
             return casted_var;
         }
@@ -1266,8 +1273,10 @@ static ketl_hir_var_id_t parse_dollar_operator(ketl_parser_context* p_context, k
                 return output_var;
             }
   
-            if (!((p_cast_to_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_cast_to_type)->is_numeric) ||
-                ketl_type_is_char_type(p_cast_to_type))) {
+            if (!(p_object->type != KETL_HIR_USED_TYPE_LITERAL && ketl_type_is_u64_type(GET_TYPE(p_object->type)) && ketl_type_is_raw_type(p_cast_to_type)) &&
+                !((p_cast_to_type->kind == KETL_TYPE_PRIMITIVE && ((ketl_type_primitive*)p_cast_to_type)->is_numeric) ||
+                ketl_type_is_char_type(p_cast_to_type) || 
+                p_cast_to_type->kind == KETL_TYPE_ENUM)) {
                 errorf(expr_info.source_offset, expr_info.length, "Casting of primitives numeric types supported only to primitive numeric types.");
                 return push_temp_var(p_context, expr_info);
             }
@@ -2081,19 +2090,35 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
                 case KETL_TOKEN_TYPE_CASE: {
                     token_advance(p_context); // case
 
+                    ketl_hir_block_index_t current_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
+
                     ketl_hir_builder_set_block(&p_context->hir_builder, next_cmp_block);
                     ketl_hir_var_id_t case_expr = parse_expression(p_context);
 
+                    while (token_match(p_context, KETL_TOKEN_TYPE_CASE)) {
+                        expr_info = GET_VAR(case_expr).expr_info;
+                        ketl_hir_var_id_t cmp_expr = push_hir_binary_op(p_context, KETL_HIR_EQUAL, expr, case_expr, expr_info);
+
+                        next_cmp_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
+                        
+                        ketl_hir_builder_push_if(&p_context->hir_builder, cmp_expr, current_block, next_cmp_block);
+
+                        ////////////////
+
+                        ketl_hir_builder_set_block(&p_context->hir_builder, next_cmp_block);
+                        case_expr = parse_expression(p_context);
+                    }
+
                     token_consume(p_context, KETL_TOKEN_TYPE_DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
 
-                    expr_info = expr_info_merge(expr_info, token_extract_info(CURRENT_TOKEN(1)));
+                    expr_info = GET_VAR(case_expr).expr_info;
                     ketl_hir_var_id_t cmp_expr = push_hir_binary_op(p_context, KETL_HIR_EQUAL, expr, case_expr, expr_info);
 
-                    first_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 2);
-                    ketl_hir_block_index_t current_block = first_block;
-                    next_cmp_block = first_block + 1;
+                    next_cmp_block = ketl_hir_builder_reserve_blocks(&p_context->hir_builder, 1);
                     
                     ketl_hir_builder_push_if(&p_context->hir_builder, cmp_expr, current_block, next_cmp_block);
+
+                    ///////////
 
                     ketl_hir_builder_set_block(&p_context->hir_builder, current_block);
                     ketl_parse_return_info body_return_info = parse_statement(p_context).return_info;
@@ -2550,12 +2575,16 @@ static ketl_statement_info parse_class_declaration(ketl_parser_context* p_contex
     bool old_export = p_context->export;
     p_context->export = false;
 
+    push_symbol_map(p_context);
+
     ketl_named_variable_type_info_t a_class_fields[256] = {0};
     uint32_t class_field_count = 0;
 
     while (!token_check(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT) && !token_check(p_context, KETL_TOKEN_TYPE_EOF)) {
         parse_class_declaration_inner(p_context, a_class_fields, &class_field_count);
     }
+
+    pop_symbol_map(p_context);
     
     p_context->export = old_export;
     p_context->p_namespace = p_old_namespace;

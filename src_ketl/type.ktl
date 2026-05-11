@@ -1,21 +1,5 @@
 //🫖ketl
 
-export class Value {
-    export enum Kind: u8 {
-        None,
-        Type,
-        Namespace,
-        Pointer,
-        Func,
-        CFunc,
-        Bool,
-        Int,
-        UInt,
-    }
-    
-    var value: u64;
-}
-
 export class Type {
     export enum Kind : u8{
         Primitive,
@@ -69,7 +53,52 @@ export class Type {
         }
     }
 
+    export fn is_signed(type: Type) => bool {
+        if (type.kind == Type.Kind.Enum) {
+            type = type$cast(TypeEnum).parent;
+        }
 
+        return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).is_signed;
+    }
+
+}
+
+export class Value {
+    export enum Kind: u8 {
+        None,
+        Type,
+        Namespace,
+        Pointer,
+        Func,
+        CFunc,
+        Bool,
+        Int,
+        UInt,
+    }
+    
+    var value: u64;
+    var type: Type;
+    var kind: Kind;
+
+    export fn set_type(self: Value, type: Type) {
+        self.type = type;
+        if (type.kind == Type.Kind.Primitive) {
+            if (type == Types.instance.type_bool$cast(Type)) {
+                self.kind = Kind.Bool;
+                return;
+            }
+
+            var primitive_type = type$cast(TypePrimitive);
+            if (primitive_type.is_signed) {
+                self.kind = Kind.Int;
+            } else {
+                self.kind = Kind.UInt;
+            }
+            return;
+        }
+
+        assert(false);
+    }
 }
 
 export class TypePrimitive {
@@ -140,7 +169,8 @@ class Types {
     fn construct() => Types {
         var self = Types();
 
-        self.type_void = TypePrimitive.construct(0, "void", false, false, false);
+        // temporaly called "none"
+        self.type_void = TypePrimitive.construct(0, "none", false, false, false);
         self.type_bool = TypePrimitive.construct(1, "bool", false, false, false);
         self.type_char = TypePrimitive.construct(1, "char", true,  false, false);
         self.type_raw  = TypePrimitive.construct(8, "raw",  false, false, false);
@@ -159,4 +189,17 @@ class Types {
     }
 
     export shared instance = Types.construct(); 
+
+    export fn get_common_type(lhs: Type, rhs: Type) => Type {
+        if (is_types_equal(lhs, rhs)) {
+            return lhs;
+        }
+
+        assert(false);
+        return null;
+    }
+
+    export fn is_types_equal(lhs: Type, rhs: Type) => bool {
+        return lhs == rhs;
+    }
 }

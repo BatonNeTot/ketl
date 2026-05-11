@@ -1,8 +1,9 @@
 //🫖ketl
 
-from type import Type
-
 from token import Token
+from type import Type
+from namespace import Namespace
+import common
 
 export class HIR {
 
@@ -15,11 +16,8 @@ export class HIR {
         MINUS,
 
         MULTY,
-        IMULTY,
         DIVIDE,
-        IDIVIDE,
         MOD,
-        IMOD,
 
         BITWISE_AND,
         BITWISE_OR,
@@ -76,7 +74,7 @@ export class HIR {
 
     export mimic InstrOffset = u32;
     export mimic VarId = u16;
-    export mimic VarInfoId = u16;
+    export mimic DeclId = u16;
     export mimic BlockId = u16;
     export mimic ConstId = u16;
 
@@ -95,14 +93,14 @@ export class HIR {
             return self;
         }
 
-        export fn construct_token(token: Token) => SrcInfo {
+        export fn from_token(token: Token) => SrcInfo {
             var self = SrcInfo();
             self.source_offset = token.offset;
             self.length = token.length;
             return self;
         }
 
-        export fn construct_merge(lhs: SrcInfo, rhs: SrcInfo) => SrcInfo {
+        export fn merge(lhs: SrcInfo, rhs: SrcInfo) => SrcInfo {
             var self = SrcInfo();
             self.source_offset = lhs.source_offset;
             self.length = rhs->get_end_offset() - lhs.source_offset;
@@ -168,13 +166,13 @@ export class HIR {
     }
 
     export class AppendValue {
-        extend InstrWithOutput;
+        extend Instr;
         var array : VarId;
         var value : VarId;
     }
 
     export class Assign {
-        extend InstrWithOutput;
+        extend Instr;
         var dst : VarId;
         var src : VarId;
     }
@@ -197,14 +195,60 @@ export class HIR {
 
 ////////////////////////
 
+    export class Decl {
+        export enum Kind: u8 {
+            Error,
+            Common,
+            Parameter,
+            InstrResult,
+            Global,
+        }
+
+        var kind: Kind;
+        var name: str;
+
+        export fn get_type(decl: Decl) => Type {
+            switch (decl.kind) {
+                case Kind.Error => return null;
+                case Kind.Common => return decl$cast(DeclCommon).type;
+                case Kind.Parameter => return decl$cast(DeclParameter).type;
+                case Kind.InstrResult => return decl$cast(DeclInstrResult).type;
+                case Kind.Global => return decl$cast(DeclGlobal).node.value.type;
+            }
+            return null;
+        }
+    }
+
+    export class DeclCommon {
+        extend Decl;
+        var type: Type;
+        var src_info: SrcInfo;
+    }
+
+    export class DeclParameter {
+        extend Decl;
+        var type: Type;
+        var src_info: SrcInfo;
+    }
+
+    export class DeclInstrResult {
+        extend Decl;
+        var type: Type;
+        var instr: HIR.Instr;
+    }
+
+    export class DeclGlobal {
+        extend Decl;
+        var node: Namespace.Node;
+    }
+
+
     export class Var {
         export enum Kind : u8 {
-            Regular,
+            Common,
             Literal,
             Cast,
-            Global,
             Field,
-            Parameter,
             Index,
         } 
 
@@ -215,7 +259,7 @@ export class HIR {
 
     export class VarCommon {
         extend Var;
-        var info : VarInfoId;
+        var decl : DeclId;
     }
 
     export class VarLiteral {
@@ -228,26 +272,6 @@ export class HIR {
         var casted : VarId;
     }
 
-    export class VarInfo {
-        // TODO namespace and namespace index
-        var name : str;
-        /*
-        union {
-            struct {
-                ketl_namespace* p_namespace;
-                uint32_t namespace_node_index;
-            };
-            ketl_hir_var_id_t parent_id;
-        };
-        union {
-            ketl_hir_symbol_offset_t name;
-            ketl_hir_var_id_t arg_id;
-        };
-        ketl_hir_var_id_t last_var_id;
-        // TODO declaration info
-        */
-    }
-
     export class Const {
          var offset : u32;
          var size : u32;
@@ -257,7 +281,7 @@ export class HIR {
 
     var instrs : Instr[];
     var vars : Var[];
-    var vars_infos : VarInfo[];
+    var decls : Decl[];
     var block_offsets : InstrOffset[];
     var consts_infos : Const[];
     var consts : u8[];
@@ -266,8 +290,154 @@ export class HIR {
     var parameters_count : u8;
     var max_call_arg_count : u8;
 
-    fn format(hir : HIR) => str {
-        // TODO
-        return "";
+    fn print_var(hir: HIR, var_id: HIR.VarId) {
+        var varr = hir.vars[var_id];
+        switch (varr.kind) {
+            default => common.print("<unknown>");
+            case HIR.Var.Kind.Common => {
+                var decl_id = varr$cast(HIR.VarCommon).decl;
+                var decl = hir.decls[decl_id];
+                common.print(decl.name);
+            }
+            case HIR.Var.Kind.Literal => common.print(varr$cast(HIR.VarLiteral).value$cast(str));
+        }
+    }
+
+    fn print_instr(hir: HIR, instr: HIR.Instr) {
+        switch (instr.tag) {
+            default => {
+                common.print("unknown tag: ");
+                common.print(instr.tag$cast(str));
+            }
+            case HIR.Tag.NONE_STMT => common.print("none");
+
+/*
+            case HIR.Tag.LOGICAL_NOT => {
+
+            }
+            */
+
+            case HIR.Tag.PLUS 
+            case HIR.Tag.MINUS 
+
+            case HIR.Tag.MULTY 
+            case HIR.Tag.DIVIDE 
+            case HIR.Tag.MOD => {
+                var hir_info = instr$cast(HIR.BinaryOp);
+                hir->print_var(hir_info.output);
+                common.print(" = ");
+                hir->print_var(hir_info.lhs);
+                switch (instr.tag) {
+                    case HIR.Tag.PLUS => common.print(" + ");
+                    case HIR.Tag.MINUS => common.print(" - ");
+
+                    case HIR.Tag.MULTY => common.print(" * ");
+                    case HIR.Tag.DIVIDE => common.print(" / ");
+                    case HIR.Tag.MOD => common.print(" % ");
+                }
+                hir->print_var(hir_info.rhs);
+            }
+
+/*
+            case HIR.Tag.BITWISE_AND =>
+            case HIR.Tag.BITWISE_OR =>
+            case HIR.Tag.BITWISE_XOR =>
+
+            case HIR.Tag.COMPARE =>
+            case HIR.Tag.TEST =>
+
+            case HIR.Tag.EQUAL =>
+            case HIR.Tag.NOT_EQUAL =>
+            case HIR.Tag.LESS =>
+            case HIR.Tag.ILESS =>
+            case HIR.Tag.LESS_OR_EQUAL =>
+            case HIR.Tag.ILESS_OR_EQUAL =>
+            case HIR.Tag.GREATER =>
+            case HIR.Tag.IGREATER =>
+            case HIR.Tag.GREATER_OR_EQUAL =>
+            case HIR.Tag.IGREATER_OR_EQUAL =>
+            */
+
+            case HIR.Tag.ASSIGN => {
+                var hir_info = instr$cast(HIR.Assign);
+                hir->print_var(hir_info.dst);
+                switch (instr.tag) {
+                    case HIR.Tag.ASSIGN => common.print(" = ");
+                }
+                hir->print_var(hir_info.src);
+            }
+
+/*
+            case HIR.Tag.CALL_VOID =>
+            case HIR.Tag.CALL =>
+
+            case HIR.Tag.NEW_CLASS =>
+            case HIR.Tag.NEW_ARRAY =>
+            case HIR.Tag.NEW_SLICE =>
+
+            case HIR.Tag.APPEND_VALUE =>
+
+            case HIR.Tag.JUMP =>
+
+            case HIR.Tag.JUMP_IF_TRUE =>
+            case HIR.Tag.JUMP_IF_FALSE =>
+            
+            case HIR.Tag.JUMP_IF_EQUAL =>
+            case HIR.Tag.JUMP_IF_NOT_EQAUL =>
+            case HIR.Tag.JUMP_IF_LESS =>
+            case HIR.Tag.JUMP_IF_ILESS =>
+            case HIR.Tag.JUMP_IF_LESS_OR_EQAUL =>
+            case HIR.Tag.JUMP_IF_ILESS_OR_EQAUL =>
+            case HIR.Tag.JUMP_IF_GREATER =>
+            case HIR.Tag.JUMP_IF_IGREATER =>
+            case HIR.Tag.JUMP_IF_GREATER_OR_EQAUL =>
+            case HIR.Tag.JUMP_IF_IGREATER_OR_EQAUL =>
+
+            */
+
+            case HIR.Tag.RETURN => common.print("return");
+            case HIR.Tag.RETURN_VALUE => {
+                var hir_info = instr$cast(HIR.ReturnValue);
+                common.print("return ");
+                hir->print_var(hir_info.value);
+            }
+        }
+    }
+
+    export fn print(hir: HIR) {
+        var tab_size: u32 = 4;
+        var tab = "";
+        while (tab_size > 0) {
+            tab ..= " ";
+            tab_size -= 1;
+        }
+
+        var block: BlockId;
+
+        while (block < hir.block_offsets.size) {
+            common.print("BB");
+            common.print(block$cast(str));
+            common.println(":");
+
+            var i = hir.block_offsets[block];
+            while (i < hir.instrs.size) {
+                common.print(tab);
+
+                var instr = hir.instrs[i];
+
+                hir->print_instr(instr);
+                common.println("");
+
+                if (instr.tag->is_terminator()) {
+                    break;
+                }
+
+                i += 1;
+            }
+
+            block += 1;
+        }
+
+        common.println("");
     }
 }

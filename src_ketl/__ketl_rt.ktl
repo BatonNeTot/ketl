@@ -196,9 +196,15 @@ export fn str2cstr(string: TypeArray.Header) => cstr {
         return null;
     }
 
-    var cstring = malloc(string.size + 1);
-    memcpy(cstring, string.data, string.size);
-    (cstring + string.size)$cast(GC.U8Wrapper).value = '\0';
+    var size = string.size;
+    var data = string.data;
+    if (string.is_slice) {
+        data = data$cast(TypeArray.Header).data + string.capacity;
+    }
+
+    var cstring = malloc(size + 1);
+    memcpy(cstring, data, size);
+    (cstring + size)$cast(GC.U8Wrapper).value = '\0';
     return cstring;
 }
 export fn int2str(value: i64) => str {

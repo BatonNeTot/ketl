@@ -1,12 +1,17 @@
 //🫖ketl
 
+from common import StrHashMap
 from common import FilePointer
 from common import LogAccum
+
+import common
 
 from type import Type;
 from type import Types;
 
 from hir import HIR;
+
+from namespace import Namespace;
 
 class HIRBuilder {
     var log_accum: LogAccum;
@@ -14,12 +19,33 @@ class HIRBuilder {
 
     var blocks : HIR.Instr[][];
     var vars : HIR.Var[];
-    var vars_infos : HIR.VarInfo[];
+    var decls : HIR.Decl[];
     var consts_infos : HIR.Const[];
     var consts : u8[];
 
     var current_block: u32;
     var temp_counter: u32;
+
+    var name_to_decl_stack: StrHashMap[];
+
+    export fn construct(log_accum: LogAccum, log_info: LogAccum.LogInfo) => HIRBuilder {
+        var self = HIRBuilder();
+
+        self.log_accum = log_accum;
+        self.log_info = log_info;
+
+        self.blocks = HIR.Instr[][1]{ HIR.Instr[0] };
+        self.vars = HIR.Var[0];
+        self.decls = HIR.Decl[0];
+        self.consts_infos = HIR.Const[0];
+        self.consts = u8[0];
+
+        self.name_to_decl_stack = StrHashMap[1]{
+            StrHashMap.construct()
+        };
+
+        return self;
+    }
 
     fn error(self: HIRBuilder, offset: u32, length: u32, message: str) {
         self.log_accum->error(
@@ -34,8 +60,52 @@ class HIRBuilder {
     }
 
     fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
-        // TODO placeholder
-        return Types.instance.type_i64;
+        var varr = self.vars[var_id];
+
+        if (varr.kind == HIR.Var.Kind.Common) {
+            return varr.type;
+        }
+
+        if (varr.kind == HIR.Var.Kind.Literal) {
+            if (varr.type != null) {
+                return varr.type;
+            }
+            return Types.instance.type_i64;
+        }
+
+        // TODO
+        assert(false);
+        return null;
+    }
+
+    fn get_common_type(self: HIRBuilder, lhs_id: HIR.VarId, rhs_id: HIR.VarId) => Type {
+        var lhs = self.vars[lhs_id];
+        var rhs = self.vars[rhs_id];
+
+        if (lhs.kind == HIR.Var.Kind.Literal && rhs.kind == HIR.Var.Kind.Literal) {
+            if (lhs.type != null && rhs.type != null) {
+                return Types.get_common_type(lhs.type, rhs.type);
+            }
+            // TODO check if other literal can be stored in the selected literal type
+            if (lhs.type != null) {
+                return self->get_type(lhs_id);
+            } else {
+                return self->get_type(rhs_id);
+            }
+        }
+
+        return Types.get_common_type(self->get_type(lhs_id), self->get_type(rhs_id));
+    }
+
+    fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, implicit: bool) => HIR.VarId {
+        var type = self->get_type(var_id);
+
+        if (Types.is_types_equal(type, target_type)) {
+            return var_id;
+        }
+
+        assert(false);
+        return (-1)$cast(HIR.VarId);
     }
 
     export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag, src_info: HIR.SrcInfo) {
@@ -45,21 +115,68 @@ class HIRBuilder {
         self->get_current_block() ..= instr;
     }
     
-    export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
-        // TODO casting
+    export fn push_unary_op(self: HIRBuilder, tag: HIR.Tag, var_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        var type = self->get_type(var_id);
+        // TODO deduce
+        var arg_type = type;
+        var output_type = type;
+        if (tag == HIR.Tag.LOGICAL_NOT) {
+            output_type = Types.instance.type_bool;
+        }
 
-        // TODO do deducing
-        var type = self->get_type(lhs);
+        var_id = self->cast_to_type(var_id, arg_type, false);
+
+        var instr = HIR.UnaryOp();
+        instr.tag = tag;
+        instr.src_info = src_info;
+        instr.output = self->push_temp_var_of_type(src_info, output_type);
+        instr.arg = var_id;
+        self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+    
+    export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        var common_type = self->get_common_type(lhs, rhs);
+        // TODO deduce
+        var arg_type = common_type;
+        var output_type = common_type;
+        switch (tag) {
+            case HIR.Tag.LESS
+            case HIR.Tag.LESS_OR_EQUAL
+            case HIR.Tag.GREATER
+            case HIR.Tag.GREATER_OR_EQUAL
+            case HIR.Tag.EQUAL
+            case HIR.Tag.NOT_EQUAL
+                => output_type = Types.instance.type_bool;
+        }
+
+        lhs = self->cast_to_type(lhs, arg_type, false);
+        rhs = self->cast_to_type(rhs, arg_type, false);
 
         var instr = HIR.BinaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
-        instr.output = self->push_temp_var_of_type(src_info, type);
+        instr.output = self->push_temp_var_of_type(src_info, output_type);
         instr.lhs = lhs;
         instr.rhs = rhs;
         self->get_current_block() ..= instr;
 
         return instr.output;
+    }
+    
+    export fn push_assign(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        var type = self->get_type(lhs);
+        rhs = self->cast_to_type(rhs, type, false);
+
+        var instr = HIR.Assign();
+        instr.tag = tag;
+        instr.src_info = src_info;
+        instr.dst = lhs;
+        instr.src = rhs;
+        self->get_current_block() ..= instr;
+
+        return instr.dst;
     }
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
@@ -70,28 +187,6 @@ class HIRBuilder {
         instr.src_info = src_info;
         instr.value = var_id;
         self->get_current_block() ..= instr;
-    }
-
-    export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
-        var temp_info_id = self.vars_infos.size$cast(HIR.VarInfoId);
-        var temp_info = HIR.VarInfo();
-        temp_info.name = "~tmp" .. self.temp_counter$cast(str);
-        self.temp_counter += 1;
-        self.vars_infos ..= temp_info;
-
-        var temp_var_id = self.vars.size$cast(HIR.VarId);
-        var temp_var = HIR.VarCommon();
-        temp_var.kind = HIR.Var.Kind.Regular;
-        temp_var.type = type;
-        temp_var.src_info = src_info;
-        temp_var.info = temp_info_id;
-        self.vars ..= temp_var;
-
-        return temp_var_id;
-    }
-
-    export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
-        return self->push_temp_var_of_type(src_info, null);
     }
 
     export fn push_literal_number(self: HIRBuilder, value: u64, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -107,6 +202,144 @@ class HIRBuilder {
         return literal_var_id;
     }
 
+    export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
+        var temp_decl_id = self.decls.size$cast(HIR.DeclId);
+        var temp_decl = HIR.DeclCommon();
+        temp_decl.kind = HIR.Decl.Kind.Common;
+        temp_decl.name = "~tmp" .. self.temp_counter$cast(str);
+        self.temp_counter += 1;
+        self.decls ..= temp_decl;
+
+        var temp_var_id = self.vars.size$cast(HIR.VarId);
+        var temp_var = HIR.VarCommon();
+        temp_var.kind = HIR.Var.Kind.Common;
+        temp_var.type = type;
+        temp_var.src_info = src_info;
+        temp_var.decl = temp_decl_id;
+        self.vars ..= temp_var;
+
+        return temp_var_id;
+    }
+
+    export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_temp_var_of_type(src_info, null);
+    }
+
+    fn find_decl_bucket(self: HIRBuilder, name: str) => StrHashMap.Bucket {
+        for (var name_to_decl <- self.name_to_decl_stack) {
+            var bucket = name_to_decl->get_or_null(name);
+            if (bucket != null) {
+                return bucket;
+            }
+        }
+
+        return null;
+    }
+
+    fn first_name_to_decl(self: HIRBuilder) => StrHashMap {
+        return self.name_to_decl_stack[0];
+    }
+
+    fn last_name_to_decl(self: HIRBuilder) => StrHashMap {
+        return self.name_to_decl_stack[self.name_to_decl_stack.size - 1];
+    }
+
+    export fn get_global_var(self: HIRBuilder, namespace_node: Namespace.Node, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var bucket = self->find_decl_bucket(name);
+
+        // if size didn't change, we found existing var
+        if (bucket == null) {
+            bucket = self->first_name_to_decl()->get_or_insert(name, self.decls.size$cast(u64)$cast(raw));
+            var decl = HIR.DeclGlobal();
+            decl.kind = HIR.Decl.Kind.Global;
+            decl.name = name;
+            decl.node = namespace_node;
+            self.decls ..= decl;
+        } else {
+            var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
+            var decl = self.decls[decl_id];
+            if (decl.kind != HIR.Decl.Kind.Global || namespace_node != decl$cast(HIR.DeclGlobal).node) {
+                self->error(src_info.source_offset, src_info.length, "Overriding existing variable.");
+                return self->push_temp_var(src_info);
+            }
+        }
+        
+        var var_id = self.vars.size$cast(HIR.VarId);
+        var varr = HIR.VarCommon();
+        varr.kind = HIR.Var.Kind.Common;
+        varr.type = namespace_node.value.type;
+        varr.src_info = src_info;
+        varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
+        self.vars ..= varr;
+
+        return var_id;
+    }
+
+    export fn get_var(self: HIRBuilder, namespace: Namespace, name: str, fullname: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var bucket = self->find_decl_bucket(fullname);
+
+        // if size didn't change, we found existing var
+        if (bucket == null) {
+            var symbol_node = namespace->find(name);
+
+            if (symbol_node == null) {
+                bucket = self->last_name_to_decl()->get_or_insert(
+                     fullname, self.decls.size$cast(u64)$cast(raw));
+
+                var decl = HIR.Decl();
+                decl.kind = HIR.Decl.Kind.Error;
+                decl.name = name;
+                self.decls ..= decl;
+
+                var var_id = self.vars.size$cast(HIR.VarId);
+
+                var varr = HIR.VarCommon();
+                varr.kind = HIR.Var.Kind.Common;
+                varr.type = null;
+                varr.src_info = src_info;
+                varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
+                self.vars ..= varr;
+
+                return var_id;
+            }
+
+            bucket = self->first_name_to_decl()->get_or_insert(
+                fullname, self.decls.size$cast(u64)$cast(raw));
+
+            var decl = HIR.DeclGlobal();
+            decl.kind = HIR.Decl.Kind.Global;
+            decl.name = name;
+            decl.node = symbol_node;
+            self.decls ..= decl;
+
+            var var_id = self.vars.size$cast(HIR.VarId);
+
+            var varr = HIR.VarCommon();
+            varr.kind = HIR.Var.Kind.Common;
+            varr.type = symbol_node.value.type;
+            varr.src_info = src_info;
+            varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
+            self.vars ..= varr;
+
+            return var_id;
+        } 
+
+        var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
+        var decl = self.decls[decl_id];
+        var type = decl->get_type();
+
+        var var_id = self.vars.size$cast(HIR.VarId);
+
+        var varr = HIR.VarCommon();
+        varr.kind = HIR.Var.Kind.Common;
+        varr.type = type;
+        varr.src_info = src_info;
+        varr.decl = decl_id;
+        self.vars ..= varr;
+
+        return var_id;
+    }
+
     export fn flush(self: HIRBuilder, hir: HIR) {
         hir.instrs = HIR.Instr[0];
         hir.block_offsets = HIR.InstrOffset[0];
@@ -119,7 +352,7 @@ class HIRBuilder {
         }
 
         hir.vars = self.vars;
-        hir.vars_infos = self.vars_infos;
+        hir.decls = self.decls;
         hir.consts_infos = self.consts_infos;
         hir.consts = self.consts;
 

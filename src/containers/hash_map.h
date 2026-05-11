@@ -160,6 +160,7 @@ void ANN_CONCAT(name,_erase)(name* p_map, ANN_CONCAT(name,_bucket)* p_bucket) {\
         pp_buckets[index] = p_bucket->p_next;\
         p_bucket->p_next = p_map->p_free_bucket;\
         p_map->p_free_bucket = p_bucket;\
+        --p_map->size;\
         return;\
     }\
 \
@@ -168,6 +169,7 @@ void ANN_CONCAT(name,_erase)(name* p_map, ANN_CONCAT(name,_bucket)* p_bucket) {\
             p_head_bucket->p_next = p_bucket->p_next;\
             p_bucket->p_next = p_map->p_free_bucket;\
             p_map->p_free_bucket = p_bucket;\
+            --p_map->size;\
             return;\
         }\
         p_head_bucket = p_head_bucket->p_next;\
