@@ -1297,6 +1297,17 @@ export class ASMX86 {
                         self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
                     }
 
+                    case HIR.Tag.RETURN => {
+                        if (self.stack_reserved_size > 0) {
+                            self->directive("seh_startepilogue");
+                            self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                            self->directive("seh_endepilogue");
+                        }
+                        self->insert(Tag.RET);
+
+                        first_instr_in_block = true;
+                    }
+
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);
                         // TODO fix, get from the value

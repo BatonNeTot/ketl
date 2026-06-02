@@ -6,6 +6,7 @@ import common
 from variable import VariableDecl
 
 from type import Type
+from type import Types
 from type import Value
 from token import Token
 from lexer import TokenIterator
@@ -39,6 +40,11 @@ class Parser {
         );
     }
 
+    fn error_var() => HIR.VarId {
+        assert(false);
+        return (-1)$cast(HIR.VarId);
+    }
+ 
     fn current_token(context: Context, offset: u64) => Token {
         return context.iterator->current(offset);
     }
@@ -226,9 +232,25 @@ class Parser {
 
     fn parse_identificator(context: Context, precedence: Precedence) => HIR.VarId {
         var token = context->current_token(1);
-        var name = context->token_str(token);
         var src_info = HIR.SrcInfo.from_token(token);
-        return context.hir_builder->get_var(context.namespace, name, name, src_info);
+
+        if (token.type == Token.Type.ID) {
+            var name = context->token_str(token);
+            return context.hir_builder->get_var(context.namespace, name, name, src_info);
+        }
+
+        switch (token.type) {
+            case Token.Type.I8 => return context.hir_builder->get_type_var(Types.instance.type_i8, src_info);
+            case Token.Type.I16 => return context.hir_builder->get_type_var(Types.instance.type_i16, src_info);
+            case Token.Type.I32 => return context.hir_builder->get_type_var(Types.instance.type_i32, src_info);
+            case Token.Type.I64 => return context.hir_builder->get_type_var(Types.instance.type_i64, src_info);
+            case Token.Type.U8 => return context.hir_builder->get_type_var(Types.instance.type_u8, src_info);
+            case Token.Type.U16 => return context.hir_builder->get_type_var(Types.instance.type_u16, src_info);
+            case Token.Type.U32 => return context.hir_builder->get_type_var(Types.instance.type_u32, src_info);
+            case Token.Type.U64 => return context.hir_builder->get_type_var(Types.instance.type_u64, src_info);
+        }
+
+        return error_var();
     }
 
     fn parse_number(context: Context, precedence: Precedence) => HIR.VarId {
@@ -247,6 +269,8 @@ class Parser {
             //case Token.Type.PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.from_token(token));
             //case Token.Type.MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.from_token(token));
         }
+
+        return error_var();
     }
 
     fn parse_binary_ltr(context: Context, lhs: HIR.VarId) => HIR.VarId {
@@ -275,8 +299,7 @@ class Parser {
             case Token.Type.BITWISE_OR       => return context.hir_builder->push_binary_op(HIR.Tag.BITWISE_OR,       lhs, rhs, src_info);
             case Token.Type.BITWISE_XOR      => return context.hir_builder->push_binary_op(HIR.Tag.BITWISE_XOR,      lhs, rhs, src_info);}
 
-        assert(false);
-        return (-1)$cast(HIR.VarId);
+        return error_var();
     }
 
     fn parse_binary_rtl(context: Context, lhs: HIR.VarId, rhs: HIR.VarId) => HIR.VarId {
@@ -297,6 +320,8 @@ class Parser {
 
             //case Token.Type.ASSIGN_CONCAT     : return push_append    (p_context, lhs, rhs);
         }
+
+        return error_var();
     }
     
     fn parse_lhs_operand(context: Context, precedence: Precedence) => HIR.VarId {    
@@ -382,7 +407,7 @@ class Parser {
     }
 
     fn parse_type(context: Context) => Type {
-        var type_var_id = context->parse_expression();
+        var type_var_id = context->parse_precedence(Precedence.Assigment + 1);
         var type_var = context->get_var(type_var_id);
         // TODO error
         assert(type_var.kind == HIR.Var.Kind.Common);
@@ -423,6 +448,16 @@ class Parser {
         Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
         Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Concat),
         Token.Type.ASSIGN              => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.I8                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.I16                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.I32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.I64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.U8                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.U16                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.U32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.U64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
     };
 
     fn parse_from_import(context: Context) => StatementInfo {
@@ -567,8 +602,7 @@ class Parser {
 
                 initial_value = context.hir_builder->push_temp_var(src_info);
             } else {
-                assert(false);
-                //initial_value = push_default_initial_value(p_context, p_type, token_extract_info(id_literal));
+                initial_value = context.hir_builder->get_default_initial_value(type, src_info);
             }
         }
         if (type == null) {
@@ -580,6 +614,98 @@ class Parser {
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
+
+/*
+    fn parse_function_declaration(context: Context) => StatementInfo {
+        context->token_advance(); // fn
+        var id_literal = context->current_token(0);
+        context->token_advance(); // id
+
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after function name.");
+
+        ketl_named_variable_type_info_t a_function_parameters_named[256] = {0};
+        ketl_variable_type_info_t a_function_parameters[256] = {0};
+        ketl_function_parameters function_parameters = {
+            .p_parameters = a_function_parameters,
+            .parameters_count = 0,
+        };
+
+        if (!context->token_check(Token.Type.PARENTHESIS_RIGHT)) {
+            while (true) {
+                var parameter_literal = context->current_token(0);
+                a_function_parameters_named[function_parameters.parameters_count].p_name = context->token_str(parameter_literal);
+                context->token_advance(); // id
+
+                context->token_consume(Token.Type.COLON, "Expected ':' after parameter name.");
+
+                a_function_parameters_named[function_parameters.parameters_count].info.p_type = parse_type(p_context);
+                a_function_parameters[function_parameters.parameters_count + 1] = a_function_parameters_named[function_parameters.parameters_count].info;
+
+                ++function_parameters.parameters_count;
+
+                if (!context->token_match(Token.Type.COMMA)) {
+                    break;
+                }
+            }
+        }
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after parameters.");
+
+        var return_type: Type;
+        if (context->token_match(Token.Type.DOUBLE_ARROW_RIGHT)) {
+            return_type = context->parse_type();
+        }
+        if (return_type == null) {
+            return_type = Types.instance.type_void(p_context->p_state);
+        }
+
+        var parameters_count = function_parameters.parameters_count;
+        a_function_parameters[0].p_type = return_type;
+        ++function_parameters.parameters_count;
+        
+        token_consume(p_context, Token.Type.CURLY_LEFT, "Expected '{' after function declaration.");
+
+        // TODO use function instead cfunction
+        ketl_type* function_type = ketl_state_get_cfunction_type(p_context->p_state, &function_parameters);
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal));
+        ketl_namespace_node* p_func_node = ketl_state_define_cfunction(p_context->p_state, p_context->p_namespace, 
+            s_name, p_context->cexport ? s_name : KETL_ATOMIC_STRING_EMPTY, function_type, NULL, p_context->export);
+        ketl_namespace* p_direct_namespace = ketl_namespace_find_direct_parent(p_context->p_namespace, p_func_node);
+        ANN_ASSERT(p_direct_namespace == p_context->p_namespace);
+        uint32_t namespace_node_index = ketl_namespace_get_index(p_direct_namespace, p_func_node);
+        
+        // looking for the end of the function definition
+        ketl_token_iterator_t start_pos = p_context->p_lexer->token_iterator;
+        ketl_parser_bracket_t a_brackets_stack[32];
+        uint32_t bracket_stack_count = 0;
+
+        dummy_parse_bracket(Token.Type.CURLY_LEFT, a_brackets_stack, &bracket_stack_count);
+        while (bracket_stack_count > 0) {
+            dummy_parse_bracket(CURRENT_TOKEN(0).type, a_brackets_stack, &bracket_stack_count);
+            token_advance(p_context);
+        }
+
+        // TODO do proper error evaluation during this pass
+        //token_consume(p_context, Token.Type.CURLY_RIGHT, "Expected '}' after function body.");
+
+        // saving end of the function definition for later
+        ketl_token_iterator_t end_pos = p_context->p_lexer->token_iterator;
+
+        compile_function_declaration_t function_decl = {
+            .p_namespace = p_direct_namespace,
+            .namespace_node_index = namespace_node_index,
+            .p_opcodes = NULL,
+            .opcodes_size = 0,
+            .start_pos = start_pos,
+            .end_pos = end_pos,
+        };
+        ketl_parameters_t_init(&function_decl.v_parameters, 4, p_context->p_state->p_allocator);
+        for (uint32_t i = 0; i < parameters_count; ++i) {
+            ketl_parameters_t_push_back_ref(&function_decl.v_parameters, &a_function_parameters_named[i]);
+        }
+        compile_function_declarations_t_push_back_ref(&p_context->p_state->compile_function_declarations, &function_decl);
+
+        return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+    }*/
 
     fn parse_declaration(context : Context) => StatementInfo {
         switch (context->current_token(0).type) {
@@ -691,8 +817,9 @@ class Parser {
         if (lexer.tokens.size > 0) {
             var statement_info = context->parse_block_statement_inner();
             if ((statement_info.return_info & StatementInfo.ReturnInfo.Undef) == StatementInfo.ReturnInfo.Undef ||
-                (!(statement_info.return_info & StatementInfo.ReturnInfo.Always) && !!(statement_info.return_info & StatementInfo.ReturnInfo.AlwaysValue))) {
-                // TODO POS?
+                (!(statement_info.return_info & StatementInfo.ReturnInfo.Always) && (
+                    !!(statement_info.return_info & StatementInfo.ReturnInfo.Value) || (return_type != null && !return_type->is_void())
+                ))) {
                 context->error(lexer.tokens[end_pos - 1].offset, 1, "Not all control returns value.");
             }
 

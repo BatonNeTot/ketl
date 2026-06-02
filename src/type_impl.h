@@ -124,6 +124,8 @@ uint16_t ketl_type_find_extended_class_offset(ketl_type* p_type, ketl_type* p_ca
 
 ketl_variable ketl_type_find_enum_constant_value(ketl_type* p_type, ketl_atomic_string s_name);
 
+bool ketl_type_is_none_type(ketl_type* p_type);
+
 bool ketl_type_is_pointer_type(ketl_type* p_type);
 
 bool ketl_type_is_raw_type(ketl_type* p_type);

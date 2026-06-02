@@ -2176,6 +2176,8 @@ static ketl_statement_info parse_switch_statement(ketl_parser_context* p_context
         if (!(return_info & KETL_RETURN_ALWAYS)) {
             ketl_hir_builder_set_block(&p_context->hir_builder, after_statement);
         }
+    } else {
+        return_info &= KETL_RETURN_UNDEF;
     }
 
     return (ketl_statement_info){ .return_info = return_info };
@@ -2755,7 +2757,9 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
 
         ketl_statement_info statement_info = parse_block_statement_inner(&context);
         if ((statement_info.return_info & KETL_RETURN_UNDEF) == KETL_RETURN_UNDEF ||
-            (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (statement_info.return_info & KETL_RETURN_ALWAYS_VALUE))) {
+            (!(statement_info.return_info & KETL_RETURN_ALWAYS) && (
+                (statement_info.return_info & KETL_RETURN_VALUE) || (p_return_type != NULL && !ketl_type_is_none_type(p_return_type))
+            ))) {
             // TODO POS?
             errorf(p_lexer->tokens.p_data[end_pos - 1].offset, 1, "Not all control returns value.");
         }

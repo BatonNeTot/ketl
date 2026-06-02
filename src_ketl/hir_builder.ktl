@@ -8,6 +8,7 @@ import common
 
 from type import Type;
 from type import Types;
+from type import Value;
 
 from hir import HIR;
 
@@ -244,6 +245,11 @@ class HIRBuilder {
         return self.name_to_decl_stack[self.name_to_decl_stack.size - 1];
     }
 
+    export fn get_default_initial_value(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
+        // TODO do default contructor or smth
+        return self->push_literal_number(0, src_info);
+    }
+
     export fn get_global_var(self: HIRBuilder, namespace_node: Namespace.Node, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
         var bucket = self->find_decl_bucket(name);
 
@@ -273,6 +279,22 @@ class HIRBuilder {
         self.vars ..= varr;
 
         return var_id;
+    }
+
+    export fn get_type_var(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
+        var name = type->get_name();
+
+        var value = Value();
+        value.kind = Value.Kind.Type;
+        value.value = type$cast(raw)$cast(u64);
+
+        var node = Namespace.Node();
+        node.value = value;
+        node.name = name;
+        node.key = name;
+        node.info = Namespace.Info.construct(true, true);
+
+        return self->get_global_var(node, name, src_info);
     }
 
     export fn get_var(self: HIRBuilder, namespace: Namespace, name: str, fullname: str, src_info: HIR.SrcInfo) => HIR.VarId {

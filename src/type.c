@@ -243,6 +243,10 @@ uint32_t ketl_type_format(ketl_state* p_state, ketl_type* p_type, char* p_buffer
     }
 }
 
+bool ketl_type_is_none_type(ketl_type* p_type) {
+    return p_type && p_type->size == 0 && p_type->kind == KETL_TYPE_PRIMITIVE;
+}
+
 bool ketl_type_is_pointer_type(ketl_type* p_type) {
     return p_type && p_type->kind != KETL_TYPE_PRIMITIVE && p_type->kind != KETL_TYPE_ENUM;
 }

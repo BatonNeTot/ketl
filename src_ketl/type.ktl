@@ -34,11 +34,19 @@ export class Type {
     var size : u16;
 
     export fn is_pointer_kind(type: Type) => bool {
+        if (type == null) {
+            return false;
+        }
+
         if (type.kind == Kind.Primitive || type.kind == Kind.Enum) {
             return false;
         } else {
             return true;
         }
+    }
+
+    export fn is_void(type: Type) => bool {
+        return type != null && type.size == 0 && type.kind == Kind.Primitive;
     }
 
     export fn get_stack_size(type : Type) => u64 {
@@ -61,6 +69,14 @@ export class Type {
         return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).is_signed;
     }
 
+    export fn get_name(type: Type) => str {
+        if (type.kind == Type.Kind.Primitive) {
+            return type$cast(TypePrimitive).name;
+        }
+
+        assert(false);
+        return null;
+    }
 }
 
 export class Value {
