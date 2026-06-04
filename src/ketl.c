@@ -669,12 +669,17 @@ void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_cl
             ketl_type_class* p_extended_class = (ketl_type_class*)p_extended_type;
             ketl_namespace* p_extended_namespace = &p_extended_class->namespace;
 
+            p_class_type->namespace.p_parent = p_extended_namespace;
+
+            // TODO have multiple parents
+            /*
             for (uint32_t i = 0; i < p_extended_namespace->v_nodes.size; ++i) {
                 ketl_namespace_node* p_extended_node = &p_extended_namespace->v_nodes.p_data[i];
                 ketl_namespace_node_info info = p_extended_node->info;
                 info.imported = true;
                 ketl_namespace_put(&p_class_type->namespace, p_extended_node->s_key, p_extended_node->s_name, p_extended_node->variable, info, &p_state->atomic_strings, false);
             }
+            */
         }
     }
 

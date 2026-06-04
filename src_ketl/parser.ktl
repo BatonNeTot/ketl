@@ -236,7 +236,12 @@ class Parser {
 
         if (token.type == Token.Type.ID) {
             var name = context->token_str(token);
-            return context.hir_builder->get_var(context.namespace, name, name, src_info);
+            var var_id = context.hir_builder->get_var(context.namespace, name, name, src_info);
+            if (context.hir_builder->get_type(var_id) == null) {
+                context->error(src_info.source_offset, src_info.length, "Undeclared variable.");
+            }
+
+            return var_id;
         }
 
         switch (token.type) {
@@ -614,7 +619,6 @@ class Parser {
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
-
 /*
     fn parse_function_declaration(context: Context) => StatementInfo {
         context->token_advance(); // fn

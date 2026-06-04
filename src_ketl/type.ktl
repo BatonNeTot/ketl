@@ -1,5 +1,7 @@
 //🫖ketl
 
+import common
+
 export class Type {
     export enum Kind : u8{
         Primitive,
@@ -70,8 +72,16 @@ export class Type {
     }
 
     export fn get_name(type: Type) => str {
+        if (type == null) {
+            return "<null>";
+        }
+
         if (type.kind == Type.Kind.Primitive) {
             return type$cast(TypePrimitive).name;
+        }
+
+        if (type.kind == Type.Kind.Enum) {
+            return type$cast(TypeEnum).name;
         }
 
         assert(false);
@@ -154,13 +164,6 @@ export class TypeEnum {
 
 export class TypeArray {
 
-    export class Header {
-        var data : raw;
-        var capacity : u64;
-        var size : u64;
-        var is_slice : bool;
-    }
-
     extend Type;
     var value : Type;
 }
@@ -207,9 +210,18 @@ class Types {
     export shared instance = Types.construct(); 
 
     export fn get_common_type(lhs: Type, rhs: Type) => Type {
+        if (lhs == null || rhs == null) {
+            return null;
+        }
+
         if (is_types_equal(lhs, rhs)) {
             return lhs;
         }
+
+        common.print("can't find common types: ");
+        common.print(lhs->get_name());
+        common.print(", ");
+        common.println(rhs->get_name());
 
         assert(false);
         return null;

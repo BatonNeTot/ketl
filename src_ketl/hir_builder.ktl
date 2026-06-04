@@ -99,7 +99,15 @@ class HIRBuilder {
     }
 
     fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, implicit: bool) => HIR.VarId {
+        if (target_type == null) {
+            return var_id;
+        }
+
         var type = self->get_type(var_id);
+
+        if (type == null) {
+            return var_id;
+        }
 
         if (Types.is_types_equal(type, target_type)) {
             return var_id;

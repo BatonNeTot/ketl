@@ -1,8 +1,12 @@
 //🫖ketl
 
 from module import Modules
+from common import StrHashMap
+import common
 
 cexport fn eval(module_name : str) {
     var module = Modules.instance->load(module_name, null, null, true);
-    module->print_asm();
+    if (module != null) {
+        module->print_asm();
+    }
 }

@@ -295,7 +295,7 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         return convertion_call_id;
     }
 
-    if (p_rhs_type->kind == KETL_TYPE_CLASS) {
+    if (p_rhs_type->kind == KETL_TYPE_CLASS && p_lhs_type->kind == KETL_TYPE_CLASS) {
         bool related = false;
         int16_t signed_extended_offset;
 
