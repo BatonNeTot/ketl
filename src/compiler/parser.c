@@ -417,9 +417,9 @@ static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_va
     }
 
     ketl_type* p_rhs_type = GET_TYPE(GET_VAR(rhs_var).type);
+    ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
 
-    if (p_rhs_type->kind == KETL_TYPE_ARRAY) {
-        ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
+    if (p_rhs_type->kind == KETL_TYPE_ARRAY && p_lhs_array_type->p_value_type != p_rhs_type) {
         ketl_type_array* p_rhs_array_type = (ketl_type_array*) p_rhs_type;
 
         if (p_lhs_array_type->p_value_type != p_rhs_array_type->p_value_type) {
@@ -429,21 +429,19 @@ static ketl_hir_var_id_t push_append(ketl_parser_context* p_context, ketl_hir_va
         }
 
         return push_hir_append_array(p_context, lhs_var, rhs_var);
-    } else {
-        ketl_type_array* p_lhs_array_type = (ketl_type_array*) p_lhs_type;
+    } 
 
-        if (p_rhs_type->kind == KETL_TYPE_CLASS && p_lhs_array_type->p_value_type->kind == KETL_TYPE_CLASS &&
-            ketl_type_find_extended_class_offset(p_rhs_type, p_lhs_array_type->p_value_type) != (uint16_t)-1) {
-            rhs_var = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_lhs_array_type->p_value_type), 
-                expr_info, rhs_var, false);
-        } else if (p_lhs_array_type->p_value_type != p_rhs_type) {
-            // TODO implicit casting
-            errorf(expr_info.source_offset, expr_info.length, "Can't append different type.");
-            return push_temp_var(p_context, expr_info);
-        }
-
-        return push_hir_append_value(p_context, lhs_var, rhs_var);
+    if (p_rhs_type->kind == KETL_TYPE_CLASS && p_lhs_array_type->p_value_type->kind == KETL_TYPE_CLASS &&
+        ketl_type_find_extended_class_offset(p_rhs_type, p_lhs_array_type->p_value_type) != (uint16_t)-1) {
+        rhs_var = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_lhs_array_type->p_value_type), 
+            expr_info, rhs_var, false);
+    } else if (p_lhs_array_type->p_value_type != p_rhs_type) {
+        // TODO implicit casting
+        errorf(expr_info.source_offset, expr_info.length, "Can't append different type.");
+        return push_temp_var(p_context, expr_info);
     }
+
+    return push_hir_append_value(p_context, lhs_var, rhs_var);
 }
 
 static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hir_tag_t op, ketl_hir_var_id_t lhs_var, ketl_hir_var_id_t rhs_var) {
@@ -619,12 +617,24 @@ static ketl_hir_var_id_t push_hir_new_string_literal(ketl_parser_context* p_cont
     ketl_hir_var_id_t output_var = push_temp_var_type(p_context, expr_info, 
         ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_str_type(p_context->p_state)));
 
+    const char* p_literal_str = TOKEN_STRING(literal);
+    uint32_t length = literal.length; // can't use TOKEN_LENGTH, might be empty string literal
+
+    uint32_t escape_characters_count = 0;
+    for (uint32_t i = 0; i < length; ++i) {
+        if (p_literal_str[i] == '\\' && (
+            i == 0 || p_literal_str[i - 1] != '\\'
+            )) {
+            ++escape_characters_count;
+        }
+    }
+
     char a_size_buffer[16];
-    uint32_t size_length = (uint32_t)snprintf(a_size_buffer, ANN_ARRAY_SIZE(a_size_buffer), "%"PRIu16, literal.length);
+    uint32_t size_length = (uint32_t)snprintf(a_size_buffer, ANN_ARRAY_SIZE(a_size_buffer), "%"PRIu16, length - escape_characters_count);
     ketl_hir_var_id_t count_var_id = push_literal_number_symbol(p_context, push_symbol_string(p_context, a_size_buffer, size_length), expr_info);
 
     ketl_hir_const_index_t const_index = (ketl_hir_const_index_t)-1;
-    if (literal.length > 0) {
+    if (length > 0) {
         const_index = ketl_hir_builder_push_string_literal(&p_context->hir_builder, literal);
     }
 
@@ -2295,7 +2305,7 @@ static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context
 }
 
 static ketl_statement_info parse_import(ketl_parser_context* p_context) {
-    ANN_ASSERT(p_context->is_global_scope);
+    //ANN_ASSERT(p_context->is_global_scope);
 
     char a_path_buffer[256] = {'\0'};
     uint32_t path_length = 0;
@@ -2324,7 +2334,7 @@ static ketl_statement_info parse_import(ketl_parser_context* p_context) {
 }
 
 static ketl_statement_info parse_from_import(ketl_parser_context* p_context) {
-    ANN_ASSERT(p_context->is_global_scope);
+    //ANN_ASSERT(p_context->is_global_scope);
 
     char a_path_buffer[256] = {'\0'};
     uint32_t path_length = 0;

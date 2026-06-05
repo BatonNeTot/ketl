@@ -123,6 +123,11 @@ export class Value {
             return;
         }
 
+        if (type.kind == Type.Kind.Function) {
+            self.kind = Kind.Func;
+            return;
+        }
+
         assert(false);
     }
 }
@@ -168,6 +173,29 @@ export class TypeArray {
     var value : Type;
 }
 
+export class TypeFunction {
+    export class Signature {
+        var parameters: Type[];
+
+        fn is_equal(lhs: Signature, rhs: Signature) => bool {
+            return lhs.parameters == rhs.parameters;
+        }
+
+        fn get_hash(self: Signature) => u64 {
+            var hash: u64;
+
+            for (var parameter: Type <- self.parameters) {
+                hash = parameter$cast(raw)$cast(u64) ^ (hash << 1);
+            }
+
+            return hash;
+        }
+    }
+
+    extend Type;
+    var signature: Signature;
+}
+
 class Types {
 
     var type_void: TypePrimitive;
@@ -184,6 +212,8 @@ class Types {
     var type_u16: TypePrimitive;
     var type_u32: TypePrimitive;
     var type_u64: TypePrimitive;
+
+    var functions: common.HashMap;
 
     fn construct() => Types {
         var self = Types();
@@ -205,6 +235,12 @@ class Types {
         self.type_u64  = TypePrimitive.construct(8, "u64",  true,  false, true);
 
         return self;
+    }
+
+    fn init_functions_if_needed(self: Types) {
+        if (self.functions == null) {
+            self.functions = common.HashMap.construct(TypeFunction.Signature.is_equal, TypeFunction.Signature.get_hash);
+        }
     }
 
     export shared instance = Types.construct(); 
@@ -230,4 +266,28 @@ class Types {
     export fn is_types_equal(lhs: Type, rhs: Type) => bool {
         return lhs == rhs;
     }
+
+    export fn get_function_type(self: Types, parameters: Type[]) => TypeFunction {
+        self->init_functions_if_needed();
+
+        var signature = TypeFunction.Signature();
+        signature.parameters = parameters;
+
+        var bucket = self.functions->get_or_insert(signature, null);
+        if (bucket.value != null) {
+            return bucket.value;
+        }
+
+        var type = TypeFunction();
+        type.kind = Type.Kind.Function;
+        // TODO replace with raw$size and raw$align
+        type.align = Type.Align.Bytes8;
+        type.size = 8;
+        type.signature = signature;
+
+        bucket.value = type;
+        return type;
+    }
+
+
 }

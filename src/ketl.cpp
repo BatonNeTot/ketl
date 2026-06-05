@@ -27,7 +27,7 @@ void redirect_stdout(const char* p_target_filename) {
     redirect_restore();
     
     if (fopen_s(&p_redirect, p_target_filename, "w") != 0 ) {
-        puts("Can't open file 'data'\n");
+        printf("Can't open file '%s'\n", p_target_filename);
         exit(1);
     }
 

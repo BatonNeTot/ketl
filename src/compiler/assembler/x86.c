@@ -1858,7 +1858,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         p_name = a_name_buffer;
                         snprintf(a_name_buffer, ANN_ARRAY_SIZE(a_name_buffer), "%s", 
                             ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_const_info->s_name));
-                        mem_size = p_const_info->const_size;
+                        mem_size = p_const_info->const_size - p_const_info->escape_characters_count;
                     }
 
                     char a_mem_size_buffer[16];
@@ -1884,7 +1884,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     if (p_hir_info->const_index != KETL_HIR_CONST_INDEX_NULL) {
                         ketl_hir_const_info_t* p_const_info = &p_hir->p_consts_infos[p_hir_info->const_index];
                         p_mem = &p_hir->p_consts[p_const_info->const_offset];
-                        mem_size = p_const_info->const_size;
+                        mem_size = p_const_info->const_size - p_const_info->escape_characters_count;
                     }
 
                     //ketl_gc_create_array_of_type(&p_builder->p_state->gc, 

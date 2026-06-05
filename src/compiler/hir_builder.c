@@ -977,15 +977,27 @@ ketl_hir_const_index_t ketl_hir_builder_push_string_literal(ketl_hir_builder_t* 
     char a_name_buffer[256];
     uint32_t name_length = (uint32_t)snprintf(a_name_buffer, ANN_ARRAY_SIZE(a_name_buffer), ".L__const.str%"PRIu16"_%"PRIu16, p_hir_builder->func_index, p_hir_builder->string_literal_counter++);
 
+    const char* p_literal_str = TOKEN_STRING(literal);
+
     uint32_t const_offset = p_hir_builder->consts.size;
     uint32_t const_size = TOKEN_LENGTH(literal);
 
+    uint32_t escape_characters_count = 0;
+    for (uint32_t i = 0; i < const_size; ++i) {
+        if (p_literal_str[i] == '\\' && (
+            i == 0 || p_literal_str[i - 1] != '\\'
+            )) {
+            ++escape_characters_count;
+        }
+    }
+
     // TODO does not comply with escaped chars
-    ketl_hir_consts_t_push_back_ref_n(&p_hir_builder->consts, (const uint8_t*)TOKEN_STRING(literal), TOKEN_LENGTH(literal));
+    ketl_hir_consts_t_push_back_ref_n(&p_hir_builder->consts, (const uint8_t*)p_literal_str, const_size);
 
     ketl_hir_consts_infos_t_push_back_copy(&p_hir_builder->consts_infos, (ketl_hir_const_info_t){
         .const_offset = const_offset,
         .const_size = const_size,
+        .escape_characters_count = escape_characters_count,
         .s_name = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_hir_builder->p_state->atomic_strings, a_name_buffer, name_length),
         .is_string = true,
     });

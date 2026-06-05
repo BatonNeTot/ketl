@@ -211,6 +211,19 @@ class HIRBuilder {
         return literal_var_id;
     }
 
+    fn push_common_var(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo, decl_id: HIR.DeclId) => HIR.VarId {
+        var var_id = self.vars.size$cast(HIR.VarId);
+        var varr = HIR.VarCommon();
+        varr.kind = HIR.Var.Kind.Common;
+
+        varr.type = type;
+        varr.src_info = src_info;
+        varr.decl = decl_id;
+        self.vars ..= varr;
+
+        return var_id;
+    }
+
     export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
         var temp_decl_id = self.decls.size$cast(HIR.DeclId);
         var temp_decl = HIR.DeclCommon();
@@ -219,15 +232,7 @@ class HIRBuilder {
         self.temp_counter += 1;
         self.decls ..= temp_decl;
 
-        var temp_var_id = self.vars.size$cast(HIR.VarId);
-        var temp_var = HIR.VarCommon();
-        temp_var.kind = HIR.Var.Kind.Common;
-        temp_var.type = type;
-        temp_var.src_info = src_info;
-        temp_var.decl = temp_decl_id;
-        self.vars ..= temp_var;
-
-        return temp_var_id;
+        return self->push_common_var(type, src_info, temp_decl_id);
     }
 
     export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -258,10 +263,10 @@ class HIRBuilder {
         return self->push_literal_number(0, src_info);
     }
 
-    export fn get_global_var(self: HIRBuilder, namespace_node: Namespace.Node, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+    fn find_or_push_global_decl(self: HIRBuilder, namespace_node: Namespace.Node, name: str) => StrHashMap.Bucket {
         var bucket = self->find_decl_bucket(name);
 
-        // if size didn't change, we found existing var
+        // if got null, we create new decl
         if (bucket == null) {
             bucket = self->first_name_to_decl()->get_or_insert(name, self.decls.size$cast(u64)$cast(raw));
             var decl = HIR.DeclGlobal();
@@ -269,7 +274,16 @@ class HIRBuilder {
             decl.name = name;
             decl.node = namespace_node;
             self.decls ..= decl;
-        } else {
+        }
+
+        return bucket;
+    }
+
+    export fn declare_global_var(self: HIRBuilder, namespace_node: Namespace.Node, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var bucket = self->find_or_push_global_decl(namespace_node, name);
+
+        // if got not null, we found existing decl
+        if (bucket != null) {
             var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
             var decl = self.decls[decl_id];
             if (decl.kind != HIR.Decl.Kind.Global || namespace_node != decl$cast(HIR.DeclGlobal).node) {
@@ -278,15 +292,13 @@ class HIRBuilder {
             }
         }
         
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarCommon();
-        varr.kind = HIR.Var.Kind.Common;
-        varr.type = namespace_node.value.type;
-        varr.src_info = src_info;
-        varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
-        self.vars ..= varr;
+        return self->push_common_var(namespace_node.value.type, src_info, bucket.value$cast(u64)$cast(HIR.DeclId));
+    }
 
-        return var_id;
+    export fn get_global_var(self: HIRBuilder, namespace_node: Namespace.Node, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var bucket = self->find_or_push_global_decl(namespace_node, name);
+        
+        return self->push_common_var(namespace_node.value.type, src_info, bucket.value$cast(u64)$cast(HIR.DeclId));
     }
 
     export fn get_type_var(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -307,67 +319,40 @@ class HIRBuilder {
 
     export fn get_var(self: HIRBuilder, namespace: Namespace, name: str, fullname: str, src_info: HIR.SrcInfo) => HIR.VarId {
         var bucket = self->find_decl_bucket(fullname);
+        var decl_id: HIR.DeclId;
+        var type: Type;
 
-        // if size didn't change, we found existing var
-        if (bucket == null) {
+        // if got not null, we found existing decl
+        if (bucket != null) {
+            decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
+            var decl = self.decls[decl_id];
+            type = decl->get_type();
+        } else {
             var symbol_node = namespace->find(name);
 
-            if (symbol_node == null) {
-                bucket = self->last_name_to_decl()->get_or_insert(
-                     fullname, self.decls.size$cast(u64)$cast(raw));
+            bucket = self->last_name_to_decl()->get_or_insert(
+                    fullname, self.decls.size$cast(u64)$cast(raw));
+            
+            decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
+
+            if (symbol_node != null) {
+                var decl = HIR.DeclGlobal();
+                decl.kind = HIR.Decl.Kind.Global;
+                decl.name = name;
+                decl.node = symbol_node;
+                self.decls ..= decl;
+
+                type = symbol_node.value.type;
+            } else {
 
                 var decl = HIR.Decl();
                 decl.kind = HIR.Decl.Kind.Error;
                 decl.name = name;
                 self.decls ..= decl;
-
-                var var_id = self.vars.size$cast(HIR.VarId);
-
-                var varr = HIR.VarCommon();
-                varr.kind = HIR.Var.Kind.Common;
-                varr.type = null;
-                varr.src_info = src_info;
-                varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
-                self.vars ..= varr;
-
-                return var_id;
             }
-
-            bucket = self->first_name_to_decl()->get_or_insert(
-                fullname, self.decls.size$cast(u64)$cast(raw));
-
-            var decl = HIR.DeclGlobal();
-            decl.kind = HIR.Decl.Kind.Global;
-            decl.name = name;
-            decl.node = symbol_node;
-            self.decls ..= decl;
-
-            var var_id = self.vars.size$cast(HIR.VarId);
-
-            var varr = HIR.VarCommon();
-            varr.kind = HIR.Var.Kind.Common;
-            varr.type = symbol_node.value.type;
-            varr.src_info = src_info;
-            varr.decl = bucket.value$cast(u64)$cast(HIR.DeclId);
-            self.vars ..= varr;
-
-            return var_id;
         } 
 
-        var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
-        var decl = self.decls[decl_id];
-        var type = decl->get_type();
-
-        var var_id = self.vars.size$cast(HIR.VarId);
-
-        var varr = HIR.VarCommon();
-        varr.kind = HIR.Var.Kind.Common;
-        varr.type = type;
-        varr.src_info = src_info;
-        varr.decl = decl_id;
-        self.vars ..= varr;
-
-        return var_id;
+        return self->push_common_var(type, src_info, decl_id);
     }
 
     export fn flush(self: HIRBuilder, hir: HIR) {

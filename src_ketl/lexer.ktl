@@ -500,6 +500,8 @@ export class Lexer {
 
                 if (second_symbol == '=') {
                     lexer->add_token(Token.Type.EQUAL, 2);
+                } else if (second_symbol == '>') {
+                    lexer->add_token(Token.Type.DOUBLE_ARROW_RIGHT, 2);
                 } else {
                     lexer->add_token(Token.Type.ASSIGN, 1);
                 }
@@ -749,11 +751,17 @@ export class TokenIterator {
 
     var tokens : Token[];
     var index : Index;
+    var end_pos : Index;
 
-    export fn construct(lexer: Lexer) => TokenIterator {
+    export fn construct(lexer: Lexer, end_pos: Index) => TokenIterator {
         var self = TokenIterator();
         self.tokens = lexer.tokens;
         self.index = 0;
+
+        if (end_pos > self.tokens.size) {
+            end_pos = self.tokens.size$cast(Index);
+        }
+        self.end_pos = end_pos;
         return self;
     }
 
@@ -761,13 +769,17 @@ export class TokenIterator {
         self.index += 1;
     }
 
+    export fn is_end(self: TokenIterator) => bool {
+        return self.index >= self.end_pos;
+    }
+
     export fn current(self: TokenIterator, offset : u64) => Token {
         var index = self.index - offset;
-        if (index >= self.tokens.size) {
+        if (index >= self.end_pos) {
             var token = Token();
             token.type = Token.Type.EOF;
             token.length = 0;
-            token.offset = self.tokens[self.tokens.size - 1].offset;
+            token.offset = self.tokens[self.end_pos - 1].offset;
             return token;
         }
         return self.tokens[index];
