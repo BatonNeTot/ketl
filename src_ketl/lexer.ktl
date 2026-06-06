@@ -359,10 +359,6 @@ export class Lexer {
                 }
             }
             case 'n' => {
-                if ("none" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer->add_token(Token.Type.NONE, id_length);
-                    return true;
-                }
                 if ("null" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.NULL, id_length);
                     return true;
@@ -403,6 +399,10 @@ export class Lexer {
             case 'v' => {
                 if ("var" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.VAR, id_length);
+                    return true;
+                }
+                if ("void" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.VOID, id_length);
                     return true;
                 }
             }

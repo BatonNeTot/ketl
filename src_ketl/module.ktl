@@ -80,7 +80,7 @@ class Module {
         lexer->build_tokens(module_filename, source, log_accum);
 
         from parser import Parser
-        var hir = Parser.build_hir(lexer, lexer.tokens.size, module.namespace, VariableDecl[0], Types.instance.type_void, 
+        var hir = Parser.build_hir(lexer, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
             0, true, log_accum);
 
         //hir->print();

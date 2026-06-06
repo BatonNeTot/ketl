@@ -402,6 +402,21 @@ do {\
     {
         ketl_variable_type_info_t a_parameters[] = {
             { .p_type = p_str },
+            { .p_type = p_u64 },
+        };
+        ketl_function_parameters clear_func_params = {
+            .p_parameters = a_parameters,
+            .parameters_count = ANN_ARRAY_SIZE(a_parameters),
+        };
+        ketl_type* p_func_type = ketl_state_get_cfunction_type(p_state, &clear_func_params);
+        ketl_atomic_string s_key = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("uint2str"));
+        ketl_atomic_string s_name = ketl_atomic_strings_get(&p_state->atomic_strings, LITERAL_STRING_PAIR("__ketl_rt.uint2str"));
+        ketl_state_define_cfunction(p_state, &p_state->secret_namespace, s_key, s_name, p_func_type, (void(*)(void))NULL, false);
+    }
+
+    {
+        ketl_variable_type_info_t a_parameters[] = {
+            { .p_type = p_str },
             { .p_type = p_i64 },
         };
         ketl_function_parameters clear_func_params = {

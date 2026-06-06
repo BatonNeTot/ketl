@@ -234,7 +234,7 @@ class Parser {
         return false;
     }
 
-    fn parse_identificator(context: Context, precedence: Precedence) => HIR.VarId {
+    fn parse_identificator(context: Context) => HIR.VarId {
         var token = context->current_token(1);
         var src_info = HIR.SrcInfo.from_token(token);
 
@@ -262,9 +262,64 @@ class Parser {
         return error_var();
     }
 
-    fn parse_number(context: Context, precedence: Precedence) => HIR.VarId {
+    fn parse_number(context: Context) => HIR.VarId {
         var token = context->current_token(1);
         return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.from_token(token));
+    }
+    
+    fn parse_grouping(context: Context) => HIR.VarId {
+        // TODO create new var to update src_info
+        var expr = context->parse_expression();
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after expression.");
+        return expr;
+    }
+
+    fn parse_argument_list(context: Context) => HIR.VarId[] {
+        var arguments = HIR.VarId[0];
+        if (!context->token_check(Token.Type.PARENTHESIS_RIGHT)) {
+            while (true) {
+                var arg = context->parse_expression();
+                arguments ..= arg;
+                
+                if (!context->token_match(Token.Type.COMMA)) {
+                    break;
+                }
+            }
+        }
+        
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after arguments.");
+        return arguments;
+    }
+
+    fn parse_call(context: Context, callee_id: HIR.VarId) => HIR.VarId {
+        var arguments = context->parse_argument_list();
+        var callee = context.hir_builder.vars[callee_id];
+        var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+
+        if (callee.kind == HIR.Var.Kind.Common) {
+            var decl = context.hir_builder.decls[callee$cast(HIR.VarCommon).decl];
+
+            if (decl.kind == HIR.Decl.Kind.Global && decl$cast(HIR.DeclGlobal).node.value.kind == Value.Kind.Type) {
+                assert(false);
+                /*
+                ketl_hir_var_info_t* p_callee_info = get_var_info(p_context, p_callee->info);
+                ketl_namespace_node* p_callee_node = ketl_namespace_find_by_index(p_callee_info->p_namespace, p_callee_info->namespace_node_index);
+                if (p_callee_node->variable.kind != KETL_VARIABLE_TYPE) {
+                    errorf(expr_info.source_offset, expr_info.length, "Trying to call an improper object.");
+                    return push_temp_var(p_context, expr_info);
+                }
+                ketl_type* p_callee_type = p_callee_node->variable.p_pointer;
+                if (p_callee_type->kind != KETL_TYPE_CLASS) {
+                    errorf(expr_info.source_offset, expr_info.length, "Only class objects can be constructed through calling a type.");
+                    return push_temp_var(p_context, expr_info);
+                }
+                
+                return push_hir_new(p_context, callee, argument_count, expr_info);
+                */
+            }
+        }
+
+        return context.hir_builder->push_hir_call(callee_id, arguments, src_info);
     }
 
     fn parse_unary_rtl(context: Context) => HIR.VarId {
@@ -433,6 +488,7 @@ class Parser {
     shared parse_rules = ParseRule[Token.Type$count]{
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                  null,             Precedence.Primary), 
+        Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,            null,             Precedence.Call),
         Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
         //Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),
         //Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalOr),

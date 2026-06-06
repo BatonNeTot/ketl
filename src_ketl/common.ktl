@@ -368,7 +368,7 @@ export class File {
 
         var SEEK_SET: i32 = 0;
         fseek(file, 0, SEEK_SET);
-        fread(buffer, 1, filesize, file);
+        fread(buffer, 1, filesize$cast(u64), file);
         assert(ferror(file) == 0);
 
         fclose(file);

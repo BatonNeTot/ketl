@@ -207,6 +207,23 @@ export fn str2cstr(string: ArrayHeader) => cstr {
     (cstring + size)$cast(GC.U8Wrapper).value = '\0';
     return cstring;
 }
+export fn uint2str(value: u64) => str {
+    if (value == 0) {
+        return "0";
+    }
+
+    var buffer = "";
+
+    // TODO doesn't work with (-1)$cast(u64);
+    while (value > 0) {
+        var number = value % 10;
+        value /= 10;
+
+        buffer = '0' + number$cast(char) .. buffer;
+    }
+
+    return buffer;
+}
 export fn int2str(value: i64) => str {
     if (value == 0) {
         return "0";

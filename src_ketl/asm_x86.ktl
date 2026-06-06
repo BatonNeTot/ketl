@@ -7,6 +7,7 @@ import common
 from type import Type
 from type import TypePrimitive
 from type import TypeEnum
+from type import TypeFunction
 from type import Types
 from hir import HIR
 
@@ -741,13 +742,13 @@ export class ASMX86 {
                 case ABI.WINDOWS =>
                     // TODO self.inline_symbols
                     if (true) {
-                        return ModRM.construct_indir_base_label(Reg.SP, arg_info.name, arg_info.stack_offset);
+                        return ModRM.construct_indir_base_label(Reg.SP, arg_info.name, arg_info.stack_offset$cast(i32));
                     } else {
-                        return ModRM.construct_indir_base_disp(Reg.SP, arg_info.stack_offset);
+                        return ModRM.construct_indir_base_disp(Reg.SP, arg_info.stack_offset$cast(i32));
                     }
                 case ABI.SYSTEM_V =>
                     // TODO 4294967296 => 0x100000000
-                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - arg_info.stack_offset - size));
+                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - arg_info.stack_offset - size)$cast(i32));
             }
 
             assert(false);
@@ -814,7 +815,7 @@ export class ASMX86 {
 
                     // TODO FIX
                     // get type size and use appropriate load global bytecode
-                    self->insert_rm_imm(Tag.MOV, Size.Bit64, ModRM.construct_reg(target_reg), value);
+                    self->insert_rm_imm(Tag.MOV, Size.Bit64, ModRM.construct_reg(target_reg), value$cast(u64));
                 }
 
                 return;
@@ -974,25 +975,37 @@ export class ASMX86 {
             var varr = self.hir.vars[var_id];
             assert(varr.kind != HIR.Var.Kind.Literal);
 
-            /*
-            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_GLOBAL) {
-                ANN_ASSERT(var.type != KETL_HIR_USED_TYPE_META);
+            if (varr.kind == HIR.Var.Kind.Common) {
+                var var_decl_id = varr$cast(HIR.VarCommon).decl;
+                var decl = self.hir.decls[var_decl_id];
 
-                ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
-                    p_builder->p_hir->p_vars_infos[var.info].p_namespace, p_builder->p_hir->p_vars_infos[var.info].namespace_node_index);
+                if (decl.kind == HIR.Decl.Kind.Global) {
+                    assert(varr.type != null);
 
-                if (p_builder->inline_symbols) {
-                    ketl_atomic_string s_name = p_namespace_node->s_name;
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_RIP_LABEL(s_name), source_reg); 
-                } else {
-                    ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
-                    // TODO get proper size
-                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(donor_reg), (int64_t)&p_namespace_node->variable);
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, 0), source_reg); 
+                    var decl_global = decl$cast(HIR.DeclGlobal);
+
+                    var namespace_node = decl_global.node;
+
+                    // TODO self.inline_symbols
+                    if (true) {
+                        var name = namespace_node.name;
+                        self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_rip_label(name), source_reg); 
+                    } else {/*
+                        ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
+                        // TODO get proper size
+                        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(donor_reg), (int64_t)&p_namespace_node->variable);
+                        ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, 0), source_reg); */
+                    }
+                    return;
                 }
-                return;
+
+                var bucket = self.variables->get_or_null(var_decl_id);
+                assert(bucket != null);
+
+                self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg); 
             }
 
+            /*
             if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
                 ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
                 ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
@@ -1078,14 +1091,51 @@ export class ASMX86 {
                 ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_arg_reg, 0), save_reg);
                 return;
             }
-            */
+            */    
+        }
 
-            var var_decl_id = varr$cast(HIR.VarCommon).decl;
+        fn push_function_arguments_hir(self: Builder, arguments: HIR.VarId[]) {
+            var i: u64 = arguments.size - 1;
+            while (true) {
+                // TODO FIX
+                // get type size and use appropriate
+                var size = Size.Bit64;
+                var regs = parameters_regs[self.abi];
+                var reg_count = regs.size;
+                if (i < reg_count) {
+                    self->push_mov_from_stack_hir(regs[i], arguments[i], size);
+                } else {
+                    assert(false); /*
+                    ANN_ASSERT(p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS);
+                    push_mov_from_stack_hir(KETL_ASM_X86_AX, p_arguments[i], size, p_builder);
+                    uint32_t reg_space_size = sizeof(void*) * reg_count;
+                    ketl_asm_x86_arg_info_t arg_info = { 
+                        .stack_offset = reg_space_size + (i - reg_count) * sizeof(void*),
+                        .s_name = KETL_ATOMIC_STRING_EMPTY,
+                    };
+                    ketl_hir_var_id_t arg_id = p_arguments[i];
+                    ketl_hir_var_info_index_t info_id = p_builder->p_hir->p_vars[arg_id].info;
+                    ketl_hir_var_uid_t var_uid = p_builder->p_hir->p_vars[arg_id].uid;
+                    while (var_uid == KETL_HIR_VAR_UID_CAST) {
+                        arg_id = p_builder->p_hir->p_vars[arg_id].cast_target;
+                        info_id = p_builder->p_hir->p_vars[arg_id].info;
+                        var_uid = p_builder->p_hir->p_vars[arg_id].uid;
+                    }
+                    if (info_id != KETL_HIR_VAR_INFO_TEMP && var_uid != KETL_HIR_VAR_UID_LITERAL) {
+                        arg_info.s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
+                            KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, 
+                                p_builder->p_hir->p_vars_infos[info_id].name), KETL_NULL_TERMINATED_LENGTH_32);
+                    }
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, 
+                        modrm_stack(p_builder, size, arg_info), KETL_ASM_X86_AX);
+                        */
+                }
 
-            var bucket = self.variables->get_or_null(var_decl_id);
-            assert(bucket != null);
-
-            self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg);     
+                if (i == 0) {
+                    break;
+                }
+                i -= 1;
+            }
         }
 
         fn finalize_stask_size(self: Builder) {
@@ -1295,6 +1345,41 @@ export class ASMX86 {
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
                         self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
+                    }
+
+                    case HIR.Tag.CALL => {
+                        var hir_info = instr$cast(HIR.Call);
+
+                        var callee = self.hir.vars[hir_info.callee];
+                        assert(callee.type != null);
+                        var callee_type = callee.type;
+
+                        // TODO FIX allow other types to be called
+                        assert(callee_type.kind == Type.Kind.Function || callee_type.kind == Type.Kind.CFunction);
+
+                        var func_type = callee_type$cast(TypeFunction); 
+                        var return_type = func_type.signature.parameters[0];
+
+                        self->push_function_arguments_hir(hir_info.args);
+
+                        // call
+                        assert(callee.kind == HIR.Var.Kind.Common);
+                        var func_decl_id = callee$cast(HIR.VarCommon).decl;
+                        var func_decl = self.hir.decls[func_decl_id];
+
+                        // TODO self.inline_symbols
+                        if (true && func_decl.kind == HIR.Decl.Kind.Global) {
+                            var namespace_node = func_decl$cast(HIR.DeclGlobal).node;
+                            var func_name = namespace_node.name;
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        if (return_type != Types.instance.type_void$cast(Type)) {
+                            self->push_mov_to_stack_hir(hir_info.output, Reg.AX, return_type->get_stack_size()$cast(Size));
+                        }
                     }
 
                     case HIR.Tag.RETURN => {

@@ -1344,10 +1344,18 @@ static void push_function_arguments_hir(ketl_hir_var_id_t* p_arguments, uint32_t
                 .stack_offset = reg_space_size + (i - reg_count) * sizeof(void*),
                 .s_name = KETL_ATOMIC_STRING_EMPTY,
             };
-            if (p_builder->p_hir->p_vars[p_arguments[i]].info != KETL_HIR_VAR_INFO_TEMP && p_builder->p_hir->p_vars[p_arguments[i]].uid != KETL_HIR_VAR_UID_LITERAL) {
+            ketl_hir_var_id_t arg_id = p_arguments[i];
+            ketl_hir_var_info_index_t info_id = p_builder->p_hir->p_vars[arg_id].info;
+            ketl_hir_var_uid_t var_uid = p_builder->p_hir->p_vars[arg_id].uid;
+            while (var_uid == KETL_HIR_VAR_UID_CAST) {
+                arg_id = p_builder->p_hir->p_vars[arg_id].cast_target;
+                info_id = p_builder->p_hir->p_vars[arg_id].info;
+                var_uid = p_builder->p_hir->p_vars[arg_id].uid;
+            }
+            if (info_id != KETL_HIR_VAR_INFO_TEMP && var_uid != KETL_HIR_VAR_UID_LITERAL) {
                 arg_info.s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
                     KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, 
-                        p_builder->p_hir->p_vars_infos[p_builder->p_hir->p_vars[p_arguments[i]].info].name), KETL_NULL_TERMINATED_LENGTH_32);
+                        p_builder->p_hir->p_vars_infos[info_id].name), KETL_NULL_TERMINATED_LENGTH_32);
             }
             ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, 
                 modrm_stack(p_builder, size, arg_info), KETL_ASM_X86_AX);
@@ -1765,6 +1773,8 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                     
                 uint16_t return_type_size = ketl_type_get_stack_size(p_return_type);
                 // TODO figure out why CALL can have 'none' return type
+                // answer simple -> i never create call_void op, so 'none' return type calls go here
+                // fix?
                 if (return_type_size != 0) {
                     push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, return_type_size, p_builder);
                 }

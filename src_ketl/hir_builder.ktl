@@ -6,13 +6,14 @@ from common import LogAccum
 
 import common
 
-from type import Type;
-from type import Types;
-from type import Value;
+from type import Type
+from type import Types
+from type import TypeFunction
+from type import Value
 
-from hir import HIR;
+from hir import HIR
 
-from namespace import Namespace;
+from namespace import Namespace
 
 class HIRBuilder {
     var log_accum: LogAccum;
@@ -138,7 +139,7 @@ class HIRBuilder {
         var instr = HIR.UnaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
-        instr.output = self->push_temp_var_of_type(src_info, output_type);
+        instr.output = self->push_instr_result_var(output_type, instr);
         instr.arg = var_id;
         self->get_current_block() ..= instr;
 
@@ -166,7 +167,7 @@ class HIRBuilder {
         var instr = HIR.BinaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
-        instr.output = self->push_temp_var_of_type(src_info, output_type);
+        instr.output = self->push_instr_result_var(output_type, instr);
         instr.lhs = lhs;
         instr.rhs = rhs;
         self->get_current_block() ..= instr;
@@ -185,7 +186,39 @@ class HIRBuilder {
         instr.src = rhs;
         self->get_current_block() ..= instr;
 
+        // TODO return new var to update src_info
         return instr.dst;
+    }
+
+    export fn push_hir_call(self: HIRBuilder, callee_id: HIR.VarId, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
+        var type = self->get_type(callee_id);
+        if (type == null) {
+            return self->push_temp_var(src_info);
+        }
+
+        if (type.kind != Type.Kind.Function && type.kind != Type.Kind.CFunction) {
+            self->error(src_info.source_offset, src_info.length, "Only functions can be called.");
+            return self->push_temp_var(src_info);
+        }
+        var function_type = type$cast(TypeFunction);
+        var function_signature = function_type.signature;
+
+        if (function_signature.parameters.size - 1 != arguments.size) {
+            self->error(src_info.source_offset, src_info.length, "Arguments count does not match function parameters count: " .. arguments.size$cast(str) .. " instead of " .. (function_signature.parameters.size - 1)$cast(str) .. ".");
+            return self->push_temp_var(src_info);
+        }
+
+        var return_type = function_signature.parameters[0];
+        
+        var instr = HIR.Call();
+        instr.tag = HIR.Tag.CALL;
+        instr.src_info = src_info;
+        instr.output = self->push_instr_result_var(return_type, instr);
+        instr.callee = callee_id;
+        instr.args = arguments;
+        self->get_current_block() ..= instr;
+
+        return instr.output;
     }
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
@@ -224,12 +257,31 @@ class HIRBuilder {
         return var_id;
     }
 
+    fn generate_temp_name(self: HIRBuilder) => str {
+        var name = "~tmp" .. self.temp_counter$cast(str);
+        self.temp_counter += 1;
+        return name;
+    }
+
+    fn push_instr_result_var(self: HIRBuilder, type: Type, instr: HIR.Instr) => HIR.VarId {var temp_decl_id = self.decls.size$cast(HIR.DeclId);
+        var decl_id = self.decls.size$cast(HIR.DeclId);
+        var decl = HIR.DeclInstrResult();
+        decl.kind = HIR.Decl.Kind.InstrResult;
+
+        decl.name = self->generate_temp_name();
+        decl.type = type;
+        decl.instr = instr;
+        self.decls ..= decl;
+
+        return self->push_common_var(type, instr.src_info, decl_id);
+    }
+
     export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
         var temp_decl_id = self.decls.size$cast(HIR.DeclId);
         var temp_decl = HIR.DeclCommon();
         temp_decl.kind = HIR.Decl.Kind.Common;
-        temp_decl.name = "~tmp" .. self.temp_counter$cast(str);
-        self.temp_counter += 1;
+
+        temp_decl.name = self->generate_temp_name();
         self.decls ..= temp_decl;
 
         return self->push_common_var(type, src_info, temp_decl_id);

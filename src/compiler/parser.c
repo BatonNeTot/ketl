@@ -206,7 +206,6 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         return rhs_var;
     }
 
-    // TODO casting if needed
     if (lhs_type == p_rhs_var->type) {
         return rhs_var;
     }
@@ -271,7 +270,12 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         p_lhs_type->kind == KETL_TYPE_ARRAY && 
         ketl_type_is_char_type(((ketl_type_array*)p_lhs_type)->p_value_type)) {
 
-        ketl_hir_symbol_offset_t converter_symbol = push_symbol_string(p_context, "int2str", 7);
+        ketl_hir_symbol_offset_t converter_symbol;
+        if (((ketl_type_primitive*)p_rhs_type)->is_signed) {
+            converter_symbol = push_symbol_string(p_context, "int2str", 7);
+        } else {
+            converter_symbol = push_symbol_string(p_context, "uint2str", 8);
+        }
         ketl_hir_var_id_t converter_id = ketl_hir_builder_get_var(&p_context->hir_builder, &p_context->p_state->secret_namespace, converter_symbol, converter_symbol, expr_info, true);
         ANN_ASSERT(GET_VAR(converter_id).type != KETL_HIR_USED_TYPE_UNKNOWN);
 
@@ -546,6 +550,12 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_hir_
     if (p_function_signature->parameters_count - 1 != arguments_count) {
         errorf(expr_info.source_offset, expr_info.length, "Arguments count does not match function parameters count.");
         return push_temp_var(p_context, expr_info);
+    }
+
+    for (uint16_t i = 0; i < arguments_count; ++i) {
+        ketl_hir_var_id_t* p_arg = &p_context->v_argument_stack.p_data[p_context->v_argument_stack.size - arguments_count + i];
+        *p_arg = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_function_signature->a_parameters[i + 1].p_type), 
+            GET_VAR(*p_arg).expr_info, *p_arg, false);
     }
     
     ketl_hir_header_t header = {

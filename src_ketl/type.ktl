@@ -218,8 +218,7 @@ class Types {
     fn construct() => Types {
         var self = Types();
 
-        // temporaly called "none"
-        self.type_void = TypePrimitive.construct(0, "none", false, false, false);
+        self.type_void = TypePrimitive.construct(0, "void", false, false, false);
         self.type_bool = TypePrimitive.construct(1, "bool", false, false, false);
         self.type_char = TypePrimitive.construct(1, "char", true,  false, false);
         self.type_raw  = TypePrimitive.construct(8, "raw",  false, false, false);
@@ -237,9 +236,17 @@ class Types {
         return self;
     }
 
+    fn is_signature_equal(lhs: raw, rhs: raw) => bool {
+        return TypeFunction.Signature.is_equal(lhs, rhs);
+    }
+
+    fn get_signature_hash(sign: raw) => u64 {
+        return TypeFunction.Signature.get_hash(sign);
+    }
+
     fn init_functions_if_needed(self: Types) {
         if (self.functions == null) {
-            self.functions = common.HashMap.construct(TypeFunction.Signature.is_equal, TypeFunction.Signature.get_hash);
+            self.functions = common.HashMap.construct(is_signature_equal, get_signature_hash);
         }
     }
 
