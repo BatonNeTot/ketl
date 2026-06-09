@@ -213,6 +213,9 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
     if (lhs_type == p_rhs_var->type) {
         return rhs_var;
     }
+    if (p_rhs_var->type >= KETL_HIR_USED_TYPE_LAST) {
+        return push_temp_var(p_context, expr_info);
+    }
 
     ketl_type* p_lhs_type = GET_TYPE(lhs_type);
     ketl_type* p_rhs_type = GET_TYPE(p_rhs_var->type);
@@ -1419,6 +1422,29 @@ static ketl_hir_var_id_t parse_indexing(ketl_parser_context* p_context, ketl_hir
         token_consume(p_context, KETL_TOKEN_TYPE_CURLY_RIGHT, "Expected '}' after array initialization values.");
         return id_var;
     } else {
+        if (GET_VAR(expr_id).type == KETL_HIR_USED_TYPE_LITERAL) {
+            return push_array_index(p_context, var_id, expr_id, expr_info);
+        }
+
+        if (GET_VAR(expr_id).type >= KETL_HIR_USED_TYPE_LAST) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't use non-integer type for indexing an array.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        ketl_type* p_type = GET_TYPE(GET_VAR(expr_id).type);
+        if (p_type->kind == KETL_TYPE_ENUM) {
+            p_type = (ketl_type*)((ketl_type_enum*)p_type)->p_parent_primitive;
+        }
+        if (p_type->kind != KETL_TYPE_PRIMITIVE) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't use non-integer type for indexing an array.");
+            return push_temp_var(p_context, expr_info);
+        }
+
+        ketl_type_primitive* p_primitive_type = (ketl_type_primitive*)p_type;
+        if (!p_primitive_type->is_integer) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't use non-integer type for indexing an array.");
+            return push_temp_var(p_context, expr_info);
+        }
         return push_array_index(p_context, var_id, expr_id, expr_info);
     }
 }

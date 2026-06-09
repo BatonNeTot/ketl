@@ -12,6 +12,7 @@ from type import TypeFunction
 from type import Value
 
 from hir import HIR
+from variable import VariableDecl
 
 from namespace import Namespace
 
@@ -26,6 +27,7 @@ class HIRBuilder {
     var consts : u8[];
 
     var current_block: u32;
+    var parameters_counter: u32;
     var temp_counter: u32;
 
     var name_to_decl_stack: StrHashMap[];
@@ -209,6 +211,8 @@ class HIRBuilder {
         }
 
         var return_type = function_signature.parameters[0];
+
+        // TODO cast every argument to the parameter type and type check
         
         var instr = HIR.Call();
         instr.tag = HIR.Tag.CALL;
@@ -229,6 +233,29 @@ class HIRBuilder {
         instr.src_info = src_info;
         instr.value = var_id;
         self->get_current_block() ..= instr;
+    }
+
+    export fn add_parameter(self: HIRBuilder, parameter: VariableDecl) {
+        var bucket = self->find_decl_bucket(parameter.name);
+
+        // if got not null - redefinition
+        if (bucket != null) {
+            // TODO error
+            assert(false);
+            return;
+        }
+
+        var decl_id = self.decls.size$cast(HIR.DeclId);
+        bucket = self->first_name_to_decl()->get_or_insert(parameter.name, decl_id$cast(u64)$cast(raw));
+        var decl = HIR.DeclParameter();
+        decl.kind = HIR.Decl.Kind.Parameter;
+        decl.name = parameter.name;
+
+        decl.type = parameter.type;
+        decl.src_info = null; // TODO
+        self.decls ..= decl;
+
+        self.parameters_counter += 1;
     }
 
     export fn push_literal_number(self: HIRBuilder, value: u64, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -369,6 +396,29 @@ class HIRBuilder {
         return self->get_global_var(node, name, src_info);
     }
 
+    export fn declare_local_var(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
+        var bucket = self->find_decl_bucket(name);
+
+        // if got not null - redefinition
+        if (bucket != null) {
+            // TODO error
+            assert(false);
+            return (-1)$cast(HIR.VarId);
+        }
+
+        var decl_id = self.decls.size$cast(HIR.DeclId);
+        bucket = self->first_name_to_decl()->get_or_insert(name, decl_id$cast(u64)$cast(raw));
+        var decl = HIR.DeclCommon();
+        decl.kind = HIR.Decl.Kind.Common;
+        decl.name = name;
+
+        decl.type = type;
+        decl.src_info = src_info;
+        self.decls ..= decl;
+
+        return self->push_common_var(type, src_info, decl_id);
+    }
+
     export fn get_var(self: HIRBuilder, namespace: Namespace, name: str, fullname: str, src_info: HIR.SrcInfo) => HIR.VarId {
         var bucket = self->find_decl_bucket(fullname);
         var decl_id: HIR.DeclId;
@@ -424,7 +474,7 @@ class HIRBuilder {
         hir.consts = self.consts;
 
         hir.return_type = Types.instance.type_i64; // TODO
-        hir.parameters_count = 0; // TODO
+        hir.parameters_count = self.parameters_counter$cast(u8);
         hir.max_call_arg_count = 0; // TODO
     }
 }
