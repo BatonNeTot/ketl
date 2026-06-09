@@ -428,8 +428,16 @@ class Parser {
         var token_precedence = parse_rule.precedence;
         while (precedence < token_precedence) {
             context->token_advance();
-            parse_rule = context->current_token(1).type->get_parse_rule();
-            if (!brackets_stack->dummy_parse_bracket(context->current_token(1).type)) {
+
+            var token = context->current_token(1);
+            var current_token_type = token.type;
+            if (current_token_type == Token.Type.EOF) {
+                context->error(token.offset, token.length, "Expected operator.");
+                return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(token));
+            }
+
+            parse_rule = current_token_type->get_parse_rule();
+            if (!brackets_stack->dummy_parse_bracket(current_token_type)) {
                 token_precedence = parse_rule.precedence;
             }
         }
@@ -849,7 +857,7 @@ class Parser {
         }
     }
 
-    export fn build_hir(lexer : Lexer, end_pos: TokenIterator.Index, namespace: Namespace, parameters : VariableDecl[], return_type : Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
+    export fn build_hir(lexer : Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters : VariableDecl[], return_type : Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
         var context = Context();
 
         context.log_accum = log_accum;
@@ -857,7 +865,7 @@ class Parser {
 
         context.source = lexer.source;
         context.namespace = namespace;
-        context.iterator = TokenIterator.construct(lexer, end_pos);
+        context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
         context.is_global_scope = is_global_scope;
 
         context.hir_builder = HIRBuilder.construct(context.log_accum, context.log_info);

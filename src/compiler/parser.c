@@ -93,14 +93,18 @@ do {\
     ketl_error_report(p_context->p_state, &error_info, __VA_ARGS__);\
 } while (0)
 
-static ketl_token_t get_current_token(ketl_parser_context* p_context, ketl_token_iterator_t offset) {
-    ketl_token_iterator_t index = (p_context)->p_lexer->token_iterator - (offset);
-    if (index >= p_context->end_pos) {
-        return (ketl_token_t){
+static ketl_token_t get_eof_token(ketl_parser_context* p_context) {
+    return (ketl_token_t){
             .type = KETL_TOKEN_TYPE_EOF, 
             .length = (ketl_token_length_t)0, 
             .offset = TOKEN(p_context->end_pos - 1).offset,
-        };
+    };
+}
+
+static ketl_token_t get_current_token(ketl_parser_context* p_context, ketl_token_iterator_t offset) {
+    ketl_token_iterator_t index = (p_context)->p_lexer->token_iterator - (offset);
+    if (index >= p_context->end_pos) {
+        return get_eof_token(p_context);
     }
     return TOKEN(index);
 }
@@ -748,6 +752,7 @@ static void token_advance(ketl_parser_context* p_context) {
     ANN_FOREVER {
         uint32_t current = ++p_context->p_lexer->token_iterator;
 
+        if (current >= p_context->end_pos) break;
         if (TOKEN(current).type != KETL_TOKEN_TYPE_ERROR) break;
 
         // TODO move errorf to the lexer, make it informative
@@ -1765,8 +1770,16 @@ static ketl_hir_var_id_t parse_precedence(ketl_parser_context* p_context, ketl_p
     ketl_precedence token_precedence = p_parse_rule->precedence;
     while (precedence < token_precedence) {
         token_advance(p_context);
-        p_parse_rule = get_parse_rule(CURRENT_TOKEN(1).type);
-        if (!dummy_parse_bracket(CURRENT_TOKEN(1).type, a_brackets_stack, &bracket_stack_count)) {
+
+        ketl_token_t token = CURRENT_TOKEN(1);
+        ketl_token_type current_token_type = token.type;
+        if (current_token_type == KETL_TOKEN_TYPE_EOF) {
+            errorf(token.offset, token.length, "Expected operator.");
+            return push_temp_var(p_context, token_extract_info(token));
+        }
+
+        p_parse_rule = get_parse_rule(current_token_type);
+        if (!dummy_parse_bracket(current_token_type, a_brackets_stack, &bracket_stack_count)) {
             token_precedence = p_parse_rule->precedence;
         }
     }
@@ -2551,7 +2564,14 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
 
     dummy_parse_bracket(KETL_TOKEN_TYPE_CURLY_LEFT, a_brackets_stack, &bracket_stack_count);
     while (bracket_stack_count > 0) {
-        dummy_parse_bracket(CURRENT_TOKEN(0).type, a_brackets_stack, &bracket_stack_count);
+        ketl_token_t token = CURRENT_TOKEN(0);
+        ketl_token_type current_token_type = token.type;
+        if (current_token_type == KETL_TOKEN_TYPE_EOF) {
+            errorf(token.offset, token.length, "Expected operator.");
+            return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+        }
+
+        dummy_parse_bracket(current_token_type, a_brackets_stack, &bracket_stack_count);
         token_advance(p_context);
     }
 

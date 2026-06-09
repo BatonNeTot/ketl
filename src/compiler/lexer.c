@@ -162,6 +162,11 @@ static bool ketl_lexer_parse_literal_string(ketl_lexer_t* p_lexer, char next_sym
             // TODO ERROR
             break;
         }
+
+        if (next_symbol == '\\') {
+            p_lexer->offset += 2;
+            continue;
+        }
         
         if (next_symbol == '"') {
             break;

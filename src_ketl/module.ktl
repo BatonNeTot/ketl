@@ -3,8 +3,10 @@
 from common import StrHashMap
 from common import LogAccum
 from common import File
+import common
 
 from type import Types
+from type import TypeFunction
 
 from namespace import Namespace
 
@@ -37,7 +39,26 @@ class Module {
     }
 
     export fn print_asm(module: Module) {
-        module.asm_x86->print();
+        common.println("    .def    @feat.00;");
+        common.println("    .scl    3;");
+        common.println("    .type   0;");
+        common.println("    .endef");
+        common.println("    .globl  @feat.00");
+        common.println("@feat.00 = 0");
+        common.println("    .intel_syntax noprefix");
+        common.println("    .file   \"" .. module.name .. ".ktl\"");
+
+        common.println("    .text                    # -- Functions");
+
+        if (module.asm_x86 != null) {
+            module.asm_x86->print(module.name .. "..init");
+        }
+
+        for (var compile_func_decl: CompileFunctionDeclaration <- module.compile_function_declarations) {
+            if (compile_func_decl.asm_x86 != null) {
+                compile_func_decl.asm_x86->print(compile_func_decl.node.name);
+            }
+        }
     }
 
     fn add_to_namespace(module: Module, namespace: Namespace, namespace_info: Namespace.Info) {
@@ -80,7 +101,7 @@ class Module {
         lexer->build_tokens(module_filename, source, log_accum);
 
         from parser import Parser
-        var hir = Parser.build_hir(lexer, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
+        var hir = Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
             0, true, log_accum);
 
         //hir->print();
@@ -102,7 +123,62 @@ class Module {
     }
 
     fn load(self: Module) {
-        // TODO
+        var stashed_module = Modules.instance.active_module;
+        Modules.instance.active_module = self; 
+
+        {
+        var i: u64;
+        while (i < self.compile_function_declarations.size) {
+            var compile_function_declaration = self.compile_function_declarations[i];
+
+            var node = compile_function_declaration.node;
+            var local_namespace = Namespace.construct(node.name, compile_function_declaration.parent_namespace);
+            
+            var signature = node.value.type$cast(TypeFunction).signature;
+            var return_type = signature.parameters[0];
+
+            var parameters_names = compile_function_declaration.parameters_names;
+            if (parameters_names.size != signature.parameters.size - 1) {
+                i += 1;
+                continue;
+            }
+
+            var parameters = VariableDecl[0];
+            {
+                var j: u64;
+                while (j < parameters_names.size) {
+                    var parameter = VariableDecl();
+
+                    parameter.type = signature.parameters[j + 1];
+                    parameter.name = parameters_names[j];
+                    
+                    j += 1;
+                }
+            }
+
+            {
+                var log_accum = LogAccum.construct();
+
+                //from parser import Parser
+                var hir = Parser.build_hir(self.lexer, 
+                    compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
+                    local_namespace, parameters, return_type, 
+                    (i + 1)$cast(u16), false, log_accum);
+
+                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
+                
+                if (!log_accum->check()) {
+                    // TODO something on error
+                    i += 1;
+                    continue;
+                }
+            }
+        }
+        }
+
+        Modules.instance.active_module = stashed_module;
+
+        self.body_loaded = true;
     }
 }
 
