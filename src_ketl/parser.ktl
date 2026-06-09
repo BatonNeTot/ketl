@@ -630,11 +630,7 @@ class Parser {
             var namespace_node = context.namespace->declare_var(name, type, context.exxport);
             var_id = context.hir_builder->declare_global_var(namespace_node, name, src_info);
         } else {
-            assert(false);
-            /*
-            var_id = ketl_hir_builder_register_var(&p_context->hir_builder, p_context->p_namespace, 
-                name, src_info, type_index);
-                */
+            var_id = context.hir_builder->declare_local_var(name, type, src_info);
         }
 
         if (context.hir_builder->get_type(var_id) == null) {
@@ -871,7 +867,7 @@ class Parser {
         context.hir_builder = HIRBuilder.construct(context.log_accum, context.log_info);
 
         for (var parameter <- parameters) {
-            // TODO
+            context.hir_builder->add_parameter(parameter);
         }
 
         if (lexer.tokens.size > 0) {
@@ -898,6 +894,9 @@ class Parser {
 
         var hir = HIR();
         context.hir_builder->flush(hir);
+        if (return_type != null) {
+            hir.return_type = return_type;
+        }
         return hir;
     }
 }

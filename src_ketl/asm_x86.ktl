@@ -1174,10 +1174,12 @@ export class ASMX86 {
 
             self.stack_reserved_size = 0;
 
+            var abi_parameters_regs = parameters_regs[self.abi];
+
             assert(self.abi == ABI.WINDOWS);
             {
                 if (self.hir.max_call_arg_count != (-1)$cast(u8) && self.hir.max_call_arg_count > 0) {
-                    var parameters_needed = parameters_regs[self.abi].size;
+                    var parameters_needed = abi_parameters_regs.size;
                     if (parameters_needed < self.hir.max_call_arg_count) {
                         parameters_needed = self.hir.max_call_arg_count;
                     }
@@ -1185,46 +1187,21 @@ export class ASMX86 {
                 }
             }
 
-            for (var varr <- self.hir.vars[self.hir.parameters_count:self.hir.vars.size]) {
-                if (varr.kind != HIR.Var.Kind.Common &&
-                    varr.kind != HIR.Var.Kind.Field) {
-                    continue;
-                }
-
-                if (varr.kind == HIR.Var.Kind.Field) {
-                    assert(false);
-                    // TODO
-                    /*
-                    ketl_hir_var_id_t object_id = p_hir->p_vars_infos[var.info].parent_id;
-                    ketl_hir_var_t object = p_hir->p_vars[object_id];
-
-                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name);
-
-                    ketl_atomic_string s_field_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, p_field_name, KETL_NULL_TERMINATED_LENGTH_32);
-                    ketl_asm_x86_offset_t field_offset = ketl_type_get_field_offset(p_hir->p_used_types[object.type], s_field_name, p_builder->p_state);
-
-                    ketl_asm_x86_arg_info_t arg_info = {
-                        .stack_offset = field_offset,
-                        .s_name = s_field_name,
-                    };
-
-                    ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var.info, arg_info);
-                    */
-                }
-
-                var var_common = varr$cast(HIR.VarCommon);
-                var var_decl_id = var_common.decl;
-                var var_decl = self.hir.decls[var_decl_id];
+            var decl_id: HIR.DeclId = self.hir.parameters_count;
+            while (decl_id < self.hir.decls.size) {
+                var decl = self.hir.decls[decl_id];
 
                 // local or temporary variable
-                var arg_info = ArgInfo.construct(self.stack_reserved_size, var_decl.name);
+                var arg_info = ArgInfo.construct(self.stack_reserved_size, decl.name);
 
 
-                var bucket = self.variables->get_or_insert(var_decl_id, arg_info);
+                var bucket = self.variables->get_or_insert(decl_id, arg_info);
                 if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
                     // TODO FIX take into account type size and alignment
                     self.stack_reserved_size += i64$size;
                 }
+
+                decl_id += 1;
             }
 
             self->finalize_stask_size();
@@ -1239,29 +1216,23 @@ export class ASMX86 {
                     self->directive("seh_endprologue");
                 }
 
-                var var_id = self.hir.parameters_count;
-                while (var_id > 0) {
-                    var_id -= 1;
-                    var varr = self.hir.vars[var_id];
+                var decl_id = self.hir.parameters_count;
+                while (decl_id > 0) {
+                    decl_id -= 1;
+                    var decl = self.hir.decls[decl_id];
 
-                    assert(false);
-                    // TODO
-                    /*
-                    ANN_ASSERT(var.uid == KETL_HIR_VAR_UID_PARAMETER);
+                    assert(decl.kind == HIR.Decl.Kind.Parameter);
+                    var parameter = decl$cast(HIR.DeclParameter);
 
-                    ketl_asm_x86_arg_info_t arg_info = {
-                        .stack_offset = (var_id + 1) * sizeof(void*) + stack_reserved_size,
-                        .s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
-                        KETL_ATOMIC_STRING_GET_POINTER(p_hir->p_symbols, p_hir->p_vars_infos[var.info].name), KETL_NULL_TERMINATED_LENGTH_32),
-                    };
+                    var arg_info = ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl.name);
 
-                    ketl_asm_x86_variables_t_get_or_insert_copy(&p_builder->variables, var.info, arg_info);
+                    self.variables->get_or_insert(decl_id, arg_info);
 
-                    if (var_id < get_reg_paramters_count(p_builder->abi_type)) {
-                        ketl_asm_x86_insert_rm_reg(p_builder, Tag.MOV, Tag.64B, modrm_stack(p_builder, Tag.64B, arg_info), 
-                            get_reg_parameter(p_builder->abi_type, var_id));
+                    if (decl_id < abi_parameters_regs.size) {
+                        // TODO fix use actual size
+                        var size = Size.Bit64;
+                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, arg_info), abi_parameters_regs[decl_id]);
                     }
-                    */
                 }
             }
 

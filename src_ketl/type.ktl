@@ -184,7 +184,7 @@ export class TypeFunction {
         fn get_hash(self: Signature) => u64 {
             var hash: u64;
 
-            for (var parameter: Type <- self.parameters) {
+            for (var parameter <- self.parameters) {
                 hash = parameter$cast(raw)$cast(u64) ^ (hash << 1);
             }
 
