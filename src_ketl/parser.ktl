@@ -30,6 +30,8 @@ class Parser {
         var iterator: TokenIterator;
         var hir_builder: HIRBuilder;
 
+        var reserved_break: HIR.BlockId;
+        var reserved_continue: HIR.BlockId;
         var is_global_scope: bool;
         var exxport: bool;
     }
@@ -328,10 +330,10 @@ class Parser {
         var rhs = context->parse_precedence(Precedence.Call);
 
         switch (token_type) {
-            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(KETL_HIR_LOGICAL_NOT, rhs, HIR.SrcInfo.from_token(token));
+            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(HIR.Tag.LOGICAL_NOT, rhs, HIR.SrcInfo.from_token(token));
 
-            //case Token.Type.PLUS        => return context->push_hir_unary_op(KETL_HIR_UNARY_PLUS,  rhs, HIR.SrcInfo.from_token(token));
-            //case Token.Type.MINUS       => return context->push_hir_unary_op(KETL_HIR_UNARY_MINUS, rhs, HIR.SrcInfo.from_token(token));
+            //case Token.Type.PLUS        => return context->push_hir_unary_op(HIR.Tag.UNARY_PLUS,  rhs, HIR.SrcInfo.from_token(token));
+            //case Token.Type.MINUS       => return context->push_hir_unary_op(HIR.Tag.UNARY_MINUS, rhs, HIR.SrcInfo.from_token(token));
         }
 
         return error_var();
@@ -368,19 +370,20 @@ class Parser {
 
     fn parse_binary_rtl(context: Context, lhs: HIR.VarId, rhs: HIR.VarId) => HIR.VarId {
         var token_type = context->current_token(1).type;
+        var src_info = HIR.SrcInfo.merge(context->get_var(lhs).src_info, context->get_var(rhs).src_info);
 
         switch (token_type) {
-            //case Token.Type.ASSIGN            : return push_hir_assign(p_context, KETL_HIR_ASSIGN, lhs, rhs);
+            case Token.Type.ASSIGN             => return context.hir_builder->push_assign(HIR.Tag.ASSIGN, lhs, rhs, src_info);
 
-            //case Token.Type.ASSIGN_PLUS       : return push_hir_assign(p_context, KETL_HIR_ASSIGN_PLUS, lhs, rhs);
-            //case Token.Type.ASSIGN_MINUS      : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MINUS, lhs, rhs);
-            //case Token.Type.ASSIGN_MULTIPLY   : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MULTY, lhs, rhs);
-            //case Token.Type.ASSIGN_DIVIDE     : return push_hir_assign(p_context, KETL_HIR_ASSIGN_DIV, lhs, rhs);
-            //case Token.Type.ASSIGN_REMAINDER  : return push_hir_assign(p_context, KETL_HIR_ASSIGN_MOD, lhs, rhs);
+            case Token.Type.ASSIGN_PLUS        => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_MINUS       => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MINUS, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_MULTIPLY    => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MULTY, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_DIVIDE      => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_DIVIDE, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_REMAINDER   => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MOD, lhs, rhs, src_info);
 
-            //case Token.Type.ASSIGN_BITWISE_AND: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_AND, lhs, rhs);
-            //case Token.Type.ASSIGN_BITWISE_OR : return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_OR, lhs, rhs);
-            //case Token.Type.ASSIGN_BITWISE_XOR: return push_hir_assign(p_context, KETL_HIR_ASSIGN_BITWISE_XOR, lhs, rhs);
+            case Token.Type.ASSIGN_BITWISE_AND => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_AND, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_BITWISE_OR  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR, lhs, rhs, src_info);
+            case Token.Type.ASSIGN_BITWISE_XOR => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR, lhs, rhs, src_info);
 
             //case Token.Type.ASSIGN_CONCAT     : return push_append    (p_context, lhs, rhs);
         }
@@ -521,6 +524,14 @@ class Parser {
         Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Factor),
         Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Concat),
         Token.Type.ASSIGN              => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_PLUS         => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_MINUS        => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_MULTIPLY     => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_DIVIDE       => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_REMAINDER    => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_AND  => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_OR   => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_XOR  => ParseRule.construct(null,                null,                  parse_binary_rtl, Precedence.Assigment),
         Token.Type.I8                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.I16                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.I32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
@@ -805,8 +816,8 @@ class Parser {
         return statement_info;
     }
 
-    fn parse_block_statement(context : Context) => StatementInfo {
-        context->token_advance();
+    fn parse_block_statement(context: Context) => StatementInfo {
+        context->token_advance(); // {
 
         // TODO push_symbol_map
         var statement_info = context->parse_block_statement_inner();
@@ -814,6 +825,99 @@ class Parser {
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of the block.");
         return statement_info;
+    }
+
+    fn parse_if_statement(context: Context) => StatementInfo {
+        context->token_advance(); // if
+
+        var first_block = context.hir_builder->reserve_blocks(2);
+        var true_statement = first_block;
+        var false_statement = first_block + 1;
+
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'if' keyword.");
+        var expr = context->parse_expression();
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'if' statement expression.");
+
+        context.hir_builder->push_if(expr, true_statement, false_statement);
+
+        context.hir_builder->set_block(true_statement);
+        var true_return_info = context->parse_statement().return_info;
+
+        var return_info = StatementInfo.ReturnInfo.None;
+
+        if (context->token_match(Token.Type.ELSE)) {
+            var false_return_info = StatementInfo.ReturnInfo.None;
+            if (true_return_info & StatementInfo.ReturnInfo.Always) {
+                context.hir_builder->set_block(false_statement);
+                false_return_info = context->parse_statement().return_info;
+                if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
+                    var after_block = context.hir_builder->reserve_blocks(1);
+                    context.hir_builder->push_jump(after_block);
+                    context.hir_builder->set_block(after_block);
+                }
+            } else {
+                var after_block = context.hir_builder->reserve_blocks(1);
+                context.hir_builder->push_jump(after_block);
+            
+                context.hir_builder->set_block(false_statement);
+                false_return_info = context->parse_statement().return_info;
+                if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
+                    context.hir_builder->push_jump(after_block);
+                }
+
+                context.hir_builder->set_block(after_block);
+            }
+
+            return_info = 
+                ((true_return_info & false_return_info) & StatementInfo.ReturnInfo.Always) |
+                ((true_return_info | false_return_info) & StatementInfo.ReturnInfo.Undef);
+        } else {
+            if (!(true_return_info & StatementInfo.ReturnInfo.Always)) {
+                context.hir_builder->push_jump(false_statement);
+            }
+            context.hir_builder->set_block(false_statement);
+
+            return_info = true_return_info & StatementInfo.ReturnInfo.Undef;
+        }
+
+        return StatementInfo.construct(return_info);
+    }
+
+    fn parse_while_statement(context: Context) => StatementInfo {
+        context->token_advance(); // while
+
+        var first_block = context.hir_builder->reserve_blocks(3);
+        var expr_statement = first_block;
+        var body_statement = first_block + 1;
+        var after_statement = first_block + 2;
+
+        context.hir_builder->push_jump(expr_statement);
+        context.hir_builder->set_block(expr_statement);
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'while' keyword.");
+        var expr = context->parse_expression();
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'while' statement expression.");
+
+        context.hir_builder->push_if(expr, body_statement, after_statement);
+
+        var old_reserved_break = context.reserved_break;
+        context.reserved_break = after_statement;
+        var old_reserved_continue = context.reserved_continue;
+        context.reserved_continue = expr_statement;
+
+        context.hir_builder->set_block(body_statement);
+        var body_return_info = context->parse_statement().return_info;
+
+        context.reserved_continue = old_reserved_continue;
+        context.reserved_break = old_reserved_break;
+
+        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
+            context.hir_builder->push_jump(expr_statement);
+        }
+        context.hir_builder->set_block(after_statement);
+
+        var return_info = body_return_info & StatementInfo.ReturnInfo.Undef;
+
+        return StatementInfo.construct(return_info);
     }
 
     fn parse_return_statement(context: Context) => StatementInfo {
@@ -837,9 +941,9 @@ class Parser {
 
     fn parse_statement(context: Context) => StatementInfo {
         switch (context->current_token(0).type) {
-            //case Token.Type.CURLY_LEFT            => return context->parse_block_statement();
-            //case Token.Type.IF                    => return context->parse_if_statement();
-            //case Token.Type.WHILE                 => return context->parse_while_statement();
+            case Token.Type.CURLY_LEFT            => return context->parse_block_statement();
+            case Token.Type.IF                    => return context->parse_if_statement();
+            case Token.Type.WHILE                 => return context->parse_while_statement();
             //case Token.Type.FOR                   => return context->parse_for_statement();
             //case Token.Type.SWITCH                => return context->parse_switch_statement();
             //case Token.Type.BREAK                 => return context->parse_break_statement();
