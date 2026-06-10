@@ -39,6 +39,17 @@ export class HIR {
 
         ASSIGN,
 
+        ASSIGN_PLUS,
+        ASSIGN_MINUS,
+
+        ASSIGN_MULTY,
+        ASSIGN_DIVIDE,
+        ASSIGN_MOD,
+
+        ASSIGN_BITWISE_AND,
+        ASSIGN_BITWISE_OR,
+        ASSIGN_BITWISE_XOR,
+
         CALL,
 
         NEW_CLASS,
@@ -177,6 +188,7 @@ export class HIR {
 
     export class JumpIf {
         extend Instr;
+        var expr : VarId;
         var true_dst : BlockId;
         var false_dst : BlockId;
     }
@@ -282,6 +294,21 @@ export class HIR {
     var return_type : Type;
     var parameters_count : u8;
     var max_call_arg_count : u8;
+
+    export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
+        while (true) {
+            var instr_offset = hir.block_offsets[block];
+            var instr = hir.instrs[instr_offset];
+            if (instr.tag != Tag.JUMP) {
+                return block;
+            }
+            var jump = instr$cast(HIR.Jump);
+            block = jump.dst;
+        }
+
+        assert(false);
+        return 0;
+    }
 
     fn print_var(hir: HIR, var_id: HIR.VarId) {
         var varr = hir.vars[var_id];

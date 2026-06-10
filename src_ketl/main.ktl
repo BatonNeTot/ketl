@@ -6,7 +6,7 @@ import common
 
 cexport fn eval(module_name : str) {
     var module = Modules.instance->load(module_name, null, null, true);
-    if (module != null) {
+    if (module != null && !module.has_errors) {
         module->print_asm();
     }
 }

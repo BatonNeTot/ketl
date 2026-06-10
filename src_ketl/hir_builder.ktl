@@ -58,6 +58,18 @@ class HIRBuilder {
             message 
         );
     }
+    
+    export fn reserve_blocks(self: HIRBuilder, count: u32) => HIR.BlockId {
+        var first_block = self.blocks.size$cast(HIR.BlockId);
+        while (count > 0) {
+            self.blocks ..= HIR.Instr[0];
+            count -= 1;
+        }
+        return first_block;
+    }
+    export fn set_block(self: HIRBuilder, block: HIR.BlockId) {
+        self.current_block = block;
+    }
 
     fn get_current_block(self: HIRBuilder) => HIR.Instr[] {
         return self.blocks[self.current_block];
@@ -124,6 +136,26 @@ class HIRBuilder {
         var instr = HIR.Instr();
         instr.tag = tag;
         instr.src_info = src_info;
+        self->get_current_block() ..= instr;
+    }
+
+    export fn push_jump(self: HIRBuilder, target: HIR.BlockId) {
+        var instr = HIR.Jump();
+        instr.tag = HIR.Tag.JUMP;
+        instr.src_info = null; // TODO
+        instr.dst = target;
+        self->get_current_block() ..= instr;
+    }
+
+    export fn push_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId) {
+        // TODO check casting
+
+        var instr = HIR.JumpIf();
+        instr.tag = HIR.Tag.JUMP_IF_TRUE; // TODO pick best
+        instr.src_info = null; // TODO
+        instr.expr = bool_expr_var;
+        instr.true_dst = true_statement;
+        instr.false_dst = false_statement;
         self->get_current_block() ..= instr;
     }
     

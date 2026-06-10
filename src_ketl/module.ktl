@@ -25,6 +25,7 @@ class Module {
     var lexer: Lexer;
     var compile_function_declarations: CompileFunctionDeclaration[];
     var asm_x86: ASMX86;
+    var has_errors: bool;
     var header_loaded: bool; // after preload
     var body_loaded: bool; // after load
 
@@ -100,17 +101,20 @@ class Module {
         lexer->init();
         lexer->build_tokens(module_filename, source, log_accum);
 
+        var func_index: u16 = 0;
+
         from parser import Parser
         var hir = Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
-            0, true, log_accum);
+            func_index, true, log_accum);
 
         //hir->print();
 
-        module.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
+        module.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
 
         Modules.instance.active_module = stashed_module;
         
         if (!log_accum->check()) {
+            module.has_errors = true;
             // TODO something on error
             return false;
         }
@@ -160,15 +164,17 @@ class Module {
 
             {
                 var log_accum = LogAccum.construct();
+                var func_index = (i + 1)$cast(u16);
 
                 //from parser import Parser
                 var hir = Parser.build_hir(self.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
-                    local_namespace, parameters, return_type, (i + 1)$cast(u16), false, log_accum);
+                    local_namespace, parameters, return_type, func_index, false, log_accum);
 
-                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir);
+                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
                 
                 if (!log_accum->check()) {
+                    self.has_errors = true;
                     // TODO something on error
                     i += 1;
                     continue;

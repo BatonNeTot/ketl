@@ -53,7 +53,7 @@ export class ASMX86 {
         TEST,
 
         SETE,
-        SETZ = SETE,
+        SETZ = SETE, // TODO actually separate them
         SETNE,
         SETNZ = SETNE,
 
@@ -567,9 +567,10 @@ export class ASMX86 {
             }
         };
 
-        var instrs: Instr[];
         var hir: HIR;
         var abi: ABI;
+        var instrs: Instr[];
+        var hir_to_asm_offsets: IntHashMap;
         var variables: IntHashMap;
         var stack_reserved_size: u32;
         
@@ -581,6 +582,7 @@ export class ASMX86 {
                 // TODO actually deduce from the system
                 self.abi = ABI.WINDOWS;
             }
+            self.hir_to_asm_offsets = IntHashMap.construct();
             self.variables = IntHashMap.construct();
 
             return self;
@@ -688,7 +690,7 @@ export class ASMX86 {
             var instr = Instr();
 
             instr.tag = tag;
-            instr.size = size;
+            instr.size = size; // TODO why size?
             instr.arg_type = ArgType.JI;
             instr.modrm = ModRM.construct_empty();
             instr.goto_offset = val;
@@ -756,7 +758,7 @@ export class ASMX86 {
         }
 
         fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
-            var rhs_type_size = Size.Bit64; // TODO ketl_type_get_stack_size(p_rhs_type);
+            var rhs_type_size = rhs_type->get_stack_size()$cast(Size);
             assert(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)));
 
             if (size > rhs_type_size) {
@@ -1097,9 +1099,9 @@ export class ASMX86 {
         fn push_function_arguments_hir(self: Builder, arguments: HIR.VarId[]) {
             var i: u64 = arguments.size - 1;
             while (true) {
-                // TODO FIX
-                // get type size and use appropriate
-                var size = Size.Bit64;
+                var type = self.hir.vars[arguments[i]].type;
+                var size = type->get_stack_size()$cast(Size);
+                
                 var regs = parameters_regs[self.abi];
                 var reg_count = regs.size;
                 if (i < reg_count) {
@@ -1167,7 +1169,7 @@ export class ASMX86 {
             };
         }
 
-        export fn build(self: Builder, hir: HIR) => ASMX86 {
+        export fn build(self: Builder, hir: HIR, func_index: u16) => ASMX86 {
             self.instrs = Instr[0];
             self.hir = hir;
             self.variables->clear();
@@ -1229,8 +1231,8 @@ export class ASMX86 {
                     self.variables->get_or_insert(decl_id, arg_info);
 
                     if (decl_id < abi_parameters_regs.size) {
-                        // TODO fix use actual size
-                        var size = Size.Bit64;
+                        var type = decl->get_type();
+                        var size = type->get_stack_size()$cast(Size);
                         self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, arg_info), abi_parameters_regs[decl_id]);
                     }
                 }
@@ -1244,12 +1246,10 @@ export class ASMX86 {
                 if (first_instr_in_block) {
                     first_instr_in_block = false;
                     
-                    /*
-                    ketl_hir_to_asm_offsets_t_get_or_insert_copy(&p_builder->hir_to_asm_offsets, i, p_builder->instrs.size);
-                    */
+                    self.hir_to_asm_offsets->get_or_insert(i, self.instrs.size$cast(raw));
 
                     var label = ".LBB";
-                    label ..= "0"; // TODO func_index$cast(str);
+                    label ..= func_index$cast(str);
                     label ..= "_";
                     label ..= block_counter$cast(str);
                     block_counter += 1;
@@ -1274,7 +1274,14 @@ export class ASMX86 {
 
                     case HIR.Tag.BITWISE_AND
                     case HIR.Tag.BITWISE_OR
-                    case HIR.Tag.BITWISE_XOR => {
+                    case HIR.Tag.BITWISE_XOR 
+
+                    case HIR.Tag.EQUAL
+                    case HIR.Tag.NOT_EQUAL
+                    case HIR.Tag.LESS
+                    case HIR.Tag.LESS_OR_EQUAL
+                    case HIR.Tag.GREATER
+                    case HIR.Tag.GREATER_OR_EQUAL => {
                         var hir_info = instr$cast(HIR.BinaryOp);
                         var type = self.hir.vars[hir_info.output].type;
                         var size = type->get_stack_size()$cast(Size);
@@ -1305,6 +1312,33 @@ export class ASMX86 {
                             case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+
+                            case HIR.Tag.EQUAL => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                // TODO pick correct SETE or SETZ
+                                // and below
+                                self->insert_rm(Tag.SETE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.NOT_EQUAL => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.LESS  => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETL, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.LESS_OR_EQUAL => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETLE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.GREATER => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETG, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.GREATER_OR_EQUAL => {
+                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETGE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
                         }
 
                         self->push_mov_to_stack_hir(hir_info.output, Reg.AX, size);
@@ -1315,6 +1349,48 @@ export class ASMX86 {
                         var type = self.hir.vars[hir_info.dst].type;
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
+                        self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
+                    }
+
+                    case HIR.Tag.ASSIGN_PLUS
+                    case HIR.Tag.ASSIGN_MINUS
+                    case HIR.Tag.ASSIGN_MULTY
+                    case HIR.Tag.ASSIGN_DIVIDE
+                    case HIR.Tag.ASSIGN_MOD
+
+                    case HIR.Tag.ASSIGN_BITWISE_AND
+                    case HIR.Tag.ASSIGN_BITWISE_OR
+                    case HIR.Tag.ASSIGN_BITWISE_XOR => {
+                        var hir_info = instr$cast(HIR.Assign);
+                        var type = self.hir.vars[hir_info.dst].type;
+                        var size = type->get_stack_size()$cast(Size);
+                        self->push_mov_from_stack_hir(Reg.CX, hir_info.src, size);
+                        self->push_mov_from_stack_hir(Reg.AX, hir_info.dst, size);
+                        switch (instr.tag) {
+                            case HIR.Tag.ASSIGN_PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.ASSIGN_MINUS => self->insert_reg_rm(Tag.SUB, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            
+                            case HIR.Tag.ASSIGN_MULTY => // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.ASSIGN_DIVIDE => {
+                                self->insert_reg_rm(Tag.IMUL, size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                            }
+                            case HIR.Tag.ASSIGN_MOD => {
+                                self->insert_reg_rm(Tag.XOR, size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // explicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.MOV, size, Reg.AX, ModRM.construct_reg(Reg.DX));
+                            }
+                            
+                            case HIR.Tag.ASSIGN_BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.ASSIGN_BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.ASSIGN_BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                        }
                         self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
                     }
 
@@ -1353,6 +1429,45 @@ export class ASMX86 {
                         }
                     }
 
+                    case HIR.Tag.JUMP => {
+                        var hir_info = instr$cast(HIR.Jump);
+
+                        if (!first_instr_in_block) {
+                            var dest = self.hir->get_first_non_empty_block(hir_info.dst);
+                            
+                            if (self.hir.block_offsets[dest] != i + 1) {
+                                self->insert_jimm(Tag.JMP, Size.None, dest);
+                            }
+                        }
+
+                        first_instr_in_block = true;
+                    }
+
+                    case HIR.Tag.JUMP_IF_TRUE => {
+                        var hir_info = instr$cast(HIR.JumpIf);
+
+                        var true_dest = self.hir->get_first_non_empty_block(hir_info.true_dst);
+                        var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
+                        
+                        var type = self.hir.vars[hir_info.expr].type;
+                        var size = type->get_stack_size()$cast(Size);
+                        self->push_mov_from_stack_hir(Reg.AX, hir_info.expr, size);
+
+                        switch (instr.tag) {
+                            case HIR.Tag.JUMP_IF_TRUE => {
+                                self->insert_rm_reg(Tag.TEST, size, ModRM.construct_reg(Reg.AX), Reg.AX);
+                                self->insert_jimm(Tag.JNE, Size.None, true_dest);
+
+                                if (self.hir.block_offsets[false_dest] != i + 1) {
+                                    self->insert_jimm(Tag.JMP, Size.None, false_dest);
+                                }
+                            }
+                        }
+
+
+                        first_instr_in_block = true;
+                    }
+
                     case HIR.Tag.RETURN => {
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
@@ -1366,8 +1481,8 @@ export class ASMX86 {
 
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);
-                        // TODO fix, get from the value
-                        var size = Size.Bit64;
+                        var type = self.hir.vars[hir_info.value].type;
+                        var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.value, size);
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
@@ -1377,6 +1492,22 @@ export class ASMX86 {
                         self->insert(Tag.RET);
 
                         first_instr_in_block = true;
+                    }
+                }
+
+                i += 1;
+            }
+
+            i = 0;
+            while (i < self.instrs.size) {
+                var instr = self.instrs[i];
+
+                switch (instr.tag) {
+                    case Tag.JMP
+                    case Tag.JNE => {
+                        var block = instr.goto_offset$cast(HIR.BlockId);
+                        var bucket = self.hir_to_asm_offsets->get_or_null(self.hir.block_offsets[block]);
+                        instr.goto_offset = bucket.value$cast(u64)$cast(u32);
                     }
                 }
 
