@@ -7,7 +7,7 @@ import common
 
 export class HIR {
 
-    enum Tag : u16 {
+    enum Tag: u16 {
         NONE_STMT,
 
         LOGICAL_NOT,
@@ -78,7 +78,7 @@ export class HIR {
         RETURN_VALUE,
     }
 
-    export fn is_terminator(tag : Tag) => bool {
+    export fn is_terminator(tag: Tag) => bool {
         return tag >= Tag.JUMP;
     }
 
@@ -93,10 +93,10 @@ export class HIR {
     export class SrcInfo {
         export mimic Length = u32;
 
-        var source_offset : Token.Offset;
-        var length : Length;
+        var source_offset: Token.Offset;
+        var length: Length;
 
-        export fn construct(source_offset : Token.Offset, length : Length) => SrcInfo {
+        export fn construct(source_offset: Token.Offset, length: Length) => SrcInfo {
             var self = SrcInfo();
             self.source_offset = source_offset;
             self.length = length;
@@ -123,79 +123,79 @@ export class HIR {
     }
 
     export class Instr {
-        var tag : Tag;
+        var tag: Tag;
         var src_info: SrcInfo;
     }
 
     export class InstrWithOutput {
         extend Instr;
-        var output : VarId;
+        var output: VarId;
     }
 
     export class UnaryOp {
         extend InstrWithOutput;
-        var arg : VarId;
+        var arg: VarId;
     }
 
     export class BinaryOp {
         extend InstrWithOutput;
-        var lhs : VarId;
-        var rhs : VarId;
+        var lhs: VarId;
+        var rhs: VarId;
     }
 
     export class Call {
         extend InstrWithOutput;
-        var callee : VarId;
-        var args : VarId[];
+        var callee: VarId;
+        var args: VarId[];
     }
 
     export class New {
         extend InstrWithOutput;
-        var type : Type;
-        var args : VarId[];
+        var type: Type;
+        var args: VarId[];
     }
 
     export class NewArray {
         extend InstrWithOutput;
-        var type : Type;
-        var size : VarId;
-        var initial_value : ConstId;
+        var type: Type;
+        var size: VarId;
+        var initial_value: ConstId;
     }
 
     export class NewSlice {
         extend InstrWithOutput;
-        var mirrored : VarId;
-        var start : VarId;
-        var end : ConstId;
+        var mirrored: VarId;
+        var start: VarId;
+        var end: ConstId;
     }
 
     export class AppendValue {
         extend Instr;
-        var array : VarId;
-        var value : VarId;
+        var array: VarId;
+        var value: VarId;
     }
 
     export class Assign {
         extend Instr;
-        var dst : VarId;
-        var src : VarId;
+        var dst: VarId;
+        var src: VarId;
     }
 
     export class Jump {
         extend Instr;
-        var dst : BlockId;
+        var dst: BlockId;
     }
 
     export class JumpIf {
         extend Instr;
-        var expr : VarId;
-        var true_dst : BlockId;
-        var false_dst : BlockId;
+        var expr: VarId;
+        var true_dst: BlockId;
+        var false_dst: BlockId;
     }
 
     export class ReturnValue {
         extend Instr;
-        var value : VarId;
+        var value: VarId;
     }
 
 ////////////////////////
@@ -215,30 +215,32 @@ export class HIR {
         export fn get_type(decl: Decl) => Type {
             switch (decl.kind) {
                 case Kind.Error => return null;
-                case Kind.Common => return decl$cast(DeclCommon).type;
-                case Kind.Parameter => return decl$cast(DeclParameter).type;
-                case Kind.InstrResult => return decl$cast(DeclInstrResult).type;
+                case Kind.Common
+                case Kind.Parameter
+                case Kind.InstrResult => return decl$cast(DeclWithType).type;
                 case Kind.Global => return decl$cast(DeclGlobal).node.value.type;
             }
             return null;
         }
     }
 
-    export class DeclCommon {
+    export class DeclWithType {
         extend Decl;
         var type: Type;
+    }
+
+    export class DeclCommon {
+        extend DeclWithType;
         var src_info: SrcInfo;
     }
 
     export class DeclParameter {
-        extend Decl;
-        var type: Type;
+        extend DeclWithType;
         var src_info: SrcInfo;
     }
 
     export class DeclInstrResult {
-        extend Decl;
-        var type: Type;
+        extend DeclWithType;
         var instr: HIR.Instr;
     }
 
@@ -249,51 +251,70 @@ export class HIR {
 
 
     export class Var {
-        export enum Kind : u8 {
+        export enum Kind: u8 {
             Common,
             Literal,
+            BuiltinType,
             Cast,
-            Field,
-            Index,
+            //Field,
+            //Index,
         } 
 
-        var kind : Kind;
-        var type : Type;
-        var src_info : SrcInfo;
+        var kind: Kind;
+        var src_info: SrcInfo;
+
+        export fn get_type(varr: Var) => Type {
+            switch (varr.kind) {
+                case Kind.Common
+                case Kind.Literal
+                case Kind.Cast => return varr$cast(VarWithType).type;
+            }
+            return null;
+        }
+    }
+
+    export class VarWithType {
+        extend Var;
+        var type: Type;
     }
 
     export class VarCommon {
+        extend VarWithType;
+        var decl: DeclId;
+    }
+
+    export class VarBuiltinType {
         extend Var;
-        var decl : DeclId;
+        var value: Type;
     }
 
     export class VarLiteral {
-        extend Var;
-        var value : u64;
+        extend VarWithType;
+        var value: u64;
     }
 
     export class VarCast {
-        extend Var;
-        var casted : VarId;
+        extend VarWithType;
+        var casted: VarId;
     }
 
     export class Const {
-         var offset : u32;
-         var size : u32;
-         var name : str;
-         var is_string : bool;
+         var offset: u32;
+         var size: u32;
+         var name: str;
+         var is_string: bool;
     }
 
-    var instrs : Instr[];
-    var vars : Var[];
-    var decls : Decl[];
-    var block_offsets : InstrOffset[];
-    var consts_infos : Const[];
-    var consts : u8[];
+    var instrs: Instr[];
+    var vars: Var[];
+    var decls: Decl[];
+    var block_offsets: InstrOffset[];
+    var consts_infos: Const[];
+    var consts: u8[];
 
-    var return_type : Type;
-    var parameters_count : u8;
-    var max_call_arg_count : u8;
+    var return_type: Type;
+    var parameters_count: u8;
+    var max_call_arg_count: u8;
 
     export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
         while (true) {

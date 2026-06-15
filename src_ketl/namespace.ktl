@@ -50,10 +50,10 @@ class Namespace {
         return self.nodes == 0;
     }
 
-    export fn declare_var(self: Namespace, name: str, type: Type, exxport: bool) => Node {
+    export fn declare_var(self: Namespace, key: str, name: str, type: Type, exxport: bool) => Node {
         var value = Value();
         value->set_type(type);
-        return self->put(name, null, value, Info.construct(exxport, false), false);
+        return self->put(key, name, value, Info.construct(exxport, false), false);
     }
 
     export fn put(self: Namespace, key: str, name: str, value: Value, info: Namespace.Info, force: bool) => Node {

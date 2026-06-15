@@ -34,6 +34,7 @@ class Parser {
         var reserved_continue: HIR.BlockId;
         var is_global_scope: bool;
         var exxport: bool;
+        var cexxport: bool;
     }
 
     fn error(self: Context, offset: u32, length: u32, message: str) {
@@ -243,6 +244,7 @@ class Parser {
         if (token.type == Token.Type.ID) {
             var name = context->token_str(token);
             var var_id = context.hir_builder->get_var(context.namespace, name, name, src_info);
+            // TODO replace check for type with check for error var
             if (context.hir_builder->get_type(var_id) == null) {
                 context->error(src_info.source_offset, src_info.length, "Undeclared variable.");
             }
@@ -251,14 +253,14 @@ class Parser {
         }
 
         switch (token.type) {
-            case Token.Type.I8 => return context.hir_builder->get_type_var(Types.instance.type_i8, src_info);
-            case Token.Type.I16 => return context.hir_builder->get_type_var(Types.instance.type_i16, src_info);
-            case Token.Type.I32 => return context.hir_builder->get_type_var(Types.instance.type_i32, src_info);
-            case Token.Type.I64 => return context.hir_builder->get_type_var(Types.instance.type_i64, src_info);
-            case Token.Type.U8 => return context.hir_builder->get_type_var(Types.instance.type_u8, src_info);
-            case Token.Type.U16 => return context.hir_builder->get_type_var(Types.instance.type_u16, src_info);
-            case Token.Type.U32 => return context.hir_builder->get_type_var(Types.instance.type_u32, src_info);
-            case Token.Type.U64 => return context.hir_builder->get_type_var(Types.instance.type_u64, src_info);
+            case Token.Type.I8 => return context.hir_builder->push_builtin_type(Types.instance.type_i8, src_info);
+            case Token.Type.I16 => return context.hir_builder->push_builtin_type(Types.instance.type_i16, src_info);
+            case Token.Type.I32 => return context.hir_builder->push_builtin_type(Types.instance.type_i32, src_info);
+            case Token.Type.I64 => return context.hir_builder->push_builtin_type(Types.instance.type_i64, src_info);
+            case Token.Type.U8 => return context.hir_builder->push_builtin_type(Types.instance.type_u8, src_info);
+            case Token.Type.U16 => return context.hir_builder->push_builtin_type(Types.instance.type_u16, src_info);
+            case Token.Type.U32 => return context.hir_builder->push_builtin_type(Types.instance.type_u32, src_info);
+            case Token.Type.U64 => return context.hir_builder->push_builtin_type(Types.instance.type_u64, src_info);
         }
 
         return error_var();
@@ -484,6 +486,10 @@ class Parser {
     fn parse_type(context: Context) => Type {
         var type_var_id = context->parse_precedence(Precedence.Assigment + 1);
         var type_var = context->get_var(type_var_id);
+        if (type_var.kind == HIR.Var.Kind.BuiltinType) {
+            return type_var$cast(HIR.VarBuiltinType).value;
+        }
+
         // TODO error
         assert(type_var.kind == HIR.Var.Kind.Common);
         var decl_id = type_var$cast(HIR.VarCommon).decl;
@@ -638,8 +644,7 @@ class Parser {
     fn declare_var(context: Context, name: str, type: Type, init_value: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id: HIR.VarId;
         if (context.is_global_scope) {
-            var namespace_node = context.namespace->declare_var(name, type, context.exxport);
-            var_id = context.hir_builder->declare_global_var(namespace_node, name, src_info);
+            var_id = context.hir_builder->declare_global_var(context.namespace, name, type, src_info, context.exxport);
         } else {
             var_id = context.hir_builder->declare_local_var(name, type, src_info);
         }
@@ -694,7 +699,7 @@ class Parser {
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
-//*
+
     fn parse_function_declaration(context: Context) => StatementInfo {
         context->token_advance(); // fn
         var id_literal = context->current_token(0);
@@ -736,8 +741,12 @@ class Parser {
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after function declaration.");
 
         var function_type = Types.instance->get_function_type(function_parameters);
-        var name = context->token_str(id_literal);
-        var namespace_node = context.namespace->declare_var(name, function_type, context.exxport);
+        var key = context->token_str(id_literal);
+        var name: str;
+        if (context.cexxport) {
+            name = key;
+        }
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_literal), context.exxport);
         
         // looking for the end of the function definition
         var start_pos = context.iterator->mark();
@@ -763,32 +772,159 @@ class Parser {
         // saving end of the function definition for later
         var end_pos = context.iterator->mark();
 
-        var function_decl = CompileFunctionDeclaration();
-        function_decl.parent_namespace = context.namespace;
-        function_decl.node = namespace_node;
-        function_decl.parameters_names = function_parameters_names;
-        function_decl.start_pos = start_pos;
-        function_decl.end_pos = end_pos;
-        
-        Modules.instance.active_module.compile_function_declarations ..= function_decl;
+        if (namespace_node != null) {
+            var function_decl = CompileFunctionDeclaration();
+            function_decl.parent_namespace = context.namespace;
+            function_decl.node = namespace_node;
+            function_decl.parameters_names = function_parameters_names;
+            function_decl.start_pos = start_pos;
+            function_decl.end_pos = end_pos;
+            
+            Modules.instance.active_module.compile_function_declarations ..= function_decl;
+        }
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-    }//*/
+    }
+    
+    fn parse_enum_declaration(context: Context) => StatementInfo {
+        /*
+        token_advance(p_context); // enum
+        ketl_token_t id_literal = CURRENT_TOKEN(0);
+        token_advance(p_context); // id
 
-    fn parse_declaration(context : Context) => StatementInfo {
-        switch (context->current_token(0).type) {
+        ketl_type_primitive* p_parent_primitive = (ketl_type_primitive*) ketl_state_get_u8(p_context->p_state);
+        bool defined_type = token_match(p_context, Token.Type.COLON);
+        if (defined_type) {
+            ketl_type* p_type = parse_type(p_context);
+            if (!p_type || p_type->kind != KETL_TYPE_PRIMITIVE) {
+                errorf(id_literal.offset, id_literal.length, "Only numeric primitive types are supported as backend for the enum.");
+            } else {
+                p_parent_primitive = (ketl_type_primitive*)p_type;
+            }
+        }
+
+        token_consume(p_context, Token.Type.CURLY_LEFT, defined_type ? "Expected '{' after enum parent type" : "Expected '{' after enum name.");
+
+        ketl_type_enum_pair a_enum_constants[256] = {0};
+        uint32_t enum_constants_count = 0;
+
+        ketl_variable current_value = {
+            .uint64 = 0,
+        };
+        ketl_variable_set_type(&current_value, (ketl_type*)p_parent_primitive);
+        --current_value.uint64;
+
+        do {
+            if (token_check(p_context, Token.Type.CURLY_RIGHT)) {
+                break;
+            }
+
+            ketl_token_t constant_name = CURRENT_TOKEN(0);
+            a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_name), TOKEN_LENGTH(constant_name));
+            token_advance(p_context); // id
+
+            if (token_match(p_context, Token.Type.ASSIGN)) {
+                ketl_token_t constant = CURRENT_TOKEN(0);
+                if (token_match(p_context, Token.Type.LITERAL_INTEGER)) {
+                    char a_buffer[16] = {'\0'};
+                    ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+                    int64_t value = strtoll(a_buffer, NULL, 0);
+
+                    current_value.int64 = value;
+                } else if (token_match(p_context, Token.Type.ID)) {
+                    ketl_atomic_string s_constant_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+
+                    bool found = false;
+                    for (uint32_t i = 0u; i < enum_constants_count; ++i) {
+                        if (a_enum_constants[i].s_name == s_constant_name) {
+                            current_value = a_enum_constants[i].literal;
+
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found) {
+                        ketl_hir_expr_info_t expr_info = token_extract_info(constant);
+                        errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
+                        ++current_value.uint64;
+                    }
+                } else {
+                    ketl_hir_expr_info_t expr_info = token_extract_info(constant);
+                    errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
+                    ++current_value.uint64;
+                }
+            } else {
+                ++current_value.uint64;
+            }
+
+            a_enum_constants[enum_constants_count].literal = current_value;
+
+            ++enum_constants_count;
+        } while (token_match(p_context, Token.Type.COMMA));
+
+        token_consume(p_context, Token.Type.CURLY_RIGHT, "Expected '}' at the end of enum declaration.");
+        
+        ketl_state_define_enum(p_context->p_state, p_context->p_namespace, 
+            TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_parent_primitive, a_enum_constants, enum_constants_count, p_context->export);
+        */
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
+    fn parse_mimic_declaration(context: Context) => StatementInfo {
+        context->token_advance(); // mimic
+        var id_literal = context->current_token(0);
+        context->token_advance(); // id
+
+        context->token_consume(Token.Type.ASSIGN, "Expected '=' after mimic name.");
+
+        var name = context->token_str(id_literal);
+        var type = context->parse_type();
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_literal), context.exxport);
+        //ketl_state_define_mimic(context.namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), type, context.exxport);
+        context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' in the end of a mimic declaration.");
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
+    fn parse_declaration(context: Context) => StatementInfo {
+        while (true) switch (context->current_token(0).type) {
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
             //case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
             //case Token.Type.CLASS   => return context->parse_class_declaration();
-            //case Token.Type.ENUM    => return context->parse_enum_declaration();
-            //case Token.Type.MIMIC   => return context->parse_mimic_declaration();
-            //case Token.Type.EXPORT  => return context->parse_export_declaration();
-            //case Token.Type.CEXPORT => return context->parse_cexport_declaration();
+            case Token.Type.ENUM    => return context->parse_enum_declaration();
+            case Token.Type.MIMIC   => return context->parse_mimic_declaration();
+            case Token.Type.EXPORT => {
+                context->token_advance();
+                if (context.exxport) {
+                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
+                    continue;
+                }
+                context.exxport = true;
+                var result = context->parse_declaration();
+                context.exxport = false;
+                return result;
+            }
+            case Token.Type.CEXPORT => {
+                context->token_advance();
+                if (context.cexxport) {
+                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
+                    continue;
+                }
+                context.cexxport = true;
+                var result = context->parse_declaration();
+                context.cexxport = false;
+                return result;
+            }
             default                 => return context->parse_statement();
         }
+
+        assert(false);
+        return null;
     }
 
     fn parse_block_statement_inner(context : Context) => StatementInfo {
