@@ -982,7 +982,7 @@ export class ASMX86 {
                 var decl = self.hir.decls[var_decl_id];
 
                 if (decl.kind == HIR.Decl.Kind.Global) {
-                    assert(varr.type != null);
+                    assert(varr$cast(HIR.VarWithType).type != null);
 
                     var decl_global = decl$cast(HIR.DeclGlobal);
 
@@ -1099,7 +1099,7 @@ export class ASMX86 {
         fn push_function_arguments_hir(self: Builder, arguments: HIR.VarId[]) {
             var i: u64 = arguments.size - 1;
             while (true) {
-                var type = self.hir.vars[arguments[i]].type;
+                var type = self.hir.vars[arguments[i]]->get_type();
                 var size = type->get_stack_size()$cast(Size);
                 
                 var regs = parameters_regs[self.abi];
@@ -1283,7 +1283,7 @@ export class ASMX86 {
                     case HIR.Tag.GREATER
                     case HIR.Tag.GREATER_OR_EQUAL => {
                         var hir_info = instr$cast(HIR.BinaryOp);
-                        var type = self.hir.vars[hir_info.output].type;
+                        var type = self.hir.vars[hir_info.output]->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.CX, hir_info.rhs, size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.lhs, size);
@@ -1346,7 +1346,7 @@ export class ASMX86 {
 
                     case HIR.Tag.ASSIGN => {
                         var hir_info = instr$cast(HIR.Assign);
-                        var type = self.hir.vars[hir_info.dst].type;
+                        var type = self.hir.vars[hir_info.dst]->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
                         self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
@@ -1362,7 +1362,7 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN_BITWISE_OR
                     case HIR.Tag.ASSIGN_BITWISE_XOR => {
                         var hir_info = instr$cast(HIR.Assign);
-                        var type = self.hir.vars[hir_info.dst].type;
+                        var type = self.hir.vars[hir_info.dst]->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.CX, hir_info.src, size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.dst, size);
@@ -1398,8 +1398,8 @@ export class ASMX86 {
                         var hir_info = instr$cast(HIR.Call);
 
                         var callee = self.hir.vars[hir_info.callee];
-                        assert(callee.type != null);
-                        var callee_type = callee.type;
+                        var callee_type = callee->get_type();
+                        assert(callee_type != null);
 
                         // TODO FIX allow other types to be called
                         assert(callee_type.kind == Type.Kind.Function || callee_type.kind == Type.Kind.CFunction);
@@ -1449,7 +1449,7 @@ export class ASMX86 {
                         var true_dest = self.hir->get_first_non_empty_block(hir_info.true_dst);
                         var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
                         
-                        var type = self.hir.vars[hir_info.expr].type;
+                        var type = self.hir.vars[hir_info.expr]->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.expr, size);
 
@@ -1481,7 +1481,7 @@ export class ASMX86 {
 
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);
-                        var type = self.hir.vars[hir_info.value].type;
+                        var type = self.hir.vars[hir_info.value]->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.value, size);
                         if (self.stack_reserved_size > 0) {

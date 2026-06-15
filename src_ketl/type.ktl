@@ -108,6 +108,10 @@ export class Value {
 
     export fn set_type(self: Value, type: Type) {
         self.type = type;
+        if (type == null) {
+            return;
+        }
+
         if (type.kind == Type.Kind.Primitive) {
             if (type == Types.instance.type_bool$cast(Type)) {
                 self.kind = Kind.Bool;
@@ -168,7 +172,6 @@ export class TypeEnum {
 }
 
 export class TypeArray {
-
     extend Type;
     var value : Type;
 }
