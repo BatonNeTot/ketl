@@ -169,6 +169,20 @@ export class TypeEnum {
     var name: str;
     var parent: TypePrimitive;
     var constants: Pair[];
+
+    export fn construct(name: str, parent: TypePrimitive, constants: Pair[]) => TypeEnum {
+        var type = TypeEnum();
+
+        type.kind = Type.Kind.Enum;
+        type.align = parent.align;
+        type.size = parent.size;
+
+        type.name = name;
+        type.parent = parent;
+        type.constants = constants;
+        
+        return type;
+    }
 }
 
 export class TypeArray {

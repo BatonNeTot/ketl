@@ -6,6 +6,8 @@ import common
 from variable import VariableDecl
 
 from type import Type
+from type import TypePrimitive
+from type import TypeEnum
 from type import Types
 from type import Value
 from token import Token
@@ -490,15 +492,23 @@ class Parser {
             return type_var$cast(HIR.VarBuiltinType).value;
         }
 
-        // TODO error
-        assert(type_var.kind == HIR.Var.Kind.Common);
+        if (type_var.kind != HIR.Var.Kind.Common) {
+            // TODO error
+            return null;
+        }
         var decl_id = type_var$cast(HIR.VarCommon).decl;
         var decl = context.hir_builder.decls[decl_id];
-        // TODO error
-        assert(decl.kind == HIR.Decl.Kind.Global);
+
+        if (decl.kind != HIR.Decl.Kind.Global) {
+            // TODO error
+            return null;
+        }
         var decl_global = decl$cast(HIR.DeclGlobal);
-        // TODO error
-        assert(decl_global.node != null && decl_global.node.value.kind == Value.Kind.Type);
+
+        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Type) {
+            // TODO error
+            return null;
+        }
         return decl_global.node.value.value$cast(raw);
     }
 
@@ -557,43 +567,43 @@ class Parser {
         var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
-        var module_literal = context->current_token(0);
+        var module_token = context->current_token(0);
         context->token_advance(); // id
         while (context->token_match(Token.Type.DOT)) {
-            path ..= context->token_str(module_literal);
+            path ..= context->token_str(module_token);
             path ..= "/";
-            module_literal = context->current_token(0);
+            module_token = context->current_token(0);
             context->token_advance(); // module id
         }
 
         context->token_consume(Token.Type.IMPORT, "Expected 'import' keyword after module name.");
-        var name_literal = context->current_token(0);
+        var name_token = context->current_token(0);
         context->token_advance(); // entity id
 
         var src_info = HIR.SrcInfo.merge(
             start_expr_info,
             HIR.SrcInfo.from_token(context->current_token(1)));
 
-        var module_name = context->token_str(module_literal);
+        var module_name = context->token_str(module_token);
 
         // TODO implement
         /*
         ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, null, p_context=>export);
         if (p_module_namespace == null) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         }
         */
 
-        var name = context->token_str(name_literal);
+        var name = context->token_str(name_token);
 
         // TODO 
         /*
         ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
 
         if (p_node == null) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal),
-                TOKEN_LENGTH(name_literal), TOKEN_STRING(name_literal));
+            errorf(src_info.source_offset, src_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token),
+                TOKEN_LENGTH(name_token), TOKEN_STRING(name_token));
             return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
         }
 
@@ -615,12 +625,12 @@ class Parser {
         var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
-        var module_literal = context->current_token(0);
+        var module_token = context->current_token(0);
         context->token_advance(); // id
         while (context->token_match(Token.Type.DOT)) {
-            path ..= context->token_str(module_literal);
+            path ..= context->token_str(module_token);
             path ..= "/";
-            module_literal = context->current_token(0);
+            module_token = context->current_token(0);
             context->token_advance(); // module id
         }
 
@@ -628,12 +638,12 @@ class Parser {
             start_expr_info,
             HIR.SrcInfo.from_token(context->current_token(1)));
 
-        var module_name = context->token_str(module_literal);
+        var module_name = context->token_str(module_token);
 
         // TODO implement
         /*
         if (!ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, p_context=>p_namespace, p_context=>export)) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_literal), TOKEN_STRING(module_literal));
+            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token));
         }
         */
 
@@ -662,8 +672,8 @@ class Parser {
         var src_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // var
-        var id_literal = context->current_token(0);
-        var name = context->token_str(id_literal);
+        var id_token = context->current_token(0);
+        var name = context->token_str(id_token);
         context->token_advance(); // id
 
         var type: Type = null;
@@ -702,7 +712,7 @@ class Parser {
 
     fn parse_function_declaration(context: Context) => StatementInfo {
         context->token_advance(); // fn
-        var id_literal = context->current_token(0);
+        var id_token = context->current_token(0);
         context->token_advance(); // id
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after function name.");
@@ -712,8 +722,8 @@ class Parser {
 
         if (!context->token_check(Token.Type.PARENTHESIS_RIGHT)) {
             while (true) {
-                var parameter_literal = context->current_token(0);
-                function_parameters_names ..= context->token_str(parameter_literal);
+                var parameter_token = context->current_token(0);
+                function_parameters_names ..= context->token_str(parameter_token);
                 context->token_advance(); // id
 
                 context->token_consume(Token.Type.COLON, "Expected ':' after parameter name.");
@@ -741,12 +751,12 @@ class Parser {
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after function declaration.");
 
         var function_type = Types.instance->get_function_type(function_parameters);
-        var key = context->token_str(id_literal);
+        var key = context->token_str(id_token);
         var name: str;
         if (context.cexxport) {
             name = key;
         }
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_literal), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_token), context.exxport);
         
         // looking for the end of the function definition
         var start_pos = context.iterator->mark();
@@ -787,57 +797,52 @@ class Parser {
     }
     
     fn parse_enum_declaration(context: Context) => StatementInfo {
-        /*
-        token_advance(p_context); // enum
-        ketl_token_t id_literal = CURRENT_TOKEN(0);
-        token_advance(p_context); // id
+        
+        context->token_advance(); // enum
+        var id_token = context->current_token(0);
+        context->token_advance(); // id
 
-        ketl_type_primitive* p_parent_primitive = (ketl_type_primitive*) ketl_state_get_u8(p_context->p_state);
-        bool defined_type = token_match(p_context, Token.Type.COLON);
-        if (defined_type) {
-            ketl_type* p_type = parse_type(p_context);
-            if (!p_type || p_type->kind != KETL_TYPE_PRIMITIVE) {
-                errorf(id_literal.offset, id_literal.length, "Only numeric primitive types are supported as backend for the enum.");
+        var parent_primitive = Types.instance.type_u8;
+        if (context->token_match(Token.Type.COLON)) {
+            var type = context->parse_type();
+            if (type == null || type.kind != Type.Kind.Primitive) {
+                context->error(id_token.offset, id_token.length, "Only numeric primitive types are supported as backend for the enum.");
             } else {
-                p_parent_primitive = (ketl_type_primitive*)p_type;
+                parent_primitive = type$cast(TypePrimitive);
             }
+            context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after enum parent type");
+        } else {
+            context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after enum name.");
         }
 
-        token_consume(p_context, Token.Type.CURLY_LEFT, defined_type ? "Expected '{' after enum parent type" : "Expected '{' after enum name.");
+        var enum_constants = TypeEnum.Pair[0];
 
-        ketl_type_enum_pair a_enum_constants[256] = {0};
-        uint32_t enum_constants_count = 0;
+        var current_value = Value();
+        current_value->set_type(parent_primitive);
+        current_value.value -= 1;
 
-        ketl_variable current_value = {
-            .uint64 = 0,
-        };
-        ketl_variable_set_type(&current_value, (ketl_type*)p_parent_primitive);
-        --current_value.uint64;
-
-        do {
-            if (token_check(p_context, Token.Type.CURLY_RIGHT)) {
+        while (true) {
+            if (context->token_check(Token.Type.CURLY_RIGHT)) {
                 break;
             }
 
-            ketl_token_t constant_name = CURRENT_TOKEN(0);
-            a_enum_constants[enum_constants_count].s_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant_name), TOKEN_LENGTH(constant_name));
-            token_advance(p_context); // id
+            var pair = TypeEnum.Pair();
 
-            if (token_match(p_context, Token.Type.ASSIGN)) {
-                ketl_token_t constant = CURRENT_TOKEN(0);
-                if (token_match(p_context, Token.Type.LITERAL_INTEGER)) {
-                    char a_buffer[16] = {'\0'};
-                    ketl_memcpy(a_buffer, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
-                    int64_t value = strtoll(a_buffer, NULL, 0);
+            var constant_name_token = context->current_token(0);
+            pair.name = context->token_str(constant_name_token);
+            context->token_advance(); // id
 
-                    current_value.int64 = value;
-                } else if (token_match(p_context, Token.Type.ID)) {
-                    ketl_atomic_string s_constant_name = ketl_atomic_strings_get(&p_context->p_state->atomic_strings, TOKEN_STRING(constant), TOKEN_LENGTH(constant));
+            if (context->token_match(Token.Type.ASSIGN)) {
+                var constant_token = context->current_token(0);
+                if (context->token_match(Token.Type.LITERAL_INTEGER)) {
+                    current_value.value = context->token_str(constant_token)$cast(u64);
+                } else if (context->token_match(Token.Type.ID)) {
+                    var other_constant_name = context->token_str(constant_token);
 
-                    bool found = false;
-                    for (uint32_t i = 0u; i < enum_constants_count; ++i) {
-                        if (a_enum_constants[i].s_name == s_constant_name) {
-                            current_value = a_enum_constants[i].literal;
+                    var found = false;
+                    for (var enum_constant <- enum_constants) {
+                        if (enum_constant.name == other_constant_name) {
+                            current_value.value = enum_constant.value.value;
 
                             found = true;
                             break;
@@ -845,44 +850,56 @@ class Parser {
                     }
                     
                     if (!found) {
-                        ketl_hir_expr_info_t expr_info = token_extract_info(constant);
-                        errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
-                        ++current_value.uint64;
+                        var src_info = HIR.SrcInfo.from_token(constant_token);
+                        context->error(src_info.source_offset, src_info.length, "Unexpected '" .. context->token_str(constant_token) .. "' for the enum constant value.");
+                        current_value.value += 1;
                     }
                 } else {
-                    ketl_hir_expr_info_t expr_info = token_extract_info(constant);
-                    errorf(expr_info.source_offset, expr_info.length, "Unexpected '%.*s' for the enum constant value.", TOKEN_LENGTH(constant), TOKEN_STRING(constant));
-                    ++current_value.uint64;
+                    var src_info = HIR.SrcInfo.from_token(constant_token);
+                    context->error(src_info.source_offset, src_info.length, "Unexpected '" .. context->token_str(constant_token) .. "' for the enum constant value.");
+                    current_value.value += 1;
                 }
             } else {
-                ++current_value.uint64;
+                current_value.value += 1;
             }
 
-            a_enum_constants[enum_constants_count].literal = current_value;
+            pair.value = Value();
+            pair.value->set_type(parent_primitive);
+            pair.value.value = current_value.value;
 
-            ++enum_constants_count;
-        } while (token_match(p_context, Token.Type.COMMA));
+            enum_constants ..= pair;
 
-        token_consume(p_context, Token.Type.CURLY_RIGHT, "Expected '}' at the end of enum declaration.");
-        
-        ketl_state_define_enum(p_context->p_state, p_context->p_namespace, 
-            TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), p_parent_primitive, a_enum_constants, enum_constants_count, p_context->export);
-        */
+            if (!context->token_match(Token.Type.COMMA)) {
+                break;
+            }
+        }
+
+        context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of enum declaration.");
+
+        var name = context->token_str(id_token);
+        var enum_type = TypeEnum.construct(name, parent_primitive, enum_constants);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        namespace_node.value.kind = Value.Kind.Type;
+        namespace_node.value.value = enum_type$cast(raw)$cast(u64);
+
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
     fn parse_mimic_declaration(context: Context) => StatementInfo {
         context->token_advance(); // mimic
-        var id_literal = context->current_token(0);
+        var id_token = context->current_token(0);
         context->token_advance(); // id
 
         context->token_consume(Token.Type.ASSIGN, "Expected '=' after mimic name.");
 
-        var name = context->token_str(id_literal);
+        var name = context->token_str(id_token);
         var type = context->parse_type();
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_literal), context.exxport);
-        //ketl_state_define_mimic(context.namespace, TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal), type, context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        namespace_node.value.kind = Value.Kind.Type;
+        namespace_node.value.value = type$cast(raw)$cast(u64);
+
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' in the end of a mimic declaration.");
+
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 

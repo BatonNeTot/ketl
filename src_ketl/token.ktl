@@ -1,7 +1,7 @@
 //🫖ketl
 
 export class Token {
-    export enum Type : u8 {
+    export enum Type: u8 {
         ID,
         LITERAL_INTEGER, LITERAL_STRING, LITERAL_CHAR,
         PARENTHESIS_LEFT, PARENTHESIS_RIGHT,
@@ -71,7 +71,7 @@ export class Token {
     export mimic Length = u16;
     export mimic Offset = u32;
 
-    var type : Type;
-    var length : Length;
-    var offset : Offset;
+    var type: Type;
+    var length: Length;
+    var offset: Offset;
 }
