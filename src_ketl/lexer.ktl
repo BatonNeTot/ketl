@@ -347,6 +347,18 @@ export class Lexer {
                     lexer->add_token(Token.Type.IMPORT, id_length);
                     return true;
                 }
+                if ("i8" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.I8, id_length);
+                    return true;
+                }
+                if ("i16" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.I16, id_length);
+                    return true;
+                }
+                if ("i32" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.I32, id_length);
+                    return true;
+                }
                 if ("i64" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.I64, id_length);
                     return true;
@@ -393,6 +405,22 @@ export class Lexer {
             case 'u' => {
                 if ("unpack" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.UNPACK, id_length);
+                    return true;
+                }
+                if ("u8" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.U8, id_length);
+                    return true;
+                }
+                if ("u16" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.U16, id_length);
+                    return true;
+                }
+                if ("u32" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.U32, id_length);
+                    return true;
+                }
+                if ("u64" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.U64, id_length);
                     return true;
                 }
             }
