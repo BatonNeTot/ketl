@@ -252,6 +252,7 @@ export class HIR {
 
     export class Var {
         export enum Kind: u8 {
+            Error,
             Common,
             Literal,
             BuiltinType,

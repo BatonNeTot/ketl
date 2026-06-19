@@ -127,6 +127,24 @@ export class Type {
             return type$cast(TypeEnum).name;
         }
 
+        if (type.kind == Type.Kind.Function) {
+            from type import TypeFunction;
+            var func_type = type$cast(TypeFunction);
+            var signature = func_type.signature;
+
+            var result_str = "(";
+            for (var parameter <- signature.parameters[1:signature.parameters.size - 1]) {
+                result_str ..= parameter->get_name();
+                result_str ..= ", ";
+            }
+
+            var return_type = signature.parameters[0];
+            result_str ..= ") => ";
+            result_str ..= return_type->get_name();
+
+            return result_str;
+        }
+
         if (type.kind == Type.Kind.Class) {
             from type import TypeClass
             return type$cast(TypeClass).name;
