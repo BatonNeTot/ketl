@@ -4,7 +4,7 @@ from common import IntHashMap
 from common import align_forward
 import common
 
-from type import Type
+from type_base import Type
 from type import TypePrimitive
 from type import TypeEnum
 from type import TypeFunction

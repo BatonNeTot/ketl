@@ -1,140 +1,10 @@
 //🫖ketl
 
 import common
-
-export class Type {
-    export enum Kind : u8{
-        Primitive,
-        Enum,
-        Function,
-        CFunction,
-        Array,
-        CArray,
-        Class,
-    }
-
-    export enum Align : u8 {
-        Byte,
-        Bytes2,
-        Bytes4,
-        Bytes8,
-        Bytes16,
-    }
-
-    export fn find_align(align: u8) => Align {
-        switch (align) {
-            case 2 =>  return Align.Bytes2;
-            case 4 =>  return Align.Bytes4;
-            case 8 =>  return Align.Bytes8;
-            case 16 => return Align.Bytes16;
-        }
-        return Align.Byte;
-    }
- 
-    var kind : Kind;
-    var align : Align;
-    var size : u16;
-
-    export fn is_pointer_kind(type: Type) => bool {
-        if (type == null) {
-            return false;
-        }
-
-        if (type.kind == Kind.Primitive || type.kind == Kind.Enum) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    export fn is_void(type: Type) => bool {
-        return type != null && type.size == 0 && type.kind == Kind.Primitive;
-    }
-
-    export fn get_stack_size(type : Type) => u64 {
-        if (type == null) {
-            return 0;
-        }
-
-        if (type->is_pointer_kind()) {
-            return raw$size;
-        } else {
-            return type.size;
-        }
-    }
-
-    export fn is_signed(type: Type) => bool {
-        if (type.kind == Type.Kind.Enum) {
-            type = type$cast(TypeEnum).parent;
-        }
-
-        return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).is_signed;
-    }
-
-    export fn get_name(type: Type) => str {
-        if (type == null) {
-            return "<null>";
-        }
-
-        if (type.kind == Type.Kind.Primitive) {
-            return type$cast(TypePrimitive).name;
-        }
-
-        if (type.kind == Type.Kind.Enum) {
-            return type$cast(TypeEnum).name;
-        }
-
-        assert(false);
-        return null;
-    }
-}
-
-export class Value {
-    export enum Kind: u8 {
-        None,
-        Type,
-        Namespace,
-        Pointer,
-        Func,
-        CFunc,
-        Bool,
-        Int,
-        UInt,
-    }
-    
-    var value: u64;
-    var type: Type;
-    var kind: Kind;
-
-    export fn set_type(self: Value, type: Type) {
-        self.type = type;
-        if (type == null) {
-            return;
-        }
-
-        if (type.kind == Type.Kind.Primitive) {
-            if (type == Types.instance.type_bool$cast(Type)) {
-                self.kind = Kind.Bool;
-                return;
-            }
-
-            var primitive_type = type$cast(TypePrimitive);
-            if (primitive_type.is_signed) {
-                self.kind = Kind.Int;
-            } else {
-                self.kind = Kind.UInt;
-            }
-            return;
-        }
-
-        if (type.kind == Type.Kind.Function) {
-            self.kind = Kind.Func;
-            return;
-        }
-
-        assert(false);
-    }
-}
+from type_base import Type
+from value import Value
+from variable import VariableDecl
+from namespace import Namespace
 
 export class TypePrimitive {
     extend Type;
@@ -147,7 +17,7 @@ export class TypePrimitive {
         var self = TypePrimitive();
 
         self.kind = Kind.Primitive;
-        self.align = find_align(size);
+        self.align = find_align_enum(size);
         self.size = size;
         self.name = name;
         self.is_integer = is_integer;
@@ -185,11 +55,6 @@ export class TypeEnum {
     }
 }
 
-export class TypeArray {
-    extend Type;
-    var value : Type;
-}
-
 export class TypeFunction {
     export class Signature {
         var parameters: Type[];
@@ -211,6 +76,63 @@ export class TypeFunction {
 
     extend Type;
     var signature: Signature;
+}
+
+export class TypeArray {
+
+    extend Type;
+    var value : Type;
+}
+
+export class TypeClass {
+
+    extend Type;
+    var name: str;
+    var fields: VariableDecl[];
+    var namespace: Namespace;
+
+    export fn construct(name: str, parent_namespace: Namespace) => TypeClass {
+        var self = TypeClass();
+
+        self.kind = Type.Kind.Class;
+
+        self.name = name;
+        self.namespace = Namespace.construct(name, parent_namespace);
+
+        return self;
+    }
+
+    export fn finalize(self: TypeClass, fields: VariableDecl[]) {
+        self.fields = fields;
+
+        self.align = Type.Align.Byte;
+        self->calc_size_and_align();
+        self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16);
+    }
+
+    export fn calc_size_and_align(self: TypeClass) {
+        for (var field <- self.fields) {
+            var align = Align.Byte; // TODO delayed initialization
+            var size: u16;
+            if (field.name == null || field.name == "") {
+                var type = field.type;
+                assert(type.kind == Type.Kind.Class);
+
+                align = field.type->get_align();
+                size = field.type->get_size();
+            } else {
+                align = field.type->get_stack_align();
+                size = field.type->get_stack_size();
+            }
+
+            if (align > self.align) {
+                self.align = align;
+            }
+
+            self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16) + size;
+        }
+    }
+
 }
 
 class Types {

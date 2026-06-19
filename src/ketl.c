@@ -684,17 +684,7 @@ void ketl_state_post_define_class(ketl_state* p_state, ketl_namespace_node* p_cl
             ketl_type_class* p_extended_class = (ketl_type_class*)p_extended_type;
             ketl_namespace* p_extended_namespace = &p_extended_class->namespace;
 
-            p_class_type->namespace.p_parent = p_extended_namespace;
-
-            // TODO have multiple parents
-            /*
-            for (uint32_t i = 0; i < p_extended_namespace->v_nodes.size; ++i) {
-                ketl_namespace_node* p_extended_node = &p_extended_namespace->v_nodes.p_data[i];
-                ketl_namespace_node_info info = p_extended_node->info;
-                info.imported = true;
-                ketl_namespace_put(&p_class_type->namespace, p_extended_node->s_key, p_extended_node->s_name, p_extended_node->variable, info, &p_state->atomic_strings, false);
-            }
-            */
+            ketl_namespace_add_parent(&p_class_type->namespace, p_extended_namespace);
         }
     }
 
@@ -1278,7 +1268,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
             p_compile_function_declaration->namespace_node_index);
 
         ketl_namespace local_namespace;
-        ketl_namespace_init(&local_namespace, p_node->s_name, &p_state->atomic_strings, &p_module->namespace, p_state->p_allocator);
+        ketl_namespace_init(&local_namespace, p_node->s_name, &p_state->atomic_strings, p_compile_function_declaration->p_namespace, p_state->p_allocator);
 
         ketl_named_variable_type_info_t* p_function_parameters_named = p_compile_function_declaration->v_parameters.p_data;
         uint32_t parameters_count = p_compile_function_declaration->v_parameters.size;
@@ -1293,7 +1283,7 @@ void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_filepath, u
     
         ketl_hir_t hir;
         ketl_parser_build_hir(p_state, &hir, &p_module->lexer, p_compile_function_declaration->end_pos, 
-            p_compile_function_declaration->p_namespace, p_function_parameters_named, parameters_count, p_return_type, i + 1, false, p_state->p_allocator);
+            &local_namespace, p_function_parameters_named, parameters_count, p_return_type, i + 1, false, p_state->p_allocator);
         
         if (p_state->error_stream.size > error_stream_mark) {
             fprintf(stderr, "%.*s", p_state->error_stream.size - error_stream_mark, p_state->error_stream.p_data + error_stream_mark);

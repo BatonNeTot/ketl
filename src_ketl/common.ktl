@@ -284,7 +284,7 @@ export class StrHashMap {
     }
 }
 
-export fn align_forward(size: u64, alignment: u8) => u64 {
+export fn align_forward(size: u64, alignment: u64) => u64 {
     return (size + (alignment - 1)) & ~(alignment - 1);
 }
 

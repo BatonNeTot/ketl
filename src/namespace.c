@@ -5,17 +5,20 @@
 
 KETL_VECTOR_DEFINITION(namespace_nodes, ketl_namespace_node)
 KETL_HASH_MAP_DEFINITION(namespace_map, ketl_atomic_string, uint32_t, ANN_HASH, ANN_EQUAL)
+KETL_VECTOR_DEFINITION(namespace_parents, ketl_namespace*)
 
 void ketl_namespace_init(ketl_namespace* p_namespace, ketl_atomic_string s_name, ketl_atomic_strings* p_atomic_strings, ketl_namespace* p_parent, const ketl_allocator* p_allocator) {
     namespace_nodes_init(&p_namespace->v_nodes, 16, p_allocator);
     namespace_map_init(&p_namespace->m_vars, p_allocator);
-    p_namespace->p_parent = p_parent;
+    namespace_parents_init(&p_namespace->v_parents, 4, p_allocator);
     p_namespace->s_name = s_name;
 
     if (p_parent == NULL) {
         p_namespace->s_fullname = s_name;
         return;
     }
+    
+    ketl_namespace_add_parent(p_namespace, p_parent);
     
     const char* p_parent_fullname = ketl_atomic_strings_get_pointer(p_atomic_strings, p_parent->s_fullname);
     uint64_t parent_fullname_length = ketl_strlen(p_parent_fullname);
@@ -35,8 +38,13 @@ void ketl_namespace_init(ketl_namespace* p_namespace, ketl_atomic_string s_name,
 }
 
 void ketl_namespace_deinit(ketl_namespace* p_namespace) {
+    namespace_parents_deinit(&p_namespace->v_parents);
     namespace_map_deinit(&p_namespace->m_vars);
     namespace_nodes_deinit(&p_namespace->v_nodes);
+}
+
+void ketl_namespace_add_parent(ketl_namespace* p_namespace, ketl_namespace* p_parent) {
+    namespace_parents_push_back_copy(&p_namespace->v_parents, p_parent);
 }
 
 bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
@@ -47,11 +55,14 @@ bool ketl_namespace_is_empty(ketl_namespace* p_namespace) {
 // module defined as a namespace direct chil of global
 // which does not have a parent
 static uint32_t namespace_print_fullname(ketl_namespace* p_namespace, char* p_buffer, uint32_t buffer_size, ketl_atomic_strings* p_atomic_strings) {
-    if (p_namespace->p_parent == NULL) {
+    if (p_namespace->v_parents.size == 0) {
         return 0;
     }
 
-    uint32_t printed = namespace_print_fullname(p_namespace->p_parent, p_buffer, buffer_size, p_atomic_strings);
+    ketl_namespace* p_parent = p_namespace->v_parents.p_data[0];
+    ANN_ASSERT(p_parent);
+
+    uint32_t printed = namespace_print_fullname(p_parent, p_buffer, buffer_size, p_atomic_strings);
     printed += snprintf(p_buffer + printed, buffer_size - printed,  ".%s", 
                 ketl_atomic_strings_get_pointer(p_atomic_strings, p_namespace->s_name));
 
@@ -61,7 +72,7 @@ static uint32_t namespace_print_fullname(ketl_namespace* p_namespace, char* p_bu
 ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic_string s_key, ketl_atomic_string s_name, ketl_variable variable, ketl_namespace_node_info info, ketl_atomic_strings* p_atomic_strings, bool force) {
     if (s_name == KETL_ATOMIC_STRING_EMPTY) {
         s_name = s_key;
-        if (p_namespace->p_parent != NULL) {
+        if (p_namespace->v_parents.size > 0) {
             ANN_ASSERT(p_namespace->s_name != KETL_ATOMIC_STRING_EMPTY);
             
             char a_buffer[256] = {'\0'};
@@ -110,8 +121,11 @@ ketl_namespace_node* ketl_namespace_find(ketl_namespace* p_namespace, ketl_atomi
         return p_namespace->v_nodes.p_data + p_bucket->value;
     }
 
-    if (p_namespace->p_parent != NULL) {
-        return ketl_namespace_find(p_namespace->p_parent, s_key);
+    for (uint32_t i = 0; i < p_namespace->v_parents.size; ++i)  {
+        ketl_namespace_node* p_node = ketl_namespace_find(p_namespace->v_parents.p_data[i], s_key);
+        if (p_node != NULL) {
+            return p_node;
+        }
     }
 
     return NULL;
@@ -143,9 +157,12 @@ ketl_namespace* ketl_namespace_find_direct_parent(ketl_namespace* p_namespace, k
         return p_namespace;
     }
 
-    if (p_namespace->p_parent != NULL) {
-        return ketl_namespace_find_direct_parent(p_namespace->p_parent, p_node);
+    for (uint32_t i = 0; i < p_namespace->v_parents.size; ++i)  {
+        ketl_namespace* p_parent = ketl_namespace_find_direct_parent(p_namespace->v_parents.p_data[i], p_node);
+        if (p_parent != NULL) {
+            return p_parent;
+        }
     }
 
-    ANN_ASSERT(false);
+    return NULL;
 }

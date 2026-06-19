@@ -6,10 +6,10 @@ from common import LogAccum
 
 import common
 
-from type import Type
+from type_base import Type
 from type import Types
 from type import TypeFunction
-from type import Value
+from value import Value
 
 from hir import HIR
 from variable import VariableDecl

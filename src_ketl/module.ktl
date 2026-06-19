@@ -166,7 +166,7 @@ class Module {
                 var log_accum = LogAccum.construct();
                 var func_index = (i + 1)$cast(u16);
 
-                //from parser import Parser
+                from parser import Parser
                 var hir = Parser.build_hir(self.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
                     local_namespace, parameters, return_type, func_index, false, log_accum);
