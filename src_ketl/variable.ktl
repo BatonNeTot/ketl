@@ -1,8 +1,8 @@
 //🫖ketl
 
-from type import Type
+from type_base import Type
 
 export class VariableDecl {
-    var type : Type;
-    var name : str;
+    var type: Type;
+    var name: str;
 }

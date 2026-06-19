@@ -210,10 +210,17 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         return rhs_var;
     }
 
+    if (p_rhs_var->type == KETL_HIR_USED_TYPE_LITERAL && GET_TYPE(lhs_type)->kind == KETL_TYPE_ENUM && explicit) {
+        p_rhs_var->type = lhs_type;
+        return rhs_var;
+    }
+
     if (lhs_type == p_rhs_var->type) {
         return rhs_var;
     }
     if (p_rhs_var->type >= KETL_HIR_USED_TYPE_LAST) {
+        // TODO more informative message
+        errorf(expr_info.source_offset, expr_info.length, "Incompatible for cast types.");
         return push_temp_var(p_context, expr_info);
     }
 
@@ -346,6 +353,7 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
         }
     }
         
+    // TODO more informative message
     errorf(expr_info.source_offset, expr_info.length, "Incompatible for cast types.");
     return push_temp_var(p_context, expr_info);
 }

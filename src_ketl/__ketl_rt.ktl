@@ -1,6 +1,6 @@
 //🫖ketl
 
-from type import Type
+from type_base import Type
 from common import ArrayHeader
 
 /////////////////////////////////////////////

@@ -1,0 +1,57 @@
+//🫖ketl
+
+from type_base import Type
+
+export class Value {
+    export enum Kind: u8 {
+        None,
+        Type,
+        Namespace,
+        Pointer,
+        Func,
+        CFunc,
+        Bool,
+        Int,
+        UInt,
+    }
+    
+    var value: u64;
+    var type: Type;
+    var kind: Kind;
+
+    export fn set_type(self: Value, type: Type) {
+        self.type = type;
+        if (type == null) {
+            return;
+        }
+
+        if (type.kind == Type.Kind.Primitive) {
+            from type import Types
+            if (type == Types.instance.type_bool$cast(Type)) {
+                self.kind = Kind.Bool;
+                return;
+            }
+            
+            from type import TypePrimitive 
+            var primitive_type = type$cast(TypePrimitive);
+            if (primitive_type.is_signed) {
+                self.kind = Kind.Int;
+            } else {
+                self.kind = Kind.UInt;
+            }
+            return;
+        }
+
+        if (type.kind == Type.Kind.Function) {
+            self.kind = Kind.Func;
+            return;
+        }
+
+        if (type->is_pointer_kind()) {
+            self.kind = Kind.Pointer;
+            return;
+        }
+
+        assert(false);
+    }
+}

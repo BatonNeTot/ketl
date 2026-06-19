@@ -1109,7 +1109,8 @@ static void push_mov_from_stack(ketl_asm_x86_reg_t target_reg, push_mov_arg* p_a
 
             if (p_object_type->kind == KETL_TYPE_CLASS) {
                 ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
-                bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
+                ketl_namespace_node* p_class_node = ketl_namespace_find(&p_class_type->namespace, p_class_type->namespace.s_name);
+                bool is_export = p_class_node == NULL || p_class_node->info.export;
 
                 const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
                 if (is_export) {
@@ -1255,7 +1256,8 @@ static void push_mov_to_stack_hir(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t s
 
             if (p_object_type->kind == KETL_TYPE_CLASS) {
                 ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
-                bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
+                ketl_namespace_node* p_class_node = ketl_namespace_find(&p_class_type->namespace, p_class_type->namespace.s_name);
+                bool is_export = p_class_node == NULL || p_class_node->info.export;
 
                 const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
                 if (is_export) {

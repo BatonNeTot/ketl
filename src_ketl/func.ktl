@@ -1,6 +1,6 @@
 //🫖ketl
 
-from type import Type
+from type_base import Type
 from namespace import Namespace
 
 from lexer import TokenIterator

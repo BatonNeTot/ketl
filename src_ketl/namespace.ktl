@@ -1,8 +1,8 @@
 //🫖ketl
 
 from common import StrHashMap
-from type import Type
-from type import Value
+from type_base import Type
+from value import Value
 
 class Namespace {
     class Info {
@@ -26,7 +26,7 @@ class Namespace {
     }
 
     var nodes: StrHashMap;
-    var parent: Namespace;
+    var parents: Namespace[];
     var name: str;
     var fullname: str;
 
@@ -34,16 +34,21 @@ class Namespace {
         var self = Namespace();
         
         self.nodes = StrHashMap.construct();
-        self.parent = parent;
+        self.parents = Namespace[0];
         self.name = name;
 
         if (parent == null) {
-            self.fullname = name;
-        } else {
+            self.parents ..= parent;
             self.fullname = parent.fullname .. "." .. name;
+        } else {
+            self.fullname = name;
         }
 
         return self;
+    }
+
+    export fn add_parent(self: Namespace, parent: Namespace) {
+        self.parents ..= parent;
     }
 
     export fn is_empty(self: Namespace) => bool {
@@ -59,7 +64,7 @@ class Namespace {
     export fn put(self: Namespace, key: str, name: str, value: Value, info: Namespace.Info, force: bool) => Node {
         if (name == null || name == "") {
             name = key;
-            if (self.parent != null) {
+            if (self.parents.size > 0) {
                 assert(self.name != "");
 
                 if (info.exxport) {
@@ -98,8 +103,11 @@ class Namespace {
             return bucket.value;
         }
 
-        if (self.parent != null) {
-            return self.parent->find(key);
+        for (var parent <- self.parents) {
+            var node = parent->find(key);
+            if (node != null) {
+                return node;
+            }
         }
 
         return null;

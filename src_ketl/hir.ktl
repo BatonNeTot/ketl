@@ -1,7 +1,7 @@
 //🫖ketl
 
 from token import Token
-from type import Type
+from type_base import Type
 from namespace import Namespace
 import common
 
