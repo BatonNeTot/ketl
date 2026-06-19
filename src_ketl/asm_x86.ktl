@@ -374,7 +374,8 @@ export class ASMX86 {
                 common.print(" + (");
                 modrm.index->print_reg(Size.Ptr);
                 common.print(" * ");
-                common.print(scale_powers[modrm.scale_power]$cast(str));
+                var scale = scale_powers[modrm.scale_power];
+                common.print(scale$cast(str));
                 common.print(")");
             }
 
@@ -1099,13 +1100,16 @@ export class ASMX86 {
         fn push_function_arguments_hir(self: Builder, arguments: HIR.VarId[]) {
             var i: u64 = arguments.size - 1;
             while (true) {
-                var type = self.hir.vars[arguments[i]]->get_type();
+                var arg_id = arguments[i];
+                var arg = self.hir.vars[arg_id];
+                var type = arg->get_type();
                 var size = type->get_stack_size()$cast(Size);
                 
                 var regs = parameters_regs[self.abi];
                 var reg_count = regs.size;
                 if (i < reg_count) {
-                    self->push_mov_from_stack_hir(regs[i], arguments[i], size);
+                    var reg = regs[i];
+                    self->push_mov_from_stack_hir(reg, arg_id, size);
                 } else {
                     assert(false); /*
                     ANN_ASSERT(p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS);
@@ -1233,7 +1237,8 @@ export class ASMX86 {
                     if (decl_id < abi_parameters_regs.size) {
                         var type = decl->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, arg_info), abi_parameters_regs[decl_id]);
+                        var reg = abi_parameters_regs[decl_id];
+                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, arg_info), reg);
                     }
                 }
             }
@@ -1283,7 +1288,8 @@ export class ASMX86 {
                     case HIR.Tag.GREATER
                     case HIR.Tag.GREATER_OR_EQUAL => {
                         var hir_info = instr$cast(HIR.BinaryOp);
-                        var type = self.hir.vars[hir_info.output]->get_type();
+                        var output = self.hir.vars[hir_info.output];
+                        var type = output->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.CX, hir_info.rhs, size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.lhs, size);
@@ -1346,7 +1352,8 @@ export class ASMX86 {
 
                     case HIR.Tag.ASSIGN => {
                         var hir_info = instr$cast(HIR.Assign);
-                        var type = self.hir.vars[hir_info.dst]->get_type();
+                        var dst = self.hir.vars[hir_info.dst];
+                        var type = dst->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
                         self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
@@ -1362,7 +1369,8 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN_BITWISE_OR
                     case HIR.Tag.ASSIGN_BITWISE_XOR => {
                         var hir_info = instr$cast(HIR.Assign);
-                        var type = self.hir.vars[hir_info.dst]->get_type();
+                        var dst = self.hir.vars[hir_info.dst];
+                        var type = dst->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.CX, hir_info.src, size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.dst, size);
@@ -1449,7 +1457,8 @@ export class ASMX86 {
                         var true_dest = self.hir->get_first_non_empty_block(hir_info.true_dst);
                         var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
                         
-                        var type = self.hir.vars[hir_info.expr]->get_type();
+                        var expr = self.hir.vars[hir_info.expr];
+                        var type = expr->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.expr, size);
 
@@ -1481,7 +1490,8 @@ export class ASMX86 {
 
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);
-                        var type = self.hir.vars[hir_info.value]->get_type();
+                        var value = self.hir.vars[hir_info.value];
+                        var type = value->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         self->push_mov_from_stack_hir(Reg.AX, hir_info.value, size);
                         if (self.stack_reserved_size > 0) {
@@ -1506,7 +1516,8 @@ export class ASMX86 {
                     case Tag.JMP
                     case Tag.JNE => {
                         var block = instr.goto_offset$cast(HIR.BlockId);
-                        var bucket = self.hir_to_asm_offsets->get_or_null(self.hir.block_offsets[block]);
+                        var block_offset = self.hir.block_offsets[block];
+                        var bucket = self.hir_to_asm_offsets->get_or_null(block_offset);
                         instr.goto_offset = bucket.value$cast(u64)$cast(u32);
                     }
                 }

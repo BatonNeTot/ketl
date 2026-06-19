@@ -75,6 +75,17 @@ class HIRBuilder {
         return self.blocks[self.current_block];
     }
 
+    fn is_undef(self: HIRBuilder, var_id: HIR.VarId) => bool {
+        var varr = self.vars[var_id];
+        if (varr.kind != HIR.Var.Kind.Common) {
+            return false;
+        }
+
+        var decl_id = varr$cast(HIR.VarCommon).decl;
+        var decl = self.decls[decl_id];
+        return decl.kind == HIR.Decl.Kind.Error;
+    }
+
     fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
         var varr = self.vars[var_id];
 

@@ -37,7 +37,7 @@ class Namespace {
         self.parents = Namespace[0];
         self.name = name;
 
-        if (parent == null) {
+        if (parent != null) {
             self.parents ..= parent;
             self.fullname = parent.fullname .. "." .. name;
         } else {

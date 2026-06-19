@@ -488,12 +488,28 @@ static ketl_hir_var_id_t push_hir_assign(ketl_parser_context* p_context, ketl_hi
     return lhs_var;
 }
 
+static void push_hir_instr(ketl_parser_context* p_context, ketl_hir_tag_t tag) {
+    ketl_hir_header_t header = {
+        .tag = tag,
+        .file_symbol = p_context->s_filename,
+    };
+    ketl_hir_builder_insert_instr(&p_context->hir_builder, header,  NULL);
+}
+
 static void push_hir_return_value(ketl_parser_context* p_context, ketl_hir_var_id_t var_id, ketl_hir_expr_info_t expr_info) {
     if (p_context->hir_builder.p_return_type != NULL) {
         var_id = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_context->hir_builder.p_return_type), 
             expr_info, var_id, false);
     }
 
+    if (GET_VAR(var_id).type != KETL_HIR_USED_TYPE_UNKNOWN) {
+        ketl_type* p_type = GET_TYPE(GET_VAR(var_id).type);
+        if (p_type->kind == KETL_TYPE_PRIMITIVE && p_type->size == 0) {
+            errorf(expr_info.source_offset, expr_info.length, "Can't use void-like types for return value.");
+            push_hir_instr(p_context, KETL_HIR_RETURN);
+            return;
+        }
+    }
     ketl_hir_tag_t type_tag = GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN ? KETL_HIR_UNDEF : ketl_hir_get_type_tag_from_type(GET_TYPE(GET_VAR(var_id).type));
 
     ketl_hir_header_t header = {
@@ -542,6 +558,12 @@ static ketl_hir_var_id_t push_hir_variable_declaration(ketl_parser_context* p_co
         return id_var;
     }
 
+    ketl_type* p_type = GET_TYPE(GET_VAR(id_var).type);
+    if (p_type->kind == KETL_TYPE_PRIMITIVE && p_type->size == 0) {
+        errorf(expr_info.source_offset, expr_info.length, "Can't use void-like types for variables");
+        return id_var;
+    }
+
     push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, id_var, init_var);
     return id_var;
 }
@@ -569,8 +591,12 @@ static ketl_hir_var_id_t push_hir_call(ketl_parser_context* p_context, ketl_hir_
 
     for (uint16_t i = 0; i < arguments_count; ++i) {
         ketl_hir_var_id_t* p_arg = &p_context->v_argument_stack.p_data[p_context->v_argument_stack.size - arguments_count + i];
+        ketl_hir_expr_info_t arg_expr_info = GET_VAR(*p_arg).expr_info;
+        if (GET_VAR(*p_arg).uid == KETL_HIR_VAR_UID_INDEX) {
+            errorf(arg_expr_info.source_offset, arg_expr_info.length, "Can't use indexing as argument for call.");
+        }
         *p_arg = trying_to_cast_rhs_to_lhs(p_context, ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_function_signature->a_parameters[i + 1].p_type), 
-            GET_VAR(*p_arg).expr_info, *p_arg, false);
+            arg_expr_info, *p_arg, false);
     }
     
     ketl_hir_header_t header = {
@@ -692,14 +718,6 @@ static ketl_hir_var_id_t push_hir_new_slice(ketl_parser_context* p_context, ketl
 
     ketl_hir_builder_insert_instr(&p_context->hir_builder, header, (uint8_t*)&instr);
     return output_var;
-}
-
-static void push_hir_instr(ketl_parser_context* p_context, ketl_hir_tag_t tag) {
-    ketl_hir_header_t header = {
-        .tag = tag,
-        .file_symbol = p_context->s_filename,
-    };
-    ketl_hir_builder_insert_instr(&p_context->hir_builder, header,  NULL);
 }
 
 typedef ketl_hir_var_id_t(*ketl_parse_unary_rtl)(ketl_parser_context*);

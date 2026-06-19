@@ -8,6 +8,7 @@ from variable import VariableDecl
 from type_base import Type
 from type import TypePrimitive
 from type import TypeEnum
+from type import TypeClass
 from type import Types
 from value import Value
 from token import Token
@@ -246,8 +247,7 @@ class Parser {
         if (token.type == Token.Type.ID) {
             var name = context->token_str(token);
             var var_id = context.hir_builder->get_var(context.namespace, name, name, src_info);
-            // TODO replace check for type with check for error var
-            if (context.hir_builder->get_type(var_id) == null) {
+            if (context.hir_builder->is_undef(var_id)) {
                 context->error(src_info.source_offset, src_info.length, "Undeclared variable.");
             }
 
@@ -796,86 +796,96 @@ class Parser {
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
-/*
-    fn parse_class_declaration_inner(context: Context, ketl_named_variable_type_info_t* p_class_fields, uint32_t* p_class_field_count) {
-        ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
-            case Token.Type.TERMINATION_CHARACTER: 
-                token_advance(p_context); // ;
-                return;
-            case Token.Type.VAR    : {
-                token_advance(p_context); // var
-                ketl_token_t field_literal = CURRENT_TOKEN(0);
-                p_class_fields[*p_class_field_count].p_name = TOKEN_STRING(field_literal);
-                p_class_fields[*p_class_field_count].name_length = TOKEN_LENGTH(field_literal);
-                token_advance(p_context); // id
-
-                token_consume(p_context, Token.Type.COLON, "Expected ':' after field name.");
-
-                p_class_fields[*p_class_field_count].info.p_type = parse_type(p_context);
-
-                token_consume(p_context, Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
-
-                ++(*p_class_field_count);
+    fn parse_class_declaration_inner(context: Context, class_fields: VariableDecl[]) {
+        while (true) switch (context->current_token(0).type) {
+            case Token.Type.TERMINATION_CHARACTER => { 
+                context->token_advance(); // ;
                 return;
             }
-            case Token.Type.SHARED: {
-                parse_var_declaration(p_context);
+            case Token.Type.VAR => {
+                context->token_advance(); // var
+
+                var field = VariableDecl();
+
+                var field_token = context->current_token(0);
+                field.name = context->token_str(field_token);
+                context->token_advance(); // id
+
+                context->token_consume(Token.Type.COLON, "Expected ':' after field name.");
+
+                field.type = context->parse_type();
+
+                context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
+
+                class_fields ..= field;
                 return;
             }
-            case Token.Type.EXTEND: {
-                token_advance(p_context); // extend
-                p_class_fields[*p_class_field_count].info.p_type = parse_type(p_context);
-
-                token_consume(p_context, Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
-
-                ++(*p_class_field_count);
+            case Token.Type.SHARED => {
+                context->parse_var_declaration();
                 return;
             }
-            case Token.Type.CIMPORT: parse_cimport_declaration (p_context); return;
-            case Token.Type.FN     : parse_function_declaration(p_context); return;
-            case Token.Type.CLASS  : parse_class_declaration   (p_context); return;
-            case Token.Type.ENUM   : parse_enum_declaration    (p_context); return;
-            case Token.Type.MIMIC  : parse_mimic_declaration   (p_context); return;
-            case Token.Type.EXPORT : {
-                token_advance(p_context);
-                if (p_context->export) {
-                    ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
-                    errorf(expr_info.source_offset, expr_info.length, "Excessive 'export' operator.");
+            case Token.Type.EXTEND => {
+                context->token_advance(); // extend
+
+                var field = VariableDecl();
+
+                field.type = context->parse_type();
+
+                context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
+
+                class_fields ..= field;
+                return;
+            }
+            //case Token.Type.CIMPORT => { context->parse_cimport_declaration (); return; }
+            case Token.Type.FN      => { context->parse_function_declaration(); return; }
+            case Token.Type.CLASS   => { context->parse_class_declaration   (); return; }
+            case Token.Type.ENUM    => { context->parse_enum_declaration    (); return; }
+            case Token.Type.MIMIC   => { context->parse_mimic_declaration   (); return; }
+            case Token.Type.EXPORT  => {
+                context->token_advance();
+                if (context.exxport) {
+                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
                     continue;
                 }
-                p_context->export = true;
-                parse_class_declaration_inner(p_context, p_class_fields, p_class_field_count);
-                p_context->export = false;
+                context.exxport = true;
+                context->parse_class_declaration_inner(class_fields);
+                context.exxport = false;
                 return;
             }
-            case Token.Type.CEXPORT: {
-                token_advance(p_context);
-                if (p_context->cexport) {
-                    ketl_hir_expr_info_t expr_info = token_extract_info(CURRENT_TOKEN(1));
-                    errorf(expr_info.source_offset, expr_info.length, "Excessive 'cexport' operator.");
+            case Token.Type.CEXPORT => {
+                context->token_advance();
+                if (context.cexxport) {
+                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
                     continue;
                 }
-                p_context->cexport = true;
-                parse_class_declaration_inner(p_context, p_class_fields, p_class_field_count);
-                p_context->cexport = false;
+                context.cexxport = true;
+                context->parse_class_declaration_inner(class_fields);
+                context.cexxport = false;
                 return;
             }
-            case Token.Type.IMPORT : 
-                errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
-                parse_import(p_context);
+            case Token.Type.IMPORT => { 
+                var keyword_token = context->current_token(0);
+                context->error(keyword_token.offset, keyword_token.length, "'import' is not supported inside class declaration.");
+                context->parse_import();
                 return;
-            case Token.Type.FROM   : 
-                errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "'import' is not supported inside class declaration.");
-                parse_from_import(p_context);
+            }
+            case Token.Type.FROM   => { 
+                var keyword_token = context->current_token(0);
+                context->error(keyword_token.offset, keyword_token.length, "'import' is not supported inside class declaration.");
+                context->parse_from_import();
                 return;
-            default: 
-                errorf(CURRENT_TOKEN(0).offset, CURRENT_TOKEN(0).length, "Statements are not supported inside class declaration.");
-                parse_statement(p_context);
+            }
+            default => {
+                var keyword_token = context->current_token(0);
+                context->error(keyword_token.offset, keyword_token.length, "Statements are not supported inside class declaration.");
+                context->parse_statement();
                 return;
+            }
         }
-    }//*/
+    }
     
-    /*
     fn parse_class_declaration(context: Context) => StatementInfo {
         context->token_advance(); // class
         var id_token = context->current_token(0);
@@ -883,37 +893,38 @@ class Parser {
 
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after class name.");
 
-        var class_type = ;
-        var class_namespace = Namespace.construct();
-        ketl_namespace_node* p_class_node = ketl_state_forward_define_class(p_context->p_state, p_context->p_namespace, 
-            TOKEN_STRING(id_token), TOKEN_LENGTH(id_token), &p_class_namespace, p_context->export);
+        var name = context->token_str(id_token);
+        var class_type = TypeClass.construct(name, context.namespace);
+        var class_namespace = class_type.namespace;
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        namespace_node.value.kind = Value.Kind.Type;
+        namespace_node.value.value = class_type$cast(raw)$cast(u64);
 
-        ketl_namespace* p_old_namespace = p_context->p_namespace;
-        p_context->p_namespace = p_class_namespace;
+        var old_namespace = context.namespace;
+        context.namespace = class_namespace;
 
-        bool old_export = p_context->export;
-        p_context->export = false;
+        var old_export = context.exxport;
+        context.exxport = false;
 
-        push_symbol_map(p_context);
+        // context->push_symbol_map();
 
-        ketl_named_variable_type_info_t a_class_fields[256] = {0};
-        uint32_t class_field_count = 0;
+        var class_fields = VariableDecl[0];
 
-        while (!token_check(p_context, Token.Type.CURLY_RIGHT) && !token_check(p_context, Token.Type.EOF)) {
-            parse_class_declaration_inner(p_context, a_class_fields, &class_field_count);
+        while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
+            context->parse_class_declaration_inner(class_fields);
         }
 
         // context->pop_symbol_map();
         
-        p_context->export = old_export;
-        p_context->p_namespace = p_old_namespace;
+        context.exxport = old_export;
+        context.namespace = old_namespace;
 
-        ketl_state_post_define_class(p_context->p_state, p_class_node, a_class_fields, class_field_count);
+        class_type->finalize(class_fields);
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' in the end of a class declaration.");
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-    }//*/
+    }
     
     fn parse_enum_declaration(context: Context) => StatementInfo {
         
@@ -1029,7 +1040,7 @@ class Parser {
             case Token.Type.VAR     => return context->parse_var_declaration();
             //case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
-            //case Token.Type.CLASS   => return context->parse_class_declaration();
+            case Token.Type.CLASS   => return context->parse_class_declaration();
             case Token.Type.ENUM    => return context->parse_enum_declaration();
             case Token.Type.MIMIC   => return context->parse_mimic_declaration();
             case Token.Type.EXPORT => {
