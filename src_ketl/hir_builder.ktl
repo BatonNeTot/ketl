@@ -77,6 +77,11 @@ class HIRBuilder {
 
     fn is_undef(self: HIRBuilder, var_id: HIR.VarId) => bool {
         var varr = self.vars[var_id];
+
+        if (varr.kind == HIR.Var.Kind.Error) {
+            return true;
+        }
+
         if (varr.kind != HIR.Var.Kind.Common) {
             return false;
         }
@@ -239,7 +244,7 @@ class HIRBuilder {
         return instr.dst;
     }
 
-    export fn push_hir_call(self: HIRBuilder, callee_id: HIR.VarId, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
+    export fn push_call(self: HIRBuilder, callee_id: HIR.VarId, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
         var type = self->get_type(callee_id);
         if (type == null) {
             return self->push_temp_var(src_info);
@@ -266,6 +271,18 @@ class HIRBuilder {
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(return_type, instr);
         instr.callee = callee_id;
+        instr.args = arguments;
+        self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+    
+    export fn push_new(self: HIRBuilder, callee_type: Type, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
+        var instr = HIR.New();
+        instr.tag = HIR.Tag.NEW_CLASS;
+        instr.src_info = src_info;
+        instr.output = self->push_instr_result_var(callee_type, instr);
+        instr.type = callee_type;
         instr.args = arguments;
         self->get_current_block() ..= instr;
 
@@ -371,6 +388,16 @@ class HIRBuilder {
         self.decls ..= temp_decl;
 
         return self->push_common_var(type, src_info, temp_decl_id);
+    }
+
+    export fn push_error_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
+        var var_id = self.vars.size$cast(HIR.VarId);
+        var varr = HIR.Var();
+        varr.kind = HIR.Var.Kind.Error;
+        varr.src_info = src_info;
+        self.vars ..= varr;
+
+        return var_id;
     }
 
     // TODO replace usage for errors with common var of decl? create var of error?

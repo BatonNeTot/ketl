@@ -306,26 +306,24 @@ class Parser {
             var decl = context.hir_builder.decls[callee$cast(HIR.VarCommon).decl];
 
             if (decl.kind == HIR.Decl.Kind.Global && decl$cast(HIR.DeclGlobal).node.value.kind == Value.Kind.Type) {
-                assert(false);
-                /*
-                ketl_hir_var_info_t* p_callee_info = get_var_info(p_context, p_callee->info);
-                ketl_namespace_node* p_callee_node = ketl_namespace_find_by_index(p_callee_info->p_namespace, p_callee_info->namespace_node_index);
-                if (p_callee_node->variable.kind != KETL_VARIABLE_TYPE) {
-                    errorf(expr_info.source_offset, expr_info.length, "Trying to call an improper object.");
-                    return push_temp_var(p_context, expr_info);
+                var callee_node = decl$cast(HIR.DeclGlobal).node;
+
+                if (callee_node.value.kind != Value.Kind.Type) {
+                    context->error(src_info.source_offset, src_info.length, "Trying to call an improper object.");
+                    return context.hir_builder->push_error_var(src_info);
                 }
-                ketl_type* p_callee_type = p_callee_node->variable.p_pointer;
-                if (p_callee_type->kind != KETL_TYPE_CLASS) {
-                    errorf(expr_info.source_offset, expr_info.length, "Only class objects can be constructed through calling a type.");
-                    return push_temp_var(p_context, expr_info);
+
+                var callee_type = callee_node.value.value$cast(raw)$cast(Type);
+                if (callee_type.kind != Type.Kind.Class) {
+                    context->error(src_info.source_offset, src_info.length, "Only class objects can be constructed through calling a type.");
+                    return context.hir_builder->push_error_var(src_info);
                 }
-                
-                return push_hir_new(p_context, callee, argument_count, expr_info);
-                */
+
+                return context.hir_builder->push_new(callee_type$cast(TypeClass), arguments, src_info);
             }
         }
 
-        return context.hir_builder->push_hir_call(callee_id, arguments, src_info);
+        return context.hir_builder->push_call(callee_id, arguments, src_info);
     }
 
     fn parse_unary_rtl(context: Context) => HIR.VarId {
