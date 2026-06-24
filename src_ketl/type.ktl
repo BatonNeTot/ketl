@@ -200,12 +200,26 @@ class Types {
             return lhs;
         }
 
-        common.print("can't find common types: ");
-        common.print(lhs->get_name());
-        common.print(", ");
-        common.println(rhs->get_name());
+        if (lhs.kind == Type.Kind.Primitive && rhs.kind == Type.Kind.Primitive) {
+            var lhs_primitive = lhs$cast(TypePrimitive);
+            var rhs_primitive = rhs$cast(TypePrimitive);
 
-        assert(false);
+            if (!lhs_primitive.is_integer || !rhs_primitive.is_integer) {
+                return null;
+            }
+
+            if (lhs_primitive.is_signed != rhs_primitive.is_signed) {
+                assert(false);
+                return null;
+            }
+
+            if (lhs.size > rhs.size) {
+                return lhs;
+            } else {
+                return rhs;
+            }
+        }
+
         return null;
     }
 

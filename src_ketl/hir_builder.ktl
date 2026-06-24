@@ -8,6 +8,7 @@ import common
 
 from type_base import Type
 from type import Types
+from type import TypePrimitive
 from type import TypeFunction
 from value import Value
 
@@ -94,10 +95,6 @@ class HIRBuilder {
     fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
         var varr = self.vars[var_id];
 
-        if (varr.kind == HIR.Var.Kind.Common) {
-            return varr$cast(HIR.VarWithType).type;
-        }
-
         if (varr.kind == HIR.Var.Kind.Literal) {
             var type = varr$cast(HIR.VarWithType).type;
             if (type != null) {
@@ -107,40 +104,49 @@ class HIRBuilder {
             return Types.instance.type_i64;
         }
 
-        // TODO
-        assert(false);
-        return null;
+        return varr->get_type();
     }
 
     fn get_common_type(self: HIRBuilder, lhs_id: HIR.VarId, rhs_id: HIR.VarId) => Type {
         var lhs = self.vars[lhs_id];
         var rhs = self.vars[rhs_id];
 
-        if (lhs.kind == HIR.Var.Kind.Literal && rhs.kind == HIR.Var.Kind.Literal) {
-            var lhs_type = lhs$cast(HIR.VarWithType).type;
-            var rhs_type = rhs$cast(HIR.VarWithType).type;
+        var lhs_type = lhs->get_type();
+        var rhs_type = rhs->get_type();
+
+        var is_lhs_integer = lhs.kind == HIR.Var.Kind.Literal || (lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).is_integer) || lhs_type.kind == Type.Kind.Enum;
+        var is_rhs_integer = rhs.kind == HIR.Var.Kind.Literal || (rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).is_integer) || rhs_type.kind == Type.Kind.Enum;
+
+        if (is_lhs_integer || is_rhs_integer) {
             if (lhs_type != null && rhs_type != null) {
                 return Types.get_common_type(lhs_type, rhs_type);
             }
+
+            if (lhs_type == null && rhs_type == null) {
+                // TODO check value for range
+                return Types.instance.type_i64;
+            }
             // TODO check if other literal can be stored in the selected literal type
             if (lhs_type != null) {
-                return self->get_type(lhs_id);
+                return lhs_type;
             } else {
-                return self->get_type(rhs_id);
+                return rhs_type;
             }
         }
 
         return Types.get_common_type(self->get_type(lhs_id), self->get_type(rhs_id));
     }
 
-    fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, implicit: bool) => HIR.VarId {
+    fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
         if (target_type == null) {
+            assert(false);
             return var_id;
         }
 
         var type = self->get_type(var_id);
 
         if (type == null) {
+            assert(false);
             return var_id;
         }
 
@@ -148,6 +154,47 @@ class HIRBuilder {
             return var_id;
         }
 
+        var varr = self.vars[var_id];
+
+        if (varr.kind == HIR.Var.Kind.Literal) {
+            if (target_type.kind == Type.Kind.Primitive) {
+                var cast_var_id = self.vars.size$cast(HIR.VarId);
+                var cast_var = HIR.VarCast();
+                self.vars ..= cast_var;
+
+                cast_var.kind = HIR.Var.Kind.Cast;
+                cast_var.src_info = src_info;
+
+                cast_var.type = target_type;
+                cast_var.casted = var_id;
+
+                return cast_var_id;
+            }
+        }
+
+        if (type.kind == Type.Kind.Primitive) {
+            if (target_type.kind == Type.Kind.Primitive) {
+                var lhs_type_primitive = target_type$cast(TypePrimitive);
+                var rhs_type_primitive = type$cast(TypePrimitive);
+                if ((rhs_type_primitive.size > lhs_type_primitive.size || rhs_type_primitive.is_signed != lhs_type_primitive.is_signed) && !explicit) {
+                    self->error(src_info.source_offset, src_info.length, "Can't cast type '" .. 
+                        rhs_type_primitive->get_name() .. "' to type '" .. lhs_type_primitive->get_name() .. "' implicitly.");
+                }
+
+                var cast_var_id = self.vars.size$cast(HIR.VarId);
+                var cast_var = HIR.VarCast();
+                self.vars ..= cast_var;
+
+                cast_var.kind = HIR.Var.Kind.Cast;
+                cast_var.src_info = src_info;
+
+                cast_var.type = target_type;
+                cast_var.casted = var_id;
+
+                return cast_var_id;
+            }
+        }
+        
         assert(false);
         return (-1)$cast(HIR.VarId);
     }
@@ -180,6 +227,10 @@ class HIRBuilder {
     }
     
     export fn push_unary_op(self: HIRBuilder, tag: HIR.Tag, var_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(var_id)) {
+            return self->push_error_var(src_info);
+        }
+
         var type = self->get_type(var_id);
         // TODO deduce
         var arg_type = type;
@@ -188,7 +239,8 @@ class HIRBuilder {
             output_type = Types.instance.type_bool;
         }
 
-        var_id = self->cast_to_type(var_id, arg_type, false);
+        var arg_src_info = self.vars[var_id].src_info;
+        var_id = self->cast_to_type(var_id, arg_type, arg_src_info, false);
 
         var instr = HIR.UnaryOp();
         instr.tag = tag;
@@ -201,7 +253,22 @@ class HIRBuilder {
     }
     
     export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(lhs) || self->is_undef(rhs)) {
+            return self->push_error_var(src_info);
+        }
+
+        // TODO check if both literals and calc
+
         var common_type = self->get_common_type(lhs, rhs);
+
+        if (common_type == null) {
+            var lhs_type = self->get_type(lhs);
+            var rhs_type = self->get_type(rhs);
+            self->error(src_info.source_offset, src_info.length, "Can't do operator '" .. HIR.get_str_representation(tag) .. "' over '" 
+                .. lhs_type->get_name() .. "' and '" .. rhs_type->get_name() .. "'.");
+            return self->push_error_var(src_info);
+        }
+
         // TODO deduce
         var arg_type = common_type;
         var output_type = common_type;
@@ -215,8 +282,10 @@ class HIRBuilder {
                 => output_type = Types.instance.type_bool;
         }
 
-        lhs = self->cast_to_type(lhs, arg_type, false);
-        rhs = self->cast_to_type(rhs, arg_type, false);
+        var lhs_src_info = self.vars[lhs].src_info;
+        var rhs_src_info = self.vars[rhs].src_info;
+        lhs = self->cast_to_type(lhs, arg_type, lhs_src_info, false);
+        rhs = self->cast_to_type(rhs, arg_type, rhs_src_info, false);
 
         var instr = HIR.BinaryOp();
         instr.tag = tag;
@@ -230,8 +299,13 @@ class HIRBuilder {
     }
     
     export fn push_assign(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(lhs) || self->is_undef(rhs)) {
+            return self->push_error_var(src_info);
+        }
+
         var type = self->get_type(lhs);
-        rhs = self->cast_to_type(rhs, type, false);
+        var rhs_src_info = self.vars[rhs].src_info;
+        rhs = self->cast_to_type(rhs, type, rhs_src_info, false);
 
         var instr = HIR.Assign();
         instr.tag = tag;
@@ -245,21 +319,22 @@ class HIRBuilder {
     }
 
     export fn push_call(self: HIRBuilder, callee_id: HIR.VarId, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
-        var type = self->get_type(callee_id);
-        if (type == null) {
-            return self->push_temp_var(src_info);
+        if (self->is_undef(callee_id)) {
+            return self->push_error_var(src_info);
         }
+
+        var type = self->get_type(callee_id);
 
         if (type.kind != Type.Kind.Function && type.kind != Type.Kind.CFunction) {
             self->error(src_info.source_offset, src_info.length, "Only functions can be called.");
-            return self->push_temp_var(src_info);
+            return self->push_error_var(src_info);
         }
         var function_type = type$cast(TypeFunction);
         var function_signature = function_type.signature;
 
         if (function_signature.parameters.size - 1 != arguments.size) {
             self->error(src_info.source_offset, src_info.length, "Arguments count does not match function parameters count: " .. arguments.size$cast(str) .. " instead of " .. (function_signature.parameters.size - 1)$cast(str) .. ".");
-            return self->push_temp_var(src_info);
+            return self->push_error_var(src_info);
         }
 
         var return_type = function_signature.parameters[0];
@@ -334,28 +409,36 @@ class HIRBuilder {
         return decl_id;
     }
 
-    export fn push_literal_number(self: HIRBuilder, value: u64, src_info: HIR.SrcInfo) => HIR.VarId {
-        var literal_var_id = self.vars.size$cast(HIR.VarId);
+    export fn push_literal_number_of_type(self: HIRBuilder, value: u64, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
+        // TODO check if type big enough for a value
 
+        var literal_var_id = self.vars.size$cast(HIR.VarId);
         var literal_var = HIR.VarLiteral();
-        literal_var.kind = HIR.Var.Kind.Literal;
-        literal_var.type = null;
-        literal_var.src_info = src_info;
-        literal_var.value = value;
         self.vars ..= literal_var;
 
+        literal_var.kind = HIR.Var.Kind.Literal;
+        literal_var.src_info = src_info;
+
+        literal_var.type = null;
+        literal_var.value = value;
+
         return literal_var_id;
+    }
+
+    export fn push_literal_number(self: HIRBuilder, value: u64, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_literal_number_of_type(value, null, src_info);
     }
 
     fn push_common_var(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo, decl_id: HIR.DeclId) => HIR.VarId {
         var var_id = self.vars.size$cast(HIR.VarId);
         var varr = HIR.VarCommon();
+        self.vars ..= varr;
+
         varr.kind = HIR.Var.Kind.Common;
+        varr.src_info = src_info;
 
         varr.type = type;
-        varr.src_info = src_info;
         varr.decl = decl_id;
-        self.vars ..= varr;
 
         return var_id;
     }
@@ -393,14 +476,14 @@ class HIRBuilder {
     export fn push_error_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id = self.vars.size$cast(HIR.VarId);
         var varr = HIR.Var();
+        self.vars ..= varr;
+
         varr.kind = HIR.Var.Kind.Error;
         varr.src_info = src_info;
-        self.vars ..= varr;
 
         return var_id;
     }
 
-    // TODO replace usage for errors with common var of decl? create var of error?
     export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
         return self->push_temp_var_of_type(src_info, null);
     }
@@ -467,7 +550,7 @@ class HIRBuilder {
 
         if (bucket == null) {
             self->error(src_info.source_offset, src_info.length, "Overriding existing variable.");
-            return self->push_temp_var(src_info);
+            return self->push_error_var(src_info);
         }
 
         var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
@@ -489,11 +572,12 @@ class HIRBuilder {
     export fn push_builtin_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id = self.vars.size$cast(HIR.VarId);
         var varr = HIR.VarBuiltinType();
-        varr.kind = HIR.Var.Kind.BuiltinType;
-
-        varr.src_info = src_info;
-        varr.value = type;
         self.vars ..= varr;
+
+        varr.kind = HIR.Var.Kind.BuiltinType;
+        varr.src_info = src_info;
+
+        varr.value = type;
 
         return var_id;
     }
@@ -544,8 +628,7 @@ class HIRBuilder {
                 var decl = HIR.Decl();
                 decl.kind = HIR.Decl.Kind.Error;
                 decl.name = name;
-                self.decls ..= decl;
-            }
+                self.decls ..= decl;}
 
             bucket = self->last_name_to_decl()->get_or_insert(
                     fullname, decl_id$cast(u64)$cast(raw));

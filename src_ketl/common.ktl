@@ -1,10 +1,10 @@
 //🫖ketl
 
 export class ArrayHeader {
-    var data : raw;
-    var capacity : u64;
-    var size : u64;
-    var is_slice : bool;
+    var data: raw;
+    var capacity: u64;
+    var size: u64;
+    var is_slice: bool;
 }
 
 var prime_capacities = u32[31]{
@@ -289,7 +289,7 @@ export fn align_forward(size: u64, alignment: u64) => u64 {
 }
 
 export class StringBuffer {
-    var buffer : str;
+    var buffer: str;
 
     export fn construct() => StringBuffer {
         var obj = StringBuffer();
@@ -297,16 +297,36 @@ export class StringBuffer {
         return obj;
     }
 
-    export fn write(buffer: StringBuffer, message : str) => StringBuffer {
+    export fn write(buffer: StringBuffer, message: str) => StringBuffer {
         buffer.buffer ..= message;
         return buffer;
     }
 } 
 
+fn str_padding(size: u32) => str {
+    var result = char[size];
+    while (size > 0) {
+        size -= 1;
+        result[size] = ' ';
+    }
+    return result;
+} 
+
+fn to_str_padded(value: u32, padding: u32) => str {
+    var result = value$cast(str);
+    if (padding <= result.size) {
+        return result;
+    }
+
+    padding -= result.size$cast(u32);
+
+    return result .. str_padding(padding);
+}
+
 export class FilePointer {
-    var offset : u32;
-    var pointer : u32;
-    var length : u32;
+    var offset: u32;
+    var pointer: u32;
+    var length: u32;
 
     export fn construct(offset: u32, pointer: u32, length: u32) => FilePointer {
         var obj = FilePointer();
@@ -317,7 +337,7 @@ export class FilePointer {
     }
 }
 
-cimport printf(message : cstr)
+cimport printf(message: cstr)
 
 export fn print(message: str) {
     printf(message$cast(cstr));
@@ -337,7 +357,7 @@ export class File {
     cimport ferror(file: File) => i32
     cimport fclose(file: File)
 
-    cimport malloc(size : u64) => raw
+    cimport malloc(size: u64) => raw
 
     class IntPointer {
         var value: i32;
@@ -384,8 +404,8 @@ export class File {
 } 
 
 export class LogAccum {
-    var err : StringBuffer;
-    var full : StringBuffer;
+    var err: StringBuffer;
+    var full: StringBuffer;
 
     export fn construct() => LogAccum {
         var obj = LogAccum();
@@ -404,26 +424,26 @@ export class LogAccum {
     }
 
     export class LogInfo {
-        var lines_offsets : u32[];
-        var filename : str;
-        var source : str;
+        var lines_offsets: u32[];
+        var filename: str;
+        var source: str;
 
-        export fn get_line_offset(info : LogInfo, line : u32) => u32 {
+        export fn get_line_offset(info: LogInfo, line: u32) => u32 {
             if (line >= info.lines_offsets.size) {
                 return info.source.size$cast(u32) - 1;
             }
             return info.lines_offsets[line];
         }
 
-        export fn find_line(info : LogInfo, offset : u32) => u32 {
+        export fn find_line(info: LogInfo, offset: u32) => u32 {
             assert(info.lines_offsets.size < 5000);
-            var lhs : u32 = 0;
+            var lhs: u32 = 0;
             // TODO make cast deduce type from the left side
-            var rhs : u32 = info.lines_offsets.size$cast(u32);
+            var rhs: u32 = info.lines_offsets.size$cast(u32);
 
             while (lhs + 1 < rhs) {
-                var mid : u32 = (lhs + rhs) / 2;
-                var mid_offset : u32 = info.lines_offsets[mid];
+                var mid: u32 = (lhs + rhs) / 2;
+                var mid_offset: u32 = info.lines_offsets[mid];
                 if (mid_offset < offset) {
                     lhs = mid;
                 } else if (offset < mid_offset) {
@@ -436,20 +456,69 @@ export class LogAccum {
         }
     }
 
-    export fn error(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
-        var line = info->find_line(pointer.offset);
-        var offset = pointer.offset - info->get_line_offset(line);
+    export fn error(accum: LogAccum, info: LogInfo, pointer: FilePointer, message: str) {
+        var start_line = info->find_line(pointer.offset);
+        var start_col = pointer.offset - info->get_line_offset(start_line);
 
-        accum.err->write(info.filename)
-            ->write(":")->write((line + 1)$cast(str))
-            ->write(":")->write((offset + 1)$cast(str))
-            ->write(": error: ")->write(message)
+        accum.err
+            ->write(info.filename)
+            ->write(":")->write((start_line + 1)$cast(str))
+            ->write(":")->write((start_col + 1)$cast(str))
+            ->write(": error: ")->write(message);
+            
+        var end_offset = pointer.offset + pointer.length + 1;
+        var end_line = info->find_line(end_offset - 1) + 1;
+
+        var line = start_line;
+        while (line != end_line) {
+            var start_line_offset = info->get_line_offset(line);
+            var end_line_offset = info->get_line_offset(line + 1);
+
+            // TODO check for all new line configs
+            if (end_line_offset > 0 && info.source[end_line_offset - 1] == '\n') {
+                end_line_offset -= 1;
+            }
+
+            accum.err
+                ->write("\n ")
+                ->write((line + 1)->to_str_padded(4))
+                ->write(" |")
+                ->write(info.source[start_line_offset:end_line_offset]);
+
+            accum.err
+                ->write("\n      |");
+                
+            var select_start = start_line_offset;
+            var select_end = end_offset;
+
+            if (line == start_line) {
+                accum.err
+                    ->write(start_col->str_padding())
+                    ->write("^");
+                select_start = start_line_offset + 1 + start_col;
+            }
+            
+            if (select_end > end_line_offset) {
+                select_end = end_line_offset;
+            }
+
+            if (select_start <= select_end) {
+                var i = select_start;
+                while (i != select_end) {
+                    accum.err
+                        ->write("~");
+                    i += 1;
+                }
+            }
+
+            line += 1;
+        }
+
+        accum.err
             ->write("\n");
-
-        // TODO show the source and error placement
     }
 
-    export fn warning(accum : LogAccum, info : LogInfo, pointer : FilePointer, message : str) {
+    export fn warning(accum: LogAccum, info: LogInfo, pointer: FilePointer, message: str) {
         // TODO
     }
 }
