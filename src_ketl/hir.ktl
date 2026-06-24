@@ -257,7 +257,7 @@ export class HIR {
             Literal,
             BuiltinType,
             Cast,
-            //Field,
+            Field,
             //Index,
         } 
 
@@ -297,6 +297,12 @@ export class HIR {
     export class VarCast {
         extend VarWithType;
         var casted: VarId;
+    }
+
+    export class VarField {
+        extend VarWithType;
+        var indexed: VarId;
+        var index: VarId;
     }
 
     export class Const {
@@ -345,6 +351,21 @@ export class HIR {
         }
     }
 
+    fn get_str_representation(tag: HIR.Tag) => str {
+        switch (tag) {
+            case HIR.Tag.PLUS   => return "+";
+            case HIR.Tag.MINUS  => return "-";
+
+            case HIR.Tag.MULTY  => return "*";
+            case HIR.Tag.DIVIDE => return "/";
+            case HIR.Tag.MOD    => return "%";
+            
+            case HIR.Tag.ASSIGN => return "=";
+        }
+
+        return null;
+    }
+
     fn print_instr(hir: HIR, instr: HIR.Instr) {
         switch (instr.tag) {
             default => {
@@ -369,14 +390,9 @@ export class HIR {
                 hir->print_var(hir_info.output);
                 common.print(" = ");
                 hir->print_var(hir_info.lhs);
-                switch (instr.tag) {
-                    case HIR.Tag.PLUS => common.print(" + ");
-                    case HIR.Tag.MINUS => common.print(" - ");
-
-                    case HIR.Tag.MULTY => common.print(" * ");
-                    case HIR.Tag.DIVIDE => common.print(" / ");
-                    case HIR.Tag.MOD => common.print(" % ");
-                }
+                common.print(" ");
+                common.print(get_str_representation(instr.tag));
+                common.print(" ");
                 hir->print_var(hir_info.rhs);
             }
 

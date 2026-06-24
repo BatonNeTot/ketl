@@ -112,7 +112,6 @@ export class Type {
     }
 
     export fn get_name(type: Type) => str {
-        
         if (type == null) {
             return "<null>";
         }

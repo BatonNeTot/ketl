@@ -569,6 +569,16 @@ export class ASMX86 {
 
                 return self;
             }
+
+            export fn error() => ArgInfo {
+                var self = ArgInfo();
+
+                self.stack_offset = (-1)$cast(u32);
+                self.name = "<undefined>";
+
+                return self;
+            }
+
         };
 
         var hir: HIR;
@@ -702,6 +712,20 @@ export class ASMX86 {
             self.instrs ..= instr;
         }
 
+        class AsmArg {
+            enum Kind: u8 {
+                Literal,
+                OnStack,
+            }
+            var kind: Kind;
+            var size: Size;
+        }
+
+        class AsmArgLiteral {
+            extend AsmArg;
+            var value: u64;
+        }
+
         class MovArg {
             // TODO this hole class is a manifestation of hole wrong idea about converting hir to asm
             // I should do it differently
@@ -715,17 +739,16 @@ export class ASMX86 {
             fn construct(var_id: HIR.VarId, builder: Builder) => MovArg {
                 var varr = builder.hir.vars[var_id];
 
-                // TODO
-                /*
-                while (var.uid == KETL_HIR_VAR_UID_CAST) {
-                    var_id = var.cast_target;
-                    var = p_builder->p_hir->p_vars[var_id];
+                while (varr.kind == HIR.Var.Kind.Cast) {
+                    var var_cast = varr$cast(HIR.VarCast);
+                    var_id = var_cast.casted;
+                    varr = builder.hir.vars[var_id];
                 }
-                */
 
-                var decl_id: HIR.DeclId;
+                var decl_id = (-1)$cast(HIR.DeclId);
                 var decl: HIR.Decl;
                 var type: Type;
+
                 if (varr.kind == HIR.Var.Kind.Common) {
                     var var_common = varr$cast(HIR.VarCommon);
                     decl_id = var_common.decl;
@@ -794,7 +817,10 @@ export class ASMX86 {
 
         fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
             var rhs_type_size = rhs_type->get_stack_size()$cast(Size);
-            assert(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)));
+            if (!(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)))) {
+                self->insert_reg_rm(Tag.MOV, size, target_reg, rhs); 
+                return;
+            }
 
             if (size > rhs_type_size) {
                 if (rhs_type.kind == Type.Kind.Enum) {
@@ -997,6 +1023,10 @@ export class ASMX86 {
                 return;
             }
 
+            if (arg.decl == null || arg.decl.kind == HIR.Decl.Kind.Error) {
+                self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, ArgInfo.error()));
+                return;
+            }
             var bucket = self.variables->get_or_null(arg.decl_id);
             assert(bucket != null);
 
@@ -1036,11 +1066,18 @@ export class ASMX86 {
                     return;
                 }
 
+                if (decl.kind == HIR.Decl.Kind.Error) {
+                    self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, ArgInfo.error()), source_reg); 
+                    return;
+                }
                 var bucket = self.variables->get_or_null(var_decl_id);
                 assert(bucket != null);
 
                 self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg); 
+                return;
             }
+
+            assert(false);
 
             /*
             if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {

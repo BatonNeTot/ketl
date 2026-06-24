@@ -354,6 +354,9 @@ do {\
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,     p_raw, p_bool, KETL_HIR_U64);
     REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL, p_raw, p_bool, KETL_HIR_U64);
 
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_EQUAL,     p_bool, p_bool, KETL_HIR_U8);
+    REGISTER_BINARY_OPERATOR_EQUAL_ARG_TYPES(KETL_HIR_NOT_EQUAL, p_bool, p_bool, KETL_HIR_U8);
+
     {
         ketl_variable_type_info_t a_parameters[] = {
             { .p_type = p_none },

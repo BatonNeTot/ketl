@@ -96,6 +96,29 @@ class Parser {
         return context.hir_builder.vars[var_id];
     }
 
+    fn get_var_as_type(context: Context, var_id: HIR.VarId) => Type {
+        var type_var = context->get_var(var_id);
+        if (type_var.kind == HIR.Var.Kind.BuiltinType) {
+            return type_var$cast(HIR.VarBuiltinType).value;
+        }
+
+        if (type_var.kind != HIR.Var.Kind.Common) {
+            return null;
+        }
+        var decl_id = type_var$cast(HIR.VarCommon).decl;
+        var decl = context.hir_builder.decls[decl_id];
+
+        if (decl.kind != HIR.Decl.Kind.Global) {
+            return null;
+        }
+        var decl_global = decl$cast(HIR.DeclGlobal);
+
+        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Type) {
+            return null;
+        }
+        return decl_global.node.value.value$cast(raw);
+    }
+
     class StatementInfo {
         enum ReturnInfo : u8 {
             Empty   = 0,
@@ -299,7 +322,7 @@ class Parser {
 
     fn parse_call(context: Context, callee_id: HIR.VarId) => HIR.VarId {
         var arguments = context->parse_argument_list();
-        var callee = context.hir_builder.vars[callee_id];
+        var callee = context->get_var(callee_id);
         var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
 
         if (callee.kind == HIR.Var.Kind.Common) {
@@ -324,6 +347,55 @@ class Parser {
         }
 
         return context.hir_builder->push_call(callee_id, arguments, src_info);
+    }
+    
+    fn parse_dollar_operator(context: Context, lhs: HIR.VarId) => HIR.VarId {
+        var object = context->get_var(lhs);
+        context->token_consume(Token.Type.ID, "Expected id after meta access operator.");
+        var id_token = context->current_token(1);
+        var id = context->token_str(id_token);
+
+        var src_info =  HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(id_token));
+
+        if (context.hir_builder->is_undef(lhs)) {
+            return context.hir_builder->push_error_var(src_info);
+        }
+
+        {
+            var object_as_type = context->get_var_as_type(lhs);
+            if (object_as_type != null) {
+                if (id == "size") {
+                    var type_size = object_as_type->get_size();
+                    return context.hir_builder->push_literal_number(type_size, src_info);
+                }
+
+                if (id == "count") {
+                    if (object_as_type.kind != Type.Kind.Enum) {
+                        context->error(src_info.source_offset, src_info.length, "Only enum has meta property 'count'.");
+                        return context.hir_builder->push_error_var(src_info);
+                    }
+
+                    var enum_count = object_as_type$cast(TypeEnum).constants.size;
+                    return context.hir_builder->push_literal_number(enum_count, src_info);
+                }
+
+                context->error(src_info.source_offset, src_info.length, "There is no meta property '" .. id .. "' of type.");
+                return context.hir_builder->push_error_var(src_info);
+            }
+        }
+
+        if (id == "cast") {
+            context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'cast' meta property.");
+            var target_type = context->parse_type();
+            context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'cast' meta property parameter.");
+
+            src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+
+            return context.hir_builder->cast_to_type(lhs, target_type, src_info, true);
+        }
+
+        context->error(src_info.source_offset, src_info.length, "There is no meta property '" .. id .. "'.");
+        return context.hir_builder->push_error_var(src_info);
     }
 
     fn parse_unary_rtl(context: Context) => HIR.VarId {
@@ -354,7 +426,7 @@ class Parser {
             case Token.Type.DIVIDE           => return context.hir_builder->push_binary_op(HIR.Tag.DIVIDE,           lhs, rhs, src_info);
             case Token.Type.REMAINDER        => return context.hir_builder->push_binary_op(HIR.Tag.MOD,              lhs, rhs, src_info);
             
-            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, expr_info_merge(GET_VAR(lhs).src_info, GET_VAR(rhs).src_info));
+            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, src_info_merge(GET_VAR(lhs).src_info, GET_VAR(rhs).src_info));
 
             case Token.Type.LESS             => return context.hir_builder->push_binary_op(HIR.Tag.LESS,             lhs, rhs, src_info);
             case Token.Type.LESS_OR_EQUAL    => return context.hir_builder->push_binary_op(HIR.Tag.LESS_OR_EQUAL,    lhs, rhs, src_info);
@@ -485,35 +557,21 @@ class Parser {
 
     fn parse_type(context: Context) => Type {
         var type_var_id = context->parse_precedence(Precedence.Assigment + 1);
-        var type_var = context->get_var(type_var_id);
-        if (type_var.kind == HIR.Var.Kind.BuiltinType) {
-            return type_var$cast(HIR.VarBuiltinType).value;
-        }
+        var type = context->get_var_as_type(type_var_id);
 
-        if (type_var.kind != HIR.Var.Kind.Common) {
+        if (type == null) {
             // TODO error
             return null;
         }
-        var decl_id = type_var$cast(HIR.VarCommon).decl;
-        var decl = context.hir_builder.decls[decl_id];
 
-        if (decl.kind != HIR.Decl.Kind.Global) {
-            // TODO error
-            return null;
-        }
-        var decl_global = decl$cast(HIR.DeclGlobal);
-
-        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Type) {
-            // TODO error
-            return null;
-        }
-        return decl_global.node.value.value$cast(raw);
+        return type;
     }
 
     shared parse_rules = ParseRule[Token.Type$count]{
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                  null,             Precedence.Primary), 
         Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,            null,             Precedence.Call),
+        Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator, null,             Precedence.Call),
         Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
         //Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),
         //Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalOr),
@@ -562,7 +620,7 @@ class Parser {
         assert(context.is_global_scope);
 
         var path = "";
-        var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
+        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
         var module_token = context->current_token(0);
@@ -579,7 +637,7 @@ class Parser {
         context->token_advance(); // entity id
 
         var src_info = HIR.SrcInfo.merge(
-            start_expr_info,
+            start_src_info,
             HIR.SrcInfo.from_token(context->current_token(1)));
 
         var module_name = context->token_str(module_token);
@@ -620,7 +678,7 @@ class Parser {
         assert(context.is_global_scope);
 
         var path = "";
-        var start_expr_info = HIR.SrcInfo.from_token(context->current_token(0));
+        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
 
         context->token_advance(); // import
         var module_token = context->current_token(0);
@@ -633,7 +691,7 @@ class Parser {
         }
 
         var src_info = HIR.SrcInfo.merge(
-            start_expr_info,
+            start_src_info,
             HIR.SrcInfo.from_token(context->current_token(1)));
 
         var module_name = context->token_str(module_token);
@@ -683,10 +741,13 @@ class Parser {
             initial_value = context->parse_expression();
             src_info = HIR.SrcInfo.merge(src_info, context->get_var(initial_value).src_info);
             
-            if (type == null) {
-                type = context.hir_builder->get_type(initial_value);
-            } else {
-                initial_value = context.hir_builder->cast_to_type(initial_value, type, false);
+            if (!context.hir_builder->is_undef(initial_value)) {
+                if (type == null) {
+                    type = context.hir_builder->get_type(initial_value);
+                } else {
+                    var initial_value_src_info = context->get_var(initial_value).src_info;
+                    initial_value = context.hir_builder->cast_to_type(initial_value, type, initial_value_src_info, false);
+                }
             }
         } else {
             if (type == null) {
@@ -934,7 +995,7 @@ class Parser {
         if (context->token_match(Token.Type.COLON)) {
             var type = context->parse_type();
             if (type == null || type.kind != Type.Kind.Primitive) {
-                context->error(id_token.offset, id_token.length, "Only numeric primitive types are supported as backend for the enum.");
+                context->error(id_token.offset, id_token.length, "Only numeric primitive types are supported as backend for the enum, got '" .. type->get_name() .. "' instead.");
             } else {
                 parent_primitive = type$cast(TypePrimitive);
             }
