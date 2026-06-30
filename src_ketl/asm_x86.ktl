@@ -9,6 +9,7 @@ from value import Value
 from type import TypePrimitive
 from type import TypeEnum
 from type import TypeFunction
+from type import TypeClass
 from type import Types
 from hir import HIR
 
@@ -716,6 +717,7 @@ export class ASMX86 {
             enum Kind: u8 {
                 Literal,
                 OnStack,
+                Ref,
             }
             var kind: Kind;
             var size: Size;
@@ -724,6 +726,17 @@ export class ASMX86 {
         class AsmArgLiteral {
             extend AsmArg;
             var value: u64;
+        }
+
+        class AsmArgOnStack {
+            extend AsmArg;
+            var stack: i64;
+        }
+
+        class AsmArgRef {
+            extend AsmArg;
+            var arg: AsmArg;
+            var offset: u64;
         }
 
         class MovArg {
@@ -884,53 +897,46 @@ export class ASMX86 {
                 return;
             }
 
-            /*
-            if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_FIELD) {
-                ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
-                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
+            if (arg.varr.kind == HIR.Var.Kind.Field) {
+                var object_id = arg.varr$cast(HIR.VarField).object;
+                var object = self.hir.vars[object_id];
 
-                while (object.uid == KETL_HIR_VAR_UID_CAST) {
-                    object_id = object.cast_target;
-                    object = p_builder->p_hir->p_vars[object_id];
+                while (object.kind == HIR.Var.Kind.Cast) {
+                    object_id = object$cast(HIR.VarCast).casted;
+                    object = self.hir.vars[object_id];
                 }
 
-                ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, p_arg->var.info);
-                ANN_ASSERT(object_bucket != NULL);
+                var object_type = object->get_type();
+                assert(object_type.kind == Type.Kind.Class);
 
-                ketl_asm_x86_reg_t donor_reg = target_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
+                var class_type = object_type$cast(TypeClass);
+                var field_name = arg.varr$cast(HIR.VarField).field;
+                var field_offset = class_type->get_field_offset(field_name);
+                assert(field_offset >= 0);
                 
-                push_mov_from_stack_hir(donor_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
-                if (p_builder->inline_symbols) {
-                    char a_fullname_buffer[256];
-                    uint32_t fullname_length = 0;
+                self->push_mov_from_stack_hir(target_reg, object_id, Size.Ptr);
+                // self.inline_symbols
+                if (true) {
+                    var class_parent = class_type.namespace.parents[0];
+                    var is_export = class_parent->find(class_type.name).info.exxport;
 
-                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, p_arg->p_var_info->name);
-
-                    ketl_type* p_object_type = p_builder->p_hir->p_used_types[p_builder->p_hir->p_vars[p_arg->p_var_info->parent_id].type];
-
-                    if (p_object_type->kind == KETL_TYPE_CLASS) {
-                        ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
-                        bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
-
-                        const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
-                        if (is_export) {
-                            ++p_class_name; // skip dot
-                        }
-                        
-                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "%s.%s", p_class_name, p_field_name);
-                    } else {
-                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "__ketl_rt.ArrayHeader.%s", p_field_name);
+                    var class_name = class_type.namespace.fullname;
+                    if (!is_export) {
+                        class_name = "." .. class_name;
                     }
 
-                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_LABEL(donor_reg, 
-                        ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_fullname_buffer, fullname_length),
-                        object_bucket->value.stack_offset)); 
+                    var field_fullname = class_name .. "." .. field_name;
+
+                    self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(target_reg, field_fullname, field_offset));
                 } else {
+                    /*
                     push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset)); 
+                    */
                 }
                 return;
             }
 
+            /*
             if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_INDEX) {
                 ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
                 ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
@@ -1077,55 +1083,50 @@ export class ASMX86 {
                 return;
             }
 
-            assert(false);
+            if (varr.kind == HIR.Var.Kind.Field) {
+                var object_id = varr$cast(HIR.VarField).object;
+                var object = self.hir.vars[object_id];
 
-            /*
-            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_FIELD) {
-                ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
-                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
-
-                while (object.uid == KETL_HIR_VAR_UID_CAST) {
-                    object_id = object.cast_target;
-                    object = p_builder->p_hir->p_vars[object_id];
+                while (object.kind == HIR.Var.Kind.Cast) {
+                    object_id = object$cast(HIR.VarCast).casted;
+                    object = self.hir.vars[object_id];
                 }
 
-                ketl_asm_x86_variables_t_bucket* object_bucket = ketl_asm_x86_variables_t_get_or_null(&p_builder->variables, var.info);
-                ANN_ASSERT(object_bucket != NULL);
+                var object_type = object->get_type();
+                assert(object_type.kind == Type.Kind.Class);
+
+                var class_type = object_type$cast(TypeClass);
+                var field_name = varr$cast(HIR.VarField).field;
+                var field_offset = class_type->get_field_offset(field_name);
+                assert(field_offset >= 0);
+
+                var donor_reg = Reg.R10;
                 
-                ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
-                
-                push_mov_from_stack_hir(donor_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
-                if (p_builder->inline_symbols) {
-                    char a_fullname_buffer[256];
-                    uint32_t fullname_length = 0;
+                self->push_mov_from_stack_hir(donor_reg, object_id, Size.Ptr);
+                // self.inline_symbols
+                if (true) {
+                    var class_parent = class_type.namespace.parents[0];
+                    var is_export = class_parent->find(class_type.name).info.exxport;
 
-                    const char* p_field_name = KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, p_builder->p_hir->p_vars_infos[var.info].name);
-
-                    ketl_type* p_object_type = p_builder->p_hir->p_used_types[p_builder->p_hir->p_vars[p_builder->p_hir->p_vars_infos[var.info].parent_id].type];
-
-                    if (p_object_type->kind == KETL_TYPE_CLASS) {
-                        ketl_type_class* p_class_type = (ketl_type_class*)p_object_type;
-                        bool is_export = ketl_namespace_find(p_class_type->namespace.p_parent, p_class_type->namespace.s_name)->info.export;
-
-                        const char* p_class_name = ketl_atomic_strings_get_pointer(&p_builder->p_state->atomic_strings, p_class_type->namespace.s_fullname);
-                        if (is_export) {
-                            ++p_class_name; // skip dot
-                        }
-                        
-                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "%s.%s", p_class_name, p_field_name);
-                    } else {
-                        fullname_length = snprintf(a_fullname_buffer, ANN_ARRAY_SIZE(a_fullname_buffer), "__ketl_rt.ArrayHeader.%s", p_field_name);
+                    var class_name = class_type.namespace.fullname;
+                    if (!is_export) {
+                        class_name = "." .. class_name;
                     }
 
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_LABEL(donor_reg, 
-                        ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, a_fullname_buffer, fullname_length),
-                        object_bucket->value.stack_offset), source_reg); 
+                    var field_fullname = class_name .. "." .. field_name;
+
+                    self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(donor_reg, field_fullname, field_offset), source_reg);
                 } else {
+                    /*
                     ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset), source_reg);
-                } 
+                    */
+                }
                 return;
             }
 
+            assert(false);
+
+            /*
             if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_INDEX) {
                 ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
                 ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];

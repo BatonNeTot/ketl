@@ -115,8 +115,7 @@ export class TypeClass {
             var align = Align.Byte; // TODO delayed initialization
             var size: u16;
             if (field.name == null || field.name == "") {
-                var type = field.type;
-                assert(type.kind == Type.Kind.Class);
+                assert(field.type.kind == Type.Kind.Class);
 
                 align = field.type->get_align();
                 size = field.type->get_size();
@@ -129,8 +128,63 @@ export class TypeClass {
                 self.align = align;
             }
 
-            self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16) + size;
+            self.size = common.align_forward(self.size, Type.from_align_enum(align))$cast(u16) + size;
         }
+    }
+
+    // returns null if field doesn't exist
+    export fn get_field_type(self: TypeClass, name: str) => Type {
+        for (var field <- self.fields) {
+            if (field.name == null || field.name == "") {
+                assert(field.type.kind == Type.Kind.Class);
+
+                var type = field.type$cast(TypeClass)->get_field_type(name);
+                if (type != null) {
+                    return type;
+                }
+            } else {
+                if (field.name == name) {
+                    return field.type;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // returns -1 if field doesn't exist
+    export fn get_field_offset(self: TypeClass, name: str) => i32 {
+        var offset: u16;
+        for (var field <- self.fields) {
+            var align = Align.Byte; // TODO delayed initialization
+            var size: u16;
+            if (field.name == null || field.name == "") {
+                assert(field.type.kind == Type.Kind.Class);
+
+                align = field.type->get_align();
+
+                var extended_offset = field.type$cast(TypeClass)->get_field_offset(name);
+                if (extended_offset >= 0) {
+                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
+                    return offset$cast(i32);
+                }
+
+                size = field.type->get_size();
+            } else {
+                align = field.type->get_stack_align();
+
+                if (field.name == name) {
+                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
+                    return offset$cast(i32);
+                }
+
+                size = field.type->get_stack_size();
+            }
+
+            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+        }
+
+        return (-1)$cast(i32);
     }
 
 }
