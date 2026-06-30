@@ -25,6 +25,11 @@ export class Value {
             return;
         }
 
+        if (type.kind == Type.Kind.Enum) {
+            from type import TypeEnum;
+            type = type$cast(TypeEnum).parent;
+        }
+
         if (type.kind == Type.Kind.Primitive) {
             from type import Types
             if (type == Types.instance.type_bool$cast(Type)) {

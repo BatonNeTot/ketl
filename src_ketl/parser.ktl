@@ -348,6 +348,110 @@ class Parser {
 
         return context.hir_builder->push_call(callee_id, arguments, src_info);
     }
+
+    fn parse_dot_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
+        var object = context->get_var(object_id);
+        context->token_consume(Token.Type.ID, "Expected id after access operator.");
+        var id_token = context->current_token(1);
+
+        var src_info = HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(id_token));
+
+        var object_as_type = context->get_var_as_type(object_id);
+        if (object_as_type != null) {
+            assert(false);
+            /*
+
+            ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
+                get_var_info(p_context, p_object->info)->p_namespace, get_var_info(p_context, p_object->info)->namespace_node_index);
+            
+            if (p_namespace_node->variable.kind == KETL_VARIABLE_NAMESPACE) { 
+                ketl_namespace* p_namespace = p_namespace_node->variable.p_pointer;
+                
+                ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, push_symbol(p_context, id_token), 
+                    push_symbol_string(p_context, p_context->p_lexer->p_source + expr_info.source_offset, expr_info.length), expr_info, true);
+                ANN_ASSERT(GET_VAR(id_var).info != KETL_HIR_VAR_INFO_TEMP);
+                if (GET_VAR(id_var).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                    _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(id_var).info, true);
+                    if (p_bucket->value) {
+                        errorf(id_token.offset, id_token.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
+                            ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, p_namespace->s_name));
+                        p_bucket->value = false;
+                    }
+                }
+
+                return id_var;
+            }
+
+            if (p_namespace_node->variable.kind == KETL_VARIABLE_TYPE) {
+                ketl_type* p_type = p_namespace_node->variable.p_pointer;
+
+                if (p_type->kind == KETL_TYPE_CLASS) {
+                    ketl_hir_var_id_t var_id = push_access_class_namespace(p_context, id_token, expr_info, p_type, true);
+                    if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                        _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(var_id).info, true);
+                        if (p_bucket->value) {
+                            errorf(id_token.offset, id_token.length, "Use of undeclared entity '%.*s' from class '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
+                                ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
+                            p_bucket->value = false;
+                        }
+                    }
+                    return var_id;
+                }
+
+                if (p_type->kind == KETL_TYPE_ENUM) {
+                    ketl_variable constant = ketl_type_find_enum_constant_value(p_type, ketl_atomic_strings_get(&p_context->p_state->atomic_strings, 
+                        TOKEN_STRING(id_token), TOKEN_LENGTH(id_token)));
+                    
+                    if (constant.kind == KETL_VARIABLE_NONE) {
+                        errorf(id_token.offset, id_token.length, "Use of undeclared constant '%.*s' from enum '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
+                            ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_enum*)p_type)->s_name));
+                        return push_temp_var(p_context, expr_info);
+                    }
+
+                    char a_symbol[256];
+                    uint32_t symbol_length;
+
+                    switch (constant.kind) {
+                        case KETL_VARIABLE_INT8:
+                        case KETL_VARIABLE_INT16:
+                        case KETL_VARIABLE_INT32:
+                        case KETL_VARIABLE_INT64:
+                            symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIi64, constant.int64);
+                            break;
+                        case KETL_VARIABLE_UINT8:
+                        case KETL_VARIABLE_UINT16:
+                        case KETL_VARIABLE_UINT32:
+                        case KETL_VARIABLE_UINT64:
+                            symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIu64, constant.uint64);
+                            break;
+                    }
+
+                    return push_literal_symbol_of_type(p_context, push_symbol_string(p_context, a_symbol, symbol_length), expr_info, 
+                        ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type));
+                } 
+
+                ANN_ASSERT(false && "This type does not have this field");
+            }
+
+            ANN_ASSERT(false && "Trying to field access no-type and no-namespace");
+            */
+            return context.hir_builder->push_error_var(src_info);
+        } else {
+            if (context.hir_builder->is_undef(object_id)) {
+                return context.hir_builder->push_error_var(src_info);
+            }
+
+            var object_type = object->get_type();
+
+            if (object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
+                context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class and array objects.");
+                return context.hir_builder->push_error_var(src_info);
+            }
+
+            var field_id = context->token_str(id_token);
+            return context.hir_builder->push_field_access(object_id, field_id, src_info);
+        }
+    }
     
     fn parse_dollar_operator(context: Context, lhs: HIR.VarId) => HIR.VarId {
         var object = context->get_var(lhs);
@@ -571,6 +675,7 @@ class Parser {
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                  null,             Precedence.Primary), 
         Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,            null,             Precedence.Call),
+        Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,    null,             Precedence.Call),
         Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator, null,             Precedence.Call),
         Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
         //Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),

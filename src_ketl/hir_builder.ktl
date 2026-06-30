@@ -10,6 +10,7 @@ from type_base import Type
 from type import Types
 from type import TypePrimitive
 from type import TypeFunction
+from type import TypeClass
 from value import Value
 
 from hir import HIR
@@ -462,6 +463,56 @@ class HIRBuilder {
         return self->push_common_var(type, instr.src_info, decl_id);
     }
 
+    export fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var object_type = self->get_type(object_id);
+        assert(object_type != null);
+
+        if (object_type.kind == Type.Kind.Class) {
+            var field_type = object_type$cast(TypeClass)->get_field_type(field_name);
+            if (field_type != null) {
+                var field_var_id = self.vars.size$cast(HIR.VarId);
+                var field_var = HIR.VarField();
+                self.vars ..= field_var;
+
+                field_var.kind = HIR.Var.Kind.Field;
+                field_var.src_info = src_info;
+
+                field_var.type = field_type;
+                field_var.object = object_id;
+                field_var.field = field_name;
+
+                return field_var_id;
+            }
+        }
+
+/*
+        if (p_object_type->kind == KETL_TYPE_CLASS) {
+            ketl_hir_var_id_t var_id = push_access_class_namespace(p_context, id_literal, expr_info, p_object_type, force);
+            return var_id;
+        }
+
+        if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("clear", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+            ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
+
+            ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "array_clear", 11);
+            ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, symbol, symbol, expr_info, force);
+            ANN_ASSERT(!force || GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
+            return var_id;
+        }
+
+        if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("pop", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+            ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
+
+            ketl_hir_symbol_offset_t symbol = push_symbol_string(p_context, "array_pop", 9);
+            ketl_hir_var_id_t var_id = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, symbol, symbol, expr_info, force);
+            ANN_ASSERT(!force || GET_VAR(var_id).info != KETL_HIR_VAR_INFO_TEMP);
+            return var_id;
+        }*/
+
+        self->error(src_info.source_offset, src_info.length, "Can't access field.");
+        return self->push_error_var(src_info);
+    }
+
     export fn push_temp_var_of_type(self: HIRBuilder, src_info: HIR.SrcInfo, type: Type) => HIR.VarId {
         var temp_decl_id = self.decls.size$cast(HIR.DeclId);
         var temp_decl = HIR.DeclCommon();
@@ -473,6 +524,10 @@ class HIRBuilder {
         return self->push_common_var(type, src_info, temp_decl_id);
     }
 
+    export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_temp_var_of_type(src_info, null);
+    }
+
     export fn push_error_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id = self.vars.size$cast(HIR.VarId);
         var varr = HIR.Var();
@@ -482,10 +537,6 @@ class HIRBuilder {
         varr.src_info = src_info;
 
         return var_id;
-    }
-
-    export fn push_temp_var(self: HIRBuilder, src_info: HIR.SrcInfo) => HIR.VarId {
-        return self->push_temp_var_of_type(src_info, null);
     }
 
     fn find_decl_bucket(self: HIRBuilder, name: str) => StrHashMap.Bucket {

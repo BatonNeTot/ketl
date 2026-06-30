@@ -737,6 +737,18 @@ void ketl_hir_builder_insert_binary_op(ketl_hir_builder_t* p_hir_builder, ketl_h
             p_rhs_var->type = p_lhs_var->type;
         }
 
+        if (p_lhs_var->type == KETL_HIR_USED_TYPE_META) {
+            ketl_hir_expr_info_t lhs_expr_info = p_lhs_var->expr_info;
+            errorf(lhs_expr_info.source_offset, lhs_expr_info.length, "Can't use meta symbol in an expression.");
+            return;
+        }
+
+        if (p_rhs_var->type == KETL_HIR_USED_TYPE_META) {
+            ketl_hir_expr_info_t rhs_expr_info = p_rhs_var->expr_info;
+            errorf(rhs_expr_info.source_offset, rhs_expr_info.length, "Can't use meta symbol in an expression.");
+            return;
+        }
+
         // if any var is undefined, the op is undefined
         if (p_lhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN ||
             p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {

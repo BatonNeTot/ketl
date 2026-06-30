@@ -258,7 +258,6 @@ export class HIR {
             BuiltinType,
             Cast,
             Field,
-            //Index,
         } 
 
         var kind: Kind;
@@ -268,7 +267,8 @@ export class HIR {
             switch (varr.kind) {
                 case Kind.Common
                 case Kind.Literal
-                case Kind.Cast => return varr$cast(VarWithType).type;
+                case Kind.Cast
+                case Kind.Field => return varr$cast(VarWithType).type;
             }
             return null;
         }
@@ -301,8 +301,8 @@ export class HIR {
 
     export class VarField {
         extend VarWithType;
-        var indexed: VarId;
-        var index: VarId;
+        var object: VarId;
+        var field: str;
     }
 
     export class Const {
