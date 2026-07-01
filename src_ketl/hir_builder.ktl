@@ -32,9 +32,10 @@ class HIRBuilder {
     var parameters_counter: u32;
     var temp_counter: u32;
 
+    var return_type: Type;
     var name_to_decl_stack: StrHashMap[];
 
-    export fn construct(log_accum: LogAccum, log_info: LogAccum.LogInfo) => HIRBuilder {
+    export fn construct(return_type: Type, log_accum: LogAccum, log_info: LogAccum.LogInfo) => HIRBuilder {
         var self = HIRBuilder();
 
         self.log_accum = log_accum;
@@ -49,6 +50,8 @@ class HIRBuilder {
         self.name_to_decl_stack = StrHashMap[1]{
             StrHashMap.construct()
         };
+
+        self.return_type = return_type;
 
         return self;
     }
@@ -144,6 +147,16 @@ class HIRBuilder {
             return var_id;
         }
 
+        var varr = self.vars[var_id];
+
+        if (varr.kind == HIR.Var.Kind.Literal) {
+            if (target_type.kind == Type.Kind.Primitive) {
+                varr$cast(HIR.VarLiteral).type = target_type;
+                return var_id;
+            } 
+
+            // TODO cover enum?
+        }
         var type = self->get_type(var_id);
 
         if (type == null) {
@@ -153,24 +166,6 @@ class HIRBuilder {
 
         if (Types.is_types_equal(type, target_type)) {
             return var_id;
-        }
-
-        var varr = self.vars[var_id];
-
-        if (varr.kind == HIR.Var.Kind.Literal) {
-            if (target_type.kind == Type.Kind.Primitive) {
-                var cast_var_id = self.vars.size$cast(HIR.VarId);
-                var cast_var = HIR.VarCast();
-                self.vars ..= cast_var;
-
-                cast_var.kind = HIR.Var.Kind.Cast;
-                cast_var.src_info = src_info;
-
-                cast_var.type = target_type;
-                cast_var.casted = var_id;
-
-                return cast_var_id;
-            }
         }
 
         if (type.kind == Type.Kind.Primitive) {
@@ -366,7 +361,7 @@ class HIRBuilder {
     }
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
-        // TODO casting
+        var_id = self->cast_to_type(var_id, self.return_type, src_info, false);
 
         var instr = HIR.ReturnValue();
         instr.tag = HIR.Tag.RETURN_VALUE;
@@ -539,6 +534,14 @@ class HIRBuilder {
         return var_id;
     }
 
+    fn push_symbol_map(self: HIRBuilder) {
+        self.name_to_decl_stack ..= StrHashMap.construct();
+    }
+
+    fn pop_symbol_map(self: HIRBuilder) {
+        self.name_to_decl_stack->pop();
+    }
+
     fn find_decl_bucket(self: HIRBuilder, name: str) => StrHashMap.Bucket {
         var i = self.name_to_decl_stack.size;
         while (i > 0) {
@@ -704,7 +707,7 @@ class HIRBuilder {
         hir.consts_infos = self.consts_infos;
         hir.consts = self.consts;
 
-        hir.return_type = Types.instance.type_i64; // TODO
+        hir.return_type = self.return_type;
         hir.parameters_count = self.parameters_counter$cast(u8);
         hir.max_call_arg_count = 0; // TODO
     }

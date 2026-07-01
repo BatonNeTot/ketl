@@ -148,7 +148,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("ax");
                     case Size.Bit32 => common.print("eax");
                     case Size.Bit64 => common.print("rax");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.CX =>
                 switch (size) {
@@ -156,7 +156,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("cx");
                     case Size.Bit32 => common.print("ecx");
                     case Size.Bit64 => common.print("rcx");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.DX =>
                 switch (size) {
@@ -164,7 +164,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("dx");
                     case Size.Bit32 => common.print("edx");
                     case Size.Bit64 => common.print("rdx");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.BX =>
                 switch (size) {
@@ -172,7 +172,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("bx");
                     case Size.Bit32 => common.print("ebx");
                     case Size.Bit64 => common.print("rbx");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.SP =>
                 switch (size) {
@@ -180,7 +180,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("sp");
                     case Size.Bit32 => common.print("esp");
                     case Size.Bit64 => common.print("rsp");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.BP =>
                 switch (size) {
@@ -188,7 +188,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("bp");
                     case Size.Bit32 => common.print("ebp");
                     case Size.Bit64 => common.print("rbp");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.SI =>
                 switch (size) {
@@ -196,7 +196,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("si");
                     case Size.Bit32 => common.print("esi");
                     case Size.Bit64 => common.print("rsi");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.DI =>
                 switch (size) {
@@ -204,7 +204,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("di");
                     case Size.Bit32 => common.print("edi");
                     case Size.Bit64 => common.print("rdi");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R8 =>
                 switch (size) {
@@ -212,7 +212,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r8w");
                     case Size.Bit32 => common.print("r8d");
                     case Size.Bit64 => common.print("r8");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R9 =>
                 switch (size) {
@@ -220,7 +220,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r9w");
                     case Size.Bit32 => common.print("r9d");
                     case Size.Bit64 => common.print("r9");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R10 =>
                 switch (size) {
@@ -228,7 +228,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r10w");
                     case Size.Bit32 => common.print("r10d");
                     case Size.Bit64 => common.print("r10");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R11 =>
                 switch (size) {
@@ -236,7 +236,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r11w");
                     case Size.Bit32 => common.print("r11d");
                     case Size.Bit64 => common.print("r11");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R12 =>
                 switch (size) {
@@ -244,7 +244,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r12w");
                     case Size.Bit32 => common.print("r12d");
                     case Size.Bit64 => common.print("r12");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R13 =>
                 switch (size) {
@@ -252,7 +252,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r13w");
                     case Size.Bit32 => common.print("r13d");
                     case Size.Bit64 => common.print("r13");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R14 =>
                 switch (size) {
@@ -260,7 +260,7 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r14w");
                     case Size.Bit32 => common.print("r14d");
                     case Size.Bit64 => common.print("r14");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R15 =>
                 switch (size) {
@@ -268,9 +268,9 @@ export class ASMX86 {
                     case Size.Bit16 => common.print("r15w");
                     case Size.Bit32 => common.print("r15d");
                     case Size.Bit64 => common.print("r15");
-                    default => common.print("$reg-error");
+                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
-            default => common.print("$reg-error");
+            default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
         }
     }
 
@@ -716,11 +716,24 @@ export class ASMX86 {
         class AsmArg {
             enum Kind: u8 {
                 Literal,
+                Global,
+                GlobalAddress,
                 OnStack,
                 Ref,
             }
             var kind: Kind;
             var size: Size;
+            var type: Type;
+
+            fn construct_type(type: Type) => AsmArg {
+                var arg = AsmArgGlobal();
+                arg.kind = AsmArg.Kind.GlobalAddress;
+                arg.size = Size.Ptr;
+
+                arg.label = type->get_name();
+
+                return arg;
+            }
         }
 
         class AsmArgLiteral {
@@ -728,104 +741,263 @@ export class ASMX86 {
             var value: u64;
         }
 
+        class AsmArgGlobal {
+            extend AsmArg;
+            var label: str;
+        }
+
         class AsmArgOnStack {
             extend AsmArg;
-            var stack: i64;
+            var name: str;
+            var stack: u64;
         }
 
         class AsmArgRef {
             extend AsmArg;
-            var arg: AsmArg;
-            var offset: u64;
+            var parent: AsmArg;
+            var name: str;
+            var offset: i64;
         }
 
-        class MovArg {
-            // TODO this hole class is a manifestation of hole wrong idea about converting hir to asm
-            // I should do it differently
-            
-            var varr: HIR.Var;
-            var decl_id: HIR.DeclId;
-            var decl: HIR.Decl;
-            var literal: u64;
-            var type: Type;
+        fn get_arg_from_hir(self: Builder, var_id: HIR.VarId) => AsmArg {
+            var varr = self.hir.vars[var_id];
+            var type = varr->get_type();
 
-            fn construct(var_id: HIR.VarId, builder: Builder) => MovArg {
-                var varr = builder.hir.vars[var_id];
+            while (varr.kind == HIR.Var.Kind.Cast) {
+                var_id = varr$cast(HIR.VarCast).casted;
+                varr = self.hir.vars[var_id];
+            }
 
-                while (varr.kind == HIR.Var.Kind.Cast) {
-                    var var_cast = varr$cast(HIR.VarCast);
-                    var_id = var_cast.casted;
-                    varr = builder.hir.vars[var_id];
+            if (varr.kind == HIR.Var.Kind.Literal) {
+                if (type == null) {
+                    type = Types.instance.type_i64;
                 }
 
-                var decl_id = (-1)$cast(HIR.DeclId);
-                var decl: HIR.Decl;
-                var type: Type;
+                assert(type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum);
 
-                if (varr.kind == HIR.Var.Kind.Common) {
-                    var var_common = varr$cast(HIR.VarCommon);
-                    decl_id = var_common.decl;
-                    decl = builder.hir.decls[decl_id];
-                    type = decl->get_type();
-                }
-                var literal: u64;
-                if (varr.kind == HIR.Var.Kind.Literal) {
-                    var var_literal = varr$cast(HIR.VarLiteral);
-                    literal = var_literal.value;
-                    type = var_literal.type;
-                    if (type == null) {
-                        type = Types.instance.type_i64;
+                var arg = AsmArgLiteral();
+                arg.kind = AsmArg.Kind.Literal;
+                arg.size = type->get_stack_size()$cast(Size);
+                arg.type = type;
+
+                arg.value = varr$cast(HIR.VarLiteral).value;
+
+                return arg;
+            }
+
+            if (varr.kind == HIR.Var.Kind.Common) {
+                var var_common = varr$cast(HIR.VarCommon);
+                var decl_id = var_common.decl;
+                var decl = self.hir.decls[decl_id];
+
+                if (decl.kind == HIR.Decl.Kind.Global) {
+                    var namespace_node = decl$cast(HIR.DeclGlobal).node;
+                    var name = namespace_node.name;
+
+                    var arg = AsmArgGlobal();
+                    arg.kind = AsmArg.Kind.Global;
+                    if (type != null) {
+                        arg.size = type->get_stack_size()$cast(Size);
                     }
+                    arg.type = type;
+
+                    arg.label = name;
+
+                    if (namespace_node.value.kind == Value.Kind.Type) {
+                        arg.kind = AsmArg.Kind.GlobalAddress;
+                        arg.size = Size.Ptr;
+                    } else {
+                        if (type.kind == Type.Kind.Function || type.kind == Type.Kind.CFunction) {
+                            arg.kind = AsmArg.Kind.GlobalAddress;
+                            arg.size = Size.Ptr;
+                        }
+                    }
+
+                    return arg;
                 }
+
+                var bucket = self.variables->get_or_null(decl_id);
+                // TODO create and return asm arg error
+                assert(bucket != null);
+
+                // TODO just create AsmArgOnStack directly into variables instead of ArgInfo
+                var arg_info = bucket.value$cast(ArgInfo);
+
+                assert(type != null);
+
+                var arg = AsmArgOnStack();
+                arg.kind = AsmArg.Kind.OnStack;
+                arg.size = type->get_stack_size()$cast(Size);
+                arg.type = type;
+
+                arg.name = arg_info.name;
+                arg.stack = arg_info.stack_offset;
+
+                return arg;
+            }
+
+            if (varr.kind == HIR.Var.Kind.BuiltinType) {
+                var var_builtin = varr$cast(HIR.VarBuiltinType);
+
+                var name = var_builtin.value->get_name();
+
+                var arg = AsmArgGlobal();
+                arg.kind = AsmArg.Kind.GlobalAddress;
+                arg.size = Size.Ptr;
+
+                arg.label = name;
+
+                return arg;
+            }
+
+            if (varr.kind == HIR.Var.Kind.Field) {
+                assert(type != null);
+
+                var var_field = varr$cast(HIR.VarField);
                 
-                var self = MovArg();
-                self.varr = varr;
-                self.decl_id = decl_id;
-                self.decl = decl;
-                self.literal = literal;
-                self.type = type;
-                return self;
+                var object_id = var_field.object;
+                var object = self.hir.vars[object_id];
+
+                while (object.kind == HIR.Var.Kind.Cast) {
+                    object_id = object$cast(HIR.VarCast).casted;
+                    object = self.hir.vars[object_id];
+                }
+
+                var object_type = object->get_type();
+                assert(object_type.kind == Type.Kind.Class);
+
+                var class_type = object_type$cast(TypeClass);
+                var field_name = var_field.field;
+                var field_offset = class_type->get_field_offset(field_name);
+                assert(field_offset >= 0);
+                
+                var parent = self->get_arg_from_hir(object_id);
+                
+                var class_namespace_parent = class_type.namespace.parents[0];
+                var is_export = class_namespace_parent->find(class_type.name).info.exxport;
+
+                var class_name = class_type.namespace.fullname;
+                if (!is_export) {
+                    class_name = "." .. class_name;
+                }
+
+                var field_fullname = class_name .. "." .. field_name;
+
+                var arg = AsmArgRef();
+                arg.kind = AsmArg.Kind.Ref;
+                arg.size = type->get_stack_size()$cast(Size);
+                arg.type = type;
+
+                arg.parent = parent;
+                arg.name = field_fullname;
+                arg.offset = field_offset;
+
+                return arg;
             }
 
-            fn construct_type(type: Type) => MovArg {
-                var value = Value();
-                value.kind = Value.Kind.Type;
-                value.value = type$cast(raw)$cast(u64);
-
-                var node = Namespace.Node();
-                node.name = type->get_name();
-                node.value = value;
-
-                var decl = HIR.DeclGlobal();
-                decl.kind = HIR.Decl.Kind.Global;
-                decl.node = node;
-
-                var varr = HIR.VarCommon();
-                varr.kind = HIR.Var.Kind.Common;
-
-                var self = MovArg();
-                self.varr = varr;
-                self.decl = decl;
-                return self;
-            }
+            common.println(varr.kind$cast(str));
+            assert(false);
+            return null;
         }
 
-        fn modrm_stack(self: Builder, size: Size, arg_info: ArgInfo) => ModRM {
+        fn insert_mov_to_reg(self: Builder, size: Size, target_reg: Reg, arg: AsmArg) {
+            if (arg.kind == AsmArg.Kind.Literal) {
+                var value = arg$cast(AsmArgLiteral).value;
+
+                var type = arg.type;
+
+                if (type == Types.instance.type_char$cast(Type)) {
+                    self->insert_rm_char(Tag.MOV, Size.Bit8, ModRM.construct_reg(target_reg), value$cast(char));
+                } else {
+                    self->insert_rm_imm(Tag.MOV, size, ModRM.construct_reg(target_reg), value);
+                }
+
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.Global) {
+                self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label));
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.GlobalAddress) {
+                self->insert_reg_rm(Tag.LEA, Size.Ptr, target_reg, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label));
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.OnStack) {
+                var arg_on_stack = arg$cast(AsmArgOnStack);
+                self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, arg_on_stack.stack, arg_on_stack.name));
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.Ref) {
+                var arg_ref = arg$cast(AsmArgRef);
+                self->insert_mov_to_reg(size, target_reg, arg_ref.parent);
+                // self.inline_symbols
+                if (true) {
+                    self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(target_reg, arg_ref.name, arg_ref.offset$cast(i32)));
+                } else {
+                    /*
+                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset)); 
+                    */
+                }
+                return;
+            }
+
+            assert(false);
+        }
+
+        fn insert_mov_from_reg(self: Builder, size: Size, arg: AsmArg, source_reg: Reg) {
+            if (arg.kind == AsmArg.Kind.Global) {
+                self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label), source_reg);
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.OnStack) {
+                var arg_on_stack = arg$cast(AsmArgOnStack);
+                self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(arg.size, arg_on_stack.stack, arg_on_stack.name), source_reg);
+                return;
+            }
+
+            if (arg.kind == AsmArg.Kind.Ref) {
+                var arg_ref = arg$cast(AsmArgRef);
+                var donor_reg = Reg.R10;
+                self->insert_mov_to_reg(size, donor_reg, arg_ref.parent);
+                // self.inline_symbols
+                if (true) {
+                    self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(donor_reg, arg_ref.name, arg_ref.offset$cast(i32)), source_reg);
+                } else {
+                    /*
+                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset), source_reg);
+                    */
+                }
+                return;
+            }
+
+            assert(false);
+        }
+
+        fn modrm_stack(self: Builder, size: Size, stack: u64, name: str) => ModRM {
             switch (self.abi) {
                 case ABI.WINDOWS =>
                     // TODO self.inline_symbols
                     if (true) {
-                        return ModRM.construct_indir_base_label(Reg.SP, arg_info.name, arg_info.stack_offset$cast(i32));
+                        return ModRM.construct_indir_base_label(Reg.SP, name, stack$cast(i32));
                     } else {
-                        return ModRM.construct_indir_base_disp(Reg.SP, arg_info.stack_offset$cast(i32));
+                        return ModRM.construct_indir_base_disp(Reg.SP, stack$cast(i32));
                     }
                 case ABI.SYSTEM_V =>
                     // TODO 4294967296 => 0x100000000
-                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - arg_info.stack_offset - size)$cast(i32));
+                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - stack - size)$cast(i32));
             }
 
             assert(false);
             return ModRM.construct_empty();
+        }
+
+        fn modrm_stack_from_arg_info(self: Builder, size: Size, arg_info: ArgInfo) => ModRM {
+            return self->modrm_stack(size, arg_info.stack_offset, arg_info.name);
         }
 
         fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
@@ -876,351 +1048,7 @@ export class ASMX86 {
             }
         }
 
-        fn push_mov_from_stack(self: Builder, target_reg: Reg, arg: MovArg, size: Size) {
-            if (arg.varr.kind == HIR.Var.Kind.Literal) {
-                var literal = arg.literal;
-
-                var type = arg.type;
-                assert(type == null || type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum);
-
-                if (type == Types.instance.type_char$cast(Type)) {
-                    var value = literal$cast(char);
-                    self->insert_rm_char(Tag.MOV, Size.Bit8, ModRM.construct_reg(target_reg), value);
-                } else {
-                    var value = literal$cast(i64);
-
-                    // TODO FIX
-                    // get type size and use appropriate load global bytecode
-                    self->insert_rm_imm(Tag.MOV, Size.Bit64, ModRM.construct_reg(target_reg), value$cast(u64));
-                }
-
-                return;
-            }
-
-            if (arg.varr.kind == HIR.Var.Kind.Field) {
-                var object_id = arg.varr$cast(HIR.VarField).object;
-                var object = self.hir.vars[object_id];
-
-                while (object.kind == HIR.Var.Kind.Cast) {
-                    object_id = object$cast(HIR.VarCast).casted;
-                    object = self.hir.vars[object_id];
-                }
-
-                var object_type = object->get_type();
-                assert(object_type.kind == Type.Kind.Class);
-
-                var class_type = object_type$cast(TypeClass);
-                var field_name = arg.varr$cast(HIR.VarField).field;
-                var field_offset = class_type->get_field_offset(field_name);
-                assert(field_offset >= 0);
-                
-                self->push_mov_from_stack_hir(target_reg, object_id, Size.Ptr);
-                // self.inline_symbols
-                if (true) {
-                    var class_parent = class_type.namespace.parents[0];
-                    var is_export = class_parent->find(class_type.name).info.exxport;
-
-                    var class_name = class_type.namespace.fullname;
-                    if (!is_export) {
-                        class_name = "." .. class_name;
-                    }
-
-                    var field_fullname = class_name .. "." .. field_name;
-
-                    self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(target_reg, field_fullname, field_offset));
-                } else {
-                    /*
-                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset)); 
-                    */
-                }
-                return;
-            }
-
-            /*
-            if (p_arg->var.info != KETL_HIR_VAR_INFO_TEMP && p_arg->var.uid == KETL_HIR_VAR_UID_INDEX) {
-                ketl_hir_var_id_t object_id = p_arg->p_var_info->parent_id;
-                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
-                ketl_hir_var_id_t arg_id = p_arg->p_var_info->arg_id;
-
-                ANN_ASSERT(object.type != KETL_HIR_USED_TYPE_UNKNOWN);
-                ketl_type* p_object_type = p_builder->p_hir->p_used_types[object.type];
-                ketl_type* p_value_type = ((ketl_type_array*)p_object_type)->p_value_type;
-
-                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, KETL_ASM_X86_R9, MODRM_REG(KETL_ASM_X86_CX)); 
-
-                if (p_builder->inline_symbols) {
-                    char a_stack_size_buffer[16];
-                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(p_value_type));
-                    push_mov_arg a_arguments[] = {
-                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer}, // stack_size
-                        arg_from_hir_var_id(object_id, p_builder),
-                        arg_from_hir_var_id(arg_id, p_builder),
-                    };
-                    
-                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
-
-                    // call __ketl_rt.array_get_value
-                    ketl_atomic_string s_rt_array_get_value_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt.array_get_value", KETL_NULL_TERMINATED_LENGTH_32);
-                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_rt_array_get_value_name));
-                } else {
-                    //ketl_gc_get_value(&p_builder->p_state->gc, 
-                    //  p_hir->p_used_types[p_hir_info->array_value], array_var, append_var);
-                    char a_gc_address_buffer[16];
-                    snprintf(a_gc_address_buffer, ANN_ARRAY_SIZE(a_gc_address_buffer), "%"PRIu64, (uint64_t)&p_builder->p_state->gc);
-                    char a_stack_size_buffer[16];
-                    snprintf(a_stack_size_buffer, ANN_ARRAY_SIZE(a_stack_size_buffer), "%"PRIu64, (uint64_t)ketl_type_get_stack_size(p_value_type));
-                    push_mov_arg a_arguments[] = {
-                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_gc_address_buffer},
-                        {.var = {.uid = KETL_HIR_VAR_UID_LITERAL }, .p_literal = a_stack_size_buffer},
-                        arg_from_hir_var_id(object_id, p_builder),
-                        arg_from_hir_var_id(arg_id, p_builder),
-                    };
-                    push_function_arguments(a_arguments, ANN_ARRAY_SIZE(a_arguments), p_builder);
-
-                    void* func_address;
-                    #define KETL_POINTER_CONVERTER
-                    #define KETL_POINTER_CONVERTER_ARG  &ketl_gc_get_value
-                    #define KETL_POINTER_CONVERTER_VAR  func_address
-                    #define KETL_POINTER_CONVERTER_TYPE void*
-                    #include "meta.i"
-                    
-                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), (uint64_t)func_address);
-
-                    // call get_value from gc
-                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));
-                }
-
-                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, KETL_ASM_X86_CX, MODRM_REG(KETL_ASM_X86_R9)); 
-
-                if (target_reg != KETL_ASM_X86_AX) {
-                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_REG(KETL_ASM_X86_AX)); 
-                }
-                return;
-            }
-            */
-
-            if (arg.decl != null && arg.decl.kind == HIR.Decl.Kind.Global) {
-                var decl_global = arg.decl$cast(HIR.DeclGlobal);
-
-                var namespace_node = decl_global.node;
-
-                // self.inline_symbols
-                if (true) {
-                    var name = namespace_node.name;
-                    if (arg.type == null) {
-                        assert(namespace_node.value.kind == Value.Kind.Type);
-                        var type = namespace_node.value.value$cast(raw)$cast(Type);
-                        self->insert_reg_rm(Tag.LEA, Size.Ptr, target_reg, ModRM.construct_indir_rip_label(name));
-                    } else {
-                        if (arg.type.kind == Type.Kind.Function || arg.type.kind == Type.Kind.CFunction) {
-                            self->insert_reg_rm(Tag.LEA, Size.Ptr, target_reg, ModRM.construct_indir_rip_label(name));
-                        } else {
-                            self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_rip_label(name));
-                        }
-                    }
-                } else { /*
-                    ANN_ASSERT(p_arg->var.type != KETL_HIR_USED_TYPE_META);
-                    // TODO FIX
-                    // get type size and use appropriate load global bytecode
-                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(target_reg), (int64_t)&p_namespace_node->variable);
-                    push_cast_aware_mov(p_builder, p_arg->p_type, size, target_reg, MODRM_INDIR_BASE_DISP(target_reg, 0));*/
-                }
-
-                return;
-            }
-
-            if (arg.decl == null || arg.decl.kind == HIR.Decl.Kind.Error) {
-                self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, ArgInfo.error()));
-                return;
-            }
-            var bucket = self.variables->get_or_null(arg.decl_id);
-            assert(bucket != null);
-
-            self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, bucket.value));
-        }
-
-        fn push_mov_from_stack_hir(self: Builder, target_reg: Reg, var_id: HIR.VarId, size: Size) {
-            var arg = MovArg.construct(var_id, self);
-            self->push_mov_from_stack(target_reg, arg, size);
-        }
-
-        fn push_mov_to_stack_hir(self: Builder, var_id: HIR.VarId, source_reg: Reg, size: Size) {
-            var varr = self.hir.vars[var_id];
-            assert(varr.kind != HIR.Var.Kind.Literal);
-
-            if (varr.kind == HIR.Var.Kind.Common) {
-                var var_decl_id = varr$cast(HIR.VarCommon).decl;
-                var decl = self.hir.decls[var_decl_id];
-
-                if (decl.kind == HIR.Decl.Kind.Global) {
-                    assert(varr$cast(HIR.VarWithType).type != null);
-
-                    var decl_global = decl$cast(HIR.DeclGlobal);
-
-                    var namespace_node = decl_global.node;
-
-                    // TODO self.inline_symbols
-                    if (true) {
-                        var name = namespace_node.name;
-                        self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_rip_label(name), source_reg); 
-                    } else {/*
-                        ketl_asm_x86_reg_t donor_reg = source_reg != KETL_ASM_X86_R11 ? KETL_ASM_X86_R11 : KETL_ASM_X86_R10;
-                        // TODO get proper size
-                        ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_64B, MODRM_REG(donor_reg), (int64_t)&p_namespace_node->variable);
-                        ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, 0), source_reg); */
-                    }
-                    return;
-                }
-
-                if (decl.kind == HIR.Decl.Kind.Error) {
-                    self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, ArgInfo.error()), source_reg); 
-                    return;
-                }
-                var bucket = self.variables->get_or_null(var_decl_id);
-                assert(bucket != null);
-
-                self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, bucket.value), source_reg); 
-                return;
-            }
-
-            if (varr.kind == HIR.Var.Kind.Field) {
-                var object_id = varr$cast(HIR.VarField).object;
-                var object = self.hir.vars[object_id];
-
-                while (object.kind == HIR.Var.Kind.Cast) {
-                    object_id = object$cast(HIR.VarCast).casted;
-                    object = self.hir.vars[object_id];
-                }
-
-                var object_type = object->get_type();
-                assert(object_type.kind == Type.Kind.Class);
-
-                var class_type = object_type$cast(TypeClass);
-                var field_name = varr$cast(HIR.VarField).field;
-                var field_offset = class_type->get_field_offset(field_name);
-                assert(field_offset >= 0);
-
-                var donor_reg = Reg.R10;
-                
-                self->push_mov_from_stack_hir(donor_reg, object_id, Size.Ptr);
-                // self.inline_symbols
-                if (true) {
-                    var class_parent = class_type.namespace.parents[0];
-                    var is_export = class_parent->find(class_type.name).info.exxport;
-
-                    var class_name = class_type.namespace.fullname;
-                    if (!is_export) {
-                        class_name = "." .. class_name;
-                    }
-
-                    var field_fullname = class_name .. "." .. field_name;
-
-                    self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(donor_reg, field_fullname, field_offset), source_reg);
-                } else {
-                    /*
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_reg, object_bucket->value.stack_offset), source_reg);
-                    */
-                }
-                return;
-            }
-
-            assert(false);
-
-            /*
-            if (var.info != KETL_HIR_VAR_INFO_TEMP && var.uid == KETL_HIR_VAR_UID_INDEX) {
-                ketl_hir_var_id_t object_id = p_builder->p_hir->p_vars_infos[var.info].parent_id;
-                ketl_hir_var_t object = p_builder->p_hir->p_vars[object_id];
-                ketl_hir_var_id_t arg_id = p_builder->p_hir->p_vars_infos[var.info].arg_id;
-
-                ANN_ASSERT(object.type != KETL_HIR_USED_TYPE_UNKNOWN);
-                ketl_type* p_object_type = p_builder->p_hir->p_used_types[object.type];
-                ketl_type* p_value_type = ((ketl_type_array*)p_object_type)->p_value_type;
-
-                ketl_asm_x86_reg_t donor_arg_reg = KETL_ASM_X86_AX;
-                ketl_asm_x86_reg_t donor_object_reg = KETL_ASM_X86_DX;
-
-                ketl_asm_x86_reg_t save_reg = KETL_ASM_X86_R9;
-
-                // save value from source reg
-                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, save_reg, MODRM_REG(source_reg));
-
-                // get argument into rax
-                push_mov_from_stack_hir(donor_arg_reg, arg_id, size, p_builder);
-                uint16_t value_stack_size = ketl_type_get_stack_size(p_value_type);
-                if (value_stack_size > 1) {
-                    // get type size into rcx
-                    ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg), value_stack_size);
-                    // multiply, result in rax
-                    ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_MUL, KETL_ASM_X86_PTRSIZE, MODRM_REG(donor_object_reg));
-                }
-
-                // get array
-                push_mov_from_stack_hir(donor_object_reg, object_id, KETL_ASM_X86_PTRSIZE, p_builder);
-                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, donor_object_reg, MODRM_INDIR_BASE_LABEL(donor_object_reg, 
-                    ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "__ketl_rt.ArrayHeader.data", KETL_NULL_TERMINATED_LENGTH_32), 0));
-
-                // add multiplication result, result in rax
-                ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_ADD, KETL_ASM_X86_PTRSIZE, donor_arg_reg, MODRM_REG(donor_object_reg));
-
-                // indirect write 
-                ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, MODRM_INDIR_BASE_DISP(donor_arg_reg, 0), save_reg);
-                return;
-            }
-            */    
-        }
-
-        fn push_function_arguments_hir(self: Builder, arguments: HIR.VarId[]) {
-            if (arguments.size == 0) {
-                return;
-            }
-
-            var i: u64 = arguments.size - 1;
-            while (true) {
-                var arg_id = arguments[i];
-                var arg = self.hir.vars[arg_id];
-                var type = arg->get_type();
-                var size = type->get_stack_size()$cast(Size);
-                
-                var regs = parameters_regs[self.abi];
-                var reg_count = regs.size;
-                if (i < reg_count) {
-                    var reg = regs[i];
-                    self->push_mov_from_stack_hir(reg, arg_id, size);
-                } else {
-                    assert(false); /*
-                    ANN_ASSERT(p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS);
-                    push_mov_from_stack_hir(KETL_ASM_X86_AX, p_arguments[i], size, p_builder);
-                    uint32_t reg_space_size = sizeof(void*) * reg_count;
-                    ketl_asm_x86_arg_info_t arg_info = { 
-                        .stack_offset = reg_space_size + (i - reg_count) * sizeof(void*),
-                        .s_name = KETL_ATOMIC_STRING_EMPTY,
-                    };
-                    ketl_hir_var_id_t arg_id = p_arguments[i];
-                    ketl_hir_var_info_index_t info_id = p_builder->p_hir->p_vars[arg_id].info;
-                    ketl_hir_var_uid_t var_uid = p_builder->p_hir->p_vars[arg_id].uid;
-                    while (var_uid == KETL_HIR_VAR_UID_CAST) {
-                        arg_id = p_builder->p_hir->p_vars[arg_id].cast_target;
-                        info_id = p_builder->p_hir->p_vars[arg_id].info;
-                        var_uid = p_builder->p_hir->p_vars[arg_id].uid;
-                    }
-                    if (info_id != KETL_HIR_VAR_INFO_TEMP && var_uid != KETL_HIR_VAR_UID_LITERAL) {
-                        arg_info.s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
-                            KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, 
-                                p_builder->p_hir->p_vars_infos[info_id].name), KETL_NULL_TERMINATED_LENGTH_32);
-                    }
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, 
-                        modrm_stack(p_builder, size, arg_info), KETL_ASM_X86_AX);
-                        */
-                }
-
-                if (i == 0) {
-                    break;
-                }
-                i -= 1;
-            }
-        }
-
-        fn push_function_arguments(self: Builder, arguments: MovArg[]) {
+        fn push_function_arguments(self: Builder, arguments: AsmArg[]) {
             if (arguments.size == 0) {
                 return;
             }
@@ -1235,7 +1063,7 @@ export class ASMX86 {
                 var reg_count = regs.size;
                 if (i < reg_count) {
                     var reg = regs[i];
-                    self->push_mov_from_stack(reg, arg, size);
+                    self->insert_mov_to_reg(size, reg, arg);
                 } else {
                     assert(false); /*
                     ANN_ASSERT(p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS);
@@ -1364,7 +1192,7 @@ export class ASMX86 {
                         var type = decl->get_type();
                         var size = type->get_stack_size()$cast(Size);
                         var reg = abi_parameters_regs[decl_id];
-                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(size, arg_info), reg);
+                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack_from_arg_info(size, arg_info), reg);
                     }
                 }
             }
@@ -1417,8 +1245,8 @@ export class ASMX86 {
                         var output = self.hir.vars[hir_info.output];
                         var type = output->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->push_mov_from_stack_hir(Reg.CX, hir_info.rhs, size);
-                        self->push_mov_from_stack_hir(Reg.AX, hir_info.lhs, size);
+                        self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.rhs));
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.lhs));
 
                         switch (instr.tag) {
                             case HIR.Tag.PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
@@ -1473,7 +1301,7 @@ export class ASMX86 {
                             }
                         }
 
-                        self->push_mov_to_stack_hir(hir_info.output, Reg.AX, size);
+                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
 
                     case HIR.Tag.ASSIGN => {
@@ -1481,8 +1309,8 @@ export class ASMX86 {
                         var dst = self.hir.vars[hir_info.dst];
                         var type = dst->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->push_mov_from_stack_hir(Reg.AX, hir_info.src, size);
-                        self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.src));
+                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.dst), Reg.AX);
                     }
 
                     case HIR.Tag.ASSIGN_PLUS
@@ -1498,8 +1326,8 @@ export class ASMX86 {
                         var dst = self.hir.vars[hir_info.dst];
                         var type = dst->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->push_mov_from_stack_hir(Reg.CX, hir_info.src, size);
-                        self->push_mov_from_stack_hir(Reg.AX, hir_info.dst, size);
+                        self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.src));
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.dst));
                         switch (instr.tag) {
                             case HIR.Tag.ASSIGN_PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_MINUS => self->insert_reg_rm(Tag.SUB, size, Reg.AX, ModRM.construct_reg(Reg.CX));
@@ -1525,7 +1353,7 @@ export class ASMX86 {
                             case HIR.Tag.ASSIGN_BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                         }
-                        self->push_mov_to_stack_hir(hir_info.dst, Reg.AX, size);
+                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.dst), Reg.AX);
                     }
 
                     case HIR.Tag.CALL => {
@@ -1541,7 +1369,11 @@ export class ASMX86 {
                         var func_type = callee_type$cast(TypeFunction); 
                         var return_type = func_type.signature.parameters[0];
 
-                        self->push_function_arguments_hir(hir_info.args);
+                        var args = AsmArg[0];
+                        for (var var_id <- hir_info.args) {
+                            args ..= self->get_arg_from_hir(var_id);
+                        }
+                        self->push_function_arguments(args);
 
                         // call
                         assert(callee.kind == HIR.Var.Kind.Common);
@@ -1559,7 +1391,7 @@ export class ASMX86 {
                         }
                             
                         if (return_type != Types.instance.type_void$cast(Type)) {
-                            self->push_mov_to_stack_hir(hir_info.output, Reg.AX, return_type->get_stack_size()$cast(Size));
+                            self->insert_mov_from_reg(return_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
                         }
                     }
 
@@ -1570,8 +1402,8 @@ export class ASMX86 {
 
                         assert(callee_type.kind == Type.Kind.Class);
 
-                        self->push_function_arguments(MovArg[1]{
-                            MovArg.construct_type(callee_type)
+                        self->push_function_arguments(AsmArg[1]{
+                            AsmArg.construct_type(callee_type)
                         });
 
                         // call
@@ -1585,7 +1417,7 @@ export class ASMX86 {
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
                         }
                             
-                        self->push_mov_to_stack_hir(hir_info.output, Reg.AX, callee_type->get_stack_size()$cast(Size));
+                        self->insert_mov_from_reg(callee_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
 
                     case HIR.Tag.JUMP => {
@@ -1611,7 +1443,7 @@ export class ASMX86 {
                         var expr = self.hir.vars[hir_info.expr];
                         var type = expr->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->push_mov_from_stack_hir(Reg.AX, hir_info.expr, size);
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.expr));
 
                         switch (instr.tag) {
                             case HIR.Tag.JUMP_IF_TRUE => {
@@ -1644,7 +1476,7 @@ export class ASMX86 {
                         var value = self.hir.vars[hir_info.value];
                         var type = value->get_type();
                         var size = type->get_stack_size()$cast(Size);
-                        self->push_mov_from_stack_hir(Reg.AX, hir_info.value, size);
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);

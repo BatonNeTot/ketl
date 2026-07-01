@@ -57,11 +57,11 @@ class Parser {
         return context.iterator->current(offset);
     }
 
-    fn token_check(context : Context, token_type : Token.Type) => bool {
+    fn token_check(context: Context, token_type: Token.Type) => bool {
         return context->current_token(0).type == token_type;
     }
 
-    fn token_advance(context : Context) {
+    fn token_advance(context: Context) {
         while (true) {
             context.iterator->advance();
 
@@ -72,13 +72,13 @@ class Parser {
         }
     }
 
-    fn token_match(context : Context, token_type : Token.Type) => bool {
+    fn token_match(context: Context, token_type: Token.Type) => bool {
         if (!context->token_check(token_type)) return false;
         context->token_advance();
         return true;
     }
 
-    fn token_consume(context : Context, token_type : Token.Type, message : str) => bool {
+    fn token_consume(context: Context, token_type: Token.Type, message: str) => bool {
         if (!context->token_match(token_type)) {
             var token = context->current_token(0);
             context->error(token.offset, token.length, message);
@@ -120,7 +120,7 @@ class Parser {
     }
 
     class StatementInfo {
-        enum ReturnInfo : u8 {
+        enum ReturnInfo: u8 {
             Empty   = 0,
             None    = 1,
             Value   = 2,
@@ -132,7 +132,7 @@ class Parser {
             AlwaysUndef = 7, //Undef | Always;
         }
 
-        var return_info : ReturnInfo;
+        var return_info: ReturnInfo;
 
         export fn construct(return_info: ReturnInfo) => StatementInfo {
             var self = StatementInfo();
@@ -141,7 +141,7 @@ class Parser {
         }
     }
 
-    enum Precedence : u8 {
+    enum Precedence: u8 {
         None,
         Assigment,
         LogicalOr,
@@ -159,7 +159,7 @@ class Parser {
         Primary,
     }
 
-    enum Associativity : u8 {
+    enum Associativity: u8 {
         LTR, // Left To Right
         RTL, // Right To Left
     }
@@ -563,7 +563,7 @@ class Parser {
             case Token.Type.ASSIGN_BITWISE_OR  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR, lhs, rhs, src_info);
             case Token.Type.ASSIGN_BITWISE_XOR => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR, lhs, rhs, src_info);
 
-            //case Token.Type.ASSIGN_CONCAT     : return push_append    (p_context, lhs, rhs);
+            //case Token.Type.ASSIGN_CONCAT    : return push_append    (p_context, lhs, rhs);
         }
 
         return error_var();
@@ -1070,7 +1070,7 @@ class Parser {
         var old_export = context.exxport;
         context.exxport = false;
 
-        // context->push_symbol_map();
+        context.hir_builder->push_symbol_map();
 
         var class_fields = VariableDecl[0];
 
@@ -1078,7 +1078,7 @@ class Parser {
             context->parse_class_declaration_inner(class_fields);
         }
 
-        // context->pop_symbol_map();
+        context.hir_builder->pop_symbol_map();
         
         context.exxport = old_export;
         context.namespace = old_namespace;
@@ -1238,7 +1238,7 @@ class Parser {
         return null;
     }
 
-    fn parse_block_statement_inner(context : Context) => StatementInfo {
+    fn parse_block_statement_inner(context: Context) => StatementInfo {
         var return_info = StatementInfo.ReturnInfo.Empty;
 
         while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
@@ -1266,9 +1266,9 @@ class Parser {
     fn parse_block_statement(context: Context) => StatementInfo {
         context->token_advance(); // {
 
-        // TODO push_symbol_map
+        context.hir_builder->push_symbol_map();
         var statement_info = context->parse_block_statement_inner();
-        // TODO pop_symbol_map
+        context.hir_builder->pop_symbol_map();
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of the block.");
         return statement_info;
@@ -1404,7 +1404,7 @@ class Parser {
         }
     }
 
-    export fn build_hir(lexer : Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters : VariableDecl[], return_type : Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
+    export fn build_hir(lexer: Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters: VariableDecl[], return_type: Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
         var context = Context();
 
         context.log_accum = log_accum;
@@ -1415,7 +1415,7 @@ class Parser {
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
         context.is_global_scope = is_global_scope;
 
-        context.hir_builder = HIRBuilder.construct(context.log_accum, context.log_info);
+        context.hir_builder = HIRBuilder.construct(return_type, context.log_accum, context.log_info);
 
         for (var parameter <- parameters) {
             context.hir_builder->add_parameter(parameter);
