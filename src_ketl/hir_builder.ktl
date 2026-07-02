@@ -96,21 +96,6 @@ class HIRBuilder {
         return decl.kind == HIR.Decl.Kind.Error;
     }
 
-    fn get_type(self: HIRBuilder, var_id: HIR.VarId) => Type {
-        var varr = self.vars[var_id];
-
-        if (varr.kind == HIR.Var.Kind.Literal) {
-            var type = varr$cast(HIR.VarWithType).type;
-            if (type != null) {
-                return type;
-            }
-            // TODO check value for range
-            return Types.instance.type_i64;
-        }
-
-        return varr->get_type();
-    }
-
     fn get_common_type(self: HIRBuilder, lhs_id: HIR.VarId, rhs_id: HIR.VarId) => Type {
         var lhs = self.vars[lhs_id];
         var rhs = self.vars[rhs_id];
@@ -127,8 +112,8 @@ class HIRBuilder {
             }
 
             if (lhs_type == null && rhs_type == null) {
-                // TODO check value for range
-                return Types.instance.type_i64;
+                // result type definitely will be big enough for both types
+                return Types.get_common_type(lhs->get_type_forced(), rhs->get_type_forced());
             }
             // TODO check if other literal can be stored in the selected literal type
             if (lhs_type != null) {
@@ -138,7 +123,7 @@ class HIRBuilder {
             }
         }
 
-        return Types.get_common_type(self->get_type(lhs_id), self->get_type(rhs_id));
+        return Types.get_common_type(lhs_type, rhs_type);
     }
 
     fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
@@ -157,7 +142,7 @@ class HIRBuilder {
 
             // TODO cover enum?
         }
-        var type = self->get_type(var_id);
+        var type = varr->get_type();
 
         if (type == null) {
             assert(false);
@@ -227,7 +212,8 @@ class HIRBuilder {
             return self->push_error_var(src_info);
         }
 
-        var type = self->get_type(var_id);
+        var varr = self.vars[var_id];
+        var type = varr->get_type_forced();
         // TODO deduce
         var arg_type = type;
         var output_type = type;
@@ -248,18 +234,22 @@ class HIRBuilder {
         return instr.output;
     }
     
-    export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
-        if (self->is_undef(lhs) || self->is_undef(rhs)) {
+    export fn push_binary_op(self: HIRBuilder, tag: HIR.Tag, lhs_id: HIR.VarId, rhs_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(lhs_id) || self->is_undef(rhs_id)) {
             return self->push_error_var(src_info);
         }
 
         // TODO check if both literals and calc
 
-        var common_type = self->get_common_type(lhs, rhs);
+        var common_type = self->get_common_type(lhs_id, rhs_id);
 
         if (common_type == null) {
-            var lhs_type = self->get_type(lhs);
-            var rhs_type = self->get_type(rhs);
+            var lhs = self.vars[lhs_id];
+            var rhs = self.vars[rhs_id];
+
+            var lhs_type = lhs->get_type_forced();
+            var rhs_type = rhs->get_type_forced();
+
             self->error(src_info.source_offset, src_info.length, "Can't do operator '" .. HIR.get_str_representation(tag) .. "' over '" 
                 .. lhs_type->get_name() .. "' and '" .. rhs_type->get_name() .. "'.");
             return self->push_error_var(src_info);
@@ -278,36 +268,37 @@ class HIRBuilder {
                 => output_type = Types.instance.type_bool;
         }
 
-        var lhs_src_info = self.vars[lhs].src_info;
-        var rhs_src_info = self.vars[rhs].src_info;
-        lhs = self->cast_to_type(lhs, arg_type, lhs_src_info, false);
-        rhs = self->cast_to_type(rhs, arg_type, rhs_src_info, false);
+        var lhs_src_info = self.vars[lhs_id].src_info;
+        var rhs_src_info = self.vars[rhs_id].src_info;
+        lhs_id = self->cast_to_type(lhs_id, arg_type, lhs_src_info, false);
+        rhs_id = self->cast_to_type(rhs_id, arg_type, rhs_src_info, false);
 
         var instr = HIR.BinaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(output_type, instr);
-        instr.lhs = lhs;
-        instr.rhs = rhs;
+        instr.lhs = lhs_id;
+        instr.rhs = rhs_id;
         self->get_current_block() ..= instr;
 
         return instr.output;
     }
     
-    export fn push_assign(self: HIRBuilder, tag: HIR.Tag, lhs: HIR.VarId, rhs: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
-        if (self->is_undef(lhs) || self->is_undef(rhs)) {
+    export fn push_assign(self: HIRBuilder, tag: HIR.Tag, lhs_id: HIR.VarId, rhs_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(lhs_id) || self->is_undef(rhs_id)) {
             return self->push_error_var(src_info);
         }
 
-        var type = self->get_type(lhs);
-        var rhs_src_info = self.vars[rhs].src_info;
-        rhs = self->cast_to_type(rhs, type, rhs_src_info, false);
+        var lhs = self.vars[lhs_id];
+        var type = lhs->get_type_forced();
+        var rhs_src_info = self.vars[rhs_id].src_info;
+        rhs_id = self->cast_to_type(rhs_id, type, rhs_src_info, false);
 
         var instr = HIR.Assign();
         instr.tag = tag;
         instr.src_info = src_info;
-        instr.dst = lhs;
-        instr.src = rhs;
+        instr.dst = lhs_id;
+        instr.src = rhs_id;
         self->get_current_block() ..= instr;
 
         // TODO return new var to update src_info
@@ -319,7 +310,8 @@ class HIRBuilder {
             return self->push_error_var(src_info);
         }
 
-        var type = self->get_type(callee_id);
+        var callee = self.vars[callee_id];
+        var type = callee->get_type_forced();
 
         if (type.kind != Type.Kind.Function && type.kind != Type.Kind.CFunction) {
             self->error(src_info.source_offset, src_info.length, "Only functions can be called.");
@@ -459,7 +451,8 @@ class HIRBuilder {
     }
 
     export fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
-        var object_type = self->get_type(object_id);
+        var object = self.vars[object_id];
+        var object_type = object->get_type_forced();
         assert(object_type != null);
 
         if (object_type.kind == Type.Kind.Class) {

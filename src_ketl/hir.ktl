@@ -2,6 +2,7 @@
 
 from token import Token
 from type_base import Type
+from type import Types
 from namespace import Namespace
 import common
 
@@ -271,6 +272,19 @@ export class HIR {
                 case Kind.Field => return varr$cast(VarWithType).type;
             }
             return null;
+        }
+
+        export fn get_type_forced(varr: Var) => Type {
+            if (varr.kind == HIR.Var.Kind.Literal) {
+                var type = varr$cast(HIR.VarWithType).type;
+                if (type != null) {
+                    return type;
+                }
+                // TODO check value for range
+                return Types.instance.type_i64;
+            }
+
+            return varr->get_type();
         }
     }
 
