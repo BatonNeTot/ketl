@@ -820,7 +820,7 @@ class Parser {
             var_id = context.hir_builder->declare_local_var(name, type, src_info);
         }
 
-        if (context.hir_builder->get_type(var_id) == null) {
+        if (!context.hir_builder->is_undef(var_id)) {
             return var_id;
         }
 
@@ -848,7 +848,7 @@ class Parser {
             
             if (!context.hir_builder->is_undef(initial_value)) {
                 if (type == null) {
-                    type = context.hir_builder->get_type(initial_value);
+                    type = context->get_var(initial_value)->get_type_forced();
                 } else {
                     var initial_value_src_info = context->get_var(initial_value).src_info;
                     initial_value = context.hir_builder->cast_to_type(initial_value, type, initial_value_src_info, false);

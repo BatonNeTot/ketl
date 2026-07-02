@@ -761,7 +761,7 @@ export class ASMX86 {
 
         fn get_arg_from_hir(self: Builder, var_id: HIR.VarId) => AsmArg {
             var varr = self.hir.vars[var_id];
-            var type = varr->get_type();
+            var type = varr->get_type_forced();
 
             while (varr.kind == HIR.Var.Kind.Cast) {
                 var_id = varr$cast(HIR.VarCast).casted;
@@ -863,7 +863,7 @@ export class ASMX86 {
                     object = self.hir.vars[object_id];
                 }
 
-                var object_type = object->get_type();
+                var object_type = object->get_type_forced();
                 assert(object_type.kind == Type.Kind.Class);
 
                 var class_type = object_type$cast(TypeClass);
@@ -1243,7 +1243,7 @@ export class ASMX86 {
                     case HIR.Tag.GREATER_OR_EQUAL => {
                         var hir_info = instr$cast(HIR.BinaryOp);
                         var output = self.hir.vars[hir_info.output];
-                        var type = output->get_type();
+                        var type = output->get_type_forced();
                         var size = type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.rhs));
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.lhs));
@@ -1307,7 +1307,7 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN => {
                         var hir_info = instr$cast(HIR.Assign);
                         var dst = self.hir.vars[hir_info.dst];
-                        var type = dst->get_type();
+                        var type = dst->get_type_forced();
                         var size = type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.src));
                         self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.dst), Reg.AX);
@@ -1324,7 +1324,7 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN_BITWISE_XOR => {
                         var hir_info = instr$cast(HIR.Assign);
                         var dst = self.hir.vars[hir_info.dst];
-                        var type = dst->get_type();
+                        var type = dst->get_type_forced();
                         var size = type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.src));
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.dst));
@@ -1360,7 +1360,7 @@ export class ASMX86 {
                         var hir_info = instr$cast(HIR.Call);
 
                         var callee = self.hir.vars[hir_info.callee];
-                        var callee_type = callee->get_type();
+                        var callee_type = callee->get_type_forced();
                         assert(callee_type != null);
 
                         // TODO FIX allow other types to be called
@@ -1441,7 +1441,7 @@ export class ASMX86 {
                         var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
                         
                         var expr = self.hir.vars[hir_info.expr];
-                        var type = expr->get_type();
+                        var type = expr->get_type_forced();
                         var size = type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.expr));
 
@@ -1474,7 +1474,7 @@ export class ASMX86 {
                     case HIR.Tag.RETURN_VALUE => {
                         var hir_info = instr$cast(HIR.ReturnValue);
                         var value = self.hir.vars[hir_info.value];
-                        var type = value->get_type();
+                        var type = value->get_type_forced();
                         var size = type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
                         if (self.stack_reserved_size > 0) {
