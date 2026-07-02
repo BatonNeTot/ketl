@@ -61,6 +61,7 @@ ANN_DEFINE(ketl_hir_builder_t) {
     ketl_hir_var_id_t parameter_count; 
     ketl_hir_var_uid_t temp_var_counter;
     uint8_t max_call_arg_count;
+    ketl_atomic_string s_entry;
     ketl_hir_const_index_t string_literal_counter;
     ketl_hir_const_index_t numeric_literal_counter;
 };

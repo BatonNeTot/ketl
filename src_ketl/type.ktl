@@ -81,7 +81,7 @@ export class TypeFunction {
 export class TypeArray {
 
     extend Type;
-    var value : Type;
+    var value: Type;
 }
 
 export class TypeClass {

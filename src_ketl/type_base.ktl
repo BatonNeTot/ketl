@@ -1,7 +1,5 @@
 //🫖ketl
 
-import common
-
 export class Type {
     export enum Kind: u8{
         Primitive,

@@ -129,6 +129,7 @@ void ketl_hir_builder_flush(ketl_hir_builder_t* p_hir_builder, ketl_hir_t* p_hir
     
     p_hir->parameter_count = p_hir_builder->parameter_count; 
     p_hir->max_call_arg_count = p_hir_builder->max_call_arg_count;
+    p_hir->s_entry = p_hir_builder->s_entry;
     
     ////////////////////////
 

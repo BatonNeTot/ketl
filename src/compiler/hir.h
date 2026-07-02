@@ -346,6 +346,7 @@ ANN_DEFINE(ketl_hir_t) {
     ketl_hir_used_type_index_t return_type;
     ketl_hir_var_id_t parameter_count;
     uint8_t max_call_arg_count;
+    ketl_atomic_string s_entry;
 };
 
 void ketl_hir_deinit(ketl_hir_t* p_hir);

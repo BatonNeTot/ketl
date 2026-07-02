@@ -22,11 +22,11 @@ class HIRBuilder {
     var log_accum: LogAccum;
     var log_info: LogAccum.LogInfo;
 
-    var blocks : HIR.Instr[][];
-    var vars : HIR.Var[];
-    var decls : HIR.Decl[];
-    var consts_infos : HIR.Const[];
-    var consts : u8[];
+    var blocks: HIR.Instr[][];
+    var vars: HIR.Var[];
+    var decls: HIR.Decl[];
+    var consts_infos: HIR.Const[];
+    var consts: u8[];
 
     var current_block: u32;
     var parameters_counter: u32;
