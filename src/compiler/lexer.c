@@ -450,6 +450,10 @@ static bool ketl_lexer_parse_operator(ketl_lexer_t* p_lexer, char next_symbol) {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_QUESTION_MARK, 1);
         return true;
     } 
+	case '#': {
+        ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_SHARP, 1);
+        return true;
+    } 
 	case '$': {
         ketl_lexer_add_token(p_lexer, KETL_TOKEN_TYPE_DOLLAR, 1);
         return true;
@@ -657,6 +661,9 @@ void ketl_lexer_build_tokens(ketl_lexer_t* p_lexer, ketl_atomic_string s_filenam
     p_lexer->s_filename = s_filename;
     p_lexer->p_source = p_source;
     p_lexer->length = length;
+    if (p_lexer->length >= KETL_NULL_TERMINATED_LENGTH_32) {
+        p_lexer->length = strlen(p_lexer->p_source);
+    }
     p_lexer->offset = 0;
     p_lexer->token_iterator = 0;
     p_lexer->tokens.size = 0;

@@ -66,7 +66,6 @@ add_executable (${PROJECT_EXE_TARGET} "src/ketl.cpp")
 set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY CXX_STANDARD 20)
 
 set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY OUTPUT_NAME ketl)
-target_compile_definitions(${PROJECT_EXE_TARGET} PUBLIC KETL_LOG_BREAK_LEVEL=6)
 
 add_dependencies(${PROJECT_EXE_TARGET} ${PROJECT_LIB_TARGET})
 
@@ -87,20 +86,62 @@ target_link_libraries(${PROJECT_EXE_TARGET} ${PROJECT_LIB_TARGET} ${PROJECT_LIBR
 target_include_directories(${PROJECT_EXE_TARGET} PUBLIC "include")
 target_include_directories(${PROJECT_EXE_TARGET} PRIVATE "src")
 
-###############################
-
-set(PROJECT_TEST_TARGET "${PROJECT_NAME}_test")
+##################################
 
 add_subdirectory ("src_ketl")
+string(REPLACE ".ktl" ".s" PROJECT_KETL_SOURCES_ASM "${PROJECT_KETL_SOURCES}")
+
+get_target_property(PROJECT_C_KETL_COMPILER_NAME ${PROJECT_EXE_TARGET} OUTPUT_NAME)
+get_target_property(PROJECT_C_KETL_COMPILER_DIR ${PROJECT_EXE_TARGET} RUNTIME_OUTPUT_DIRECTORY)
+
+message("${PROJECT_C_KETL_COMPILER_DIR}/${PROJECT_C_KETL_COMPILER_NAME}")
+message("${PROJECT_KETL_SOURCES}")
+message("${PROJECT_KETL_SOURCES_ASM}")
+
+add_custom_command(
+    OUTPUT ${PROJECT_KETL_SOURCES_ASM}
+    COMMAND "${PROJECT_C_KETL_COMPILER_DIR}/${PROJECT_C_KETL_COMPILER_NAME}"
+    ARGS -S src_ketl
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    DEPENDS ${PROJECT_KETL_SOURCES} ${PROJECT_EXE_TARGET}
+    COMMENT "Compiling ketl compiler"
+)
+
+##################################
+
+set(PROJECT_EXE2_TARGET "${PROJECT_NAME}_exe2")
 
 foreach(SOURCE_ASM IN LISTS PROJECT_KETL_SOURCES_ASM)
     set_property(SOURCE ${SOURCE_ASM} APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp")
 endforeach()
 
+add_executable (${PROJECT_EXE2_TARGET} ${PROJECT_KETL_SOURCES_ASM})
+set_property(TARGET ${PROJECT_EXE2_TARGET} PROPERTY OUTPUT_NAME ketl2)
+
+set_target_properties(${PROJECT_EXE2_TARGET}
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
+    LINKER_LANGUAGE CXX
+)
+
+target_compile_definitions(${PROJECT_EXE2_TARGET} PRIVATE _AMD64_)
+
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_link_options(${PROJECT_EXE2_TARGET} BEFORE PUBLIC ${PROJECT_SANITIZE_OPTION})
+endif()
+
+target_link_directories(${PROJECT_EXE2_TARGET} PRIVATE "lib")
+target_link_libraries(${PROJECT_EXE2_TARGET} ${PROJECT_LIBRARIES})
+target_include_directories(${PROJECT_EXE2_TARGET} PUBLIC "include")
+target_include_directories(${PROJECT_EXE2_TARGET} PRIVATE "src")
+
+###############################
+
+set(PROJECT_TEST_TARGET "${PROJECT_NAME}_test")
+
 add_subdirectory ("tests")
 
-add_executable (${PROJECT_TEST_TARGET} ${PROJECT_TEST_SOURCES} 
-    ${PROJECT_KETL_SOURCES}
+add_executable (${PROJECT_TEST_TARGET} ${PROJECT_TEST_SOURCES}
     )
 set_property(TARGET ${PROJECT_TEST_TARGET} PROPERTY CXX_STANDARD 20)
 

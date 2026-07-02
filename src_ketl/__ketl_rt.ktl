@@ -1,19 +1,38 @@
 //🫖ketl
 
 from type_base import Type
-from common import ArrayHeader
+
+export class ArrayHeader {
+    var data: raw;
+    var capacity: u64;
+    var size: u64;
+    var is_slice: bool;
+}
+
+export class U8Wrapper {
+    var value: u8;
+}
+export class U16Wrapper {
+    var value: u16;
+}
+export class U32Wrapper {
+    var value: u32;
+}
+export class U64Wrapper {
+    var value: u64;
+}
 
 /////////////////////////////////////////////
 
 class AtomicStrings {}
 
-cimport malloc(size : u64) => raw
-cimport realloc(pointer : raw, size : u64) => raw
-cimport memset(dest : raw, value : u8, size : u64) => raw
-cimport memcpy(dest : raw, src : raw, size : u64) => raw
+cimport malloc(size: u64) => raw
+cimport realloc(pointer: raw, size: u64) => raw
+cimport memset(dest: raw, value: u8, size: u64) => raw
+cimport memcpy(dest: raw, src: raw, size: u64) => raw
 cimport _assert(expr_str: cstr, filename: cstr, line: u64)
 
-export fn calloc(size : u64) => raw {
+export fn calloc(size: u64) => raw {
     if (size == 0) {
         return null;
     }
@@ -22,13 +41,13 @@ export fn calloc(size : u64) => raw {
     return pointer;
 }
 
-export fn recalloc(old_pointer : raw, old_size : u64, new_size : u64) => raw {
+export fn recalloc(old_pointer: raw, old_size: u64, new_size: u64) => raw {
     var pointer = old_pointer->realloc(new_size);
     memset(pointer + old_size, 0, new_size - old_size);
     return pointer;
 }
 
-export fn assert(expr : bool) {
+export fn assert(expr: bool) {
     if (!expr) {
         (null)$cast(ArrayHeader).data = null; // to fall with better message
         _assert(null, null, 0);
@@ -37,24 +56,11 @@ export fn assert(expr : bool) {
 
 class GC {
 
-    export class U8Wrapper {
-        var value : u8;
-    }
-    export class U16Wrapper {
-        var value : u16;
-    }
-    export class U32Wrapper {
-        var value : u32;
-    }
-    export class U64Wrapper {
-        var value : u64;
-    }
-
-    export fn new(gc : GC, type : Type, flags : u64) => raw {
+    export fn new(gc: GC, type: Type, flags: u64) => raw {
         return calloc(type.size);
     }
 
-    export fn new_array(gc : GC, stack_size : u64, size : u64, initial_data : raw, initial_data_mem_size : u64, flags : u64) => raw {
+    export fn new_array(gc: GC, stack_size: u64, size: u64, initial_data: raw, initial_data_mem_size: u64, flags: u64) => raw {
         var array_header = ArrayHeader();
         var type_size = stack_size;
         var mem_size = type_size * size;
@@ -69,7 +75,7 @@ class GC {
         return array_header;
     }
 
-    export fn new_slice(gc : GC, mirrored_array : ArrayHeader, start : u64, end : u64, flags : u64) => raw {
+    export fn new_slice(gc: GC, mirrored_array: ArrayHeader, start: u64, end: u64, flags: u64) => raw {
         var array_header = ArrayHeader();
         var mirrored_offset = start;
         if (start > end) {
@@ -88,7 +94,7 @@ class GC {
         return array_header;
     }
 
-    export fn append_value(gc : GC, stack_size : u64, array_header : ArrayHeader, value : u64) {
+    export fn append_value(gc: GC, stack_size: u64, array_header: ArrayHeader, value: u64) {
         var value_size = stack_size;
         if (array_header.is_slice) {
             var capacity = array_header.size + 1; // plus appended one
@@ -120,7 +126,7 @@ class GC {
         array_header.size += 1;
     }
 
-    export fn append_array(gc : GC, stack_size : u64, array_header : ArrayHeader, other_array_header : ArrayHeader) {
+    export fn append_array(gc: GC, stack_size: u64, array_header: ArrayHeader, other_array_header: ArrayHeader) {
         var value_size = stack_size;
         if (array_header.is_slice) {
             var capacity = array_header.size + other_array_header.size;
@@ -153,31 +159,31 @@ class GC {
 
 }
 
-var gc : GC = calloc(GC$size);
+var gc: GC = calloc(GC$size);
 
-var atomic_strings : AtomicStrings = calloc(AtomicStrings$size);
+var atomic_strings: AtomicStrings = calloc(AtomicStrings$size);
 
-export fn new(type : Type) => raw {
+export fn new(type: Type) => raw {
     return gc->new(type, 0);
 }
 
-export fn new_array(stack_size : u64, size : u64, initial_data : raw, initial_data_mem_size : u64) => raw {
+export fn new_array(stack_size: u64, size: u64, initial_data: raw, initial_data_mem_size: u64) => raw {
     return gc->new_array(stack_size, size, initial_data, initial_data_mem_size, 0);
 }
 
-export fn new_slice(mirrored_array : ArrayHeader, start : u64, end : u64) => raw {
+export fn new_slice(mirrored_array: ArrayHeader, start: u64, end: u64) => raw {
     return gc->new_slice(mirrored_array, start, end, 0);
 }
 
-export fn append_value(stack_size : u64, array_header : ArrayHeader, value : raw) {
+export fn append_value(stack_size: u64, array_header: ArrayHeader, value: raw) {
     gc->append_value(stack_size, array_header, value);
 }
 
-export fn append_array(stack_size : u64, array_header : ArrayHeader, other_array_header : ArrayHeader) {
+export fn append_array(stack_size: u64, array_header: ArrayHeader, other_array_header: ArrayHeader) {
     gc->append_array(stack_size, array_header, other_array_header);
 }
 
-export fn array_clear(array_header : ArrayHeader) {
+export fn array_clear(array_header: ArrayHeader) {
     if (array_header.is_slice) {
         array_header.data = null;
         array_header.capacity = 0;
@@ -187,7 +193,7 @@ export fn array_clear(array_header : ArrayHeader) {
         array_header.size = 0;
     }
 }
-export fn array_pop(array_header : ArrayHeader) {
+export fn array_pop(array_header: ArrayHeader) {
     assert(array_header.size > 0);
     array_header.size -= 1;
 }
@@ -271,7 +277,7 @@ export fn str2uint(string: str) => u64 {
     return value;
 }
 
-export fn array_get_value(stack_size : u64, array_header : ArrayHeader, index : u64) => u64 {
+export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64) => u64 {
     var pointer: raw;
     if (array_header.is_slice) {
         pointer = (array_header.data$cast(ArrayHeader).data + stack_size * (array_header.capacity + index));

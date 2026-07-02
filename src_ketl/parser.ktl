@@ -563,7 +563,7 @@ class Parser {
             case Token.Type.ASSIGN_BITWISE_OR  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR, lhs, rhs, src_info);
             case Token.Type.ASSIGN_BITWISE_XOR => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR, lhs, rhs, src_info);
 
-            //case Token.Type.ASSIGN_CONCAT    : return push_append    (p_context, lhs, rhs);
+            //case Token.Type.ASSIGN_CONCAT   : return push_append    (p_context, lhs, rhs);
         }
 
         return error_var();

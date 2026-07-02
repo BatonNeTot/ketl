@@ -7,34 +7,34 @@ from token import Token
 
 export class Lexer {
     var log_accum: LogAccum;
-    var tokens : Token[];
-    var lines_offsets : u32[];
-    var filename : str;
-    var source : str;
-    var offset : u32;
+    var tokens: Token[];
+    var lines_offsets: u32[];
+    var filename: str;
+    var source: str;
+    var offset: u32;
     
-    fn init(lexer : Lexer) {
+    fn init(lexer: Lexer) {
         lexer.tokens = Token[0];
         lexer.lines_offsets = u32[0];
     }
     
-    fn is_space(symbol : char) => bool {
+    fn is_space(symbol: char) => bool {
         return symbol == ' ' || (symbol >= '\t' && symbol <= '\r');
     }
 
-    fn is_numeric(symbol : char) => bool {
+    fn is_numeric(symbol: char) => bool {
         return symbol >= '0' && symbol <= '9';
     }
 
-    fn is_alpha(symbol : char) => bool {
+    fn is_alpha(symbol: char) => bool {
         return (symbol >= 'a' && symbol <= 'z') || (symbol >= 'A' && symbol <= 'Z');
     }
 
-    fn increment_line(lexer : Lexer) {
+    fn increment_line(lexer: Lexer) {
         lexer.lines_offsets ..= lexer.offset;
     }
 
-    fn add_token(lexer : Lexer, type : Token.Type, length : u32) {
+    fn add_token(lexer: Lexer, type: Token.Type, length: u32) {
         var token = Token();
         token.type = type;
         // TODO make cast deduce type from the left side
@@ -44,7 +44,7 @@ export class Lexer {
         lexer.offset += length;
     }
 
-    fn get_symbol(lexer : Lexer) => char {
+    fn get_symbol(lexer: Lexer) => char {
         // TODO
         // replace all direct source[index] access with analog of this func
         // parse escaping character here
@@ -56,7 +56,7 @@ export class Lexer {
         return symbol;
     }
 
-    fn parse_next_line(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_next_line(lexer: Lexer, next_symbol: char) => bool {
         if (next_symbol == '\r') {
 
             var offset = lexer.offset;
@@ -78,7 +78,7 @@ export class Lexer {
         return false;
     }
 
-    fn parse_comments(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_comments(lexer: Lexer, next_symbol: char) => bool {
         var offset = lexer.offset;
         if (next_symbol != '/' || offset + 1 >= lexer.source.size) {
             return false;
@@ -126,7 +126,7 @@ export class Lexer {
         return false;
     }
 
-    fn parse_literal_char(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_literal_char(lexer: Lexer, next_symbol: char) => bool {
         if (next_symbol != '\'') {
             return false;
         }
@@ -186,7 +186,7 @@ export class Lexer {
         return true;
     }
 
-    fn parse_literal_string(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_literal_string(lexer: Lexer, next_symbol: char) => bool {
         if (next_symbol != '"') {
             return false;
         }
@@ -218,7 +218,7 @@ export class Lexer {
         return true;
     }
 
-    fn parse_literal_integer(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_literal_integer(lexer: Lexer, next_symbol: char) => bool {
         if (!lexer.is_numeric(next_symbol)) {
             return false;
         }
@@ -242,7 +242,7 @@ export class Lexer {
         return true;
     }
     
-    fn parse_id(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_id(lexer: Lexer, next_symbol: char) => bool {
         if (next_symbol != '_' && !lexer.is_alpha(next_symbol)) {
             return false;
         }
@@ -446,7 +446,7 @@ export class Lexer {
         return true;
     }
     
-    fn parse_operator(lexer : Lexer, next_symbol : char) => bool {
+    fn parse_operator(lexer: Lexer, next_symbol: char) => bool {
         switch (next_symbol) {  
             case '(' => {
                 lexer->add_token(Token.Type.PARENTHESIS_LEFT, 1);
@@ -701,7 +701,7 @@ export class Lexer {
         }
     }
     
-    fn build_tokens(lexer : Lexer, filename : str, source : str, log_accum: LogAccum) {
+    fn build_tokens(lexer: Lexer, filename: str, source: str, log_accum: LogAccum) {
         lexer.log_accum = log_accum;
         lexer.filename = filename;
         lexer.source = source;
@@ -757,7 +757,7 @@ export class Lexer {
         lexer->add_token(Token.Type.EOF, 0);
     }
 
-    export fn construct_log_info(lexer : Lexer) => LogAccum.LogInfo {
+    export fn construct_log_info(lexer: Lexer) => LogAccum.LogInfo {
         var info = LogAccum.LogInfo();
         info.lines_offsets = lexer.lines_offsets;
         info.filename = lexer.filename;
@@ -765,7 +765,7 @@ export class Lexer {
         return info;
     }
 
-    fn error(lexer : Lexer, offset: u32, length: u32, message: str) {
+    fn error(lexer: Lexer, offset: u32, length: u32, message: str) {
         lexer.log_accum->error(
             lexer->construct_log_info(),
             FilePointer.construct(offset, offset, length),
@@ -777,8 +777,8 @@ export class Lexer {
 export class TokenIterator {
     export mimic Index = u32;
 
-    var tokens : Token[];
-    var index : Index;
+    var tokens: Token[];
+    var index: Index;
 
     export fn construct(tokens: Token[]) => TokenIterator {
         var self = TokenIterator();
@@ -795,7 +795,7 @@ export class TokenIterator {
         return self.index >= self.tokens.size;
     }
 
-    export fn current(self: TokenIterator, offset : u64) => Token {
+    export fn current(self: TokenIterator, offset: u64) => Token {
         var index = self.index - offset;
         if (index >= self.tokens.size) {
             var token = Token();

@@ -41,6 +41,7 @@ ANN_DEFINE(ketl_parser_context) {
     bool is_global_scope;
     bool export;
     bool cexport;
+    bool next_symbol_entry;
 
     ketl_hir_builder_t hir_builder;
 
@@ -2379,6 +2380,22 @@ static ketl_statement_info parse_enum_declaration(ketl_parser_context* p_context
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
+static ketl_statement_info parse_sharp_prefix(ketl_parser_context* p_context) {
+    token_advance(p_context); // #
+    token_consume(p_context, KETL_TOKEN_TYPE_ID, "Expected id after '#' prefix.");
+    ketl_token_t id_literal = CURRENT_TOKEN(1);
+
+    ketl_hir_expr_info_t expr_info = expr_info_merge(token_extract_info(CURRENT_TOKEN(2)), token_extract_info(id_literal));
+
+    if (ketl_str_is_equal_n("entry", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
+        p_context->next_symbol_entry = true;
+        return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+    }
+
+    errorf(expr_info.source_offset, expr_info.length, "Unknown '#' command '%.*s'.", TOKEN_LENGTH(id_literal), TOKEN_STRING(id_literal));
+    return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+}
+
 static ketl_statement_info parse_import(ketl_parser_context* p_context) {
     //ANN_ASSERT(p_context->is_global_scope);
 
@@ -2647,6 +2664,11 @@ static ketl_statement_info parse_function_declaration(ketl_parser_context* p_con
     }
     compile_function_declarations_t_push_back_ref(&p_context->p_state->compile_function_declarations, &function_decl);
 
+    if (p_context->next_symbol_entry) {
+        p_context->hir_builder.s_entry = p_func_node->s_name;
+        p_context->next_symbol_entry = false;
+    }
+
     return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
 }
 
@@ -2782,6 +2804,7 @@ static void parse_class_declaration_inner(ketl_parser_context* p_context, ketl_n
 
 static ketl_statement_info parse_declaration(ketl_parser_context* p_context) {
     ANN_FOREVER switch (CURRENT_TOKEN(0).type) {
+        case KETL_TOKEN_TYPE_SHARP  : return parse_sharp_prefix        (p_context);
         case KETL_TOKEN_TYPE_IMPORT : return parse_import              (p_context);
         case KETL_TOKEN_TYPE_FROM   : return parse_from_import         (p_context);
         case KETL_TOKEN_TYPE_CIMPORT: return parse_cimport_declaration (p_context);
