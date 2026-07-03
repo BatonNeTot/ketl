@@ -294,3 +294,27 @@ export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64
     }
     return 0;
  }
+
+export fn cstr2str(string: cstr) => str {
+    cimport strlen(pointer: raw) => u64
+    cimport malloc(size: u64) => raw
+    cimport memcpy(dest: raw, src: raw, size: u64) => raw
+
+    var string_length = strlen(string);
+    var buffer = malloc(string_length);
+    memcpy(buffer, string, string_length);
+
+    return buffer_as_str(buffer, string_length);
+}
+
+export fn buffer_as_str(buffer: raw, size: u64) => str {
+    from __ketl_rt import ArrayHeader
+
+    var string = ArrayHeader();
+
+    string.data = buffer;
+    string.capacity = size;
+    string.size = size;
+
+    return string$cast(raw)$cast(str);
+}

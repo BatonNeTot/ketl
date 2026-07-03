@@ -1,17 +1,66 @@
 //🫖ketl
 
 from module import Modules
-from common import StrHashMap
-import common
+import io
 
 #entry
 fn main(args: str[]) {
-    eval("test_case");
+    if (args.size >= 2) {
+        var first = args[1];
+        if (first == "-S") {
+            compile_asm_list(args[2:args.size]);
+        }
+    }
 }
 
-cexport fn eval(module_name: str) {
+fn compile_asm_list(targets: str[]) {
+    for (var target <- targets) {
+        compile_asm(target);
+    }
+}
+
+fn compile_asm(target: str) {
+    var info = io.FileInfo.get(target);
+    if (info == null) {
+        return;
+    }
+    
+    var kind = info->get_kind();
+    if (kind == io.FileInfo.Kind.Directory) {
+        var items = io.Dir.get_items(target);
+        if (items == null) {
+            return;
+        }
+
+        for (var item <- items) {
+            if (item != "." && item != "..") {
+                compile_asm(target .. "/" .. item);
+            }
+        }
+    }
+    
+    if (kind == io.FileInfo.Kind.RegularFile) {
+        compile_asm_file(target);
+    }
+}
+
+fn compile_asm_file(path: str) {
+    var after_last_dot_index = path.size;
+    while (after_last_dot_index != 0 && path[after_last_dot_index - 1] != '.') {
+        after_last_dot_index -= 1;
+    }
+
+    if (after_last_dot_index == 0 || path[after_last_dot_index:path.size] != "ktl") {
+        return;
+    }
+
+
+    var module_name = path[0:after_last_dot_index - 1];
     var module = Modules.instance->load(module_name, null, null, true);
     if (module != null && !module.has_errors) {
+        var output_path = module_name .. ".s";
+        io.redirect_stdout(output_path);
         module->print_asm();
+        io.redirect_restore();
     }
 }

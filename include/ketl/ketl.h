@@ -51,6 +51,6 @@ ketl_value* ketl_state_eval(ketl_state* p_state, const char* p_source, uint32_t 
 
 bool ketl_state_load_module(ketl_state* p_state, const char* p_module_name, uint32_t length);
 
-void ketl_state_print_compile2asm(ketl_state* p_state, const char* p_module_name, uint32_t length);
+bool ketl_state_print_compile2asm(ketl_state* p_state, const char* p_module_name, uint32_t length);
 
 #endif // ketl_ketl_h

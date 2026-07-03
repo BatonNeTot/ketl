@@ -2,7 +2,6 @@
 
 from common import FilePointer
 from common import LogAccum
-import common
 from variable import VariableDecl
 
 from type_base import Type

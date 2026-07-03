@@ -1,7 +1,5 @@
 //🫖ketl
 
-from __ketl_rt import ArrayHeader
-
 var prime_capacities = u32[31]{
     /*1, */3, 11, 23, 53, 97, 193, 389,
     769, 1543, 3079, 6151, 12289,
@@ -332,72 +330,6 @@ export class FilePointer {
     }
 }
 
-cimport printf(message: cstr)
-
-export fn print(message: str) {
-    printf(message$cast(cstr));
-}
-
-export fn println(message: str) {
-    printf(message$cast(cstr));
-    printf("\n"$cast(cstr));
-}
-
-export class File {
-
-    cimport fopen(path: cstr, mode: cstr) => File
-    cimport fseek(file: File, offset: i64, origin: i32)
-    cimport ftell(file: File) => i64
-    cimport fread(buffer: raw, size: u64, count: u64, file: File)
-    cimport ferror(file: File) => i32
-    cimport fclose(file: File)
-
-    cimport malloc(size: u64) => raw
-
-    class IntPointer {
-        var value: i32;
-    }
-
-    cimport _errno() => IntPointer
-
-    fn get_last_error() => i32 {
-        return _errno().value;
-    }
-
-    export fn read(path: str) => str {
-        var file = fopen(path$cast(cstr), "rb"$cast(cstr));
-        if (file == null) {
-            print("error opening file '");
-            print(path);
-            print("':");
-            println(get_last_error()$cast(str));
-            assert(false);
-        }
-        
-        var SEEK_END: i32 = 2;
-        fseek(file, 0, SEEK_END);
-        var filesize = ftell(file);
-        assert(filesize >= 0);
-
-        var buffer = malloc(filesize$cast(u64));
-
-        var SEEK_SET: i32 = 0;
-        fseek(file, 0, SEEK_SET);
-        fread(buffer, 1, filesize$cast(u64), file);
-        assert(ferror(file) == 0);
-
-        fclose(file);
-
-        var string = ArrayHeader();
-
-        string.data = buffer;
-        string.capacity = filesize$cast(u64);
-        string.size = string.capacity;
-
-        return string$cast(raw)$cast(str);
-    }
-} 
-
 export class LogAccum {
     var err: StringBuffer;
     var full: StringBuffer;
@@ -411,7 +343,8 @@ export class LogAccum {
 
     export fn check(self: LogAccum) => bool {
         if (self.err.buffer.size > 0) {
-            print(self.err.buffer);
+            import io
+            io.print(self.err.buffer);
             return false;
         } else {
             return true;

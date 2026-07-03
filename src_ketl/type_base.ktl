@@ -130,7 +130,7 @@ export class Type {
             var signature = func_type.signature;
 
             var result_str = "(";
-            for (var parameter <- signature.parameters[1:signature.parameters.size - 1]) {
+            for (var parameter <- signature.parameters[1:signature.parameters.size]) {
                 result_str ..= parameter->get_name();
                 result_str ..= ", ";
             }

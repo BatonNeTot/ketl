@@ -494,6 +494,11 @@ ketl_hir_var_id_t ketl_hir_builder_create_index_var(ketl_hir_builder_t* p_hir_bu
         return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
     }
 
+    if (GET_VAR(array_id).uid == KETL_HIR_VAR_UID_INDEX) {
+        errorf(expr_info.source_offset, expr_info.length, "Can't directly index indexed value.");
+        return ketl_hir_builder_create_temp_var(p_hir_builder, expr_info, KETL_HIR_USED_TYPE_UNKNOWN);
+    }
+
     ketl_type* p_array_type = GET_TYPE(GET_VAR(array_id).type);
     ANN_ASSERT(p_array_type->kind == KETL_TYPE_ARRAY);
 

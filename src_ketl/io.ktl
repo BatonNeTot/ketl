@@ -1,0 +1,217 @@
+//🫖ketl
+
+export class File {
+
+    export fn read(path: str) => str {
+        var file = fopen(path$cast(cstr), "rb"$cast(cstr));
+        if (file == null) {
+            error("error opening file '");
+            error(path);
+            error("':");
+            errorln(get_last_error()$cast(str));
+            assert(false);
+        }
+        
+        var SEEK_END: i32 = 2;
+        fseek(file, 0, SEEK_END);
+        var filesize = ftell(file)$cast(u64);
+        assert(filesize >= 0);
+
+        var buffer = malloc(filesize);
+
+        var SEEK_SET: i32 = 0;
+        fseek(file, 0, SEEK_SET);
+        fread(buffer, 1, filesize, file);
+        assert(ferror(file) == 0);
+
+        fclose(file);
+
+        from __ketl_rt import buffer_as_str
+        return buffer_as_str(buffer, filesize);
+    }
+} 
+
+export fn get_last_error() => i32 {
+    return _errno().value;
+}
+
+cimport fopen(path: cstr, mode: cstr) => File
+cimport fseek(file: File, offset: i64, origin: i32)
+cimport ftell(file: File) => i64
+cimport fputs(message: cstr, file: File) => i64
+cimport fread(buffer: raw, size: u64, count: u64, file: File)
+cimport ferror(file: File) => i32
+cimport fflush(file: File) => i64
+cimport fclose(file: File)
+
+cimport malloc(size: u64) => raw
+
+class IntPointer {
+    var value: i32;
+}
+cimport _errno() => IntPointer
+
+mimic FileHandle = i64;
+
+var stdout_handle: FileHandle = 1;
+var stderr_handle: FileHandle = 2;
+
+cimport __acrt_iob_func(handle: FileHandle) => File
+var stdout = __acrt_iob_func(stdout_handle);
+var stderr = __acrt_iob_func(stderr_handle);
+
+
+export fn print(message: str) {
+    fputs(message$cast(cstr), stdout);
+}
+
+export fn println(message: str) {
+    fputs(message$cast(cstr), stdout);
+    fputs("\n"$cast(cstr), stdout);
+}
+
+export fn error(message: str) {
+    fputs(message$cast(cstr), stderr);
+}
+
+export fn errorln(message: str) {
+    fputs(message$cast(cstr), stderr);
+    fputs("\n"$cast(cstr), stderr);
+}
+
+cimport _fileno(file: File) => FileHandle
+cimport _dup(handle: FileHandle) => FileHandle
+cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
+
+var stdout_backup = _dup(stdout_handle);
+var redirect: File;
+
+export fn redirect_restore() {
+    fflush(stdout);
+    if (redirect != null) {
+        fclose(redirect);
+    }
+    _dup2(stdout_backup, stdout_handle);
+}
+
+export fn redirect_stdout(target_filename: str) {
+    redirect_restore();
+    
+    redirect = fopen(target_filename$cast(cstr), "w"$cast(cstr));
+    if (redirect == null) {
+        errorln("Can't open file '" .. target_filename .. "'");
+        return;
+    }
+
+    // stdout now refers to file p_target_filename
+    if (-1 == _dup2(_fileno(redirect), stdout_handle)) {
+        errorln("Can't _dup2 stdout");
+        return;
+    }
+}
+
+export class Dir {
+
+    export fn get_items(path: str) => str[] {
+        var dir = Dir.open(path);
+        if (dir == null) {
+            return null;
+        }
+
+        var items = str[0];
+        var item = dir->next_item();
+        while (item != null) {
+            items ..= item;
+            item = dir->next_item();
+        }
+        dir->close();
+
+        return items;
+    }
+
+    export fn open(path: str) => Dir {
+        cimport opendir(path: cstr) => Dir;
+        var dir = opendir(path$cast(cstr));
+        if (dir == null)
+        {
+            errorln("Failed to open directory '" .. path .. "'");
+        }
+
+        return dir;
+    }
+    
+    // returns null when reaches end
+    export fn next_item(dir: Dir) => str {
+        cimport readdir(dir: Dir) => raw;
+        var dirent = readdir(dir);
+        if (dirent == null) {
+            return null;
+        }
+
+        var dirent_name_offset = (i32$size + i16$size + i16$size)$cast(u64);
+        var cstr_name = dirent + dirent_name_offset;
+
+        from __ketl_rt import cstr2str
+        return cstr2str(cstr_name);
+    }
+
+    export fn close(dir: Dir) {
+        cimport closedir(dir: Dir) => i32
+        closedir(dir);
+    }
+} 
+
+export class FileInfo {
+
+    mimic _dev_t = u32;
+    mimic _ino_t = u16;
+    mimic off_t = i32;
+    mimic time_t = i64;
+
+    var st_dev: _dev_t;
+    var st_ino: _ino_t;
+    var st_mode: u16;
+    var st_nlink: i16;
+    var st_uid: i16;
+    var st_gid: i16;
+    var st_rdev: _dev_t;
+    var st_size: off_t; /* off_t follows _FILE_OFFSET_BITS */
+    var st_atime: time_t; /* time_t follows _USE_32BIT_TIME_T */
+    var st_mtime: time_t;
+    var st_ctime: time_t;
+
+    export fn get(path: str) => FileInfo {
+        cimport stat(filename: cstr, stat: FileInfo) => i32;
+
+        var info = FileInfo();
+        if (stat(path, info) != 0) {
+            return null;
+        }
+
+        return info;
+    }
+
+    enum Kind: u8 {
+        Unsupported,
+        Directory,
+        RegularFile,
+    }
+
+    shared _S_IFMT:   u16 = 61440; // 0xF000
+    shared _S_IFDIR:  u16 = 16384;  // 0x4000
+    shared _S_IFCHR:  u16 = 8192;  // 0x2000
+    shared _S_IFIFO:  u16 = 4096;  // 0x1000
+    shared _S_IFREG:  u16 = 32768;  // 0x8000
+    shared _S_IREAD:  u16 = 256;  // 0x0100
+    shared _S_IWRITE: u16 = 128; // 0x0080
+    shared _S_IEXEC:  u16 = 64;  // 0x0040
+
+    export fn get_kind(info: FileInfo) => Kind {
+        switch (info.st_mode & _S_IFMT) {
+            case _S_IFDIR => return Kind.Directory;
+            case _S_IFREG => return Kind.RegularFile;
+            default => return Kind.Unsupported;
+        }
+    }
+
+}
