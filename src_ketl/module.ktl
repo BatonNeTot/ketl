@@ -2,8 +2,8 @@
 
 from common import StrHashMap
 from common import LogAccum
-from common import File
-import common
+from io import File
+import io
 
 from type import Types
 from type import TypeFunction
@@ -40,16 +40,16 @@ class Module {
     }
 
     export fn print_asm(module: Module) {
-        common.println("    .def    @feat.00;");
-        common.println("    .scl    3;");
-        common.println("    .type   0;");
-        common.println("    .endef");
-        common.println("    .globl  @feat.00");
-        common.println("@feat.00 = 0");
-        common.println("    .intel_syntax noprefix");
-        common.println("    .file   \"" .. module.name .. ".ktl\"");
+        io.println("    .def    @feat.00;");
+        io.println("    .scl    3;");
+        io.println("    .type   0;");
+        io.println("    .endef");
+        io.println("    .globl  @feat.00");
+        io.println("@feat.00 = 0");
+        io.println("    .intel_syntax noprefix");
+        io.println("    .file   \"" .. module.name .. ".ktl\"");
 
-        common.println("    .text                    # -- Functions");
+        io.println("    .text                    # -- Functions");
 
         if (module.asm_x86 != null) {
             module.asm_x86->print(module.name .. "..init");

@@ -4,8 +4,6 @@ from common import StrHashMap
 from common import FilePointer
 from common import LogAccum
 
-import common
-
 from type_base import Type
 from type import Types
 from type import TypePrimitive

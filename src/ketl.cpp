@@ -7,12 +7,15 @@
 #include <filesystem>
 
 #include <io.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 static int stdout_backup = 0;
 static FILE* p_redirect = NULL;
 
 void redirect_init() {
-    stdout_backup = _dup(_fileno(stdout));
+    int handle = _fileno(stdout);
+    stdout_backup = _dup(handle);
 }
 
 void redirect_restore() {
@@ -32,13 +35,13 @@ void redirect_stdout(const char* p_target_filename) {
     }
 
     // stdout now refers to file p_target_filename
-    if (-1 == _dup2(_fileno(p_redirect), 1)) {
+    if (-1 == _dup2(_fileno(p_redirect), _fileno(stdout))) {
         perror("Can't _dup2 stdout");
         exit(1);
     }
 }
 
-void compile_asm_file(const char* p_filepath) {
+bool compile_asm_file(const char* p_filepath) {
     redirect_init();
     class _defer{ public: ~_defer() {
         redirect_restore();
@@ -53,7 +56,7 @@ void compile_asm_file(const char* p_filepath) {
     }
     
     if (strcmp(p_filepath + after_last_dot_index, "ktl") != 0 || after_last_dot_index == 0) {
-        return;
+        return true;
     }
 
     snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%.*ss", (int)after_last_dot_index, p_filepath);
@@ -61,32 +64,37 @@ void compile_asm_file(const char* p_filepath) {
     redirect_stdout(a_buffer);
     KETL::State ketl(&ketl_default_allocator);
 
-    ketl.print_compile2asm(std::string_view{p_filepath, length});
+    return ketl.print_compile2asm(std::string_view{p_filepath, length});
 }
 
-void compile_asm(const std::filesystem::path& path) {
+bool compile_asm(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path)) {
-        return;
+        return true;
     }
 
     if (std::filesystem::is_directory(path)) {
+        bool was_error = false;
         for (auto it = std::filesystem::directory_iterator(path); it != std::filesystem::directory_iterator(); ++it) {
-            compile_asm(*it);
+            was_error |= !compile_asm(*it);
         }
-        return;
+        return !was_error;
     }
 
     if (std::filesystem::is_regular_file(path)) {
-        compile_asm_file(path.string().c_str());
+        return compile_asm_file(path.string().c_str());
     }
+
+    return true;
 }
 
-void compile_asm_list(int amount, char **pp_paths) {
+bool compile_asm_list(int amount, char **pp_paths) {
+    bool was_error = false;
     for (int i = 0; i < amount; ++i) {
         const char* p_path = pp_paths[i]; 
 
-        compile_asm(p_path);
+        was_error |= !compile_asm(p_path);
     }
+    return !was_error;
 }
 
 void repl() {
@@ -114,9 +122,7 @@ int main(int argc, char **argv) {
     }
 
     if (argc >= 2 && strcmp(argv[1], "-S") == 0) {
-        compile_asm_list(argc - 2, argv + 2);
-
-        return 0;
+        return compile_asm_list(argc - 2, argv + 2) ? 0: 1;
     }
 
     for (int i = 1; i < argc; ++i) {

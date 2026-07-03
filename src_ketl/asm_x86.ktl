@@ -2,7 +2,7 @@
 
 from common import IntHashMap
 from common import align_forward
-import common
+import io
 
 from type_base import Type
 from value import Value
@@ -92,21 +92,21 @@ export class ASMX86 {
 
     fn print_ptr_size(size: Size) {
         switch (size) {
-            case Size.Bit8  => common.print("byte");
-            case Size.Bit16 => common.print("word");
-            case Size.Bit32 => common.print("dword");
-            case Size.Bit64 => common.print("qword");
-            default => common.print("error"); 
+            case Size.Bit8  => io.print("byte");
+            case Size.Bit16 => io.print("word");
+            case Size.Bit32 => io.print("dword");
+            case Size.Bit64 => io.print("qword");
+            default => io.print("error"); 
         }
     }
 
     fn print_directive_size(size: Size) {
         switch (size) {
-            case Size.Bit8  => common.print("byte");
-            case Size.Bit16 => common.print("2byte");
-            case Size.Bit32 => common.print("4byte");
-            case Size.Bit64 => common.print("8byte");
-            default => common.print("error"); 
+            case Size.Bit8  => io.print("byte");
+            case Size.Bit16 => io.print("2byte");
+            case Size.Bit32 => io.print("4byte");
+            case Size.Bit64 => io.print("8byte");
+            default => io.print("error"); 
         }
     }
 
@@ -144,133 +144,133 @@ export class ASMX86 {
         switch (reg) {
             case Reg.AX =>
                 switch (size) {
-                    case Size.Bit8  => common.print("al");
-                    case Size.Bit16 => common.print("ax");
-                    case Size.Bit32 => common.print("eax");
-                    case Size.Bit64 => common.print("rax");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("al");
+                    case Size.Bit16 => io.print("ax");
+                    case Size.Bit32 => io.print("eax");
+                    case Size.Bit64 => io.print("rax");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.CX =>
                 switch (size) {
-                    case Size.Bit8  => common.print("cl");
-                    case Size.Bit16 => common.print("cx");
-                    case Size.Bit32 => common.print("ecx");
-                    case Size.Bit64 => common.print("rcx");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("cl");
+                    case Size.Bit16 => io.print("cx");
+                    case Size.Bit32 => io.print("ecx");
+                    case Size.Bit64 => io.print("rcx");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.DX =>
                 switch (size) {
-                    case Size.Bit8  => common.print("dl");
-                    case Size.Bit16 => common.print("dx");
-                    case Size.Bit32 => common.print("edx");
-                    case Size.Bit64 => common.print("rdx");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("dl");
+                    case Size.Bit16 => io.print("dx");
+                    case Size.Bit32 => io.print("edx");
+                    case Size.Bit64 => io.print("rdx");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.BX =>
                 switch (size) {
-                    case Size.Bit8  => common.print("bl");
-                    case Size.Bit16 => common.print("bx");
-                    case Size.Bit32 => common.print("ebx");
-                    case Size.Bit64 => common.print("rbx");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("bl");
+                    case Size.Bit16 => io.print("bx");
+                    case Size.Bit32 => io.print("ebx");
+                    case Size.Bit64 => io.print("rbx");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.SP =>
                 switch (size) {
-                    case Size.Bit8  => common.print("spl");
-                    case Size.Bit16 => common.print("sp");
-                    case Size.Bit32 => common.print("esp");
-                    case Size.Bit64 => common.print("rsp");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("spl");
+                    case Size.Bit16 => io.print("sp");
+                    case Size.Bit32 => io.print("esp");
+                    case Size.Bit64 => io.print("rsp");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.BP =>
                 switch (size) {
-                    case Size.Bit8  => common.print("bpl");
-                    case Size.Bit16 => common.print("bp");
-                    case Size.Bit32 => common.print("ebp");
-                    case Size.Bit64 => common.print("rbp");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("bpl");
+                    case Size.Bit16 => io.print("bp");
+                    case Size.Bit32 => io.print("ebp");
+                    case Size.Bit64 => io.print("rbp");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.SI =>
                 switch (size) {
-                    case Size.Bit8  => common.print("sil");
-                    case Size.Bit16 => common.print("si");
-                    case Size.Bit32 => common.print("esi");
-                    case Size.Bit64 => common.print("rsi");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("sil");
+                    case Size.Bit16 => io.print("si");
+                    case Size.Bit32 => io.print("esi");
+                    case Size.Bit64 => io.print("rsi");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.DI =>
                 switch (size) {
-                    case Size.Bit8  => common.print("dil");
-                    case Size.Bit16 => common.print("di");
-                    case Size.Bit32 => common.print("edi");
-                    case Size.Bit64 => common.print("rdi");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("dil");
+                    case Size.Bit16 => io.print("di");
+                    case Size.Bit32 => io.print("edi");
+                    case Size.Bit64 => io.print("rdi");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R8 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r8b");
-                    case Size.Bit16 => common.print("r8w");
-                    case Size.Bit32 => common.print("r8d");
-                    case Size.Bit64 => common.print("r8");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r8b");
+                    case Size.Bit16 => io.print("r8w");
+                    case Size.Bit32 => io.print("r8d");
+                    case Size.Bit64 => io.print("r8");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R9 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r9b");
-                    case Size.Bit16 => common.print("r9w");
-                    case Size.Bit32 => common.print("r9d");
-                    case Size.Bit64 => common.print("r9");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r9b");
+                    case Size.Bit16 => io.print("r9w");
+                    case Size.Bit32 => io.print("r9d");
+                    case Size.Bit64 => io.print("r9");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R10 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r10b");
-                    case Size.Bit16 => common.print("r10w");
-                    case Size.Bit32 => common.print("r10d");
-                    case Size.Bit64 => common.print("r10");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r10b");
+                    case Size.Bit16 => io.print("r10w");
+                    case Size.Bit32 => io.print("r10d");
+                    case Size.Bit64 => io.print("r10");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R11 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r11b");
-                    case Size.Bit16 => common.print("r11w");
-                    case Size.Bit32 => common.print("r11d");
-                    case Size.Bit64 => common.print("r11");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r11b");
+                    case Size.Bit16 => io.print("r11w");
+                    case Size.Bit32 => io.print("r11d");
+                    case Size.Bit64 => io.print("r11");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R12 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r12b");
-                    case Size.Bit16 => common.print("r12w");
-                    case Size.Bit32 => common.print("r12d");
-                    case Size.Bit64 => common.print("r12");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r12b");
+                    case Size.Bit16 => io.print("r12w");
+                    case Size.Bit32 => io.print("r12d");
+                    case Size.Bit64 => io.print("r12");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R13 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r13b");
-                    case Size.Bit16 => common.print("r13w");
-                    case Size.Bit32 => common.print("r13d");
-                    case Size.Bit64 => common.print("r13");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r13b");
+                    case Size.Bit16 => io.print("r13w");
+                    case Size.Bit32 => io.print("r13d");
+                    case Size.Bit64 => io.print("r13");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R14 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r14b");
-                    case Size.Bit16 => common.print("r14w");
-                    case Size.Bit32 => common.print("r14d");
-                    case Size.Bit64 => common.print("r14");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r14b");
+                    case Size.Bit16 => io.print("r14w");
+                    case Size.Bit32 => io.print("r14d");
+                    case Size.Bit64 => io.print("r14");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
             case Reg.R15 =>
                 switch (size) {
-                    case Size.Bit8  => common.print("r15b");
-                    case Size.Bit16 => common.print("r15w");
-                    case Size.Bit32 => common.print("r15d");
-                    case Size.Bit64 => common.print("r15");
-                    default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+                    case Size.Bit8  => io.print("r15b");
+                    case Size.Bit16 => io.print("r15w");
+                    case Size.Bit32 => io.print("r15d");
+                    case Size.Bit64 => io.print("r15");
+                    default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
                 }
-            default => common.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
+            default => io.print("$reg-error." .. reg$cast(str) .. "." .. size$cast(str));
         }
     }
 
@@ -355,7 +355,7 @@ export class ASMX86 {
         fn print(modrm: ModRM, size: Size) {
             if (!modrm.indir) {
                 if (modrm.label) {
-                    common.print(modrm.literal);
+                    io.print(modrm.literal);
                 } else {
                     modrm.base->print_reg(size);
                 }
@@ -363,37 +363,37 @@ export class ASMX86 {
             }
 
             size->print_ptr_size();
-            common.print(" ptr [");
+            io.print(" ptr [");
 
             if (modrm.base == Reg.None && modrm.label) {
-                common.print("rip + ");
-                common.print(modrm.literal);
-                common.print("]");
+                io.print("rip + ");
+                io.print(modrm.literal);
+                io.print("]");
                 return;
             }
 
             modrm.base->print_reg(Size.Ptr);
             
             if (modrm.index != Reg.None) {
-                common.print(" + (");
+                io.print(" + (");
                 modrm.index->print_reg(Size.Ptr);
-                common.print(" * ");
+                io.print(" * ");
                 var scale = scale_powers[modrm.scale_power];
-                common.print(scale$cast(str));
-                common.print(")");
+                io.print(scale$cast(str));
+                io.print(")");
             }
 
             if (modrm.disp != 0) {
                 if (modrm.disp >= 0) {
-                    common.print(" + 0x");
-                    common.print(modrm.disp$cast(str));
+                    io.print(" + 0x");
+                    io.print(modrm.disp$cast(str));
                 } else {
-                    common.print(" - 0x");
-                    common.print((-modrm.disp)$cast(str));
+                    io.print(" - 0x");
+                    io.print((-modrm.disp)$cast(str));
                 }
             }
 
-            common.print("]");
+            io.print("]");
         }
 
     }
@@ -413,59 +413,59 @@ export class ASMX86 {
 
         fn print(instr: Instr, instrs: Instr[]) {
             if (instr.tag == Tag.LABEL) {
-                common.print(instr.modrm.literal);
-                common.print(":");
+                io.print(instr.modrm.literal);
+                io.print(":");
                 return;
             } else {
-                common.print("    ");
+                io.print("    ");
             }
 
             switch (instr.tag) {
                 case Tag.DIRECTIVE => {
-                    common.print(".");
-                    common.print(instr.modrm.literal);
+                    io.print(".");
+                    io.print(instr.modrm.literal);
                 }
 
-                case Tag.PUSH => common.print("push ");
-                case Tag.POP => common.print("pop ");
+                case Tag.PUSH => io.print("push ");
+                case Tag.POP => io.print("pop ");
 
-                case Tag.MOV => common.print("mov ");
-                case Tag.LEA => common.print("lea ");
+                case Tag.MOV => io.print("mov ");
+                case Tag.LEA => io.print("lea ");
 
-                case Tag.MOVSX8 => common.print("movsx ");
-                case Tag.MOVSX16 => common.print("movsx ");
-                case Tag.MOVSX32 => common.print("movsxd ");
-                case Tag.MOVZX8 => common.print("movzx ");
-                case Tag.MOVZX16 => common.print("movzx ");
+                case Tag.MOVSX8 => io.print("movsx ");
+                case Tag.MOVSX16 => io.print("movsx ");
+                case Tag.MOVSX32 => io.print("movsxd ");
+                case Tag.MOVZX8 => io.print("movzx ");
+                case Tag.MOVZX16 => io.print("movzx ");
 
-                case Tag.ADD => common.print("add ");
-                case Tag.SUB => common.print("sub ");
-                case Tag.NEG => common.print("neg ");
-                case Tag.MUL => common.print("mul ");
-                case Tag.IMUL => common.print("imul ");
-                case Tag.DIV => common.print("div ");
-                case Tag.IDIV => common.print("idiv ");
+                case Tag.ADD => io.print("add ");
+                case Tag.SUB => io.print("sub ");
+                case Tag.NEG => io.print("neg ");
+                case Tag.MUL => io.print("mul ");
+                case Tag.IMUL => io.print("imul ");
+                case Tag.DIV => io.print("div ");
+                case Tag.IDIV => io.print("idiv ");
 
-                case Tag.AND => common.print("and ");
-                case Tag.OR => common.print("or ");
-                case Tag.XOR => common.print("xor ");
-                case Tag.NOT => common.print("not ");
+                case Tag.AND => io.print("and ");
+                case Tag.OR => io.print("or ");
+                case Tag.XOR => io.print("xor ");
+                case Tag.NOT => io.print("not ");
 
-                case Tag.CMP => common.print("cmp ");
-                case Tag.TEST => common.print("test ");
+                case Tag.CMP => io.print("cmp ");
+                case Tag.TEST => io.print("test ");
                     
-                case Tag.SETE => common.print("sete ");
-                case Tag.SETNE => common.print("setne ");
-                case Tag.SETG => common.print("setg ");
-                case Tag.SETGE => common.print("setge ");
-                case Tag.SETL => common.print("setl ");
-                case Tag.SETLE => common.print("setle ");
+                case Tag.SETE => io.print("sete ");
+                case Tag.SETNE => io.print("setne ");
+                case Tag.SETG => io.print("setg ");
+                case Tag.SETGE => io.print("setge ");
+                case Tag.SETL => io.print("setl ");
+                case Tag.SETLE => io.print("setle ");
 
-                case Tag.JMP => common.print("jmp ");
-                case Tag.JNE => common.print("jne ");
+                case Tag.JMP => io.print("jmp ");
+                case Tag.JNE => io.print("jne ");
 
-                case Tag.CALL => common.print("call ");
-                case Tag.RET => common.print("ret");
+                case Tag.CALL => io.print("call ");
+                case Tag.RET => io.print("ret");
             }
 
             switch (instr.arg_type) {
@@ -474,8 +474,8 @@ export class ASMX86 {
                     instr.modrm->print(instr.size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        common.print(" # ");
-                        common.print(instr.modrm.literal);
+                        io.print(" # ");
+                        io.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.RM => {
@@ -488,51 +488,51 @@ export class ASMX86 {
                         case Tag.MOVZX16 => rhs_size = Size.Bit16;
                     }
                     instr.reg->print_reg(instr.size);
-                    common.print(", ");
+                    io.print(", ");
                     instr.modrm->print(rhs_size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        common.print(" # ");
-                        common.print(instr.modrm.literal);
+                        io.print(" # ");
+                        io.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MR => {
                     instr.modrm->print(instr.size);
-                    common.print(", ");
+                    io.print(", ");
                     instr.reg->print_reg(instr.size);
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        common.print(" # ");
-                        common.print(instr.modrm.literal);
+                        io.print(" # ");
+                        io.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MI => {
                     instr.modrm->print(instr.size);
-                    common.print(", "); 
-                    common.print(instr.imm64$cast(str)); // TODO make 0x version
+                    io.print(", "); 
+                    io.print(instr.imm64$cast(str)); // TODO make 0x version
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        common.print(" # ");
-                        common.print(instr.modrm.literal);
+                        io.print(" # ");
+                        io.print(instr.modrm.literal);
                     }
                 }
                 case ArgType.MI_CHAR => {
                     instr.modrm->print(instr.size);
-                    common.print(", ");
-                    common.print(instr.imm64$cast(str)); // TODO make 0x version
+                    io.print(", ");
+                    io.print(instr.imm64$cast(str)); // TODO make 0x version
                     // TODO ketl_lexer_is_character_escaped
-                    // common.print("    # '\\");
-                    common.print("    # '");
-                    // common.print(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char)));
-                    common.print(("" .. instr.imm64$cast(char)));
-                    common.print("'");
+                    // io.print("    # '\\");
+                    io.print("    # '");
+                    // io.print(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char)));
+                    io.print(("" .. instr.imm64$cast(char)));
+                    io.print("'");
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
-                        common.print(" # ");
-                        common.print(instr.modrm.literal);
+                        io.print(" # ");
+                        io.print(instr.modrm.literal);
                     }
                 }
-                case ArgType.JI => common.print(instrs[instr.goto_offset].modrm.literal);
+                case ArgType.JI => io.print(instrs[instr.goto_offset].modrm.literal);
             }
         }
     }
@@ -895,7 +895,7 @@ export class ASMX86 {
                 return arg;
             }
 
-            common.println(varr.kind$cast(str));
+            io.println(varr.kind$cast(str));
             assert(false);
             return null;
         }
@@ -1220,8 +1220,8 @@ export class ASMX86 {
 
                 switch (instr.tag) {
                     default => {
-                        common.print("unknown tag: ");
-                        common.println(instr.tag$cast(str));
+                        io.print("unknown tag: ");
+                        io.println(instr.tag$cast(str));
                         assert(false);
                     }
                     case HIR.Tag.PLUS
@@ -1515,20 +1515,20 @@ export class ASMX86 {
     }
 
     export fn print(self: ASMX86, func_name: str) {
-        common.println("    .def    " .. func_name .. ";                    # @" .. func_name);
-        common.println("    .scl    2;");
-        common.println("    .type   32;");
-        common.println("    .endef");
-        common.println("    .globl	" .. func_name);
-        common.println("    .p2align	4");
-        common.println(func_name .. ":");
-        common.println(".seh_proc " .. func_name);
+        io.println("    .def    " .. func_name .. ";                    # @" .. func_name);
+        io.println("    .scl    2;");
+        io.println("    .type   32;");
+        io.println("    .endef");
+        io.println("    .globl	" .. func_name);
+        io.println("    .p2align	4");
+        io.println(func_name .. ":");
+        io.println(".seh_proc " .. func_name);
 
         for (var instr <- self.instrs) {
             instr->print(self.instrs);
-            common.print("\n");
+            io.print("\n");
         }
 
-        common.println("    .seh_endproc");
+        io.println("    .seh_endproc");
     } 
 }

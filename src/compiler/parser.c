@@ -202,6 +202,10 @@ static ketl_hir_var_id_t trying_to_cast_rhs_to_lhs(ketl_parser_context* p_contex
 
     ketl_hir_expr_info_t expr_info = expr_info_merge(lhs_info, p_rhs_var->expr_info);
 
+    if (lhs_type == KETL_HIR_USED_TYPE_UNKNOWN) {
+        return push_temp_var(p_context, expr_info);
+    }
+   
     if (p_rhs_var->type == KETL_HIR_USED_TYPE_UNKNOWN) {
         return push_temp_var(p_context, expr_info);
     }

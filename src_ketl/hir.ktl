@@ -4,7 +4,7 @@ from token import Token
 from type_base import Type
 from type import Types
 from namespace import Namespace
-import common
+import io
 
 export class HIR {
 
@@ -355,13 +355,13 @@ export class HIR {
     fn print_var(hir: HIR, var_id: HIR.VarId) {
         var varr = hir.vars[var_id];
         switch (varr.kind) {
-            default => common.print("<unknown>");
+            default => io.print("<unknown>");
             case HIR.Var.Kind.Common => {
                 var decl_id = varr$cast(HIR.VarCommon).decl;
                 var decl = hir.decls[decl_id];
-                common.print(decl.name);
+                io.print(decl.name);
             }
-            case HIR.Var.Kind.Literal => common.print(varr$cast(HIR.VarLiteral).value$cast(str));
+            case HIR.Var.Kind.Literal => io.print(varr$cast(HIR.VarLiteral).value$cast(str));
         }
     }
 
@@ -383,10 +383,10 @@ export class HIR {
     fn print_instr(hir: HIR, instr: HIR.Instr) {
         switch (instr.tag) {
             default => {
-                common.print("unknown tag: ");
-                common.print(instr.tag$cast(str));
+                io.print("unknown tag: ");
+                io.print(instr.tag$cast(str));
             }
-            case HIR.Tag.NONE_STMT => common.print("none");
+            case HIR.Tag.NONE_STMT => io.print("none");
 
 /*
             case HIR.Tag.LOGICAL_NOT => {
@@ -402,11 +402,11 @@ export class HIR {
             case HIR.Tag.MOD => {
                 var hir_info = instr$cast(HIR.BinaryOp);
                 hir->print_var(hir_info.output);
-                common.print(" = ");
+                io.print(" = ");
                 hir->print_var(hir_info.lhs);
-                common.print(" ");
-                common.print(get_str_representation(instr.tag));
-                common.print(" ");
+                io.print(" ");
+                io.print(get_str_representation(instr.tag));
+                io.print(" ");
                 hir->print_var(hir_info.rhs);
             }
 
@@ -434,7 +434,7 @@ export class HIR {
                 var hir_info = instr$cast(HIR.Assign);
                 hir->print_var(hir_info.dst);
                 switch (instr.tag) {
-                    case HIR.Tag.ASSIGN => common.print(" = ");
+                    case HIR.Tag.ASSIGN => io.print(" = ");
                 }
                 hir->print_var(hir_info.src);
             }
@@ -467,10 +467,10 @@ export class HIR {
 
             */
 
-            case HIR.Tag.RETURN => common.print("return");
+            case HIR.Tag.RETURN => io.print("return");
             case HIR.Tag.RETURN_VALUE => {
                 var hir_info = instr$cast(HIR.ReturnValue);
-                common.print("return ");
+                io.print("return ");
                 hir->print_var(hir_info.value);
             }
         }
@@ -487,18 +487,18 @@ export class HIR {
         var block: BlockId;
 
         while (block < hir.block_offsets.size) {
-            common.print("BB");
-            common.print(block$cast(str));
-            common.println(":");
+            io.print("BB");
+            io.print(block$cast(str));
+            io.println(":");
 
             var i = hir.block_offsets[block];
             while (i < hir.instrs.size) {
-                common.print(tab);
+                io.print(tab);
 
                 var instr = hir.instrs[i];
 
                 hir->print_instr(instr);
-                common.println("");
+                io.println("");
 
                 if (instr.tag->is_terminator()) {
                     break;
@@ -510,6 +510,6 @@ export class HIR {
             block += 1;
         }
 
-        common.println("");
+        io.println("");
     }
 }
