@@ -344,7 +344,7 @@ export class LogAccum {
     export fn check(self: LogAccum) => bool {
         if (self.err.buffer.size > 0) {
             import io
-            io.print(self.err.buffer);
+            io.error(self.err.buffer);
             return false;
         } else {
             return true;

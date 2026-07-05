@@ -215,3 +215,5 @@ export class FileInfo {
     }
 
 }
+
+export fn create_folders_if_needed() {}

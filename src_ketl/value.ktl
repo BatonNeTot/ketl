@@ -19,6 +19,16 @@ export class Value {
     var type: Type;
     var kind: Kind;
 
+    export fn copy(self: Value) => Value {
+        var value = Value();
+
+        value.value = self.value;
+        value.type = self.type;
+        value.kind = self.kind;
+
+        return value;
+    }
+
     export fn set_type(self: Value, type: Type) {
         self.type = type;
         if (type == null) {
