@@ -3,23 +3,82 @@
 from module import Modules
 import io
 
+class ArgsParser {
+    enum Operation {
+        ExecuteScript,
+        CompileToAsm,
+    }
+
+    enum State {
+        ExpectingExecutionScript,
+        ExpectingExecution,
+
+        ExpectingCompilationTargets,
+        ExpectingOutputTarget,
+    }
+
+    var op: Operation;
+    var state: State;
+
+    var execution_script: str;
+    
+    var compilation_targets: str[];
+    var output_target: str;
+}
+
 #entry
 fn main(args: str[]) {
-    if (args.size >= 2) {
-        var first = args[1];
-        if (first == "-S") {
-            compile_asm_list(args[2:args.size]);
+    var parser = ArgsParser();
+
+    for (var arg <- args[1:args.size]) {
+        if (arg[0] == '-') {
+            for (var symbol <- arg[1:arg.size]) {
+                switch (symbol) {
+                    case 'S' => {
+                        parser.op = ArgsParser.Operation.CompileToAsm;
+                        parser.state = ArgsParser.State.ExpectingCompilationTargets;
+                        parser.compilation_targets = str[0];
+                        continue;
+                    }
+                    case 'o' => {
+                        // TODO check known conditions
+                        parser.state = ArgsParser.State.ExpectingOutputTarget;
+                        continue;
+                    }
+                }
+
+                io.errorln("Unknown flag '" .. symbol .. "'");
+                return;
+            }
+
+            continue;
+        }
+
+        switch (parser.state) {
+            case ArgsParser.State.ExpectingCompilationTargets => parser.compilation_targets ..= arg;
+            case ArgsParser.State.ExpectingOutputTarget => parser.output_target = arg;
+        }
+    }
+
+    switch (parser.op) {
+        case ArgsParser.Operation.CompileToAsm => {
+            if (parser.output_target == null) {
+                compile_asm_list(parser.compilation_targets);
+            } else {
+                var compilation_target = parser.compilation_targets[0];
+                compile_asm(compilation_target, parser.output_target);
+            }
         }
     }
 }
 
 fn compile_asm_list(targets: str[]) {
     for (var target <- targets) {
-        compile_asm(target);
+        compile_asm(target, null);
     }
 }
 
-fn compile_asm(target: str) {
+fn compile_asm(target: str, output: str) {
     var info = io.FileInfo.get(target);
     if (info == null) {
         return;
@@ -32,33 +91,61 @@ fn compile_asm(target: str) {
             return;
         }
 
-        for (var item <- items) {
-            if (item != "." && item != "..") {
-                compile_asm(target .. "/" .. item);
+        if (output != null) {
+            for (var item <- items) {
+                if (item != "." && item != "..") {
+                    compile_asm(target .. "/" .. item, output .. "/" .. item);
+                }
+            }
+        } else {
+            for (var item <- items) {
+                if (item != "." && item != "..") {
+                    compile_asm(target .. "/" .. item, null);
+                }
             }
         }
     }
     
     if (kind == io.FileInfo.Kind.RegularFile) {
-        compile_asm_file(target);
+        compile_asm_file(target, output);
     }
 }
 
-fn compile_asm_file(path: str) {
-    var after_last_dot_index = path.size;
-    while (after_last_dot_index != 0 && path[after_last_dot_index - 1] != '.') {
-        after_last_dot_index -= 1;
+fn find_last(string: str, symbol: char) => i64 {
+    var last_index = string.size$cast(i64) - 1;
+    while (last_index >= 0 && string[last_index] != symbol) {
+        last_index -= 1;
+    }
+    return last_index;
+}
+
+fn compile_asm_file(path: str, output_path: str) {
+    var dir_path: str;
+    var module_name: str;
+
+    {
+        var after_last_slash_index = find_last(path, '/') + 1;
+        dir_path = path[0:after_last_slash_index];
+
+        var after_last_dot_index = find_last(path, '.') + 1;
+        if (after_last_dot_index == 0 || path[after_last_dot_index:path.size] != "ktl") {
+            return;
+        }
+
+        module_name = path[after_last_slash_index:after_last_dot_index - 1];
     }
 
-    if (after_last_dot_index == 0 || path[after_last_dot_index:path.size] != "ktl") {
-        return;
+    if (output_path == null) {
+        output_path = dir_path .. "/" .. module_name .. ".s";
+    } else {
+        var after_last_dot_index = find_last(output_path, '.') + 1;
+        if (after_last_dot_index != 0 && output_path[after_last_dot_index:output_path.size] == "ktl") {
+            output_path = output_path[0:after_last_dot_index] .. "s";
+        }
     }
 
-
-    var module_name = path[0:after_last_dot_index - 1];
-    var module = Modules.instance->load(module_name, null, null, true);
+    var module = Modules.instance->load(module_name, dir_path, null, true);
     if (module != null && !module.has_errors) {
-        var output_path = module_name .. ".s";
         io.redirect_stdout(output_path);
         module->print_asm();
         io.redirect_restore();

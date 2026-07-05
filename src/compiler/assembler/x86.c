@@ -1545,7 +1545,7 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
                         ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_NEG, size, MODRM_REG(KETL_ASM_X86_AX));
                         break;
                 }
-                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, KETL_ASM_X86_8B, p_builder);
+                push_mov_to_stack_hir(p_hir_info->output_var, KETL_ASM_X86_AX, size, p_builder);
                 continue;
             }
             case KETL_HIR_UNARY_PLUS: {

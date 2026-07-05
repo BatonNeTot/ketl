@@ -127,6 +127,7 @@ class GC {
     }
 
     export fn append_array(gc: GC, stack_size: u64, array_header: ArrayHeader, other_array_header: ArrayHeader) {
+        assert(other_array_header != null);
         var value_size = stack_size;
         if (array_header.is_slice) {
             var capacity = array_header.size + other_array_header.size;
@@ -220,7 +221,6 @@ export fn uint2str(value: u64) => str {
 
     var buffer = "";
 
-    // TODO doesn't work with (-1)$cast(u64);
     while (value > 0) {
         var number = value % 10;
         value /= 10;

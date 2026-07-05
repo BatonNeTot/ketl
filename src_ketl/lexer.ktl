@@ -265,6 +265,10 @@ export class Lexer {
         var first_symbol = lexer->get_symbol();
         switch (first_symbol) {
             case 'b' => {
+                if ("bool" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.BOOL, id_length);
+                    return true;
+                }
                 if ("break" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.BREAK, id_length);
                     return true;
@@ -389,6 +393,10 @@ export class Lexer {
             case 's' => {
                 if ("shared" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.SHARED, id_length);
+                    return true;
+                }
+                if ("str" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.STR, id_length);
                     return true;
                 }
                 if ("switch" == lexer.source[lexer.offset:lexer.offset + id_length]) {

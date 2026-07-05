@@ -53,6 +53,16 @@ export class TypeEnum {
         
         return type;
     }
+
+    export fn find_constant(self: TypeEnum, name: str) => Value {
+        for (var constant <- self.constants) {
+            if (constant.name == name) {
+                return constant.value->copy();
+            }
+        }
+
+        return null;
+    }
 }
 
 export class TypeFunction {
@@ -206,7 +216,10 @@ class Types {
     var type_u32: TypePrimitive;
     var type_u64: TypePrimitive;
 
+    var type_str: TypeArray;
+
     var functions: common.HashMap;
+    var arrays: common.HashMap;
 
     fn construct() => Types {
         var self = Types();
@@ -243,6 +256,12 @@ class Types {
         }
     }
 
+    fn init_arrays_if_needed(self: Types) {
+        if (self.arrays == null) {
+            self.arrays = common.IntHashMap.construct();
+        }
+    }
+
     export shared instance = Types.construct(); 
 
     export fn get_common_type(lhs: Type, rhs: Type) => Type {
@@ -274,6 +293,11 @@ class Types {
             }
         }
 
+        if (lhs == Types.instance.type_raw$cast(Type) && rhs->is_pointer_kind() ||
+            rhs == Types.instance.type_raw$cast(Type) && lhs->is_pointer_kind()) {
+            return Types.instance.type_raw;
+        }
+
         return null;
     }
 
@@ -297,7 +321,36 @@ class Types {
         // TODO replace with raw$size and raw$align
         type.align = Type.Align.Bytes8;
         type.size = 8;
+
         type.signature = signature;
+
+        bucket.value = type;
+        return type;
+    }
+
+    export fn get_str(self: Types) => TypeArray {
+        if (self.type_str == null) {
+            self.type_str = self->get_array_type(self.type_char);
+        }
+
+        return self.type_str;
+    }
+
+    export fn get_array_type(self: Types, value_type: Type) => TypeArray {
+        self->init_arrays_if_needed();
+
+        var bucket = self.arrays->get_or_insert(value_type, null);
+        if (bucket.value != null) {
+            return bucket.value;
+        }
+
+        var type = TypeArray();
+        type.kind = Type.Kind.Function;
+        // TODO replace with raw$size and raw$align
+        type.align = Type.Align.Bytes8;
+        type.size = 8;
+
+        type.value = value_type;
 
         bucket.value = type;
         return type;

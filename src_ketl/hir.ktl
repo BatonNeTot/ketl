@@ -367,17 +367,28 @@ export class HIR {
 
     fn get_str_representation(tag: HIR.Tag) => str {
         switch (tag) {
-            case HIR.Tag.PLUS   => return "+";
-            case HIR.Tag.MINUS  => return "-";
+            case HIR.Tag.PLUS              => return "+";
+            case HIR.Tag.MINUS             => return "-";
 
-            case HIR.Tag.MULTY  => return "*";
-            case HIR.Tag.DIVIDE => return "/";
-            case HIR.Tag.MOD    => return "%";
+            case HIR.Tag.MULTY             => return "*";
+            case HIR.Tag.DIVIDE            => return "/";
+            case HIR.Tag.MOD               => return "%";
             
-            case HIR.Tag.ASSIGN => return "=";
+            case HIR.Tag.EQUAL             => return "==";
+            case HIR.Tag.NOT_EQUAL         => return "!=";
+            case HIR.Tag.LESS   
+            case HIR.Tag.ILESS             => return "<";
+            case HIR.Tag.LESS_OR_EQUAL
+            case HIR.Tag.ILESS_OR_EQUAL    => return "<=";
+            case HIR.Tag.GREATER
+            case HIR.Tag.IGREATER          => return ">=";
+            case HIR.Tag.GREATER_OR_EQUAL
+            case HIR.Tag.IGREATER_OR_EQUAL => return ">=";
+
+            case HIR.Tag.ASSIGN            => return "=";
         }
 
-        return null;
+        return "[" .. tag$cast(str) .. "]";
     }
 
     fn print_instr(hir: HIR, instr: HIR.Instr) {

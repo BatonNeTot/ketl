@@ -101,6 +101,9 @@ class HIRBuilder {
         var lhs_type = lhs->get_type();
         var rhs_type = rhs->get_type();
 
+        assert(lhs_type != null || lhs.kind == HIR.Var.Kind.Literal);
+        assert(rhs_type != null || rhs.kind == HIR.Var.Kind.Literal);
+
         var is_lhs_integer = lhs.kind == HIR.Var.Kind.Literal || (lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).is_integer) || lhs_type.kind == Type.Kind.Enum;
         var is_rhs_integer = rhs.kind == HIR.Var.Kind.Literal || (rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).is_integer) || rhs_type.kind == Type.Kind.Enum;
 
@@ -130,19 +133,27 @@ class HIRBuilder {
             return var_id;
         }
 
+        if (self->is_undef(var_id)) {
+            return self->push_error_var(src_info);
+        }
+
         var varr = self.vars[var_id];
 
-        if (varr.kind == HIR.Var.Kind.Literal) {
-            if (target_type.kind == Type.Kind.Primitive) {
-                varr$cast(HIR.VarLiteral).type = target_type;
-                return var_id;
-            } 
-
-            // TODO cover enum?
-        }
         var type = varr->get_type();
 
         if (type == null) {
+            if (varr.kind == HIR.Var.Kind.Literal) {
+                if (target_type.kind == Type.Kind.Primitive) {
+                    varr$cast(HIR.VarLiteral).type = target_type;
+                    return var_id;
+                } 
+
+                if (target_type.kind == Type.Kind.Enum && explicit) {
+                    varr$cast(HIR.VarLiteral).type = target_type;
+                    return var_id;
+                }
+            }
+
             assert(false);
             return var_id;
         }
@@ -172,6 +183,10 @@ class HIRBuilder {
 
                 return cast_var_id;
             }
+        }
+
+        if (type->is_pointer_kind() && target_type == Types.instance.type_raw$cast(Type)) {
+            return var_id;
         }
         
         assert(false);
@@ -405,7 +420,7 @@ class HIRBuilder {
         literal_var.kind = HIR.Var.Kind.Literal;
         literal_var.src_info = src_info;
 
-        literal_var.type = null;
+        literal_var.type = type;
         literal_var.value = value;
 
         return literal_var_id;
@@ -673,11 +688,34 @@ class HIRBuilder {
                 var decl = HIR.Decl();
                 decl.kind = HIR.Decl.Kind.Error;
                 decl.name = name;
-                self.decls ..= decl;}
+                self.decls ..= decl;
+            }
 
             bucket = self->last_name_to_decl()->get_or_insert(
                     fullname, decl_id$cast(u64)$cast(raw));
         } 
+
+        return self->push_common_var(type, src_info, decl_id);
+    }
+
+    export fn get_namespace_var(self: HIRBuilder, namespace: Namespace, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var decl_id: HIR.DeclId;
+        var type: Type;
+
+        var symbol_node = namespace->find(name);
+        
+        if (symbol_node != null) {
+            decl_id = self->push_global_decl(symbol_node);
+
+            type = symbol_node.value.type;
+        } else {
+            decl_id = self.decls.size$cast(HIR.DeclId);
+
+            var decl = HIR.Decl();
+            decl.kind = HIR.Decl.Kind.Error;
+            decl.name = name;
+            self.decls ..= decl;
+        }
 
         return self->push_common_var(type, src_info, decl_id);
     }

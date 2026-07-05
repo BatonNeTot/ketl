@@ -118,6 +118,25 @@ class Parser {
         return decl_global.node.value.value$cast(raw);
     }
 
+    fn get_var_as_namespace(context: Context, var_id: HIR.VarId) => Type {
+        var type_var = context->get_var(var_id);
+        if (type_var.kind != HIR.Var.Kind.Common) {
+            return null;
+        }
+        var decl_id = type_var$cast(HIR.VarCommon).decl;
+        var decl = context.hir_builder.decls[decl_id];
+
+        if (decl.kind != HIR.Decl.Kind.Global) {
+            return null;
+        }
+        var decl_global = decl$cast(HIR.DeclGlobal);
+
+        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Namespace) {
+            return null;
+        }
+        return decl_global.node.value.value$cast(raw);
+    }
+
     class StatementInfo {
         enum ReturnInfo: u8 {
             Empty   = 0,
@@ -285,6 +304,10 @@ class Parser {
             case Token.Type.U16 => return context.hir_builder->push_builtin_type(Types.instance.type_u16, src_info);
             case Token.Type.U32 => return context.hir_builder->push_builtin_type(Types.instance.type_u32, src_info);
             case Token.Type.U64 => return context.hir_builder->push_builtin_type(Types.instance.type_u64, src_info);
+            case Token.Type.BOOL => return context.hir_builder->push_builtin_type(Types.instance.type_bool, src_info);
+            case Token.Type.NULL => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_raw, src_info);
+            case Token.Type.RAW => return context.hir_builder->push_builtin_type(Types.instance.type_raw, src_info);
+            case Token.Type.STR => return context.hir_builder->push_builtin_type(Types.instance->get_str(), src_info);
         }
 
         return error_var();
@@ -352,11 +375,45 @@ class Parser {
         var object = context->get_var(object_id);
         context->token_consume(Token.Type.ID, "Expected id after access operator.");
         var id_token = context->current_token(1);
+        var id = context->token_str(id_token);
 
         var src_info = HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(id_token));
 
+        if (context.hir_builder->is_undef(object_id)) {
+            return context.hir_builder->push_error_var(src_info);
+        }
+
         var object_as_type = context->get_var_as_type(object_id);
         if (object_as_type != null) {
+            var type = object_as_type;
+
+            if (type.kind == Type.Kind.Class) {
+                var type_class = type$cast(TypeClass);
+                var var_id = context.hir_builder->get_namespace_var(type_class.namespace, id, src_info);
+                if (context.hir_builder->is_undef(var_id)) {
+                    context->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from class '" .. type_class.name .. "'.");
+                }
+                return var_id;
+            }
+
+            if (type.kind == Type.Kind.Enum) {
+                var constant = type$cast(TypeEnum)->find_constant(id);
+                
+                if (constant == null) {
+                    context->error(src_info.source_offset, src_info.length, "Undeclared constant '" .. id .. "' of enum '" .. type->get_name() .. "'.");
+                    return context.hir_builder->push_error_var(src_info);
+                }
+
+                assert(constant.type != null);
+                return context.hir_builder->push_literal_number_of_type(constant.value, constant.type, src_info);
+            }
+
+            context->error(src_info.source_offset, src_info.length, "Unknown property '" .. id .. "' of type '" .. type->get_name() .. "'.");
+            return context.hir_builder->push_error_var(src_info);
+        }
+
+        var object_as_namespace = context->get_var_as_namespace(object_id);
+        if (object_as_namespace != null) {
             assert(false);
             /*
 
@@ -367,9 +424,9 @@ class Parser {
                 ketl_namespace* p_namespace = p_namespace_node->variable.p_pointer;
                 
                 ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, push_symbol(p_context, id_token), 
-                    push_symbol_string(p_context, p_context->p_lexer->p_source + expr_info.source_offset, expr_info.length), expr_info, true);
-                ANN_ASSERT(GET_VAR(id_var).info != KETL_HIR_VAR_INFO_TEMP);
-                if (GET_VAR(id_var).type == KETL_HIR_USED_TYPE_UNKNOWN) {
+                    push_symbol_string(p_context, p_context->p_lexer->p_source + src_info.source_offset, src_info.length), src_info, true);
+                ANN_ASSERT(GET_VAR(id_var).info != HIR.Tag.VAR_INFO_TEMP);
+                if (GET_VAR(id_var).type == HIR.Tag.USED_TYPE_UNKNOWN) {
                     _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(id_var).info, true);
                     if (p_bucket->value) {
                         errorf(id_token.offset, id_token.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
@@ -381,75 +438,25 @@ class Parser {
                 return id_var;
             }
 
-            if (p_namespace_node->variable.kind == KETL_VARIABLE_TYPE) {
-                ketl_type* p_type = p_namespace_node->variable.p_pointer;
-
-                if (p_type->kind == KETL_TYPE_CLASS) {
-                    ketl_hir_var_id_t var_id = push_access_class_namespace(p_context, id_token, expr_info, p_type, true);
-                    if (GET_VAR(var_id).type == KETL_HIR_USED_TYPE_UNKNOWN) {
-                        _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(var_id).info, true);
-                        if (p_bucket->value) {
-                            errorf(id_token.offset, id_token.length, "Use of undeclared entity '%.*s' from class '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
-                                ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_class*)p_type)->s_name));
-                            p_bucket->value = false;
-                        }
-                    }
-                    return var_id;
-                }
-
-                if (p_type->kind == KETL_TYPE_ENUM) {
-                    ketl_variable constant = ketl_type_find_enum_constant_value(p_type, ketl_atomic_strings_get(&p_context->p_state->atomic_strings, 
-                        TOKEN_STRING(id_token), TOKEN_LENGTH(id_token)));
-                    
-                    if (constant.kind == KETL_VARIABLE_NONE) {
-                        errorf(id_token.offset, id_token.length, "Use of undeclared constant '%.*s' from enum '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
-                            ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, ((ketl_type_enum*)p_type)->s_name));
-                        return push_temp_var(p_context, expr_info);
-                    }
-
-                    char a_symbol[256];
-                    uint32_t symbol_length;
-
-                    switch (constant.kind) {
-                        case KETL_VARIABLE_INT8:
-                        case KETL_VARIABLE_INT16:
-                        case KETL_VARIABLE_INT32:
-                        case KETL_VARIABLE_INT64:
-                            symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIi64, constant.int64);
-                            break;
-                        case KETL_VARIABLE_UINT8:
-                        case KETL_VARIABLE_UINT16:
-                        case KETL_VARIABLE_UINT32:
-                        case KETL_VARIABLE_UINT64:
-                            symbol_length = snprintf(a_symbol, ANN_ARRAY_SIZE(a_symbol), "%"PRIu64, constant.uint64);
-                            break;
-                    }
-
-                    return push_literal_symbol_of_type(p_context, push_symbol_string(p_context, a_symbol, symbol_length), expr_info, 
-                        ketl_hir_builder_get_used_type_index(&p_context->hir_builder, p_type));
-                } 
-
-                ANN_ASSERT(false && "This type does not have this field");
-            }
-
             ANN_ASSERT(false && "Trying to field access no-type and no-namespace");
             */
+
             return context.hir_builder->push_error_var(src_info);
-        } else {
-            if (context.hir_builder->is_undef(object_id)) {
-                return context.hir_builder->push_error_var(src_info);
-            }
-
-            var object_type = object->get_type();
-
-            if (object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
-                context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class and array objects.");
-                return context.hir_builder->push_error_var(src_info);
-            }
-
-            var field_id = context->token_str(id_token);
-            return context.hir_builder->push_field_access(object_id, field_id, src_info);
         }
+        
+        if (context.hir_builder->is_undef(object_id)) {
+            return context.hir_builder->push_error_var(src_info);
+        }
+
+        var object_type = object->get_type();
+
+        if (object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
+            context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class and array objects.");
+            return context.hir_builder->push_error_var(src_info);
+        }
+
+        var field_id = context->token_str(id_token);
+        return context.hir_builder->push_field_access(object_id, field_id, src_info);
     }
     
     fn parse_dollar_operator(context: Context, lhs: HIR.VarId) => HIR.VarId {
@@ -572,7 +579,7 @@ class Parser {
         var prefix_rule = context->current_token(1).type->get_parse_rule().prefix;
         if (prefix_rule == null) {
             context->error(context->current_token(1).offset, context->current_token(1).length, "Expected expression.");
-            return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(1)));
+            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
         }
 
         var lhs = context->prefix_rule();
@@ -583,7 +590,7 @@ class Parser {
             var ltr_infix_rule = get_parse_rule(context->current_token(1).type).ltr_infix;
             if (ltr_infix_rule == null) {
                 context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator.");
-                return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(1)));
+                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
             }
             lhs = context->ltr_infix_rule(lhs);
         }
@@ -613,7 +620,7 @@ class Parser {
             var current_token_type = token.type;
             if (current_token_type == Token.Type.EOF) {
                 context->error(token.offset, token.length, "Expected operator.");
-                return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(token));
+                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(token));
             }
 
             parse_rule = current_token_type->get_parse_rule();
@@ -645,7 +652,7 @@ class Parser {
         var rtl_infix = context->current_token(1).type->get_parse_rule().rtl_infix;
         if (rtl_infix == null) {
             context->error(context->current_token(2).offset, context->current_token(2).length, "Expected operator.");
-            return context.hir_builder->push_temp_var(HIR.SrcInfo.from_token(context->current_token(2)));
+            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(2)));
         }
         lhs = context->rtl_infix(lhs, rhs);
 
@@ -718,6 +725,10 @@ class Parser {
         Token.Type.U64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.BOOL                => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.NULL                => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
     };
 
     fn parse_from_import(context: Context) => StatementInfo {
@@ -858,7 +869,7 @@ class Parser {
                 src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
                 context->error(src_info.source_offset, src_info.length, "Variable declaration without a type expects an initial expression.");
 
-                initial_value = context.hir_builder->push_temp_var(src_info);
+                initial_value = context.hir_builder->push_error_var(src_info);
             } else {
                 initial_value = context.hir_builder->get_default_initial_value(type, src_info);
             }
@@ -940,7 +951,7 @@ class Parser {
         }
 
         // TODO do proper error evaluation during this pass
-        //token_consume(p_context, Token.Type.CURLY_RIGHT, "Expected '}' after function body.");
+        //context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' after function body.");
 
         // saving end of the function definition for later
         var end_pos = context.iterator->mark();
@@ -1366,6 +1377,128 @@ class Parser {
         return StatementInfo.construct(return_info);
     }
 
+    fn parse_switch_statement(context: Context) => StatementInfo {
+        context->token_advance(); // switch
+
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'switch' keyword.");
+        var expr = context->parse_expression();
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'switch' statement expression.");
+
+        context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after 'switch' statement.");
+        
+        var return_info = StatementInfo.ReturnInfo.Always;
+        var default_return_info = StatementInfo.ReturnInfo.Undef;
+
+        var default_block = (-1)$cast(HIR.BlockId);
+
+        if (!context->token_match(Token.Type.CURLY_RIGHT)) {
+            var first_block = context.hir_builder->reserve_blocks(2);
+            var after_statement = first_block;
+            var next_cmp_block = first_block + 1;
+            context.hir_builder->push_jump(next_cmp_block);
+
+            var old_reserved_break = context.reserved_break;
+            context.reserved_break = after_statement;
+
+            while (!context->token_match(Token.Type.CURLY_RIGHT)) {
+                var current = context->current_token(0);
+                var src_info = HIR.SrcInfo.from_token(current);
+
+                switch(current.type) {
+                    case Token.Type.CASE => {
+                        context->token_advance(); // case
+
+                        var current_block = context.hir_builder->reserve_blocks(1);
+
+                        context.hir_builder->set_block(next_cmp_block);
+                        var case_expr = context->parse_expression();
+
+                        while (context->token_match(Token.Type.CASE)) {
+                            src_info = context->get_var(case_expr).src_info;
+                            var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr, case_expr, src_info);
+
+                            next_cmp_block = context.hir_builder->reserve_blocks(1);
+                            
+                            context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block);
+
+                            ////////////////
+
+                            context.hir_builder->set_block(next_cmp_block);
+                            case_expr = context->parse_expression();
+                        }
+
+                        context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
+
+                        src_info = context->get_var(case_expr).src_info;
+                        var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr, case_expr, src_info);
+
+                        next_cmp_block = context.hir_builder->reserve_blocks(1);
+                        
+                        context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block);
+
+                        ///////////
+
+                        context.hir_builder->set_block(current_block);
+                        var body_return_info = context->parse_statement().return_info;
+
+                        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
+                            context.hir_builder->push_jump(after_statement);
+                        }
+
+                        return_info = 
+                            ((return_info & body_return_info) & StatementInfo.ReturnInfo.Always) |
+                            ((return_info | body_return_info) & StatementInfo.ReturnInfo.Undef);
+                    }
+                    case Token.Type.DEFAULT => {
+                        context->token_advance(); // default
+
+                        context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'default' statement expression.");
+
+                        assert(default_block == (-1)$cast(HIR.BlockId));
+                        default_block = context.hir_builder->reserve_blocks(1);
+                        context.hir_builder->set_block(default_block);
+
+                        var body_return_info = context->parse_statement().return_info;
+
+                        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
+                            context.hir_builder->push_jump(after_statement);
+                        }
+
+                        default_return_info = body_return_info;
+                    }
+                    default => {
+                        context->error(src_info.source_offset, src_info.length, "Unexpected token inside 'switch' body.");
+                        context->token_advance();
+                    }
+                }
+            }
+
+            context.reserved_break = old_reserved_break;
+
+            context.hir_builder->set_block(next_cmp_block);
+                
+            if (default_block == (-1)$cast(HIR.BlockId)) {
+                context.hir_builder->push_jump(after_statement);
+
+                return_info &= StatementInfo.ReturnInfo.Undef;
+            } else {
+                context.hir_builder->push_jump(default_block);
+
+                return_info = 
+                    ((return_info & default_return_info) & StatementInfo.ReturnInfo.Always) |
+                    ((return_info | default_return_info) & StatementInfo.ReturnInfo.Undef);
+            }
+                
+            if (!(return_info & StatementInfo.ReturnInfo.Always)) {
+                context.hir_builder->set_block(after_statement);
+            }
+        } else {
+            return_info &= StatementInfo.ReturnInfo.Undef;
+        }
+
+        return StatementInfo.construct(return_info);
+    }
+
     fn parse_return_statement(context: Context) => StatementInfo {
         context->token_advance(); // return
         var src_info = HIR.SrcInfo.from_token(context->current_token(1));
@@ -1391,7 +1524,7 @@ class Parser {
             case Token.Type.IF                    => return context->parse_if_statement();
             case Token.Type.WHILE                 => return context->parse_while_statement();
             //case Token.Type.FOR                   => return context->parse_for_statement();
-            //case Token.Type.SWITCH                => return context->parse_switch_statement();
+            case Token.Type.SWITCH                => return context->parse_switch_statement();
             //case Token.Type.BREAK                 => return context->parse_break_statement();
             //case Token.Type.CONTINUE              => return context->parse_continue_statement();
             case Token.Type.RETURN                => return context->parse_return_statement();
@@ -1426,7 +1559,8 @@ class Parser {
                 (!(statement_info.return_info & StatementInfo.ReturnInfo.Always) && (
                     !!(statement_info.return_info & StatementInfo.ReturnInfo.Value) || (return_type != null && !return_type->is_void())
                 ))) {
-                context->error(lexer.tokens[end_pos - 1].offset, 1, "Not all control returns value.");
+                var last_token = lexer.tokens[end_pos - 1];
+                context->error(last_token.offset, 1, "Not all control returns value.");
             }
 
             /* // Doesn't look like necessary
