@@ -4,6 +4,8 @@ from common import FilePointer
 from common import LogAccum
 from variable import VariableDecl
 
+import io
+
 from type_base import Type
 from type import TypePrimitive
 from type import TypeEnum
@@ -162,6 +164,7 @@ class Parser {
     enum Precedence: u8 {
         None,
         Assigment,
+        Tupling,
         LogicalOr,
         LogicalAnd,
         Equality,
@@ -185,6 +188,7 @@ class Parser {
     shared associativity = Associativity[Precedence$count]{
         Precedence.None       => Associativity.LTR,
         Precedence.Assigment  => Associativity.RTL,
+        Precedence.Tupling    => Associativity.LTR,
         Precedence.LogicalOr  => Associativity.LTR,
         Precedence.LogicalAnd => Associativity.LTR,
         Precedence.Equality   => Associativity.LTR,
@@ -195,6 +199,7 @@ class Parser {
         Precedence.BitwiseOr  => Associativity.LTR,
         Precedence.BitwiseXor => Associativity.LTR,
         Precedence.BitwiseAnd => Associativity.LTR,
+        Precedence.Prefix     => Associativity.LTR,
         Precedence.Call       => Associativity.LTR,
         Precedence.Primary    => Associativity.LTR,
     };
@@ -296,18 +301,20 @@ class Parser {
         }
 
         switch (token.type) {
-            case Token.Type.I8 => return context.hir_builder->push_builtin_type(Types.instance.type_i8, src_info);
-            case Token.Type.I16 => return context.hir_builder->push_builtin_type(Types.instance.type_i16, src_info);
-            case Token.Type.I32 => return context.hir_builder->push_builtin_type(Types.instance.type_i32, src_info);
-            case Token.Type.I64 => return context.hir_builder->push_builtin_type(Types.instance.type_i64, src_info);
-            case Token.Type.U8 => return context.hir_builder->push_builtin_type(Types.instance.type_u8, src_info);
-            case Token.Type.U16 => return context.hir_builder->push_builtin_type(Types.instance.type_u16, src_info);
-            case Token.Type.U32 => return context.hir_builder->push_builtin_type(Types.instance.type_u32, src_info);
-            case Token.Type.U64 => return context.hir_builder->push_builtin_type(Types.instance.type_u64, src_info);
-            case Token.Type.BOOL => return context.hir_builder->push_builtin_type(Types.instance.type_bool, src_info);
-            case Token.Type.NULL => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_raw, src_info);
-            case Token.Type.RAW => return context.hir_builder->push_builtin_type(Types.instance.type_raw, src_info);
-            case Token.Type.STR => return context.hir_builder->push_builtin_type(Types.instance->get_str(), src_info);
+            case Token.Type.I8    => return context.hir_builder->push_builtin_type(Types.instance.type_i8, src_info);
+            case Token.Type.I16   => return context.hir_builder->push_builtin_type(Types.instance.type_i16, src_info);
+            case Token.Type.I32   => return context.hir_builder->push_builtin_type(Types.instance.type_i32, src_info);
+            case Token.Type.I64   => return context.hir_builder->push_builtin_type(Types.instance.type_i64, src_info);
+            case Token.Type.U8    => return context.hir_builder->push_builtin_type(Types.instance.type_u8, src_info);
+            case Token.Type.U16   => return context.hir_builder->push_builtin_type(Types.instance.type_u16, src_info);
+            case Token.Type.U32   => return context.hir_builder->push_builtin_type(Types.instance.type_u32, src_info);
+            case Token.Type.U64   => return context.hir_builder->push_builtin_type(Types.instance.type_u64, src_info);
+            case Token.Type.BOOL  => return context.hir_builder->push_builtin_type(Types.instance.type_bool, src_info);
+            case Token.Type.FALSE => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_bool, src_info);
+            case Token.Type.NULL  => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_raw, src_info);
+            case Token.Type.RAW   => return context.hir_builder->push_builtin_type(Types.instance.type_raw, src_info);
+            case Token.Type.STR   => return context.hir_builder->push_builtin_type(Types.instance->get_str(), src_info);
+            case Token.Type.TRUE => return context.hir_builder->push_literal_number_of_type(1, Types.instance.type_bool, src_info);
         }
 
         return error_var();
@@ -342,8 +349,11 @@ class Parser {
         return arguments;
     }
 
-    fn parse_call(context: Context, callee_id: HIR.VarId) => HIR.VarId {
+    fn parse_call_impl(context: Context, callee_id: HIR.VarId, collected_arguments: HIR.VarId[]) => HIR.VarId {
         var arguments = context->parse_argument_list();
+        if (collected_arguments != null && collected_arguments.size > 0) {
+            arguments = collected_arguments .. arguments;
+        }
         var callee = context->get_var(callee_id);
         var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
 
@@ -371,9 +381,25 @@ class Parser {
         return context.hir_builder->push_call(callee_id, arguments, src_info);
     }
 
+    fn parse_call(context: Context, callee_id: HIR.VarId) => HIR.VarId {
+        return context->parse_call_impl(callee_id, null);
+    }
+
+    fn parse_arrow_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
+        var callee_id = context->parse_dot_operator(object_id);
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected call after id of an arrow operator.");
+
+        return context->parse_call_impl(callee_id, HIR.VarId[1]{ object_id });
+    }
+
     fn parse_dot_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
         var object = context->get_var(object_id);
-        context->token_consume(Token.Type.ID, "Expected id after access operator.");
+        switch (context->current_token(1).type) {
+            case Token.Type.DOT => context->token_consume(Token.Type.ID, "Expected id after access operator.");
+            case Token.Type.ARROW_RIGHT => context->token_consume(Token.Type.ID, "Expected id after arrow operator.");
+            default => assert(false);
+        }
+        
         var id_token = context->current_token(1);
         var id = context->token_str(id_token);
 
@@ -388,12 +414,7 @@ class Parser {
             var type = object_as_type;
 
             if (type.kind == Type.Kind.Class) {
-                var type_class = type$cast(TypeClass);
-                var var_id = context.hir_builder->get_namespace_var(type_class.namespace, id, src_info);
-                if (context.hir_builder->is_undef(var_id)) {
-                    context->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from class '" .. type_class.name .. "'.");
-                }
-                return var_id;
+                return context.hir_builder->push_class_namespace_access(type$cast(TypeClass), id, src_info);
             }
 
             if (type.kind == Type.Kind.Enum) {
@@ -404,8 +425,7 @@ class Parser {
                     return context.hir_builder->push_error_var(src_info);
                 }
 
-                assert(constant.type != null);
-                return context.hir_builder->push_literal_number_of_type(constant.value, constant.type, src_info);
+                return context.hir_builder->push_literal_number_of_type(constant.value, type, src_info);
             }
 
             context->error(src_info.source_offset, src_info.length, "Unknown property '" .. id .. "' of type '" .. type->get_name() .. "'.");
@@ -506,6 +526,76 @@ class Parser {
 
         context->error(src_info.source_offset, src_info.length, "There is no meta property '" .. id .. "'.");
         return context.hir_builder->push_error_var(src_info);
+    }
+
+    fn parse_short_circuit(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
+        var token_type = context->current_token(1).type;
+        var parse_rule = token_type->get_parse_rule();
+
+        var first_block = context.hir_builder->reserve_blocks(3);
+        var true_statement = first_block;
+        var false_statement = first_block + 1;
+        var after_block = first_block + 2;
+
+        context.hir_builder->push_if(lhs_id, true_statement, false_statement);
+
+        var short_sircuit_block: HIR.BlockId;
+        var second_block: HIR.BlockId;
+        switch (token_type) {
+            case Token.Type.LOGICAL_OR => {
+                short_sircuit_block = true_statement;
+                second_block = false_statement;
+                break;
+            }
+            case Token.Type.LOGICAL_AND => {
+                short_sircuit_block = false_statement;
+                second_block = true_statement;
+                break;
+            }
+            default => assert(false);
+        }
+
+        context.hir_builder->set_block(second_block);
+        var rhs_id = context->parse_precedence(parse_rule.precedence + 1);
+
+        var lhs = context->get_var(lhs_id);
+        var rhs = context->get_var(rhs_id);
+
+        var src_info = HIR.SrcInfo.merge(lhs.src_info, rhs.src_info);
+
+        if (context.hir_builder->is_undef(lhs_id) || context.hir_builder->is_undef(rhs_id)) {
+            return context.hir_builder->push_error_var(src_info);
+        }
+
+        // TODO check if both literals and calc
+
+        var common_type = context.hir_builder->get_common_type(lhs_id, rhs_id);
+
+        if (common_type == null) {
+            var lhs_type = lhs->get_type_forced();
+            var rhs_type = rhs->get_type_forced();
+
+            context->error(src_info.source_offset, src_info.length, "Can't do logical operations over '" 
+                .. lhs_type->get_name() .. "' and '" .. rhs_type->get_name() .. "'.");
+            return context.hir_builder->push_error_var(src_info);
+        }
+        
+        var output_type = common_type;
+        var output_var = context.hir_builder->push_temp_var_of_type(src_info, output_type); 
+        
+        rhs_id = context.hir_builder->cast_to_type(rhs_id, output_type, rhs.src_info, false);
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, rhs_id, src_info);
+        context.hir_builder->push_jump(after_block);
+        
+        context.hir_builder->set_block(short_sircuit_block);
+
+        lhs_id = context.hir_builder->cast_to_type(lhs_id, output_type, lhs.src_info, false);
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, lhs_id, src_info);
+        context.hir_builder->push_jump(after_block);
+
+        context.hir_builder->set_block(after_block);
+
+        return output_var;
     }
 
     fn parse_unary_rtl(context: Context) => HIR.VarId {
@@ -684,8 +774,9 @@ class Parser {
         Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,    null,             Precedence.Call),
         Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator, null,             Precedence.Call),
         Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                  null,             Precedence.None),
-        //Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),
-        //Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalOr),
+        Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalAnd),
+        Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,   null,             Precedence.LogicalOr),
+        Token.Type.ARROW_RIGHT         => ParseRule.construct(null,                parse_arrow_operator,  null,             Precedence.Call),
         Token.Type.LESS                => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
         Token.Type.LESS_OR_EQUAL       => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
         Token.Type.GREATER             => ParseRule.construct(null,                parse_binary_ltr,      null,             Precedence.Comparison),
@@ -726,14 +817,47 @@ class Parser {
         Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.BOOL                => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.FALSE               => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.NULL                => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
         Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
+        Token.Type.TRUE                => ParseRule.construct(parse_identificator, null,                  null,             Precedence.Primary),
     };
 
-    fn parse_from_import(context: Context) => StatementInfo {
-        assert(context.is_global_scope);
+    fn parse_import(context: Context) => StatementInfo {
+        var path = "";
+        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
 
+        context->token_advance(); // import
+        var module_token = context->current_token(0);
+        context->token_advance(); // id
+        while (context->token_match(Token.Type.DOT)) {
+            path ..= context->token_str(module_token);
+            path ..= "/";
+            module_token = context->current_token(0);
+            context->token_advance(); // module id
+        }
+
+        var src_info = HIR.SrcInfo.merge(
+            start_src_info,
+            HIR.SrcInfo.from_token(context->current_token(1)));
+
+        var module_name = context->token_str(module_token);
+
+        from module import Modules
+        var module = Modules.instance->load(module_name, path, null, true);
+        if (module == null) {
+            context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        }
+
+        context.namespace->import_namespace(module_name, null, module.namespace, context.exxport);
+
+        assert(false);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
+    fn parse_from_import(context: Context) => StatementInfo {
         var path = "";
         var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
 
@@ -757,68 +881,29 @@ class Parser {
 
         var module_name = context->token_str(module_token);
 
-        // TODO implement
-        /*
-        ketl_namespace* p_module_namespace = ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, null, p_context=>export);
-        if (p_module_namespace == null) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'.", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token));
-            return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+        from module import Modules
+        var module = Modules.instance->load(module_name, path, null, true);
+        if (module == null) {
+            context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
-        */
 
         var name = context->token_str(name_token);
-
-        // TODO 
-        /*
-        ketl_namespace_node* p_node = ketl_namespace_find(p_module_namespace, s_name);
-
-        if (p_node == null) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find '%.*s' in module '%.*s'.", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token),
-                TOKEN_LENGTH(name_token), TOKEN_STRING(name_token));
-            return (ketl_statement_info){ .return_info = KETL_RETURN_EMPTY };
+    
+        var target_namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(name_token), context.exxport);
+        if (target_namespace_node == null) {
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
 
-        ketl_variable namespace_var = p_node=>variable;
-
-        ketl_namespace_node* p_local_node = ketl_namespace_put(p_context=>p_namespace, s_name, KETL_ATOMIC_STRING_EMPTY, namespace_var, 
-            (ketl_namespace_node_info){ .export = p_context=>export, .imported = true }, &p_context=>p_state=>atomic_strings, false);
-        p_local_node=>s_name = p_node=>s_name;
-        */
-
-        assert(false);
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-    }
-
-    fn parse_import(context: Context) => StatementInfo {
-        assert(context.is_global_scope);
-
-        var path = "";
-        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
-
-        context->token_advance(); // import
-        var module_token = context->current_token(0);
-        context->token_advance(); // id
-        while (context->token_match(Token.Type.DOT)) {
-            path ..= context->token_str(module_token);
-            path ..= "/";
-            module_token = context->current_token(0);
-            context->token_advance(); // module id
+        var source_namespace_node = module.namespace->find(name);
+        if (source_namespace_node == null) {
+            context->error(src_info.source_offset, src_info.length, "Couldn't find '" .. name .. "' in module '" .. module_name .. "'.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
 
-        var src_info = HIR.SrcInfo.merge(
-            start_src_info,
-            HIR.SrcInfo.from_token(context->current_token(1)));
+        target_namespace_node.value = source_namespace_node.value->copy();
+        target_namespace_node.info.imported = true;
 
-        var module_name = context->token_str(module_token);
-
-        // TODO implement
-        /*
-        if (!ketl_state_load_module_impl(p_context=>p_state, s_module_name, a_path_buffer, p_context=>p_namespace, p_context=>export)) {
-            errorf(src_info.source_offset, src_info.length, "Couldn't find module '%.*s'", TOKEN_LENGTH(module_token), TOKEN_STRING(module_token));
-        }
-        */
-
-        assert(false);
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
     
@@ -930,6 +1015,17 @@ class Parser {
         if (context.cexxport) {
             name = key;
         }
+        io.error("FN " .. key);
+        {
+            var i: u64;
+            while (i < function_parameters_names.size) {
+                io.error(" " .. function_parameters_names[i]);
+                var parameter = function_parameters[i + 1];
+                io.error(": " .. parameter->get_name() .. ";");
+                i += 1;
+            }
+        }
+        io.errorln("");
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_token), context.exxport);
         
         // looking for the end of the function definition
@@ -1068,6 +1164,7 @@ class Parser {
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after class name.");
 
         var name = context->token_str(id_token);
+        io.errorln("CLASS " .. name);
         var class_type = TypeClass.construct(name, context.namespace);
         var class_namespace = class_type.namespace;
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);

@@ -4,6 +4,8 @@ from common import StrHashMap
 from common import FilePointer
 from common import LogAccum
 
+import io
+
 from type_base import Type
 from type import Types
 from type import TypePrimitive
@@ -129,6 +131,7 @@ class HIRBuilder {
 
     fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
         if (target_type == null) {
+            io.errorln("null target type.");
             assert(false);
             return var_id;
         }
@@ -154,6 +157,7 @@ class HIRBuilder {
                 }
             }
 
+            io.errorln("Var with undefined type.");
             assert(false);
             return var_id;
         }
@@ -189,6 +193,7 @@ class HIRBuilder {
             return var_id;
         }
         
+        io.errorln("Can't convert '" .. type->get_name() .. "' to '" .. target_type->get_name() .. "'.");
         assert(false);
         return (-1)$cast(HIR.VarId);
     }
@@ -463,13 +468,23 @@ class HIRBuilder {
         return self->push_common_var(type, instr.src_info, decl_id);
     }
 
+    export fn push_class_namespace_access(self: HIRBuilder, type: TypeClass, id: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        var var_id = self->get_namespace_var(type.namespace, id, src_info);
+        if (self->is_undef(var_id)) {
+            self->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from class '" .. type.name .. "'.");
+        }
+        return var_id;
+    }
+
     export fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
         var object = self.vars[object_id];
         var object_type = object->get_type_forced();
         assert(object_type != null);
 
         if (object_type.kind == Type.Kind.Class) {
-            var field_type = object_type$cast(TypeClass)->get_field_type(field_name);
+            var type_class = object_type$cast(TypeClass);
+
+            var field_type = type_class->get_field_type(field_name);
             if (field_type != null) {
                 var field_var_id = self.vars.size$cast(HIR.VarId);
                 var field_var = HIR.VarField();
@@ -484,14 +499,11 @@ class HIRBuilder {
 
                 return field_var_id;
             }
+            
+            return self->push_class_namespace_access(type_class, field_name, src_info);
         }
 
 /*
-        if (p_object_type->kind == KETL_TYPE_CLASS) {
-            ketl_hir_var_id_t var_id = push_access_class_namespace(p_context, id_literal, expr_info, p_object_type, force);
-            return var_id;
-        }
-
         if (p_object_type->kind == KETL_TYPE_ARRAY && ketl_str_is_equal_n("clear", TOKEN_STRING(id_literal), TOKEN_LENGTH(id_literal))) {
             ketl_namespace* p_namespace = &p_context->p_state->secret_namespace;
 
