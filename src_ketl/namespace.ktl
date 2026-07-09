@@ -61,6 +61,13 @@ class Namespace {
         return self->put(key, name, value, Info.construct(exxport, false), false);
     }
 
+    export fn import_namespace(self: Namespace, key: str, name: str, namespace: Namespace, exxport: bool) => Node {
+        var value = Value();
+        value.value = namespace$cast(raw)$cast(u64);
+        value.kind = Value.Kind.Namespace;
+        return self->put(key, name, value, Info.construct(exxport, false), false);
+    }
+
     export fn put(self: Namespace, key: str, name: str, value: Value, info: Namespace.Info, force: bool) => Node {
         if (name == null || name == "") {
             name = key;
