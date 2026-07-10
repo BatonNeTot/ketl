@@ -9,6 +9,7 @@ export class Type {
         Array,
         CArray,
         Class,
+        Tuple,
     }
 
     export enum Align: u8 {
@@ -142,9 +143,30 @@ export class Type {
             return result_str;
         }
 
+        if (type.kind == Type.Kind.Array) {
+            from type import TypeArray
+            return type$cast(TypeArray).value->get_name() .. "[]";
+        }
+
         if (type.kind == Type.Kind.Class) {
             from type import TypeClass
             return type$cast(TypeClass).name;
+        }
+
+        if (type.kind == Type.Kind.Tuple) {
+            from type import TypeTuple;
+            var tuple_type = type$cast(TypeTuple);
+            var values = tuple_type.values;
+
+            var result_str = "(";
+            for (var value <- values) {
+                result_str ..= value->get_name();
+                result_str ..= ", ";
+            }
+
+            result_str ..= ")";
+
+            return result_str;
         }
 
         assert(false);

@@ -836,8 +836,8 @@ export class ASMX86 {
                 return arg;
             }
 
-            if (varr.kind == HIR.Var.Kind.BuiltinType) {
-                var var_builtin = varr$cast(HIR.VarBuiltinType);
+            if (varr.kind == HIR.Var.Kind.LiteralType) {
+                var var_builtin = varr$cast(HIR.VarLiteralType);
 
                 var name = var_builtin.value->get_name();
 
