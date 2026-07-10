@@ -569,7 +569,9 @@ static ketl_hir_var_id_t push_hir_variable_declaration(ketl_parser_context* p_co
         return id_var;
     }
 
-    push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, id_var, init_var);
+    if (init_var != (ketl_hir_var_id_t)(-1)) {
+        push_hir_assign_impl(p_context, KETL_HIR_ASSIGN, id_var, init_var);
+    }
     return id_var;
 }
 
@@ -2097,8 +2099,7 @@ static ketl_statement_info parse_for_statement(ketl_parser_context* p_context) {
     ketl_hir_used_type_index_t size_type = ketl_hir_builder_get_used_type_index(&p_context->hir_builder, ketl_state_get_u64(p_context->p_state));
     ketl_hir_symbol_offset_t size_symbol = (ketl_hir_symbol_offset_t)ketl_atomic_strings_get(&p_context->hir_builder.symbols, "size", 4);
 
-    ketl_hir_var_id_t iterator_var = push_hir_variable_declaration(p_context, id_literal, var_type, 
-        push_default_initial_value(p_context, GET_TYPE(var_type), expr_info), expr_info);
+    ketl_hir_var_id_t iterator_var = push_hir_variable_declaration(p_context, id_literal, var_type, (ketl_hir_var_id_t)(-1), expr_info);
     ketl_hir_var_id_t index_var = ketl_hir_builder_create_temp_var(&p_context->hir_builder, expr_info, size_type);
     ketl_hir_var_id_t zero_var = ketl_hir_builder_get_literal(&p_context->hir_builder, KETL_HIR_LITERAL_NULL, expr_info, size_type);
     ketl_hir_builder_push_assign(&p_context->hir_builder, KETL_HIR_ASSIGN, index_var, zero_var);

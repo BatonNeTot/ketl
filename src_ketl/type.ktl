@@ -77,7 +77,7 @@ export class TypeFunction {
             var hash: u64;
 
             for (var parameter <- self.parameters) {
-                hash = parameter$cast(raw)$cast(u64) ^ (hash << 1);
+                hash = (parameter$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
             }
 
             return hash;
@@ -199,6 +199,68 @@ export class TypeClass {
 
 }
 
+export class TypeTuple {
+
+    extend Type;
+    var values: Type[];
+    
+    export fn finalize(self: TypeTuple, values: Type[]) {
+        self.values = values;
+
+        self.align = Type.Align.Byte;
+        self->calc_size_and_align();
+        self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16);
+    }
+
+    export fn calc_size_and_align(self: TypeTuple) {
+        for (var value <- self.values) {
+            var align = value->get_stack_align();
+            var size = value->get_stack_size();
+
+            if (align > self.align) {
+                self.align = align;
+            }
+
+            self.size = common.align_forward(self.size, Type.from_align_enum(align))$cast(u16) + size;
+        }
+    }
+ 
+    export fn get_value_type(self: TypeTuple, index: i64) => Type {
+        return self.values[index];
+    }
+
+    // returns -1 if index doesn't exist
+    export fn get_field_offset(self: TypeTuple, index: i64) => i32 {
+        if (index < 0) {
+            index += self.values.size$cast(i64);
+
+            if (index < 0) {
+                return (-1)$cast(i32);
+            }
+        }
+
+        var offset: u16;
+        var i: i64;
+        while (i < self.values.size$cast(i64)) {
+            var value = self.values[i];
+            var align = value->get_stack_align();
+
+            if (i == index) {
+                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
+                return offset$cast(i32);
+            }
+
+            var size = value->get_stack_size();
+
+            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+
+            i += 1;
+        }
+
+        return (-1)$cast(i32);
+    }
+}
+
 class Types {
 
     var type_void: TypePrimitive;
@@ -220,6 +282,7 @@ class Types {
 
     var functions: common.HashMap;
     var arrays: common.HashMap;
+    var tuples: common.HashMap;
 
     fn construct() => Types {
         var self = Types();
@@ -259,6 +322,26 @@ class Types {
     fn init_arrays_if_needed(self: Types) {
         if (self.arrays == null) {
             self.arrays = common.IntHashMap.construct();
+        }
+    }
+
+    fn is_array_of_types_equal(lhs_types: raw, rhs_types: raw) => bool {
+        return lhs_types$cast(Type[]) == rhs_types$cast(Type[]);
+    }
+
+    fn get_array_of_types_hash(types: raw) => u64 {
+        var hash: u64;
+
+        for (var type <- types$cast(Type[])) {
+            hash = (type$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
+        }
+
+        return hash;
+    }
+
+    fn init_tuples_if_needed(self: Types) {
+        if (self.tuples == null) {
+            self.tuples = common.HashMap.construct(is_array_of_types_equal, get_array_of_types_hash);
         }
     }
 
@@ -345,12 +428,28 @@ class Types {
         }
 
         var type = TypeArray();
-        type.kind = Type.Kind.Function;
-        // TODO replace with raw$size and raw$align
-        type.align = Type.Align.Bytes8;
-        type.size = 8;
+        type.kind = Type.Kind.Array;
+        type.align = value_type.align;
+        type.size = value_type.size;
 
         type.value = value_type;
+
+        bucket.value = type;
+        return type;
+    }
+
+    export fn get_tuple_type(self: Types, value_types: Type[]) => TypeTuple {
+        self->init_tuples_if_needed();
+
+        var bucket = self.tuples->get_or_insert(value_types, null);
+        if (bucket.value != null) {
+            return bucket.value;
+        }
+
+        var type = TypeTuple();
+        type.kind = Type.Kind.Tuple;
+        
+        type->finalize(value_types);
 
         bucket.value = type;
         return type;

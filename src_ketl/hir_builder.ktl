@@ -641,15 +641,28 @@ class HIRBuilder {
         return self->get_node_from_decl(decl_id);
     }
 
-    export fn push_builtin_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
+    export fn push_literal_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarBuiltinType();
+        var varr = HIR.VarLiteralType();
         self.vars ..= varr;
 
-        varr.kind = HIR.Var.Kind.BuiltinType;
+        varr.kind = HIR.Var.Kind.LiteralType;
         varr.src_info = src_info;
 
         varr.value = type;
+
+        return var_id;
+    }
+
+    export fn push_sequence(self: HIRBuilder, ids: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
+        var var_id = self.vars.size$cast(HIR.VarId);
+        var varr = HIR.VarSequence();
+        self.vars ..= varr;
+
+        varr.kind = HIR.Var.Kind.Sequence;
+        varr.src_info = src_info;
+
+        varr.values = ids;
 
         return var_id;
     }

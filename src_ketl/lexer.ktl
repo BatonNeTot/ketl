@@ -181,6 +181,7 @@ export class Lexer {
             return true;
         }
 
+        lexer.offset = char_offset;
         lexer->add_token(Token.Type.LITERAL_CHAR, end_mark_offset - char_offset);
         lexer.offset += 1;
         return true;

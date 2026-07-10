@@ -101,6 +101,7 @@ ketl_namespace_node* ketl_namespace_put(ketl_namespace* p_namespace, ketl_atomic
     namespace_map_bucket* p_bucket = namespace_map_get_or_insert_copy(&p_namespace->m_vars, s_key, new_node_offset);
     if (p_bucket->value != new_node_offset) {
         if (!force) {
+            fprintf(stderr, "%s\n", ketl_atomic_strings_get_pointer(p_atomic_strings, s_key));
             // TODO check const stuff
             // replace if replacement possible
             // do error if not
