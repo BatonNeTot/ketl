@@ -358,7 +358,7 @@ export class LogAccum {
 
         export fn get_line_offset(info: LogInfo, line: u32) => u32 {
             if (line >= info.lines_offsets.size) {
-                return info.source.size$cast(u32) - 1;
+                return info.source.size$cast(u32);
             }
             return info.lines_offsets[line];
         }

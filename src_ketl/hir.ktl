@@ -57,6 +57,9 @@ export class HIR {
         NEW_ARRAY,
         NEW_SLICE,
 
+        GET_ARRAY_VALUE,
+        SET_ARRAY_VALUE,
+
         APPEND_VALUE,
 
         JUMP,
@@ -168,6 +171,19 @@ export class HIR {
         var mirrored: VarId;
         var start: VarId;
         var end: ConstId;
+    }
+
+    export class GetArrayValue {
+        extend InstrWithOutput;
+        var array: VarId;
+        var index: VarId;
+    }
+
+    export class SetArrayValue {
+        extend InstrWithOutput;
+        var array: VarId;
+        var index: VarId;
+        var value: VarId;
     }
 
     export class AppendValue {
@@ -356,6 +372,14 @@ export class HIR {
 
         assert(false);
         return 0;
+    }
+
+    export fn get_constant(hir: HIR, constant_id: HIR.ConstId) => HIR.Const {
+        if (constant_id < hir.consts_infos.size) {
+            return hir.consts_infos[constant_id];
+        }
+
+        return null;
     }
 
     fn print_var(hir: HIR, var_id: HIR.VarId) {

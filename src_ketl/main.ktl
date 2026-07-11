@@ -136,7 +136,11 @@ fn compile_asm_file(path: str, output_path: str) {
     }
 
     if (output_path == null) {
-        output_path = dir_path .. "/" .. module_name .. ".s";
+        if (dir_path == null || dir_path.size == 0) {
+            output_path = module_name .. ".s";
+        } else {
+            output_path = dir_path .. "/" .. module_name .. ".s";
+        }
     } else {
         var after_last_dot_index = find_last(output_path, '.') + 1;
         if (after_last_dot_index != 0 && output_path[after_last_dot_index:output_path.size] == "ktl") {

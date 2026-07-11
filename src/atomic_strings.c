@@ -26,7 +26,7 @@ ketl_atomic_string ketl_atomic_strings_get(ketl_atomic_strings* p_atomic_strings
         return KETL_ATOMIC_STRING_EMPTY;
     }
 
-    char arr_buffer[256] = {'\0'};
+    char arr_buffer[512] = {'\0'};
     if (length == KETL_NULL_TERMINATED_LENGTH_32) {
         length = (uint32_t)ketl_strlen(p_str);
     } else {

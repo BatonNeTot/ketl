@@ -279,7 +279,7 @@ class Parser {
         return "%" .. bracket.type$cast(str)  .. "> at " .. bracket.source_offset$cast(str);
     }
 
-    // returns true if closing bracket met
+    // returns true if unexpexted closing bracket met
     fn dummy_parse_bracket(context: Context, brackets: BracketInfo[], token: Token) => bool {
         var token_type = token.type;
         switch (token_type) {
@@ -287,26 +287,23 @@ class Parser {
                 var bracket = BracketInfo.construct(Bracket.PARENTHESIS, token.offset);
                 //io.errorln("Pushing " .. bracket->get_opening_bracket_str());
                 brackets ..= bracket;
-                return false;
             }
             case Token.Type.CURLY_LEFT => {
                 var bracket = BracketInfo.construct(Bracket.CURLY, token.offset);
                 //io.errorln("Pushing " .. bracket->get_opening_bracket_str());
                 brackets ..= bracket;
-                return false;
             }
             case Token.Type.SQUARE_LEFT => {
                 var bracket = BracketInfo.construct(Bracket.SQUARE, token.offset);
                 //io.errorln("Pushing " .. bracket->get_opening_bracket_str());
                 brackets ..= bracket;
-                return false;
             }
             case Token.Type.PARENTHESIS_RIGHT => {
+                var closing_bracket = BracketInfo.construct(Bracket.PARENTHESIS, token.offset);
                 if (brackets.size <= 0) {
-                    return false;
+                    return true;
                 }
                 var bracket = brackets[brackets.size - 1];
-                var closing_bracket = BracketInfo.construct(Bracket.PARENTHESIS, token.offset);
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
@@ -317,14 +314,13 @@ class Parser {
                 }
                 //io.errorln("Poping " .. bracket->get_opening_bracket_str() .. " with " .. closing_bracket->get_closing_bracket_str());
                 brackets->pop();
-                return true;
             }
             case Token.Type.CURLY_RIGHT => {
+                var closing_bracket = BracketInfo.construct(Bracket.CURLY, token.offset);
                 if (brackets.size <= 0) {
-                    return false;
+                    return true;
                 }
                 var bracket = brackets[brackets.size - 1];
-                var closing_bracket = BracketInfo.construct(Bracket.CURLY, token.offset);
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
@@ -335,14 +331,13 @@ class Parser {
                 }
                 //io.errorln("Poping " .. bracket->get_opening_bracket_str() .. " with " .. closing_bracket->get_closing_bracket_str());
                 brackets->pop();
-                return true;
             }
             case Token.Type.SQUARE_RIGHT => {
+                var closing_bracket = BracketInfo.construct(Bracket.SQUARE, token.offset);
                 if (brackets.size <= 0) {
-                    return false;
+                    return true;
                 }
                 var bracket = brackets[brackets.size - 1];
-                var closing_bracket = BracketInfo.construct(Bracket.SQUARE, token.offset);
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
@@ -353,9 +348,9 @@ class Parser {
                 }
                 //io.errorln("Poping " .. bracket->get_opening_bracket_str() .. " with " .. closing_bracket->get_closing_bracket_str());
                 brackets->pop();
-                return true;
             }
         }
+        
         return false;
     }
 
@@ -447,6 +442,78 @@ class Parser {
 
         // TODO create new var to update src_info
         return expr_id;
+    }
+
+    fn parse_indexing(context: Context, var_id: HIR.VarId) => HIR.VarId {
+        if (context->token_match(Token.Type.SQUARE_RIGHT)) {
+            var var_as_type = context->get_var_as_type(var_id);
+            assert(var_as_type != null);
+            var array_type = Types.instance->get_array_type(var_as_type);
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            return context.hir_builder->push_literal_type(array_type, src_info);
+        }
+        
+        if (context->token_match(Token.Type.COLON)) {
+            io.errorln("Subrange is not implemented");
+            return error_var();
+        }
+
+        var expr_id = context->parse_precedence(Precedence.Colon + 1);
+        
+        if (context->token_match(Token.Type.COLON)) {
+            io.errorln("Subrange is not implemented");
+            return error_var();
+        }
+
+        context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
+
+        var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+
+        var var_as_type = context->get_var_as_type(var_id);
+        if (var_as_type != null) {
+            var array_type = Types.instance->get_array_type(var_as_type);
+
+            var array_id = context.hir_builder->push_new_array(array_type, expr_id, src_info);
+
+            if (!context->token_match(Token.Type.CURLY_LEFT)) {
+                return array_id;
+            }
+
+            var index_var_id = (-1)$cast(HIR.VarId);
+            while (true) {
+                if (context->token_check(Token.Type.CURLY_RIGHT)) {
+                    break;
+                }
+
+                var value_id = context->parse_precedence(Precedence.Pair + 1);
+
+                if (context->token_match(Token.Type.DOUBLE_ARROW_RIGHT)) {
+                    index_var_id = value_id;
+                    value_id = context->parse_precedence(Precedence.Sequence + 1);
+                } else if (index_var_id == (-1)$cast(HIR.VarId)) {
+                    var local_src_info = context->get_var(value_id).src_info;
+                    index_var_id = context.hir_builder->push_temp_var_of_type(local_src_info, Types.instance.type_u64);
+                    var zero_id = context.hir_builder->push_literal_number_of_type(0, Types.instance.type_u64, local_src_info);
+                    context.hir_builder->push_assign(HIR.Tag.ASSIGN, index_var_id, zero_id, local_src_info);
+                } else {
+                    var local_src_info = context->get_var(value_id).src_info;
+                    var one_id = context.hir_builder->push_literal_number_of_type(1, Types.instance.type_u64, local_src_info);
+                    index_var_id = context.hir_builder->push_binary_op(HIR.Tag.PLUS, index_var_id, one_id, local_src_info);
+                }
+
+                context.hir_builder->push_set_array_value(array_id, index_var_id, value_id, HIR.SrcInfo.merge(
+                    context->get_var(index_var_id).src_info, context->get_var(value_id).src_info));
+
+                if (!context->token_match(Token.Type.COMMA)) {
+                    break;
+                }
+            }
+            
+            context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' after array initialization values.");
+            return array_id;
+        } else {
+            return context.hir_builder->push_get_array_value(var_id, expr_id, src_info);
+        }
     }
 
     fn parse_argument_list(context: Context) => HIR.VarId[] {
@@ -615,9 +682,7 @@ class Parser {
             }
             return context.hir_builder->push_literal_type(Types.instance->get_function_type(signature), src_info);
         }
-
-        io.errorln(lhs_as_type->get_name());
-        io.errorln(rhs_as_type->get_name());
+        
         return error_var();
     }
     
@@ -807,24 +872,32 @@ class Parser {
         return error_var();
     }
     
-    fn parse_lhs_operand(context: Context, precedence: Precedence) => HIR.VarId {    
-        var prefix_rule = context->current_token(1).type->get_parse_rule().prefix;
+    fn parse_lhs_operand(context: Context, precedence: Precedence) => HIR.VarId {   
+        var current_token = context->current_token(1);
+        var prefix_rule = current_token.type->get_parse_rule().prefix;
         if (prefix_rule == null) {
-            context->error(context->current_token(1).offset, context->current_token(1).length, "Expected expression.");
-            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
+            context->error(current_token.offset, current_token.length, "Expected expression.");
+            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(current_token));
         }
 
         var lhs = context->prefix_rule();
 
-        while (precedence < context->current_token(0).type->get_parse_rule().precedence ||
-            (associativity[precedence] == Associativity.LTR && precedence == context->current_token(0).type->get_parse_rule().precedence)) {
-            context->token_advance();
-            var ltr_infix_rule = get_parse_rule(context->current_token(1).type).ltr_infix;
-            if (ltr_infix_rule == null) {
-                context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator.");
-                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
+        if (associativity[precedence] == Associativity.LTR) {
+            current_token = context->current_token(0);
+            var current_precedence = current_token.type->get_parse_rule().precedence;
+            while (associativity[current_precedence] == Associativity.LTR && precedence <= current_precedence) {
+                context->token_advance();
+
+                var ltr_infix_rule = context->current_token(1).type->get_parse_rule().ltr_infix;
+                if (ltr_infix_rule == null) {
+                    context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator (ltr).");
+                    return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
+                }
+                lhs = context->ltr_infix_rule(lhs);
+
+                current_token = context->current_token(0);
+                current_precedence = current_token.type->get_parse_rule().precedence;
             }
-            lhs = context->ltr_infix_rule(lhs);
         }
     
         return lhs;
@@ -833,44 +906,47 @@ class Parser {
     fn parse_precedence(context: Context, precedence: Precedence) => HIR.VarId {
         context->token_advance();
 
-        if (associativity[precedence] == Associativity.LTR) {
-            var lhs = context->parse_lhs_operand(precedence);
-            return lhs;
-        }
-
         // looking for the rtl operator
         var start_pos = context.iterator->mark();
         var brackets_stack = BracketInfo[0];
 
-        context->dummy_parse_bracket(brackets_stack, context->current_token(1));
-        var parse_rule = context->current_token(1).type->get_parse_rule();
+        var token = context->current_token(1);
+        context->dummy_parse_bracket(brackets_stack, token);
+        var parse_rule = token.type->get_parse_rule();
         var token_precedence = parse_rule.precedence;
-        while (precedence < token_precedence) {
+        while (precedence < token_precedence && associativity[token_precedence] != Associativity.RTL) {
             context->token_advance();
 
-            var token = context->current_token(1);
+            token = context->current_token(1);
             var current_token_type = token.type;
             if (current_token_type == Token.Type.EOF) {
-                context->error(token.offset, token.length, "Expected operator.");
+                context->error(token.offset, token.length, "Expected operator, got EOF.");
                 return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(token));
             }
 
+            if (context->dummy_parse_bracket(brackets_stack, token)) {
+                break;
+            }
+
             parse_rule = current_token_type->get_parse_rule();
-            if (!context->dummy_parse_bracket(brackets_stack, token)) {
+            if (current_token_type != Token.Type.PARENTHESIS_RIGHT 
+                && current_token_type != Token.Type.SQUARE_RIGHT 
+                && current_token_type != Token.Type.CURLY_RIGHT 
+                && brackets_stack.size == 0) {
                 token_precedence = parse_rule.precedence;
             }
         }
 
         // we coudln't find rtl operator, restoring token iterator and do simple ltr
-        if (precedence != token_precedence) {
+        if (associativity[token_precedence] != Associativity.RTL) {
             context.iterator->rewind(start_pos);
             
-            var lhs = context->parse_lhs_operand(precedence);
-            return lhs;
+            var lhs_id = context->parse_lhs_operand(precedence);
+            return lhs_id;
         }
 
         // parse after the operator, rhs operand
-        var rhs = context->parse_precedence(precedence);
+        var rhs = context->parse_precedence(token_precedence);
 
         // saving end of the rhs operand for restoring later
         var end_pos = context.iterator->mark();
@@ -883,8 +959,9 @@ class Parser {
         // back to the rtl operator
         var rtl_infix = context->current_token(1).type->get_parse_rule().rtl_infix;
         if (rtl_infix == null) {
-            context->error(context->current_token(2).offset, context->current_token(2).length, "Expected operator.");
-            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(2)));
+            var src_info = HIR.SrcInfo.from_token(context->current_token(2));
+            context->error(src_info.source_offset, src_info.length, "Expected operator (rtl).");
+            return context.hir_builder->push_error_var(src_info);
         }
         lhs = context->rtl_infix(lhs, rhs);
 
@@ -913,6 +990,7 @@ class Parser {
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             Precedence.Primary), 
         Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,                  null,             Precedence.Call),
+        Token.Type.SQUARE_LEFT         => ParseRule.construct(null,                parse_indexing,              null,             Precedence.Call),
         Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,          null,             Precedence.Call),
         Token.Type.COMMA               => ParseRule.construct(null,                parse_sequence,              null,             Precedence.Sequence),
         Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator,       null,             Precedence.Call),
@@ -1059,7 +1137,7 @@ class Parser {
             var_id = context.hir_builder->declare_local_var(name, type, src_info);
         }
 
-        if (!context.hir_builder->is_undef(var_id)) {
+        if (context.hir_builder->is_undef(var_id)) {
             return var_id;
         }
 
