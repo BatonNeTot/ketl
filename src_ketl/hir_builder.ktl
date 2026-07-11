@@ -10,6 +10,7 @@ from type_base import Type
 from type import Types
 from type import TypePrimitive
 from type import TypeFunction
+from type import TypeArray
 from type import TypeClass
 from value import Value
 
@@ -307,6 +308,14 @@ class HIRBuilder {
             return self->push_error_var(src_info);
         }
 
+        if (self->is_get_array_value(lhs_id)) {
+            if (tag == HIR.Tag.ASSIGN) {
+                return self->promote_to_set_array_value(lhs_id, rhs_id, src_info);
+            } else {
+                assert(false);
+            }
+        }
+
         var lhs = self.vars[lhs_id];
         var type = lhs->get_type_forced();
         var rhs_src_info = self.vars[rhs_id].src_info;
@@ -366,6 +375,124 @@ class HIRBuilder {
         instr.type = callee_type;
         instr.args = arguments;
         self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+    
+    export fn push_new_array(self: HIRBuilder, array_type: TypeArray, size: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        var instr = HIR.NewArray();
+        instr.tag = HIR.Tag.NEW_ARRAY;
+        instr.src_info = src_info;
+        instr.output = self->push_instr_result_var(array_type, instr);
+        instr.type = array_type.value;
+        instr.size = size;
+        instr.initial_value = (-1)$cast(HIR.ConstId);
+        self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+
+    export fn push_get_array_value(self: HIRBuilder, array_id: HIR.VarId, index_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(array_id) || self->is_undef(index_id)) {
+            return self->push_error_var(src_info);
+        }
+
+        var array = self.vars[array_id];
+        var array_type = array->get_type_forced()$cast(TypeArray);
+        assert(array_type.kind == Type.Kind.Array);
+        var value_type = array_type.value;
+
+        var instr = HIR.GetArrayValue();
+        instr.tag = HIR.Tag.GET_ARRAY_VALUE;
+        instr.src_info = src_info;
+        instr.output = self->push_instr_result_var(value_type, instr);
+        instr.array = array_id;
+        instr.index = index_id;
+        self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+
+    export fn push_set_array_value(self: HIRBuilder, array_id: HIR.VarId, index_id: HIR.VarId, value_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(array_id) || self->is_undef(index_id) || self->is_undef(value_id)) {
+            return self->push_error_var(src_info);
+        }
+
+        var array = self.vars[array_id];
+        var array_type = array->get_type_forced()$cast(TypeArray);
+        assert(array_type.kind == Type.Kind.Array);
+        var value_type = array_type.value;
+        
+        var value_src_info = self.vars[value_id].src_info;
+        value_id = self->cast_to_type(value_id, value_type, value_src_info, false);
+
+        var instr = HIR.SetArrayValue();
+        instr.tag = HIR.Tag.SET_ARRAY_VALUE;
+        instr.src_info = src_info;
+        instr.output = self->push_instr_result_var(value_type, instr);
+        instr.array = array_id;
+        instr.index = index_id;
+        instr.value = value_id;
+        self->get_current_block() ..= instr;
+
+        return instr.output;
+    }
+
+    export fn is_get_array_value(self: HIRBuilder, value_id: HIR.VarId) => bool {
+        var value = self.vars[value_id]$cast(HIR.VarCommon);
+        if (value.kind != HIR.Var.Kind.Common) {
+            return false;
+        }
+
+        var decl = self.decls[value.decl]$cast(HIR.DeclInstrResult);
+        if (decl.kind != HIR.Decl.Kind.InstrResult) {
+            return false;
+        }
+
+        return decl.instr.tag == HIR.Tag.GET_ARRAY_VALUE;
+    }
+
+    export fn promote_to_set_array_value(self: HIRBuilder, output_id: HIR.VarId, value_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+        if (self->is_undef(value_id)) {
+            return self->push_error_var(src_info);
+        }
+
+        var output = self.vars[output_id]$cast(HIR.VarCommon);
+        assert(output.kind == HIR.Var.Kind.Common);
+
+        var decl = self.decls[output.decl]$cast(HIR.DeclInstrResult);
+        assert(decl.kind == HIR.Decl.Kind.InstrResult);
+
+        var old_instr = decl.instr$cast(HIR.GetArrayValue);
+        assert(old_instr.tag == HIR.Tag.GET_ARRAY_VALUE);
+
+        var block = self->get_current_block();
+        var i = block.size;
+        while (i > 0) {
+            i -= 1;
+
+            if (block[i] == old_instr$cast(HIR.Instr)) {
+                break;
+            }
+        }
+
+        // i will be (-1)$cast(u64), so u64$max;
+        assert(i < block.size);
+
+        var type = output->get_type_forced();
+        var value_src_info = self.vars[value_id].src_info;
+        value_id = self->cast_to_type(value_id, type, value_src_info, false);
+
+        var instr = HIR.SetArrayValue();
+        instr.tag = HIR.Tag.SET_ARRAY_VALUE;
+        instr.src_info = old_instr.src_info;
+        instr.output = old_instr.output;
+        instr.array = old_instr.array;
+        instr.index = old_instr.index;
+        instr.value = value_id;
+
+        block[i] = instr;
+        decl.instr = instr;
 
         return instr.output;
     }

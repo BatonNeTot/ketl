@@ -9,6 +9,7 @@ from value import Value
 from type import TypePrimitive
 from type import TypeEnum
 from type import TypeFunction
+from type import TypeArray
 from type import TypeClass
 from type import Types
 from hir import HIR
@@ -725,6 +726,17 @@ export class ASMX86 {
             var size: Size;
             var type: Type;
 
+            fn construct_literal(type: Type, value: u64) => AsmArg {
+                var arg = AsmArgLiteral();
+                arg.kind = AsmArg.Kind.Literal;
+                arg.size = type->get_stack_size()$cast(Size);
+                arg.type = type;
+
+                arg.value = value;
+
+                return arg;
+            }
+
             fn construct_type(type: Type) => AsmArg {
                 var arg = AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
@@ -733,6 +745,29 @@ export class ASMX86 {
                 arg.label = type->get_name();
 
                 return arg;
+            }
+
+            fn construct_constant(constant: HIR.Const) => AsmArg {
+                if (constant == null) {
+                    return construct_literal(Types.instance.type_raw, 0);
+                } else {
+                    var arg = AsmArgGlobal();
+                    arg.kind = AsmArg.Kind.GlobalAddress;
+                    arg.size = Size.Ptr;
+                    arg.type = Types.instance.type_raw;
+
+                    arg.label = constant.name;
+
+                    return arg;
+                }
+            }
+
+            fn construct_constant_size(constant: HIR.Const) => AsmArg {
+                if (constant == null) {
+                    return construct_literal(Types.instance.type_u64, 0);
+                } else {
+                    return construct_literal(Types.instance.type_u64, constant.size);
+                }
             }
         }
 
@@ -1418,6 +1453,88 @@ export class ASMX86 {
                         }
                             
                         self->insert_mov_from_reg(callee_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
+                    }
+
+                    case HIR.Tag.NEW_ARRAY => {
+                        var hir_info = instr$cast(HIR.NewArray);
+                        
+                        var value_type = hir_info.type;
+                        var array_type = Types.instance->get_array_type(value_type);
+
+                        var initial_constant = self.hir->get_constant(hir_info.initial_value);
+
+                        self->push_function_arguments(AsmArg[4]{
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            self->get_arg_from_hir(hir_info.size),
+                            AsmArg.construct_constant(initial_constant),
+                            AsmArg.construct_constant_size(initial_constant),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.new_array";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
+                    }
+
+                    case HIR.Tag.GET_ARRAY_VALUE => {
+                        var hir_info = instr$cast(HIR.GetArrayValue);
+                        
+                        var output = self.hir.vars[hir_info.output];
+                        var value_type = output->get_type_forced();
+
+                        self->push_function_arguments(AsmArg[3]{
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            self->get_arg_from_hir(hir_info.array),
+                            self->get_arg_from_hir(hir_info.index),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.array_get_value";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(value_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
+                    }
+
+                    case HIR.Tag.SET_ARRAY_VALUE => {
+                        var hir_info = instr$cast(HIR.SetArrayValue);
+                        
+                        var output = self.hir.vars[hir_info.output];
+                        var value_type = output->get_type_forced();
+
+                        self->push_function_arguments(AsmArg[4]{
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            self->get_arg_from_hir(hir_info.array),
+                            self->get_arg_from_hir(hir_info.index),
+                            self->get_arg_from_hir(hir_info.value),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.array_set_value";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(value_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
 
                     case HIR.Tag.JUMP => {

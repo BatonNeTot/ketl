@@ -211,7 +211,7 @@ export fn str2cstr(string: ArrayHeader) => cstr {
 
     var cstring = malloc(size + 1);
     memcpy(cstring, data, size);
-    (cstring + size)$cast(GC.U8Wrapper).value = '\0';
+    (cstring + size)$cast(U8Wrapper).value = '\0';
     return cstring;
 }
 export fn uint2str(value: u64) => str {
@@ -287,10 +287,28 @@ export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64
     }
     // TODO replace with template/generic 
     switch (stack_size) {
-        case 1 => return pointer$cast(GC.U8Wrapper).value;
-        case 2 => return pointer$cast(GC.U16Wrapper).value;
-        case 4 => return pointer$cast(GC.U32Wrapper).value;
-        case 8 => return pointer$cast(GC.U64Wrapper).value;
+        case 1 => return pointer$cast(U8Wrapper).value;
+        case 2 => return pointer$cast(U16Wrapper).value;
+        case 4 => return pointer$cast(U32Wrapper).value;
+        case 8 => return pointer$cast(U64Wrapper).value;
+    }
+    return 0;
+ }
+
+export fn array_set_value(stack_size: u64, array_header: ArrayHeader, index: u64, value: u64) => u64 {
+    var pointer: raw;
+    if (array_header.is_slice) {
+        pointer = (array_header.data$cast(ArrayHeader).data + stack_size * (array_header.capacity + index));
+    } else {
+        assert(index < array_header.size);
+        pointer = (array_header.data + stack_size * index);
+    }
+    // TODO replace with template/generic 
+    switch (stack_size) {
+        case 1 => return pointer$cast(U8Wrapper).value = value$cast(u8);
+        case 2 => return pointer$cast(U16Wrapper).value = value$cast(u16);
+        case 4 => return pointer$cast(U32Wrapper).value = value$cast(u32);
+        case 8 => return pointer$cast(U64Wrapper).value = value;
     }
     return 0;
  }
