@@ -107,7 +107,7 @@ export class Type {
         }
 
         from type import TypePrimitive
-        return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).is_signed;
+        return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).signed;
     }
 
     export fn get_name(type: Type) => str {

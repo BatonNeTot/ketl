@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-char error_buffer[4096];
+char error_buffer[16384];
 
 void ketl_error_report(ketl_state* p_state, ketl_error_info* p_error_info, const char* format, ...) {
     uint32_t start_line, start_col;
@@ -61,6 +61,9 @@ void ketl_error_report(ketl_state* p_state, ketl_error_info* p_error_info, const
         }
     }
     
+    //fprintf(stderr, "ERROR SIZE %d\n", message_size);
+    //error_buffer[message_size] = '\0';
+    //fputs(error_buffer, stderr);
 
     string_builder_t_push_back_ref_n(&p_state->error_stream, error_buffer, message_size);
     string_builder_t_push_back_copy(&p_state->error_stream, '\n');

@@ -296,7 +296,7 @@ export class StringBuffer {
     }
 } 
 
-fn str_padding(size: u32) => str {
+export fn str_padding(size: u32) => str {
     var result = char[size];
     while (size > 0) {
         size -= 1;
@@ -430,8 +430,8 @@ export class LogAccum {
                 select_end = end_line_offset;
             }
 
-            if (select_start <= select_end) {
-                var i = select_start;
+            if (select_start < select_end) {
+                var i = select_start + 1;
                 while (i != select_end) {
                     accum.err
                         ->write("~");

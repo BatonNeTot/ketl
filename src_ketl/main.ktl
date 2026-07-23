@@ -150,8 +150,8 @@ fn compile_asm_file(path: str, output_path: str) {
 
     var module = Modules.instance->load(module_name, dir_path, null, true);
     if (module != null && !module.has_errors) {
-        io.redirect_stdout(output_path);
+        io.stdout_redirect(output_path);
         module->print_asm();
-        io.redirect_restore();
+        io.stdout_redirect_restore();
     }
 }
