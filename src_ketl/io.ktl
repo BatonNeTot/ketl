@@ -84,28 +84,52 @@ cimport _dup(handle: FileHandle) => FileHandle
 cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
 
 var stdout_backup = _dup(stdout_handle);
-var redirect: File;
+var stderr_backup = _dup(stderr_handle);
+var stdout_redirect_file: File;
+var stderr_redirect_file: File;
 
-export fn redirect_restore() {
+export fn stdout_redirect_restore() {
     fflush(stdout);
-    if (redirect != null) {
-        fclose(redirect);
+    if (stdout_redirect_file != null) {
+        fclose(stdout_redirect_file);
     }
     _dup2(stdout_backup, stdout_handle);
 }
+export fn stderr_redirect_restore() {
+    fflush(stderr);
+    if (stderr_redirect_file != null) {
+        fclose(stderr_redirect_file);
+    }
+    _dup2(stderr_backup, stderr_handle);
+}
 
-export fn redirect_stdout(target_filename: str) {
-    redirect_restore();
+export fn stdout_redirect(target_filename: str) {
+    stdout_redirect_restore();
     
-    redirect = fopen(target_filename$cast(cstr), "w"$cast(cstr));
-    if (redirect == null) {
+    stdout_redirect_file = fopen(target_filename$cast(cstr), "w"$cast(cstr));
+    if (stdout_redirect_file == null) {
         errorln("Can't open file '" .. target_filename .. "'");
         return;
     }
 
     // stdout now refers to file p_target_filename
-    if (-1 == _dup2(_fileno(redirect), stdout_handle)) {
+    if (-1 == _dup2(_fileno(stdout_redirect_file), stdout_handle)) {
         errorln("Can't _dup2 stdout");
+        return;
+    }
+}
+export fn stderr_redirect(target_filename: str) {
+    stderr_redirect_restore();
+    
+    stderr_redirect_file = fopen(target_filename$cast(cstr), "a"$cast(cstr));
+    if (stderr_redirect_file == null) {
+        errorln("Can't open file '" .. target_filename .. "'");
+        return;
+    }
+
+    // stderr now refers to file p_target_filename
+    if (-1 == _dup2(_fileno(stderr_redirect_file), stderr_handle)) {
+        errorln("Can't _dup2 stderr");
         return;
     }
 }

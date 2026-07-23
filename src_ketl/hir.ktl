@@ -223,7 +223,6 @@ export class HIR {
             Common,
             Parameter,
             InstrResult,
-            Global,
         }
 
         var kind: Kind;
@@ -235,7 +234,6 @@ export class HIR {
                 case Kind.Common
                 case Kind.Parameter
                 case Kind.InstrResult => return decl$cast(DeclWithType).type;
-                case Kind.Global => return decl$cast(DeclGlobal).node.value.type;
             }
             return null;
         }
@@ -261,16 +259,12 @@ export class HIR {
         var instr: HIR.Instr;
     }
 
-    export class DeclGlobal {
-        extend Decl;
-        var node: Namespace.Node;
-    }
-
 
     export class Var {
         export enum Kind: u8 {
             Error,
             Common,
+            Global,
             Literal,
             LiteralType,
             Sequence,
@@ -287,6 +281,7 @@ export class HIR {
                 case Kind.Literal
                 case Kind.Cast
                 case Kind.Field => return varr$cast(VarWithType).type;
+                case Kind.Global => return varr$cast(VarGlobal).node.value.type;
             }
             return null;
         }
@@ -315,6 +310,16 @@ export class HIR {
         var decl: DeclId;
     }
 
+    export class VarGlobal {
+        extend Var;
+        var node: Namespace.Node;
+    }
+
+    export class VarLiteral {
+        extend VarWithType;
+        var value: u64;
+    }
+
     export class VarLiteralType {
         extend Var;
         var value: Type;
@@ -323,11 +328,6 @@ export class HIR {
     export class VarSequence {
         extend Var;
         var values: HIR.VarId[];
-    }
-
-    export class VarLiteral {
-        extend VarWithType;
-        var value: u64;
     }
 
     export class VarCast {

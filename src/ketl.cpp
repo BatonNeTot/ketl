@@ -18,7 +18,7 @@ void redirect_init() {
     stdout_backup = _dup(handle);
 }
 
-void redirect_restore() {
+void stdout_redirect_restore() {
     fflush(stdout);
     if (p_redirect != NULL) {
         fclose(p_redirect);
@@ -26,8 +26,8 @@ void redirect_restore() {
     _dup2(stdout_backup, _fileno(stdout));
 }
 
-void redirect_stdout(const char* p_target_filename) {
-    redirect_restore();
+void stdout_redirect(const char* p_target_filename) {
+    stdout_redirect_restore();
     
     if (fopen_s(&p_redirect, p_target_filename, "w") != 0 ) {
         printf("Can't open file '%s'\n", p_target_filename);
@@ -44,7 +44,7 @@ void redirect_stdout(const char* p_target_filename) {
 bool compile_asm_file(const char* p_filepath) {
     redirect_init();
     class _defer{ public: ~_defer() {
-        redirect_restore();
+        stdout_redirect_restore();
     }} redirect_deffer;
 
     char a_buffer[256];
@@ -61,7 +61,7 @@ bool compile_asm_file(const char* p_filepath) {
 
     snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "%.*ss", (int)after_last_dot_index, p_filepath);
 
-    redirect_stdout(a_buffer);
+    stdout_redirect(a_buffer);
     KETL::State ketl(&ketl_default_allocator);
 
     return ketl.print_compile2asm(std::string_view{p_filepath, length});

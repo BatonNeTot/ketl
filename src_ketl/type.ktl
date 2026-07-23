@@ -9,20 +9,20 @@ from namespace import Namespace
 export class TypePrimitive {
     extend Type;
     var name: str;
-    var is_integer: bool;
-    var is_signed: bool;
-    var is_numeric: bool;
+    var integer: bool;
+    var signed: bool;
+    var numeric: bool;
 
-    fn construct(size: u8, name: str, is_integer: bool, is_signed: bool, is_numeric: bool) => TypePrimitive {
+    fn construct(size: u8, name: str, integer: bool, signed: bool, numeric: bool) => TypePrimitive {
         var self = TypePrimitive();
 
         self.kind = Kind.Primitive;
         self.align = find_align_enum(size);
         self.size = size;
         self.name = name;
-        self.is_integer = is_integer;
-        self.is_signed = is_signed;
-        self.is_numeric = is_numeric;
+        self.integer = integer;
+        self.signed = signed;
+        self.numeric = numeric;
 
         return self;
     }
@@ -100,6 +100,7 @@ export class TypeClass {
     var name: str;
     var fields: VariableDecl[];
     var namespace: Namespace;
+    var context_namespaces: Namespace[];
 
     export fn construct(name: str, parent_namespace: Namespace) => TypeClass {
         var self = TypeClass();
@@ -197,6 +198,57 @@ export class TypeClass {
         return (-1)$cast(i32);
     }
 
+    // returns -1 if field doesn't exist
+    export fn find_extended_class_offset(self: TypeClass, type: TypeClass) => i32 {
+        var offset: u16;
+        for (var field <- self.fields) {
+            var align = Align.Byte; // TODO delayed initialization
+            var size: u16;
+            if (field.name == null || field.name == "") {
+                assert(field.type.kind == Type.Kind.Class);
+
+                align = field.type->get_align();
+
+                if (field.type == type$cast(Type)) {
+                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
+                    return offset$cast(i32);
+                }
+
+                var extended_offset = field.type$cast(TypeClass)->find_extended_class_offset(type);
+                if (extended_offset >= 0) {
+                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
+                    return offset$cast(i32);
+                }
+
+                size = field.type->get_size();
+            } else {
+                align = field.type->get_stack_align();
+
+                size = field.type->get_stack_size();
+            }
+
+            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+        }
+
+        return (-1)$cast(i32);
+    }
+
+
+    export fn find(self: TypeClass, key: str) => Namespace.Node {
+        var node = self.namespace->find(key);
+        if (node != null) {
+            return node;
+        }
+
+        for (var namespace <- self.context_namespaces) {
+            node = namespace->find(key);
+            if (node != null) {
+                return node;
+            }
+        }
+
+        return null;
+    }
 }
 
 export class TypeTuple {
@@ -360,11 +412,11 @@ class Types {
             var lhs_primitive = lhs$cast(TypePrimitive);
             var rhs_primitive = rhs$cast(TypePrimitive);
 
-            if (!lhs_primitive.is_integer || !rhs_primitive.is_integer) {
+            if (!lhs_primitive.integer || !rhs_primitive.integer) {
                 return null;
             }
 
-            if (lhs_primitive.is_signed != rhs_primitive.is_signed) {
+            if (lhs_primitive.integer != rhs_primitive.integer) {
                 assert(false);
                 return null;
             }

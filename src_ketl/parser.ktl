@@ -90,7 +90,7 @@ class Parser {
     }
 
     fn token_str(context: Context, token: Token) => str {
-        assert(token.offset < context.source.size && token.offset + token.length <= context.source.size);
+        assert(token.offset <= context.source.size && token.offset + token.length <= context.source.size);
         return context.source[token.offset:token.offset + token.length];
     }
 
@@ -104,40 +104,33 @@ class Parser {
             return type_var$cast(HIR.VarLiteralType).value;
         }
 
-        if (type_var.kind != HIR.Var.Kind.Common) {
+        if (type_var.kind != HIR.Var.Kind.Global) {
             return null;
         }
-        var decl_id = type_var$cast(HIR.VarCommon).decl;
-        var decl = context.hir_builder.decls[decl_id];
 
-        if (decl.kind != HIR.Decl.Kind.Global) {
-            return null;
-        }
-        var decl_global = decl$cast(HIR.DeclGlobal);
+        var node = type_var$cast(HIR.VarGlobal).node;
 
-        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Type) {
+        if (node == null || node.value.kind != Value.Kind.Type) {
             return null;
         }
-        return decl_global.node.value.value$cast(raw);
+        
+        return node.value.value$cast(raw);
     }
 
     fn get_var_as_namespace(context: Context, var_id: HIR.VarId) => Namespace {
-        var type_var = context->get_var(var_id);
-        if (type_var.kind != HIR.Var.Kind.Common) {
-            return null;
-        }
-        var decl_id = type_var$cast(HIR.VarCommon).decl;
-        var decl = context.hir_builder.decls[decl_id];
+        var namespace_var = context->get_var(var_id);
 
-        if (decl.kind != HIR.Decl.Kind.Global) {
+        if (namespace_var.kind != HIR.Var.Kind.Global) {
             return null;
         }
-        var decl_global = decl$cast(HIR.DeclGlobal);
 
-        if (decl_global.node == null || decl_global.node.value.kind != Value.Kind.Namespace) {
+        var node = namespace_var$cast(HIR.VarGlobal).node;
+
+        if (node == null || node.value.kind != Value.Kind.Namespace) {
             return null;
         }
-        return decl_global.node.value.value$cast(raw);
+
+        return node.value.value$cast(raw);
     }
 
     class StatementInfo {
@@ -541,17 +534,10 @@ class Parser {
         var callee = context->get_var(callee_id);
         var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
 
-        if (callee.kind == HIR.Var.Kind.Common) {
-            var decl = context.hir_builder.decls[callee$cast(HIR.VarCommon).decl];
+        if (callee.kind == HIR.Var.Kind.Global) {
+            var callee_node = callee$cast(HIR.VarGlobal).node;
 
-            if (decl.kind == HIR.Decl.Kind.Global && decl$cast(HIR.DeclGlobal).node.value.kind == Value.Kind.Type) {
-                var callee_node = decl$cast(HIR.DeclGlobal).node;
-
-                if (callee_node.value.kind != Value.Kind.Type) {
-                    context->error(src_info.source_offset, src_info.length, "Trying to call an improper object.");
-                    return context.hir_builder->push_error_var(src_info);
-                }
-
+            if (callee_node.value.kind == Value.Kind.Type) {
                 var callee_type = callee_node.value.value$cast(raw)$cast(Type);
                 if (callee_type.kind != Type.Kind.Class) {
                     context->error(src_info.source_offset, src_info.length, "Only class objects can be constructed through calling a type.");
@@ -621,38 +607,7 @@ class Parser {
 
         var object_as_namespace = context->get_var_as_namespace(object_id);
         if (object_as_namespace != null) {
-            assert(false);
-            /*
-
-            ketl_namespace_node* p_namespace_node = ketl_namespace_find_by_index(
-                get_var_info(p_context, p_object->info)->p_namespace, get_var_info(p_context, p_object->info)->namespace_node_index);
-            
-            if (p_namespace_node->variable.kind == KETL_VARIABLE_NAMESPACE) { 
-                ketl_namespace* p_namespace = p_namespace_node->variable.p_pointer;
-                
-                ketl_hir_var_id_t id_var = ketl_hir_builder_get_var(&p_context->hir_builder, p_namespace, push_symbol(p_context, id_token), 
-                    push_symbol_string(p_context, p_context->p_lexer->p_source + src_info.source_offset, src_info.length), src_info, true);
-                ANN_ASSERT(GET_VAR(id_var).info != HIR.Tag.VAR_INFO_TEMP);
-                if (GET_VAR(id_var).type == HIR.Tag.USED_TYPE_UNKNOWN) {
-                    _ketl_parse_undefined_vars_infos_t_bucket* p_bucket = _ketl_parse_undefined_vars_infos_t_get_or_insert_copy(&p_context->m_undef_vars_infos, GET_VAR(id_var).info, true);
-                    if (p_bucket->value) {
-                        errorf(id_token.offset, id_token.length, "Use of undeclared variable '%.*s' from module '%s'.", TOKEN_LENGTH(id_token), TOKEN_STRING(id_token),
-                            ketl_atomic_strings_get_pointer(&p_context->p_state->atomic_strings, p_namespace->s_name));
-                        p_bucket->value = false;
-                    }
-                }
-
-                return id_var;
-            }
-
-            ANN_ASSERT(false && "Trying to field access no-type and no-namespace");
-            */
-
-            return context.hir_builder->push_error_var(src_info);
-        }
-        
-        if (context.hir_builder->is_undef(object_id)) {
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->get_namespace_var(object_as_namespace, id, src_info);
         }
 
         var object_type = object->get_type();
@@ -872,7 +827,7 @@ class Parser {
         return error_var();
     }
     
-    fn parse_lhs_operand(context: Context, precedence: Precedence) => HIR.VarId {   
+    fn parse_lhs_operand(context: Context, precedence: Precedence) => HIR.VarId {  
         var current_token = context->current_token(1);
         var prefix_rule = current_token.type->get_parse_rule().prefix;
         if (prefix_rule == null) {
@@ -882,22 +837,20 @@ class Parser {
 
         var lhs = context->prefix_rule();
 
-        if (associativity[precedence] == Associativity.LTR) {
-            current_token = context->current_token(0);
-            var current_precedence = current_token.type->get_parse_rule().precedence;
-            while (associativity[current_precedence] == Associativity.LTR && precedence <= current_precedence) {
-                context->token_advance();
+        current_token = context->current_token(0);
+        var current_precedence = current_token.type->get_parse_rule().precedence;
+        while (associativity[current_precedence] == Associativity.LTR && precedence <= current_precedence) {
+            context->token_advance();
 
-                var ltr_infix_rule = context->current_token(1).type->get_parse_rule().ltr_infix;
-                if (ltr_infix_rule == null) {
-                    context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator (ltr).");
-                    return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
-                }
-                lhs = context->ltr_infix_rule(lhs);
-
-                current_token = context->current_token(0);
-                current_precedence = current_token.type->get_parse_rule().precedence;
+            var ltr_infix_rule = context->current_token(1).type->get_parse_rule().ltr_infix;
+            if (ltr_infix_rule == null) {
+                context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator (ltr).");
+                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
             }
+            lhs = context->ltr_infix_rule(lhs);
+
+            current_token = context->current_token(0);
+            current_precedence = current_token.type->get_parse_rule().precedence;
         }
     
         return lhs;
@@ -938,7 +891,7 @@ class Parser {
         }
 
         // we coudln't find rtl operator, restoring token iterator and do simple ltr
-        if (associativity[token_precedence] != Associativity.RTL) {
+        if (precedence > token_precedence || associativity[token_precedence] != Associativity.RTL) {
             context.iterator->rewind(start_pos);
             
             var lhs_id = context->parse_lhs_operand(precedence);
@@ -1075,7 +1028,6 @@ class Parser {
 
         context.namespace->import_namespace(module_name, null, module.namespace, context.exxport);
 
-        assert(false);
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
@@ -1300,10 +1252,6 @@ class Parser {
                 class_fields ..= field;
                 return;
             }
-            case Token.Type.SHARED => {
-                context->parse_var_declaration();
-                return;
-            }
             case Token.Type.EXTEND => {
                 context->token_advance(); // extend
 
@@ -1314,6 +1262,10 @@ class Parser {
                 context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
                 class_fields ..= field;
+                return;
+            }
+            case Token.Type.SHARED => {
+                context->parse_var_declaration();
                 return;
             }
             //case Token.Type.CIMPORT => { context->parse_cimport_declaration (); return; }
@@ -1489,8 +1441,10 @@ class Parser {
         var name = context->token_str(id_token);
         var enum_type = TypeEnum.construct(name, parent_primitive, enum_constants);
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
-        namespace_node.value.kind = Value.Kind.Type;
-        namespace_node.value.value = enum_type$cast(raw)$cast(u64);
+        if (namespace_node != null) {
+            namespace_node.value.kind = Value.Kind.Type;
+            namespace_node.value.value = enum_type$cast(raw)$cast(u64);
+        }
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
@@ -1518,6 +1472,11 @@ class Parser {
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
+            case Token.Type.SHARED => {
+                var src_info = HIR.SrcInfo.from_token(context->current_token(0));
+                context->error(src_info.source_offset, src_info.length, "Can't use 'shared' outside class declaration.");
+                return context->parse_var_declaration();
+            }
             //case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
             case Token.Type.CLASS   => return context->parse_class_declaration();

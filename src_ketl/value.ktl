@@ -49,7 +49,7 @@ export class Value {
             
             from type import TypePrimitive 
             var primitive_type = type$cast(TypePrimitive);
-            if (primitive_type.is_signed) {
+            if (primitive_type.signed) {
                 self.kind = Kind.Int;
             } else {
                 self.kind = Kind.UInt;
