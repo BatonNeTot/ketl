@@ -808,14 +808,16 @@ export class ASMX86 {
                     type = Types.instance.type_i64;
                 }
 
-                assert(type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum);
+                var value = varr$cast(HIR.VarLiteral).value;
+                assert(type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum || 
+                    (type->is_pointer_kind() && value == 0));
 
                 var arg = AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
                 arg.size = type->get_stack_size()$cast(Size);
                 arg.type = type;
 
-                arg.value = varr$cast(HIR.VarLiteral).value;
+                arg.value = value;
 
                 return arg;
             }
@@ -1105,30 +1107,20 @@ export class ASMX86 {
                     var reg = regs[i];
                     self->insert_mov_to_reg(size, reg, arg);
                 } else {
-                    assert(false); /*
-                    ANN_ASSERT(p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS);
-                    push_mov_from_stack_hir(KETL_ASM_X86_AX, p_arguments[i], size, p_builder);
-                    uint32_t reg_space_size = sizeof(void*) * reg_count;
-                    ketl_asm_x86_arg_info_t arg_info = { 
-                        .stack_offset = reg_space_size + (i - reg_count) * sizeof(void*),
-                        .s_name = KETL_ATOMIC_STRING_EMPTY,
-                    };
-                    ketl_hir_var_id_t arg_id = p_arguments[i];
-                    ketl_hir_var_info_index_t info_id = p_builder->p_hir->p_vars[arg_id].info;
-                    ketl_hir_var_uid_t var_uid = p_builder->p_hir->p_vars[arg_id].uid;
-                    while (var_uid == KETL_HIR_VAR_UID_CAST) {
-                        arg_id = p_builder->p_hir->p_vars[arg_id].cast_target;
-                        info_id = p_builder->p_hir->p_vars[arg_id].info;
-                        var_uid = p_builder->p_hir->p_vars[arg_id].uid;
-                    }
-                    if (info_id != KETL_HIR_VAR_INFO_TEMP && var_uid != KETL_HIR_VAR_UID_LITERAL) {
-                        arg_info.s_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, 
-                            KETL_ATOMIC_STRING_GET_POINTER(p_builder->p_hir->p_symbols, 
-                                p_builder->p_hir->p_vars_infos[info_id].name), KETL_NULL_TERMINATED_LENGTH_32);
-                    }
-                    ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_MOV, size, 
-                        modrm_stack(p_builder, size, arg_info), KETL_ASM_X86_AX);
-                        */
+                    assert(self.abi == ABI.WINDOWS);
+
+                    self->insert_mov_to_reg(size, Reg.AX, arg);
+                    var reg_space_size = raw$size * reg_count;
+
+                    var parameter = AsmArgOnStack();
+                    parameter.kind = AsmArg.Kind.OnStack;
+                    parameter.size = type->get_stack_size()$cast(Size);
+                    parameter.type = type;
+
+                    parameter.name = null;
+                    parameter.stack = reg_space_size + (i - reg_count) * raw$size;
+
+                    self->insert_mov_from_reg(size, parameter, Reg.AX);
                 }
 
                 if (i == 0) {
@@ -1263,6 +1255,27 @@ export class ASMX86 {
                         io.print("unknown tag: ");
                         io.println(instr.tag$cast(str));
                         assert(false);
+                    }
+                    case HIR.Tag.UNARY_PLUS => {}
+                    case HIR.Tag.LOGICAL_NOT
+                    case HIR.Tag.BITWISE_NOT
+                    case HIR.Tag.UNARY_MINUS => {
+                        var hir_info = instr$cast(HIR.UnaryOp);
+                        var output = self.hir.vars[hir_info.output];
+                        var type = output->get_type_forced();
+                        var size = type->get_stack_size()$cast(Size);
+                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.arg));
+
+                        switch (instr.tag) {
+                            case HIR.Tag.LOGICAL_NOT => {
+                                self->insert_rm_reg(Tag.TEST, size, ModRM.construct_reg(Reg.AX), Reg.AX);
+                                self->insert_rm(Tag.SETZ, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                            }
+                            case HIR.Tag.BITWISE_NOT => self->insert_reg_rm(Tag.NOT, size, Reg.AX, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.UNARY_MINUS => self->insert_reg_rm(Tag.NEG, size, Reg.AX, ModRM.construct_reg(Reg.AX));
+                        }
+
+                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
                     case HIR.Tag.PLUS
                     case HIR.Tag.MINUS
@@ -1417,14 +1430,13 @@ export class ASMX86 {
 
                         // call
                         var arg_callee = self->get_arg_from_hir(hir_info.callee);
-                        assert(arg_callee.kind == AsmArg.Kind.GlobalAddress);
 
                         // TODO self.inline_symbols
-                        if (true) {
+                        if (true && arg_callee.kind == AsmArg.Kind.GlobalAddress) {
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(arg_callee$cast(AsmArgGlobal).label));
-                        } else { /*
-                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
-                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        } else {
+                            self->insert_mov_to_reg(return_type->get_stack_size()$cast(Size), Reg.AX, arg_callee);
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_reg(Reg.AX));
                         }
                             
                         if (return_type != Types.instance.type_void$cast(Type)) {
@@ -1486,6 +1498,32 @@ export class ASMX86 {
                         self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
 
+                    case HIR.Tag.NEW_SLICE => {
+                        var hir_info = instr$cast(HIR.NewSlice);
+                        
+                        var output = self.hir.vars[hir_info.output];
+                        var array_type = output->get_type_forced();
+
+                        self->push_function_arguments(AsmArg[3]{
+                            self->get_arg_from_hir(hir_info.mirrored),
+                            self->get_arg_from_hir(hir_info.start),
+                            self->get_arg_from_hir(hir_info.end),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.new_slice";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
+                    }
+
                     case HIR.Tag.GET_ARRAY_VALUE => {
                         var hir_info = instr$cast(HIR.GetArrayValue);
                         
@@ -1537,6 +1575,60 @@ export class ASMX86 {
                         }
                             
                         self->insert_mov_from_reg(value_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.output), Reg.AX);
+                    }
+
+                    case HIR.Tag.APPEND_VALUE => {
+                        var hir_info = instr$cast(HIR.Append);
+                        
+                        var array = self.hir.vars[hir_info.array];
+                        var array_type = array->get_type_forced()$cast(TypeArray);
+                        assert(array_type.kind == Type.Kind.Array);
+
+                        self->push_function_arguments(AsmArg[3]{
+                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size()),
+                            self->get_arg_from_hir(hir_info.array),
+                            self->get_arg_from_hir(hir_info.appendee),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.append_value";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.array), Reg.AX);
+                    }
+
+                    case HIR.Tag.APPEND_ARRAY => {
+                        var hir_info = instr$cast(HIR.Append);
+                        
+                        var array = self.hir.vars[hir_info.array];
+                        var array_type = array->get_type_forced()$cast(TypeArray);
+                        assert(array_type.kind == Type.Kind.Array);
+
+                        self->push_function_arguments(AsmArg[3]{
+                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size()),
+                            self->get_arg_from_hir(hir_info.array),
+                            self->get_arg_from_hir(hir_info.appendee),
+                        });
+
+                        // call
+
+                        // TODO self.inline_symbols
+                        if (true) {
+                            var func_name = "__ketl_rt.append_array";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                        } else { /*
+                            push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
+                            ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
+                        }
+                            
+                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.array), Reg.AX);
                     }
 
                     case HIR.Tag.JUMP => {

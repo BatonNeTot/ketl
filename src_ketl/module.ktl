@@ -29,11 +29,11 @@ class Module {
     var header_loaded: bool; // after preload
     var body_loaded: bool; // after load
 
-    fn construct(name: str) => Module {
+    fn construct(name: str, global_namespace: Namespace) => Module {
         var self = Module();
 
         self.name = name;
-        self.namespace = Namespace.construct(name, null); // TODO global namespace?
+        self.namespace = Namespace.construct(name, global_namespace); // TODO global namespace?
         self.compile_function_declarations = CompileFunctionDeclaration[0];
 
         return self;
@@ -193,6 +193,7 @@ class Module {
 
 class Modules {
 
+    var global_namespace: Namespace;
     var modules: StrHashMap;
     var active_module: Module;
     var loading_modules: bool;
@@ -208,10 +209,25 @@ class Modules {
         }
     }
 
+    fn init_global_namespace(self: Modules) {
+        if (self.global_namespace == null) {
+            self.global_namespace = Namespace.construct("", null);
+
+            from type_base import Type
+            self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
+                Type[2] {
+                    Types.instance.type_void,
+                    Types.instance.type_bool
+                }
+            ), true);
+        }
+    }
+
     shared instance = construct();
 
     export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Module {
         self->init_modules_if_needed();
+        self->init_global_namespace();
 
         var module_filename = module_name .. ".ktl";
 
@@ -227,7 +243,7 @@ class Modules {
         var top_loading = !self.loading_modules;
         self.loading_modules = true;
 
-        var module = Module.construct(module_name);
+        var module = Module.construct(module_name, self.global_namespace);
         module_bucket.value = module;
 
         // preloading

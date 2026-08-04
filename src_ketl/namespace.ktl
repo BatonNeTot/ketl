@@ -52,7 +52,7 @@ class Namespace {
     }
 
     export fn is_empty(self: Namespace) => bool {
-        return self.nodes == 0;
+        return self.nodes.size == 0;
     }
 
     export fn declare_var(self: Namespace, key: str, name: str, type: Type, exxport: bool) => Node {

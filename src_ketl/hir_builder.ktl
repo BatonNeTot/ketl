@@ -170,9 +170,8 @@ class HIRBuilder {
                 }
             }
 
-            io.errorln("Var with undefined type.");
-            assert(false);
-            return var_id;
+            self->error(src_info.source_offset, src_info.length, "Can't implicitly cast literal number to '" .. target_type->get_name() .. "'.");
+            return self->push_error_var(src_info);
         }
 
         if (Types.is_types_equal(type, target_type)) {
@@ -194,7 +193,7 @@ class HIRBuilder {
 
         if (type->is_pointer_kind() && target_type == Types.instance.type_raw$cast(Type) ||
             target_type->is_pointer_kind() && type == Types.instance.type_raw$cast(Type)) {
-            return var_id;
+            return self->push_casted_var(var_id, target_type, src_info);
         }
 
         if (type.kind == Type.Kind.Class && target_type.kind == Type.Kind.Class) {
@@ -221,9 +220,8 @@ class HIRBuilder {
             }
         }
         
-        io.errorln("Can't convert '" .. type->get_name() .. "' to '" .. target_type->get_name() .. "'.");
-        assert(false);
-        return (-1)$cast(HIR.VarId);
+        self->error(src_info.source_offset, src_info.length, "Can't convert '" .. type->get_name() .. "' to '" .. target_type->get_name() .. "'.");
+        return self->push_error_var(src_info);
     }
 
     export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag, src_info: HIR.SrcInfo) {
@@ -265,6 +263,7 @@ class HIRBuilder {
         var output_type = type;
         switch (tag) {
             case HIR.Tag.LOGICAL_NOT => output_type = Types.instance.type_bool;
+            case HIR.Tag.BITWISE_NOT
             case HIR.Tag.UNARY_PLUS => output_type = arg_type;
             case HIR.Tag.UNARY_MINUS => {
                 if (arg_type.kind != Type.Kind.Primitive) {
@@ -355,6 +354,10 @@ class HIRBuilder {
         var type = lhs->get_type_forced();
         var rhs_src_info = self.vars[rhs_id].src_info;
         rhs_id = self->cast_to_type(rhs_id, type, rhs_src_info, false);
+
+        if (self->is_undef(rhs_id)) {
+            return self->push_error_var(src_info);
+        }
 
         var instr = HIR.Assign();
         instr.tag = tag;

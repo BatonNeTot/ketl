@@ -667,7 +667,8 @@ class Parser {
             return context.hir_builder->push_literal_type(Types.instance->get_function_type(signature), src_info);
         }
         
-        return error_var();
+        context->error(src_info.source_offset, src_info.length, "WTF.");
+        return context.hir_builder->push_error_var(src_info);
     }
     
     fn parse_dollar_operator(context: Context, lhs: HIR.VarId) => HIR.VarId {
@@ -797,6 +798,7 @@ class Parser {
 
         switch (token_type) {
             case Token.Type.LOGICAL_NOT => return context.hir_builder->push_unary_op(HIR.Tag.LOGICAL_NOT, rhs_id, src_info);
+            case Token.Type.BITWISE_NOT => return context.hir_builder->push_unary_op(HIR.Tag.BITWISE_NOT, rhs_id, src_info);
 
             case Token.Type.PLUS        => return context.hir_builder->push_unary_op(HIR.Tag.UNARY_PLUS,  rhs_id, src_info);
             case Token.Type.MINUS       => return context.hir_builder->push_unary_op(HIR.Tag.UNARY_MINUS, rhs_id, src_info);

@@ -12,6 +12,7 @@ export class HIR {
         NONE_STMT,
 
         LOGICAL_NOT,
+        BITWISE_NOT,
 
         UNARY_PLUS,
         UNARY_MINUS,
