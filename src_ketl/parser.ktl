@@ -10,6 +10,7 @@ from type_base import Type
 from type import TypePrimitive
 from type import TypeEnum
 from type import TypeClass
+from type import TypeArray
 from type import TypeTuple
 from type import Types
 from value import Value
@@ -374,7 +375,7 @@ class Parser {
             case Token.Type.FALSE => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_bool, src_info);
             case Token.Type.NULL  => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_raw, src_info);
             case Token.Type.RAW   => return context.hir_builder->push_literal_type(Types.instance.type_raw, src_info);
-            case Token.Type.STR   => return context.hir_builder->push_literal_type(Types.instance->get_str(), src_info);
+            case Token.Type.STR   => return context.hir_builder->push_literal_type(Types.instance->get_str_type(), src_info);
             case Token.Type.TRUE => return context.hir_builder->push_literal_number_of_type(1, Types.instance.type_bool, src_info);
         }
 
@@ -384,6 +385,11 @@ class Parser {
     fn parse_number(context: Context) => HIR.VarId {
         var token = context->current_token(1);
         return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.from_token(token));
+    }
+
+    fn parse_string(context: Context) => HIR.VarId {
+        var token = context->current_token(1);
+        return context.hir_builder->push_new_string_literal(context->token_str(token), HIR.SrcInfo.from_token(token));
     }
 
     fn parse_sequence(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
@@ -447,17 +453,40 @@ class Parser {
         }
         
         if (context->token_match(Token.Type.COLON)) {
-            io.errorln("Subrange is not implemented");
-            return error_var();
+            var start_id = context.hir_builder->push_literal_number(0, HIR.SrcInfo.from_token(context->current_token(1)));
+            
+            var end_id: HIR.VarId;
+            if (context->token_match(Token.Type.SQUARE_RIGHT)) {
+                io.errorln("Subrange with deducted end");
+                assert(false);
+            } else {
+                end_id = context->parse_precedence(Precedence.Colon + 1);
+            }
+            
+            context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
+
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
         }
 
         var expr_id = context->parse_precedence(Precedence.Colon + 1);
         
         if (context->token_match(Token.Type.COLON)) {
-            io.errorln("Subrange is not implemented");
-            return error_var();
-        }
+            var start_id = expr_id;
 
+            var end_id: HIR.VarId;
+            if (context->token_match(Token.Type.SQUARE_RIGHT)) {
+                io.errorln("Subrange with deducted end");
+                assert(false);
+            } else {
+                end_id = context->parse_precedence(Precedence.Colon + 1);
+            }
+            
+            context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
+
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
+        }
         context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
 
         var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
@@ -485,7 +514,7 @@ class Parser {
                     value_id = context->parse_precedence(Precedence.Sequence + 1);
                 } else if (index_var_id == (-1)$cast(HIR.VarId)) {
                     var local_src_info = context->get_var(value_id).src_info;
-                    index_var_id = context.hir_builder->push_temp_var_of_type(local_src_info, Types.instance.type_u64);
+                    index_var_id = context.hir_builder->push_temp_var_of_type(Types.instance.type_u64, local_src_info);
                     var zero_id = context.hir_builder->push_literal_number_of_type(0, Types.instance.type_u64, local_src_info);
                     context.hir_builder->push_assign(HIR.Tag.ASSIGN, index_var_id, zero_id, local_src_info);
                 } else {
@@ -743,7 +772,7 @@ class Parser {
         }
         
         var output_type = common_type;
-        var output_var = context.hir_builder->push_temp_var_of_type(src_info, output_type); 
+        var output_var = context.hir_builder->push_temp_var_of_type(output_type, src_info); 
         
         rhs_id = context.hir_builder->cast_to_type(rhs_id, output_type, rhs.src_info, false);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, rhs_id, src_info);
@@ -763,13 +792,14 @@ class Parser {
     fn parse_unary_rtl(context: Context) => HIR.VarId {
         var token = context->current_token(1);
         var token_type = token.type;
-        var rhs = context->parse_precedence(Precedence.Call);
+        var rhs_id = context->parse_precedence(Precedence.Call);
+        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(token), context->get_var(rhs_id).src_info);
 
         switch (token_type) {
-            //case Token.Type.LOGICAL_NOT => return context->push_hir_unary_op(HIR.Tag.LOGICAL_NOT, rhs, HIR.SrcInfo.from_token(token));
+            case Token.Type.LOGICAL_NOT => return context.hir_builder->push_unary_op(HIR.Tag.LOGICAL_NOT, rhs_id, src_info);
 
-            //case Token.Type.PLUS        => return context->push_hir_unary_op(HIR.Tag.UNARY_PLUS,  rhs, HIR.SrcInfo.from_token(token));
-            //case Token.Type.MINUS       => return context->push_hir_unary_op(HIR.Tag.UNARY_MINUS, rhs, HIR.SrcInfo.from_token(token));
+            case Token.Type.PLUS        => return context.hir_builder->push_unary_op(HIR.Tag.UNARY_PLUS,  rhs_id, src_info);
+            case Token.Type.MINUS       => return context.hir_builder->push_unary_op(HIR.Tag.UNARY_MINUS, rhs_id, src_info);
         }
 
         return error_var();
@@ -788,7 +818,7 @@ class Parser {
             case Token.Type.DIVIDE           => return context.hir_builder->push_binary_op(HIR.Tag.DIVIDE,           lhs, rhs, src_info);
             case Token.Type.REMAINDER        => return context.hir_builder->push_binary_op(HIR.Tag.MOD,              lhs, rhs, src_info);
             
-            //case Token.Type.CONCAT:           return push_hir_concat   (p_context,                            lhs, rhs, src_info_merge(GET_VAR(lhs).src_info, GET_VAR(rhs).src_info));
+            case Token.Type.CONCAT           => return context.hir_builder->push_concat(lhs, rhs, src_info);
 
             case Token.Type.LESS             => return context.hir_builder->push_binary_op(HIR.Tag.LESS,             lhs, rhs, src_info);
             case Token.Type.LESS_OR_EQUAL    => return context.hir_builder->push_binary_op(HIR.Tag.LESS_OR_EQUAL,    lhs, rhs, src_info);
@@ -817,11 +847,11 @@ class Parser {
             case Token.Type.ASSIGN_DIVIDE      => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_DIVIDE, lhs, rhs, src_info);
             case Token.Type.ASSIGN_REMAINDER   => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MOD, lhs, rhs, src_info);
 
+            case Token.Type.ASSIGN_CONCAT      => return context.hir_builder->push_append(lhs, rhs, src_info);
+
             case Token.Type.ASSIGN_BITWISE_AND => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_AND, lhs, rhs, src_info);
             case Token.Type.ASSIGN_BITWISE_OR  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR, lhs, rhs, src_info);
             case Token.Type.ASSIGN_BITWISE_XOR => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR, lhs, rhs, src_info);
-
-            //case Token.Type.ASSIGN_CONCAT   : return push_append    (p_context, lhs, rhs);
         }
 
         return error_var();
@@ -942,6 +972,7 @@ class Parser {
     shared parse_rules = ParseRule[Token.Type$count]{
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             Precedence.Primary), 
+        Token.Type.LITERAL_STRING      => ParseRule.construct(parse_string,        null,                        null,             Precedence.Primary), 
         Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,                  null,             Precedence.Call),
         Token.Type.SQUARE_LEFT         => ParseRule.construct(null,                parse_indexing,              null,             Precedence.Call),
         Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,          null,             Precedence.Call),
@@ -978,6 +1009,7 @@ class Parser {
         Token.Type.ASSIGN_MULTIPLY     => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
         Token.Type.ASSIGN_DIVIDE       => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
         Token.Type.ASSIGN_REMAINDER    => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
+        Token.Type.ASSIGN_CONCAT       => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
         Token.Type.ASSIGN_BITWISE_AND  => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
         Token.Type.ASSIGN_BITWISE_OR   => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
         Token.Type.ASSIGN_BITWISE_XOR  => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
@@ -1081,8 +1113,10 @@ class Parser {
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
     
+    // TODO move this to hir_builder
     fn declare_var(context: Context, name: str, type: Type, init_value: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id: HIR.VarId;
+        // TODO can't do local scope vars in global this way
         if (context.is_global_scope) {
             var_id = context.hir_builder->declare_global_var(context.namespace, name, type, src_info, context.exxport);
         } else {
@@ -1641,6 +1675,94 @@ class Parser {
 
         return StatementInfo.construct(return_info);
     }
+    
+    fn parse_for_statement(context: Context) => StatementInfo {
+        context->token_advance(); // for
+
+        var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+
+        context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'for' keyword.");
+        context->token_consume(Token.Type.VAR, "Expected 'var' keyword in the beggining of 'for' statement expression.");
+        var id_token = context->current_token(0);
+        context->token_consume(Token.Type.ID, "Expected id after 'var' keyword.");
+
+        var var_type: Type;
+        if (context->token_match(Token.Type.COLON)) {
+            var_type = context->parse_type();
+        }
+
+        context->token_consume(Token.Type.ARROW_LEFT, "Expected '<-' after 'var' declaration.");
+        var array_id = context->parse_expression();
+
+        if (context.hir_builder->is_undef(array_id)) {
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        }
+
+        var array_var = context->get_var(array_id);
+        var array_type = array_var->get_type_forced()$cast(TypeArray);
+        assert(array_type.kind == Type.Kind.Array);
+
+        if (var_type == null) {
+            var_type = array_type.value; 
+        }
+
+        context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'for' statement expression.");
+        src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+
+        context.hir_builder->push_symbol_map();
+
+        var iterator_var = context.hir_builder->declare_local_var(context->token_str(id_token), var_type, src_info);
+        var index_var = context.hir_builder->push_temp_var_of_type(Types.instance.type_u64, src_info);
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN, index_var, 
+            context.hir_builder->push_literal_number(0, src_info), 
+            src_info);
+
+        var array_size_var = context.hir_builder->push_field_access(array_id, "size", src_info);
+
+        var first_block = context.hir_builder->reserve_blocks(4);
+        var expr_statement = first_block;
+        var body_statement = first_block + 1;
+        var inc_statement = first_block + 2;
+        var after_statement = first_block + 3;
+
+        context.hir_builder->push_jump(expr_statement);
+
+        context.hir_builder->set_block(expr_statement);
+        var is_index_less_size_var = context.hir_builder->push_binary_op(HIR.Tag.LESS, index_var, array_size_var, src_info);
+        context.hir_builder->push_if(is_index_less_size_var, body_statement, after_statement);
+
+        context.hir_builder->set_block(body_statement);
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN, iterator_var, 
+            context.hir_builder->push_get_array_value(array_id, index_var, src_info),
+            src_info);
+
+        var old_reserved_break = context.reserved_break;
+        context.reserved_break = after_statement;
+        var old_reserved_continue = context.reserved_continue;
+        context.reserved_continue = inc_statement;
+
+        var body_return_info = context->parse_statement().return_info;
+        context.hir_builder->push_jump(inc_statement);
+
+        context.hir_builder->set_block(inc_statement);
+        context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS, index_var, 
+            context.hir_builder->push_literal_number(1, src_info), 
+            src_info);
+        
+        context.reserved_break = old_reserved_break;
+        context.reserved_continue = old_reserved_continue;
+
+        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
+            context.hir_builder->push_jump(expr_statement);
+        }
+        context.hir_builder->set_block(after_statement);
+
+        context.hir_builder->pop_symbol_map();
+
+        var return_info = body_return_info & StatementInfo.ReturnInfo.Undef;
+
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
 
     fn parse_switch_statement(context: Context) => StatementInfo {
         context->token_advance(); // switch
@@ -1788,7 +1910,7 @@ class Parser {
             case Token.Type.CURLY_LEFT            => return context->parse_block_statement();
             case Token.Type.IF                    => return context->parse_if_statement();
             case Token.Type.WHILE                 => return context->parse_while_statement();
-            //case Token.Type.FOR                   => return context->parse_for_statement();
+            case Token.Type.FOR                   => return context->parse_for_statement();
             case Token.Type.SWITCH                => return context->parse_switch_statement();
             //case Token.Type.BREAK                 => return context->parse_break_statement();
             //case Token.Type.CONTINUE              => return context->parse_continue_statement();
@@ -1812,7 +1934,7 @@ class Parser {
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
         context.is_global_scope = is_global_scope;
 
-        context.hir_builder = HIRBuilder.construct(return_type, context.log_accum, context.log_info);
+        context.hir_builder = HIRBuilder.construct(return_type, func_index, context.log_accum, context.log_info);
 
         for (var parameter <- parameters) {
             context.hir_builder->add_parameter(parameter);

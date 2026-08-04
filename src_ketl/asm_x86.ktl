@@ -766,7 +766,7 @@ export class ASMX86 {
                 if (constant == null) {
                     return construct_literal(Types.instance.type_u64, 0);
                 } else {
-                    return construct_literal(Types.instance.type_u64, constant.size);
+                    return construct_literal(Types.instance.type_u64, constant.mem_size);
                 }
             }
         }
@@ -894,7 +894,6 @@ export class ASMX86 {
                 var object = self.hir.vars[object_id];
 
                 var object_type = object->get_type_forced();
-                assert(object_type.kind == Type.Kind.Class);
 
                 while (object.kind == HIR.Var.Kind.Cast) {
                     object_id = object$cast(HIR.VarCast).casted;
@@ -902,17 +901,24 @@ export class ASMX86 {
                 }
                 var parent = self->get_arg_from_hir(object_id);
 
-                var class_type = object_type$cast(TypeClass);
                 var field_name = var_field.field;
-                var field_offset = class_type->get_field_offset(field_name);
+                var field_offset = var_field.offset;
                 assert(field_offset >= 0);
                 
-                var class_namespace_parent = class_type.namespace.parents[0];
-                var is_export = class_namespace_parent->find(class_type.name).info.exxport;
+                var class_name: str;
+                if (object_type.kind == Type.Kind.Class) {
+                    var class_type = object_type$cast(TypeClass);
+                    var class_namespace_parent = class_type.namespace.parents[0];
+                    var is_export = class_namespace_parent->find(class_type.name).info.exxport;
 
-                var class_name = class_type.namespace.fullname;
-                if (!is_export) {
-                    class_name = "." .. class_name;
+                    class_name = class_type.namespace.fullname;
+                    if (!is_export) {
+                        class_name = "." .. class_name;
+                    }
+                } else if (object_type.kind == Type.Kind.Array) {
+                    class_name = "ArrayHeader." .. field_name;
+                } else {
+                    assert(false);
                 }
 
                 var field_fullname = class_name .. "." .. field_name;
@@ -924,7 +930,7 @@ export class ASMX86 {
 
                 arg.parent = parent;
                 arg.name = field_fullname;
-                arg.offset = field_offset;
+                arg.offset = field_offset$cast(i64);
 
                 return arg;
             }

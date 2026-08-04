@@ -13,6 +13,9 @@ export class HIR {
 
         LOGICAL_NOT,
 
+        UNARY_PLUS,
+        UNARY_MINUS,
+
         PLUS,
         MINUS,
 
@@ -61,6 +64,7 @@ export class HIR {
         SET_ARRAY_VALUE,
 
         APPEND_VALUE,
+        APPEND_ARRAY,
 
         JUMP,
 
@@ -170,7 +174,7 @@ export class HIR {
         extend InstrWithOutput;
         var mirrored: VarId;
         var start: VarId;
-        var end: ConstId;
+        var end: VarId;
     }
 
     export class GetArrayValue {
@@ -186,10 +190,10 @@ export class HIR {
         var value: VarId;
     }
 
-    export class AppendValue {
+    export class Append {
         extend Instr;
         var array: VarId;
-        var value: VarId;
+        var appendee: VarId;
     }
 
     export class Assign {
@@ -339,13 +343,15 @@ export class HIR {
         extend VarWithType;
         var object: VarId;
         var field: str;
+        var offset: u16;
     }
 
     export class Const {
-         var offset: u32;
-         var size: u32;
-         var name: str;
-         var is_string: bool;
+        var offset: u32;
+        var mem_size: u32;
+        var literal_size: u32;
+        var name: str;
+        var is_string: bool;
     }
 
     var instrs: Instr[];
@@ -353,7 +359,7 @@ export class HIR {
     var decls: Decl[];
     var block_offsets: InstrOffset[];
     var consts_infos: Const[];
-    var consts: u8[];
+    var consts_literals: u8[];
 
     var return_type: Type;
     var parameters_count: u8;

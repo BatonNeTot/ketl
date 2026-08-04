@@ -26,6 +26,21 @@ export class TypePrimitive {
 
         return self;
     }
+
+    fn get_signed(self: TypePrimitive) => TypePrimitive {
+        if (!self.numeric) {
+            return null;
+        }
+
+        switch (self.size) {
+            case 1 => return Types.instance.type_i8;
+            case 2 => return Types.instance.type_i16;
+            case 4 => return Types.instance.type_i32;
+            case 8 => return Types.instance.type_i64;
+        }
+
+        return null;
+    }
 }
 
 export class TypeEnum {
@@ -463,7 +478,7 @@ class Types {
         return type;
     }
 
-    export fn get_str(self: Types) => TypeArray {
+    export fn get_str_type(self: Types) => TypeArray {
         if (self.type_str == null) {
             self.type_str = self->get_array_type(self.type_char);
         }
