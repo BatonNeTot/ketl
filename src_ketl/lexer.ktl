@@ -669,6 +669,8 @@ export class Lexer {
                 
                 if (second_symbol == '=') {
                     lexer->add_token(Token.Type.LESS_OR_EQUAL, 2);
+                } else if (second_symbol == '-') {
+                    lexer->add_token(Token.Type.ARROW_LEFT, 2);
                 } else if (second_symbol == next_symbol) {
                     lexer.offset += 2;
                     var third_symbol = lexer->get_symbol();
