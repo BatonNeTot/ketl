@@ -1468,11 +1468,17 @@ void ketl_asm_x86_build(ketl_hir_t* p_hir, ketl_asm_x86_builder_t* p_builder, ke
     if (!try_adapt_stask_size(p_builder->abi_type, &stack_reserved_size, p_hir->max_call_arg_count != (uint8_t)-1)) {
         stack_reserved_size = 0u;
     }
-    ANN_ASSERT(stack_reserved_size < 4096); // TODO additional call for win32 if reserved stack size bigger then a page
 
     if (p_builder->abi_type == KETL_ASM_X86_ABI_WINDOWS) {
         if (stack_reserved_size > 0) {
-            ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_SUB, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_SP), stack_reserved_size);
+            if (stack_reserved_size < 4096) {
+                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_SUB, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_SP), stack_reserved_size);
+            } else {
+                ketl_asm_x86_insert_rm_imm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX), stack_reserved_size);
+                ketl_atomic_string s_func_name = ketl_atomic_strings_get(&p_builder->p_state->atomic_strings, "___chkstk_ms", KETL_NULL_TERMINATED_LENGTH_32);
+                ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_LABEL(s_func_name));
+                ketl_asm_x86_insert_rm_reg(p_builder, KETL_ASM_X86_SUB, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_SP), KETL_ASM_X86_AX);
+            }
 
             char a_buffer[256];
             uint32_t buffer_length = snprintf(a_buffer, ANN_ARRAY_SIZE(a_buffer), "seh_stackalloc %"PRIu32, stack_reserved_size);
