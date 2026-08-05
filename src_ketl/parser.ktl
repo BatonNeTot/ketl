@@ -1883,7 +1883,7 @@ class Parser {
                             ////////////////
 
                             context.hir_builder->set_block(next_cmp_block);
-                            case_expr = context->parse_expression();
+                            case_expr = context->parse_precedence(Precedence.Pair + 1);
                         }
 
                         context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
@@ -1958,6 +1958,38 @@ class Parser {
         return StatementInfo.construct(return_info);
     }
 
+    fn parse_break_statement(context: Context) => StatementInfo {
+        context->token_advance(); // break
+
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+
+        if (context.reserved_break == (-1)$cast(HIR.BlockId)) {
+            var token = context->current_token(1);
+            context->error(token.offset, token.length, "'break' statement outside of loop or switch body.");
+        } else {
+            context.hir_builder->push_jump(context.reserved_break);
+        }
+            
+        context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'break' statement.");
+        return statement_info;
+    }
+
+    fn parse_continue_statement(context: Context) => StatementInfo {
+        context->token_advance(); // continue
+
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+
+        if (context.reserved_continue == (-1)$cast(HIR.BlockId)) {
+            var token = context->current_token(1);
+            context->error(token.offset, token.length, "'continue' statement outside of loop body.");
+        } else {
+            context.hir_builder->push_jump(context.reserved_continue);
+        }
+            
+        context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'continue' statement.");
+        return statement_info;
+    }
+
     fn parse_return_statement(context: Context) => StatementInfo {
         context->token_advance(); // return
         var src_info = HIR.SrcInfo.from_token(context->current_token(1));
@@ -1984,8 +2016,8 @@ class Parser {
             case Token.Type.WHILE                 => return context->parse_while_statement();
             case Token.Type.FOR                   => return context->parse_for_statement();
             case Token.Type.SWITCH                => return context->parse_switch_statement();
-            //case Token.Type.BREAK                 => return context->parse_break_statement();
-            //case Token.Type.CONTINUE              => return context->parse_continue_statement();
+            case Token.Type.BREAK                 => return context->parse_break_statement();
+            case Token.Type.CONTINUE              => return context->parse_continue_statement();
             case Token.Type.RETURN                => return context->parse_return_statement();
             case Token.Type.TERMINATION_CHARACTER => { 
                 context->token_advance(); 
@@ -2004,6 +2036,9 @@ class Parser {
         context.source = lexer.source;
         context.namespace = namespace;
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
+
+        context.reserved_break = (-1)$cast(HIR.BlockId);
+        context.reserved_continue = (-1)$cast(HIR.BlockId);
         context.is_global_scope = is_global_scope;
 
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.log_accum, context.log_info);
