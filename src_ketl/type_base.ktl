@@ -148,6 +148,11 @@ export class Type {
             return type$cast(TypeArray).value->get_name() .. "[]";
         }
 
+        if (type.kind == Type.Kind.CArray) {
+            //from type import TypeArray TODO fix
+            return type$cast(TypeArray).value->get_name() .. "[c-style]";
+        }
+
         if (type.kind == Type.Kind.Class) {
             from type import TypeClass
             return type$cast(TypeClass).name;
@@ -169,7 +174,6 @@ export class Type {
             return result_str;
         }
 
-        assert(false);
-        return null;
+        return "<kind " .. type.kind$cast(str) .. ">";
     }
 }

@@ -9,6 +9,7 @@ import io
 from type_base import Type
 from type import Types
 from type import TypePrimitive
+from type import TypeEnum
 from type import TypeFunction
 from type import TypeArray
 from type import TypeClass
@@ -32,6 +33,8 @@ class HIRBuilder {
     var current_block: u32;
     var func_index: u16;
     var parameters_counter: u32;
+    var max_call_arg_count: u8;
+
     var temp_counter: u32;
     var string_literal_counter: HIR.ConstId;
     var numeric_literal_counter: HIR.ConstId;
@@ -57,6 +60,7 @@ class HIRBuilder {
 
         self.return_type = return_type;
         self.func_index = func_index;
+        self.max_call_arg_count = (-1)$cast(u8);
 
         return self;
     }
@@ -83,6 +87,30 @@ class HIRBuilder {
 
     fn get_current_block(self: HIRBuilder) => HIR.Instr[] {
         return self.blocks[self.current_block];
+    }
+
+    fn append_instr(self: HIRBuilder, instr: HIR.Instr) {
+        self->get_current_block() ..= instr;
+        self->on_append(instr);
+    }
+
+    fn on_append(self: HIRBuilder, instr: HIR.Instr) {
+        switch (instr.tag) {
+            case HIR.Tag.CALL => self->on_call(instr$cast(HIR.Call).args.size);
+            case HIR.Tag.NEW_CLASS => self->on_call(1);
+            case HIR.Tag.NEW_ARRAY => self->on_call(4);
+            case HIR.Tag.NEW_SLICE => self->on_call(3);
+            case HIR.Tag.GET_ARRAY_VALUE => self->on_call(3);
+            case HIR.Tag.SET_ARRAY_VALUE => self->on_call(4);
+            case HIR.Tag.APPEND_VALUE => self->on_call(3);
+            case HIR.Tag.APPEND_ARRAY => self->on_call(3);
+        }
+    }
+
+    fn on_call(self: HIRBuilder, arguments_count: u64) {
+        if (self.max_call_arg_count == (-1)$cast(u8) || arguments_count > self.max_call_arg_count) {
+            self.max_call_arg_count = arguments_count$cast(u8);
+        }
     }
 
     fn is_undef(self: HIRBuilder, var_id: HIR.VarId) => bool {
@@ -138,7 +166,15 @@ class HIRBuilder {
         return Types.get_common_type(lhs_type, rhs_type);
     }
 
-    fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
+    export fn try_cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
+        return self->cast_to_type(var_id, target_type, src_info, explicit, false);
+    }
+
+    export fn cast_to_type_forced(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
+        return self->cast_to_type(var_id, target_type, src_info, explicit, false);
+    }
+
+    fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool, forced: bool) => HIR.VarId {
         if (target_type == null) {
             io.errorln("null target type.");
             assert(false);
@@ -146,7 +182,11 @@ class HIRBuilder {
         }
 
         if (self->is_undef(var_id)) {
-            return self->push_error_var(src_info);
+            if (forced) {
+                return self->push_error_var(src_info);
+            } else {
+                return (-1)$cast(HIR.VarId);
+            }
         }
 
         var varr = self.vars[var_id];
@@ -155,45 +195,102 @@ class HIRBuilder {
 
         if (type == null) {
             if (varr.kind == HIR.Var.Kind.Literal) {
+                var literal = varr$cast(HIR.VarLiteral);
                 if (target_type.kind == Type.Kind.Primitive) {
-                    varr$cast(HIR.VarLiteral).type = target_type;
+                    literal.type = target_type;
                     return var_id;
                 } 
 
                 if (target_type.kind == Type.Kind.Enum) {
                     if (!explicit) {
-                        self->error(src_info.source_offset, src_info.length, "Can't implicitly cast integer literal to enum '" .. target_type->get_name() .. "'.");
-                        return self->push_error_var(src_info);
+                        if (forced) {
+                            self->error(src_info.source_offset, src_info.length, "Can't implicitly cast integer literal to enum '" .. target_type->get_name() .. "'.");
+                            return self->push_error_var(src_info);
+                        } else {
+                            return (-1)$cast(HIR.VarId);
+                        }
                     }
-                    varr$cast(HIR.VarLiteral).type = target_type;
+                    literal.type = target_type;
+                    return var_id;
+                }
+
+                if (target_type->is_pointer_kind() && literal.value == 0) {
+                    literal.type = target_type;
                     return var_id;
                 }
             }
 
-            self->error(src_info.source_offset, src_info.length, "Can't implicitly cast literal number to '" .. target_type->get_name() .. "'.");
-            return self->push_error_var(src_info);
+            if (forced) {
+                self->error(src_info.source_offset, src_info.length, "Can't implicitly cast literal number to '" .. target_type->get_name() .. "'.");
+                return self->push_error_var(src_info);
+            } else {
+                return (-1)$cast(HIR.VarId);
+            }
         }
 
         if (Types.is_types_equal(type, target_type)) {
             return var_id;
         }
 
-        if (type.kind == Type.Kind.Primitive) {
-            if (target_type.kind == Type.Kind.Primitive) {
+        if (type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum) {
+            if (target_type.kind == Type.Kind.Primitive || target_type.kind == Type.Kind.Enum) {
+                var to_enum = false;
+                if (target_type.kind == Type.Kind.Enum) {
+                    to_enum = true;
+                    target_type = target_type$cast(TypeEnum).parent;
+                }
+                if (type.kind == Type.Kind.Enum) {
+                    type = type$cast(TypeEnum).parent;
+                }
+
                 var lhs_type_primitive = target_type$cast(TypePrimitive);
                 var rhs_type_primitive = type$cast(TypePrimitive);
                 if ((rhs_type_primitive.size > lhs_type_primitive.size || rhs_type_primitive.signed != lhs_type_primitive.signed) && !explicit) {
-                    self->error(src_info.source_offset, src_info.length, "Can't cast type '" .. 
-                        rhs_type_primitive->get_name() .. "' to type '" .. lhs_type_primitive->get_name() .. "' implicitly.");
+                    if (forced) {
+                        self->error(src_info.source_offset, src_info.length, "Can't cast type '" .. 
+                            rhs_type_primitive->get_name() .. "' to type '" .. lhs_type_primitive->get_name() .. "' implicitly.");
+                        return self->push_error_var(src_info);
+                    } else {
+                        return (-1)$cast(HIR.VarId);
+                    }
                 }
 
                 return self->push_casted_var(var_id, target_type, src_info);
+            }
+
+            if (target_type == Types.instance->get_str_type()$cast(Type)) {
+                var func_name: str;
+                var arg_type: Type;
+                if (type->is_signed()) {
+                    func_name = "__ketl_rt.int2str";
+                    arg_type = Types.instance.type_i64;
+                } else {
+                    func_name = "__ketl_rt.uint2str";
+                    arg_type = Types.instance.type_u64;
+                }
+                return self->push_call(self->push_arbitrary_global_var(
+                    func_name, 
+                    Types.instance->get_function_type(Type[2]{
+                        Types.instance->get_str_type(),
+                        arg_type,
+                    }), 
+                    src_info), HIR.VarId[1]{ var_id }, src_info);
             }
         }
 
         if (type->is_pointer_kind() && target_type == Types.instance.type_raw$cast(Type) ||
             target_type->is_pointer_kind() && type == Types.instance.type_raw$cast(Type)) {
             return self->push_casted_var(var_id, target_type, src_info);
+        }
+
+        if (type == Types.instance->get_str_type()$cast(Type) && target_type == Types.instance->get_cstr_type()$cast(Type)) {
+            return self->push_call(self->push_arbitrary_global_var(
+                "__ketl_rt.str2cstr", 
+                Types.instance->get_function_type(Type[2]{
+                    Types.instance->get_cstr_type(),
+                    Types.instance->get_str_type(),
+                }), 
+                src_info), HIR.VarId[1]{ var_id }, src_info);
         }
 
         if (type.kind == Type.Kind.Class && target_type.kind == Type.Kind.Class) {
@@ -210,8 +307,12 @@ class HIRBuilder {
             extended_offset = lhs_class_type->find_extended_class_offset(rhs_class_type);
             if (extended_offset >= 0) {
                 if (!explicit) {
-                    self->error(src_info.source_offset, src_info.length, "Can't implicitly cast class '" .. rhs_class_type->get_name() .. "' to class '" .. lhs_class_type->get_name() .. "'.");
-                    return self->push_error_var(src_info);
+                    if (forced) {
+                        self->error(src_info.source_offset, src_info.length, "Can't implicitly cast class '" .. rhs_class_type->get_name() .. "' to class '" .. lhs_class_type->get_name() .. "'.");
+                        return self->push_error_var(src_info);
+                    } else {
+                        return (-1)$cast(HIR.VarId);
+                    }
                 }
 
                 // TODO align class
@@ -220,15 +321,19 @@ class HIRBuilder {
             }
         }
         
-        self->error(src_info.source_offset, src_info.length, "Can't convert '" .. type->get_name() .. "' to '" .. target_type->get_name() .. "'.");
-        return self->push_error_var(src_info);
+        if (forced) {
+            self->error(src_info.source_offset, src_info.length, "Can't convert '" .. type->get_name() .. "' to '" .. target_type->get_name() .. "'.");
+            return self->push_error_var(src_info);
+        } else {
+            return (-1)$cast(HIR.VarId);
+        }
     }
 
     export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag, src_info: HIR.SrcInfo) {
         var instr = HIR.Instr();
         instr.tag = tag;
         instr.src_info = src_info;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
     }
 
     export fn push_jump(self: HIRBuilder, target: HIR.BlockId) {
@@ -236,7 +341,7 @@ class HIRBuilder {
         instr.tag = HIR.Tag.JUMP;
         instr.src_info = null; // TODO
         instr.dst = target;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
     }
 
     export fn push_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId) {
@@ -248,7 +353,7 @@ class HIRBuilder {
         instr.expr = bool_expr_var;
         instr.true_dst = true_statement;
         instr.false_dst = false_statement;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
     }
     
     export fn push_unary_op(self: HIRBuilder, tag: HIR.Tag, var_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -275,14 +380,14 @@ class HIRBuilder {
         }
 
         var arg_src_info = self.vars[var_id].src_info;
-        var_id = self->cast_to_type(var_id, arg_type, arg_src_info, false);
+        var_id = self->cast_to_type_forced(var_id, arg_type, arg_src_info, false);
 
         var instr = HIR.UnaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(output_type, instr);
         instr.arg = var_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -302,6 +407,21 @@ class HIRBuilder {
 
             var lhs_type = lhs->get_type_forced();
             var rhs_type = rhs->get_type_forced();
+
+            if ((tag == HIR.Tag.PLUS || tag == HIR.Tag.MINUS) && 
+                (lhs_type == Types.instance.type_raw$cast(Type) && rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).numeric ||
+                rhs_type == Types.instance.type_raw$cast(Type) && lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).numeric)) {
+                
+                var instr = HIR.BinaryOp();
+                instr.tag = tag;
+                instr.src_info = src_info;
+                instr.output = self->push_instr_result_var(Types.instance.type_raw, instr);
+                instr.lhs = lhs_id;
+                instr.rhs = rhs_id;
+                self->append_instr(instr);
+
+                return instr.output;
+            }
 
             self->error(src_info.source_offset, src_info.length, "Can't do operator '" .. HIR.get_str_representation(tag) .. "' over '" 
                 .. lhs_type->get_name() .. "' and '" .. rhs_type->get_name() .. "'.");
@@ -323,8 +443,8 @@ class HIRBuilder {
 
         var lhs_src_info = self.vars[lhs_id].src_info;
         var rhs_src_info = self.vars[rhs_id].src_info;
-        lhs_id = self->cast_to_type(lhs_id, arg_type, lhs_src_info, false);
-        rhs_id = self->cast_to_type(rhs_id, arg_type, rhs_src_info, false);
+        lhs_id = self->cast_to_type_forced(lhs_id, arg_type, lhs_src_info, false);
+        rhs_id = self->cast_to_type_forced(rhs_id, arg_type, rhs_src_info, false);
 
         var instr = HIR.BinaryOp();
         instr.tag = tag;
@@ -332,7 +452,7 @@ class HIRBuilder {
         instr.output = self->push_instr_result_var(output_type, instr);
         instr.lhs = lhs_id;
         instr.rhs = rhs_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -353,7 +473,7 @@ class HIRBuilder {
         var lhs = self.vars[lhs_id];
         var type = lhs->get_type_forced();
         var rhs_src_info = self.vars[rhs_id].src_info;
-        rhs_id = self->cast_to_type(rhs_id, type, rhs_src_info, false);
+        rhs_id = self->cast_to_type_forced(rhs_id, type, rhs_src_info, false);
 
         if (self->is_undef(rhs_id)) {
             return self->push_error_var(src_info);
@@ -364,7 +484,7 @@ class HIRBuilder {
         instr.src_info = src_info;
         instr.dst = lhs_id;
         instr.src = rhs_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         // TODO return new var to update src_info
         return instr.dst;
@@ -400,7 +520,7 @@ class HIRBuilder {
         instr.output = self->push_instr_result_var(return_type, instr);
         instr.callee = callee_id;
         instr.args = arguments;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -412,7 +532,7 @@ class HIRBuilder {
         instr.output = self->push_instr_result_var(callee_type, instr);
         instr.type = callee_type;
         instr.args = arguments;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -434,7 +554,7 @@ class HIRBuilder {
         instr.type = array_type.value;
         instr.size = size;
         instr.initial_value = initial_value;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -456,7 +576,7 @@ class HIRBuilder {
         instr.mirrored = array_id;
         instr.start = start_id;
         instr.end = end_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -478,7 +598,7 @@ class HIRBuilder {
         instr.output = self->push_instr_result_var(value_type, instr);
         instr.array = array_id;
         instr.index = index_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -495,7 +615,7 @@ class HIRBuilder {
         var value_type = array_type.value;
         
         var value_src_info = self.vars[value_id].src_info;
-        value_id = self->cast_to_type(value_id, value_type, value_src_info, false);
+        value_id = self->cast_to_type_forced(value_id, value_type, value_src_info, false);
 
         var instr = HIR.SetArrayValue();
         instr.tag = HIR.Tag.SET_ARRAY_VALUE;
@@ -504,7 +624,7 @@ class HIRBuilder {
         instr.array = array_id;
         instr.index = index_id;
         instr.value = value_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return instr.output;
     }
@@ -552,7 +672,7 @@ class HIRBuilder {
 
         var type = output->get_type_forced();
         var value_src_info = self.vars[value_id].src_info;
-        value_id = self->cast_to_type(value_id, type, value_src_info, false);
+        value_id = self->cast_to_type_forced(value_id, type, value_src_info, false);
 
         var instr = HIR.SetArrayValue();
         instr.tag = HIR.Tag.SET_ARRAY_VALUE;
@@ -564,6 +684,7 @@ class HIRBuilder {
 
         block[i] = instr;
         decl.instr = instr;
+        self->on_append(instr);
 
         return instr.output;
     }
@@ -584,23 +705,19 @@ class HIRBuilder {
 
         var rhs = self.vars[rhs_id];
         var rhs_type = rhs->get_type_forced();
-        if (rhs_type.kind == Type.Kind.Array) {
-            if (array_type$cast(Type) != rhs_type) {
-                self->error(src_info.source_offset, src_info.length, "Can't append '" .. rhs_type->get_name() .. "' to '" .. array_type->get_name() .. "'.");
-                return self->push_error_var(src_info);
-            }
 
+        rhs_id = self->try_cast_to_type(rhs_id, array_type.value, src_info, false);
+        if (!self->is_undef(rhs_id)) {
+            instr.appendee = rhs_id;
+            instr.tag = HIR.Tag.APPEND_VALUE;
+        } else if (array_type$cast(Type) == rhs_type) {
             instr.tag = HIR.Tag.APPEND_ARRAY;
         } else {
-            rhs_id = self->cast_to_type(rhs_id, array_type.value, src_info, false);
-            if (self->is_undef(rhs_id)) {
-                return self->push_error_var(src_info);
-            }
-
-            instr.tag = HIR.Tag.APPEND_VALUE;
+            self->error(src_info.source_offset, src_info.length, "Can't append '" .. rhs_type->get_name() .. "' to '" .. array_type->get_name() .. "'.");
+            return self->push_error_var(src_info);
         }
 
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
 
         return array_id;
     }
@@ -629,13 +746,13 @@ class HIRBuilder {
                 common_array_type = lhs_type$cast(TypeArray);
                 size_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN, size_id, 
-                    self->push_field_access(lhs_id, "size", src_info),
+                    self->push_field_access_forced(lhs_id, "size", src_info),
                     src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
-                    self->push_field_access(rhs_id, "size", src_info),
+                    self->push_field_access_forced(rhs_id, "size", src_info),
                     src_info);
             } else {
-                rhs_id = self->cast_to_type(rhs_id, lhs_type$cast(TypeArray).value, src_info, false);
+                rhs_id = self->cast_to_type_forced(rhs_id, lhs_type$cast(TypeArray).value, src_info, false);
                 if (self->is_undef(rhs_id)) {
                     return self->push_error_var(src_info);
                 }
@@ -646,12 +763,12 @@ class HIRBuilder {
                     self->push_literal_number(1, src_info),
                     src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
-                    self->push_field_access(lhs_id, "size", src_info),
+                    self->push_field_access_forced(lhs_id, "size", src_info),
                     src_info);
             }
         } else {
             if (rhs_type.kind == Type.Kind.Array) {
-                lhs_id = self->cast_to_type(lhs_id, rhs_type$cast(TypeArray).value, src_info, false);
+                lhs_id = self->cast_to_type_forced(lhs_id, rhs_type$cast(TypeArray).value, src_info, false);
                 if (self->is_undef(lhs_id)) {
                     return self->push_error_var(src_info);
                 }
@@ -662,13 +779,13 @@ class HIRBuilder {
                     self->push_literal_number(1, src_info),
                     src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
-                    self->push_field_access(rhs_id, "size", src_info),
+                    self->push_field_access_forced(rhs_id, "size", src_info),
                     src_info);
             } else {
                 var common_type = self->get_common_type(lhs_id, rhs_id);
 
-                lhs_id = self->cast_to_type(lhs_id, common_type, src_info, false);
-                rhs_id = self->cast_to_type(rhs_id, common_type, src_info, false);
+                lhs_id = self->cast_to_type_forced(lhs_id, common_type, src_info, false);
+                rhs_id = self->cast_to_type_forced(rhs_id, common_type, src_info, false);
                 if (self->is_undef(lhs_id) || self->is_undef(lhs_id)) {
                     return self->push_error_var(src_info);
                 }
@@ -732,13 +849,13 @@ class HIRBuilder {
     }
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
-        var_id = self->cast_to_type(var_id, self.return_type, src_info, false);
+        var_id = self->cast_to_type_forced(var_id, self.return_type, src_info, false);
 
         var instr = HIR.ReturnValue();
         instr.tag = HIR.Tag.RETURN_VALUE;
         instr.src_info = src_info;
         instr.value = var_id;
-        self->get_current_block() ..= instr;
+        self->append_instr(instr);
     }
 
     export fn add_parameter(self: HIRBuilder, parameter: VariableDecl) {
@@ -831,9 +948,9 @@ class HIRBuilder {
         return self->push_common_var(type, instr.src_info, decl_id);
     }
 
-    export fn push_class_namespace_access(self: HIRBuilder, type: TypeClass, id: str, src_info: HIR.SrcInfo) => HIR.VarId {
-        var var_id = self->get_namespace_var(type.namespace, id, src_info);
-        if (self->is_undef(var_id)) {
+    fn push_class_namespace_access(self: HIRBuilder, type: TypeClass, id: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
+        var var_id = self->get_namespace_var(type.namespace, id, src_info, forced);
+        if (self->is_undef(var_id) && forced) {
             self->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from class '" .. type.name .. "'.");
         }
         return var_id;
@@ -868,7 +985,15 @@ class HIRBuilder {
         return self->push_node_var(node, src_info);
     }
 
-    export fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+    export fn try_push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_field_access(object_id, field_name, src_info, false);
+    }
+
+    export fn push_field_access_forced(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+        return self->push_field_access(object_id, field_name, src_info, true);
+    }
+
+    fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
         var object = self.vars[object_id];
         var object_type = object->get_type_forced();
         assert(object_type != null);
@@ -886,7 +1011,7 @@ class HIRBuilder {
                     src_info);
             }
             
-            return self->push_class_namespace_access(type_class, field_name, src_info);
+            return self->push_class_namespace_access(type_class, field_name, src_info, forced);
         }
 
         if (object_type.kind == Type.Kind.Array) {
@@ -918,8 +1043,12 @@ class HIRBuilder {
             }
         }
 
-        self->error(src_info.source_offset, src_info.length, "Can't access field.");
-        return self->push_error_var(src_info);
+        if (forced) {
+            self->error(src_info.source_offset, src_info.length, "Can't access field.");
+            return self->push_error_var(src_info);
+        } else {
+            return (-1)$cast(HIR.VarId);
+        }
     }
 
     export fn push_temp_var_of_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -1091,7 +1220,7 @@ class HIRBuilder {
             if (symbol_node != null) {
                 return self->push_node_var(symbol_node, src_info);
             }
-
+            
             decl_id = self.decls.size$cast(HIR.DeclId);
 
             var decl = HIR.Decl();
@@ -1106,11 +1235,15 @@ class HIRBuilder {
         return self->push_common_var(type, src_info, decl_id);
     }
 
-    export fn get_namespace_var(self: HIRBuilder, namespace: Namespace, name: str, src_info: HIR.SrcInfo) => HIR.VarId {
+    export fn get_namespace_var(self: HIRBuilder, namespace: Namespace, name: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
         var symbol_node = namespace->find(name);
         
         if (symbol_node == null) {
-            return self->push_error_var(src_info);
+            if (forced) {
+                return self->push_error_var(src_info);
+            } else {
+                return (-1)$cast(HIR.VarId);
+            }
         }
 
         return self->push_node_var(symbol_node, src_info);
@@ -1134,6 +1267,6 @@ class HIRBuilder {
 
         hir.return_type = self.return_type;
         hir.parameters_count = self.parameters_counter$cast(u8);
-        hir.max_call_arg_count = 0; // TODO
+        hir.max_call_arg_count = self.max_call_arg_count;
     }
 }
