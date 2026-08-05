@@ -316,6 +316,26 @@ fn to_str_padded(value: u32, padding: u32) => str {
     return result .. str_padding(padding);
 }
 
+export fn uint_to_str(value: u64, radix: u8) => str {
+    if (value == 0) {
+        return "0";
+    }
+
+    var symbols = "0123456789abcdefghijklmnopqrstuvwxyz";
+    assert(radix < symbols.size);
+
+    var buffer = "";
+
+    while (value > 0) {
+        var number = value % radix;
+        value /= radix;
+
+        buffer = symbols[number] .. buffer;
+    }
+
+    return buffer;
+}
+
 export class FilePointer {
     var offset: u32;
     var pointer: u32;

@@ -134,6 +134,15 @@ export class TypeClass {
         self.align = Type.Align.Byte;
         self->calc_size_and_align();
         self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16);
+
+        for (var field <- fields) {
+            if (field.name == null || field.name == "") {
+                var type = field.type$cast(TypeClass);
+                assert(type.kind == Type.Kind.Class);
+
+                self.namespace.parents ..= type.namespace;
+            }
+        }
     }
 
     export fn calc_size_and_align(self: TypeClass) {
@@ -346,9 +355,11 @@ class Types {
     var type_u64: TypePrimitive;
 
     var type_str: TypeArray;
+    var type_cstr: TypeArray;
 
     var functions: common.HashMap;
     var arrays: common.HashMap;
+    var carrays: common.HashMap;
     var tuples: common.HashMap;
 
     fn construct() => Types {
@@ -389,6 +400,12 @@ class Types {
     fn init_arrays_if_needed(self: Types) {
         if (self.arrays == null) {
             self.arrays = common.IntHashMap.construct();
+        }
+    }
+
+    fn init_carrays_if_needed(self: Types) {
+        if (self.carrays == null) {
+            self.carrays = common.IntHashMap.construct();
         }
     }
 
@@ -486,6 +503,14 @@ class Types {
         return self.type_str;
     }
 
+    export fn get_cstr_type(self: Types) => TypeArray {
+        if (self.type_cstr == null) {
+            self.type_cstr = self->get_carray_type(self.type_char);
+        }
+
+        return self.type_cstr;
+    }
+
     export fn get_array_type(self: Types, value_type: Type) => TypeArray {
         self->init_arrays_if_needed();
 
@@ -496,6 +521,25 @@ class Types {
 
         var type = TypeArray();
         type.kind = Type.Kind.Array;
+        type.align = value_type.align;
+        type.size = value_type.size;
+
+        type.value = value_type;
+
+        bucket.value = type;
+        return type;
+    }
+
+    export fn get_carray_type(self: Types, value_type: Type) => TypeArray {
+        self->init_carrays_if_needed();
+
+        var bucket = self.carrays->get_or_insert(value_type, null);
+        if (bucket.value != null) {
+            return bucket.value;
+        }
+
+        var type = TypeArray();
+        type.kind = Type.Kind.CArray;
         type.align = value_type.align;
         type.size = value_type.size;
 

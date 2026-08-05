@@ -2,6 +2,7 @@
 
 from common import IntHashMap
 from common import align_forward
+from common import uint_to_str
 import io
 
 from type_base import Type
@@ -53,6 +54,11 @@ export class ASMX86 {
         OR,
         XOR,
         NOT,
+
+        SAL,
+        SAR,
+        SHL,
+        SHR,
 
         CMP,
         TEST,
@@ -387,10 +393,10 @@ export class ASMX86 {
             if (modrm.disp != 0) {
                 if (modrm.disp >= 0) {
                     io.print(" + 0x");
-                    io.print(modrm.disp$cast(str));
+                    io.print(uint_to_str(modrm.disp$cast(u64), 16));
                 } else {
                     io.print(" - 0x");
-                    io.print((-modrm.disp)$cast(str));
+                    io.print(uint_to_str((-modrm.disp)$cast(u64), 16));
                 }
             }
 
@@ -509,8 +515,8 @@ export class ASMX86 {
                 }
                 case ArgType.MI => {
                     instr.modrm->print(instr.size);
-                    io.print(", "); 
-                    io.print(instr.imm64$cast(str)); // TODO make 0x version
+                    io.print(", 0x"); 
+                    io.print(uint_to_str(instr.imm64$cast(u64), 16));
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
                         io.print(" # ");
@@ -519,8 +525,8 @@ export class ASMX86 {
                 }
                 case ArgType.MI_CHAR => {
                     instr.modrm->print(instr.size);
-                    io.print(", ");
-                    io.print(instr.imm64$cast(str)); // TODO make 0x version
+                    io.print(", 0x");
+                    io.print(uint_to_str(instr.imm64$cast(u64), 16));
                     // TODO ketl_lexer_is_character_escaped
                     // io.print("    # '\\");
                     io.print("    # '");
@@ -1288,6 +1294,9 @@ export class ASMX86 {
                     case HIR.Tag.BITWISE_OR
                     case HIR.Tag.BITWISE_XOR 
 
+                    case HIR.Tag.BITWISE_SHIFT_LEFT 
+                    case HIR.Tag.BITWISE_SHIFT_RIGHT 
+
                     case HIR.Tag.EQUAL
                     case HIR.Tag.NOT_EQUAL
                     case HIR.Tag.LESS
@@ -1325,6 +1334,13 @@ export class ASMX86 {
                             case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+
+                            case HIR.Tag.BITWISE_SHIFT_LEFT => // explicitly uses CX
+                                if (type->is_signed()) self->insert_rm(Tag.SAL, size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SHL, size, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.BITWISE_SHIFT_RIGHT => // explicitly uses CX
+                                if (type->is_signed()) self->insert_rm(Tag.SAR, size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SHR, size, ModRM.construct_reg(Reg.AX));
 
                             case HIR.Tag.EQUAL => {
                                 self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));

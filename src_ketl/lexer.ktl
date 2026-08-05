@@ -284,6 +284,10 @@ export class Lexer {
                     lexer->add_token(Token.Type.CEXPORT, id_length);
                     return true;
                 }
+                if ("char" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.CHAR, id_length);
+                    return true;
+                }
                 if ("cimport" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.CIMPORT, id_length);
                     return true;
@@ -294,6 +298,10 @@ export class Lexer {
                 }
                 if ("continue" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.CONTINUE, id_length);
+                    return true;
+                }
+                if ("cstr" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.CSTR, id_length);
                     return true;
                 }
             }

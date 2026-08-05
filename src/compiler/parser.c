@@ -2872,7 +2872,7 @@ void ketl_parser_build_hir(ketl_state* p_state, ketl_hir_t* p_hir, ketl_lexer_t*
     }
     
     if (p_lexer->tokens.size > 0) {
-        _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 4, p_allocator);
+        _ketl_parse_argument_stack_t_init(&context.v_argument_stack, 8, p_allocator);
         _ketl_parse_undefined_vars_infos_t_init(&context.m_undef_vars_infos, p_allocator);
 
         ketl_statement_info statement_info = parse_block_statement_inner(&context);

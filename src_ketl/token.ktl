@@ -39,6 +39,7 @@ export class Token {
         CLASS,
         CONST,
         CONTINUE,
+        CSTR,
         DEFAULT,
         DO,
         ELSE,
