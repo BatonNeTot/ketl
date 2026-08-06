@@ -801,6 +801,10 @@ export class ASMX86 {
         }
 
         fn get_arg_from_hir(self: Builder, var_id: HIR.VarId) => AsmArg {
+            if (var_id >= self.hir.vars.size) {
+                return AsmArg.construct_literal(null, 0);
+            }
+
             var varr = self.hir.vars[var_id];
             var type = varr->get_type_forced();
 
@@ -1203,18 +1207,24 @@ export class ASMX86 {
             }
 
             self->finalize_stask_size();
-            assert(self.abi != ABI.WINDOWS || self.stack_reserved_size < 4096); // TODO additional call for win32 if reserved stack size bigger then a page
 
             assert(self.abi == ABI.WINDOWS);
             {
                 if (self.stack_reserved_size > 0) {
-                    self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                    if (self.stack_reserved_size < 4096) {
+                            self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                    } else {
+                            self->insert_rm_imm(Tag.MOV, Size.Ptr, ModRM.construct_reg(Reg.AX), self.stack_reserved_size);
+                            var func_name = "___chkstk_ms";
+                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                            self->insert_rm_reg(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), Reg.AX);
+                    }
 
                     self->directive(("seh_stackalloc " .. self.stack_reserved_size$cast(str)));
                     self->directive("seh_endprologue");
                 }
 
-                var decl_id = self.hir.parameters_count;
+                var decl_id: HIR.DeclId = self.hir.parameters_count;
                 while (decl_id > 0) {
                     decl_id -= 1;
                     var decl = self.hir.decls[decl_id];

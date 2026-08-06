@@ -293,6 +293,16 @@ class HIRBuilder {
                 src_info), HIR.VarId[1]{ var_id }, src_info);
         }
 
+        if (type == Types.instance->get_str_type()$cast(Type) && target_type == Types.instance.type_u64$cast(Type)) {
+            return self->push_call(self->push_arbitrary_global_var(
+                "__ketl_rt.str2uint", 
+                Types.instance->get_function_type(Type[2]{
+                    Types.instance.type_u64,
+                    Types.instance->get_str_type(),
+                }), 
+                src_info), HIR.VarId[1]{ var_id }, src_info);
+        }
+
         if (type.kind == Type.Kind.Class && target_type.kind == Type.Kind.Class) {
             var rhs_class_type = type$cast(TypeClass);
             var lhs_class_type = target_type$cast(TypeClass);
@@ -1099,6 +1109,18 @@ class HIRBuilder {
         return null;
     }
 
+    fn find_decl_bucket_scoped(self: HIRBuilder, name: str) => StrHashMap.Bucket {
+        var i = self.name_to_decl_stack.size;
+        i -= 1;
+        var name_to_decl = self.name_to_decl_stack[i];
+        var bucket = name_to_decl->get_or_null(name);
+        if (bucket != null) {
+            return bucket;
+        }
+
+        return null;
+    }
+
     fn first_name_to_decl(self: HIRBuilder) => StrHashMap {
         return self.name_to_decl_stack[0];
     }
@@ -1182,13 +1204,22 @@ class HIRBuilder {
     }
 
     export fn declare_local_var(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var bucket = self->find_decl_bucket(name);
+        var bucket = self->find_decl_bucket_scoped(name);
 
         // if got not null - redefinition
         if (bucket != null) {
-            // TODO error
-            assert(false);
-            return (-1)$cast(HIR.VarId);
+            var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
+            var decl = self.decls[decl_id];
+            if (decl.kind != HIR.Decl.Kind.Error) {
+                var orig_src_info = decl->get_src_info();
+                if (orig_src_info != null) {
+                    self->error(src_info.source_offset, src_info.length, "Variable redefinition.");
+                    self->error(orig_src_info.source_offset, orig_src_info.length, "Was defined first here.");
+                } else {
+                    self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
+                }
+                return self->push_error_var(src_info);
+            }
         }
 
         var decl_id = self.decls.size$cast(HIR.DeclId);

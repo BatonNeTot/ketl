@@ -245,6 +245,16 @@ export class HIR {
             }
             return null;
         }
+
+        export fn get_src_info(decl: Decl) => SrcInfo {
+            switch (decl.kind) {
+                case Kind.Error => return null;
+                case Kind.Common => return decl$cast(DeclCommon).src_info;
+                case Kind.Parameter => return decl$cast(DeclParameter).src_info;
+                case Kind.InstrResult => return decl$cast(DeclInstrResult).instr.src_info;
+            }
+            return null;
+        }
     }
 
     export class DeclWithType {
