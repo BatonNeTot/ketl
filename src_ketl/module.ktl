@@ -222,7 +222,7 @@ class Module {
         var variable_name = node.name;
 
         io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
-        io.println("    .p2align  " .. (raw$size)$cast(u64)$cast(str) .. ", 0x0"); // TODO replace with $align
+        io.println("    .p2align  " .. Types.instance.type_raw.align$cast(str) .. ", 0x0");
         io.println(variable_name .. ":");
 
         // TODO get types directly from fields with smth like 'typeof'
