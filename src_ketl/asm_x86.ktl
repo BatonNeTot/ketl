@@ -458,6 +458,11 @@ export class ASMX86 {
                 case Tag.XOR => io.print("xor ");
                 case Tag.NOT => io.print("not ");
 
+                case Tag.SAL => io.print("sal ");
+                case Tag.SAR => io.print("sar ");
+                case Tag.SHL => io.print("shl ");
+                case Tag.SHR => io.print("shr ");
+
                 case Tag.CMP => io.print("cmp ");
                 case Tag.TEST => io.print("test ");
                     
@@ -473,6 +478,7 @@ export class ASMX86 {
 
                 case Tag.CALL => io.print("call ");
                 case Tag.RET => io.print("ret");
+                default => io.print("<error op> ");
             }
 
             switch (instr.arg_type) {
