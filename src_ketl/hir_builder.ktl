@@ -34,6 +34,7 @@ class HIRBuilder {
     var func_index: u16;
     var parameters_counter: u32;
     var max_call_arg_count: u8;
+    var entry: str;
 
     var temp_counter: u32;
     var string_literal_counter: HIR.ConstId;
@@ -1299,5 +1300,6 @@ class HIRBuilder {
         hir.return_type = self.return_type;
         hir.parameters_count = self.parameters_counter$cast(u8);
         hir.max_call_arg_count = self.max_call_arg_count;
+        hir.entry = self.entry;
     }
 }

@@ -522,6 +522,10 @@ export class Lexer {
                 lexer->add_token(Token.Type.QUESTION_MARK, 1);
                 return true;
             } 
+            case '#' => {
+                lexer->add_token(Token.Type.SHARP, 1);
+                return true;
+            }  
             case '$' => {
                 lexer->add_token(Token.Type.DOLLAR, 1);
                 return true;
@@ -773,6 +777,7 @@ export class Lexer {
                 continue;
             }
 
+            assert(false);
             // TODO ERROR
             break;
         }

@@ -41,6 +41,7 @@ class Parser {
         var is_global_scope: bool;
         var exxport: bool;
         var cexxport: bool;
+        var next_symbol_entry: bool;
     }
 
     fn error(self: Context, offset: u32, length: u32, message: str) {
@@ -1108,6 +1109,24 @@ class Parser {
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
+    fn parse_sharp_prefix(context: Context) => StatementInfo {
+        context->token_advance(); // #
+        context->token_consume(Token.Type.ID, "Expected id after '#' prefix.");
+        var id_token = context->current_token(1);
+
+        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context->current_token(2)), HIR.SrcInfo.from_token(id_token));
+
+        var id = context->token_str(id_token);
+
+        if (id == "entry") {
+            context.next_symbol_entry = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        }
+
+        context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+    }
+
     fn parse_from_import(context: Context) => StatementInfo {
         var path = "";
         var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
@@ -1273,6 +1292,11 @@ class Parser {
         }
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_token), context.exxport);
 
+        if (context.next_symbol_entry) {
+            context.next_symbol_entry = false;
+            context.hir_builder.entry = namespace_node.key;
+        }
+
         var header = FunctionHeader();
 
         header.namespace_node = namespace_node;
@@ -1413,6 +1437,12 @@ class Parser {
                 var keyword_token = context->current_token(0);
                 context->error(keyword_token.offset, keyword_token.length, "'import' is not supported inside class declaration.");
                 context->parse_from_import();
+                return;
+            }
+            case Token.Type.SHARP => {
+                var keyword_token = context->current_token(0);
+                context->error(keyword_token.offset, keyword_token.length, "'#' prefixes are not supported inside class declaration.");
+                context->parse_statement();
                 return;
             }
             default => {
@@ -1575,6 +1605,7 @@ class Parser {
 
     fn parse_declaration(context: Context) => StatementInfo {
         while (true) switch (context->current_token(0).type) {
+            case Token.Type.SHARP   => return context->parse_sharp_prefix();
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
