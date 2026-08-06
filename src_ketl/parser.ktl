@@ -1171,6 +1171,7 @@ class Parser {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
 
+        target_namespace_node.name = source_namespace_node.name;
         target_namespace_node.value = source_namespace_node.value->copy();
         target_namespace_node.info.imported = true;
 
@@ -1462,7 +1463,7 @@ class Parser {
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after class name.");
 
         var name = context->token_str(id_token);
-        var class_type = TypeClass.construct(name, context.namespace);
+        var class_type = TypeClass.construct(name, context.namespace, context.exxport);
         var class_namespace = class_type.namespace;
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
         namespace_node.value.kind = Value.Kind.Type;

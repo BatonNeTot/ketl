@@ -754,7 +754,7 @@ export class ASMX86 {
                 arg.kind = AsmArg.Kind.GlobalAddress;
                 arg.size = Size.Ptr;
 
-                arg.label = type->get_name();
+                arg.label = type->get_full_name();
 
                 return arg;
             }
@@ -926,13 +926,7 @@ export class ASMX86 {
                 var class_name: str;
                 if (object_type.kind == Type.Kind.Class) {
                     var class_type = object_type$cast(TypeClass);
-                    var class_namespace_parent = class_type.namespace.parents[0];
-                    var is_export = class_namespace_parent->find(class_type.name).info.exxport;
-
                     class_name = class_type.namespace.fullname;
-                    if (!is_export) {
-                        class_name = "." .. class_name;
-                    }
                 } else if (object_type.kind == Type.Kind.Array) {
                     class_name = "ArrayHeader." .. field_name;
                 } else {

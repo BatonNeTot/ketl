@@ -113,16 +113,25 @@ export class TypeClass {
 
     extend Type;
     var name: str;
+    var fullname: str;
     var fields: VariableDecl[];
     var namespace: Namespace;
     var context_namespaces: Namespace[];
 
-    export fn construct(name: str, parent_namespace: Namespace) => TypeClass {
+    export fn construct(name: str, parent_namespace: Namespace, exxport: bool) => TypeClass {
         var self = TypeClass();
 
         self.kind = Type.Kind.Class;
 
         self.name = name;
+        self.namespace = Namespace.construct(name, parent_namespace);
+
+        if (exxport) {
+            // skip first dot
+            self.fullname = self.namespace.fullname[1:self.namespace.fullname.size];
+        } else {
+            self.fullname = self.namespace.fullname;
+        }
         self.namespace = Namespace.construct(name, parent_namespace);
 
         return self;
@@ -257,6 +266,9 @@ export class TypeClass {
         return (-1)$cast(i32);
     }
 
+    export fn get_full_name(self: TypeClass) => str {
+        return self.fullname;
+    }
 
     export fn find(self: TypeClass, key: str) => Namespace.Node {
         var node = self.namespace->find(key);

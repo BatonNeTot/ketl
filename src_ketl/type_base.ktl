@@ -110,6 +110,15 @@ export class Type {
         return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).signed;
     }
 
+    export fn get_full_name(type: Type) => str {
+        if (type != null && type.kind == Type.Kind.Class) {
+            from type import TypeClass
+            return type$cast(TypeClass)->get_full_name();
+        }
+
+        return type->get_name();
+    }
+
     export fn get_name(type: Type) => str {
         if (type == null) {
             return "<null>";
