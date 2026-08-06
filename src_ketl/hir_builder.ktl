@@ -419,6 +419,7 @@ class HIRBuilder {
             var lhs_type = lhs->get_type_forced();
             var rhs_type = rhs->get_type_forced();
 
+            // special case for pointer arithmetic
             if ((tag == HIR.Tag.PLUS || tag == HIR.Tag.MINUS) && 
                 (lhs_type == Types.instance.type_raw$cast(Type) && rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).numeric ||
                 rhs_type == Types.instance.type_raw$cast(Type) && lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).numeric)) {
@@ -457,6 +458,11 @@ class HIRBuilder {
         lhs_id = self->cast_to_type_forced(lhs_id, arg_type, lhs_src_info, false);
         rhs_id = self->cast_to_type_forced(rhs_id, arg_type, rhs_src_info, false);
 
+        if (common_type.kind == Type.Kind.Array &&
+            (tag == HIR.Tag.EQUAL || tag == HIR.Tag.NOT_EQUAL)) {
+            return self->push_array_equality(tag, lhs_id, rhs_id, common_type$cast(TypeArray), src_info);
+        }
+
         var instr = HIR.BinaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
@@ -466,6 +472,85 @@ class HIRBuilder {
         self->append_instr(instr);
 
         return instr.output;
+    }
+
+    fn push_array_equality(self: HIRBuilder, tag: HIR.Tag, lhs_id: HIR.VarId, rhs_id: HIR.VarId, common_type: TypeArray, src_info: HIR.SrcInfo) => HIR.VarId {
+        var output_id = self->push_temp_var_of_type(Types.instance.type_bool, src_info);
+
+        var first_block = self->reserve_blocks(7);
+        var init_loop_block = first_block + 0;
+        var check_length_block = first_block + 1;
+        var check_values_block = first_block + 2;
+        var inc_index_block = first_block + 3;
+        var res_not_equal_block = first_block + 4;
+        var res_equal_block = first_block + 5;
+        var after_block = first_block + 6;
+
+        var lhs_size_id = self->push_field_access_forced(lhs_id, "size", src_info);
+        var rhs_size_id = self->push_field_access_forced(rhs_id, "size", src_info);
+
+        var is_sizes_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
+            lhs_size_id, 
+            rhs_size_id, 
+            src_info);
+        self->push_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block);
+
+        self->set_block(init_loop_block);
+        var index_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
+        self->push_assign(HIR.Tag.ASSIGN, 
+            index_id, 
+            self->push_literal_number(0, src_info), 
+            src_info);
+        self->push_jump(check_length_block);
+
+        self->set_block(check_length_block);
+        var is_index_less_size_id = self->push_binary_op(HIR.Tag.LESS, 
+            index_id, 
+            lhs_size_id, 
+            src_info);
+        self->push_if(is_index_less_size_id, check_values_block, res_equal_block);
+        
+        self->set_block(check_values_block);
+        var is_values_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
+            self->push_get_array_value(lhs_id, index_id, src_info), 
+            self->push_get_array_value(rhs_id, index_id, src_info), 
+            src_info);
+        self->push_if(is_values_not_equal_id, res_not_equal_block, inc_index_block);
+
+        self->set_block(inc_index_block);
+        self->push_assign(HIR.Tag.ASSIGN_PLUS, 
+            index_id, 
+            self->push_literal_number(1, src_info), 
+            src_info);
+        self->push_jump(check_length_block);
+
+
+        // TODO allow explicit cast from bool to int
+        var not_equal_literal_value: u8;
+        var equal_literal_value: u8;
+        if (tag == HIR.Tag.NOT_EQUAL) {
+            not_equal_literal_value = 1;
+        } else {
+            equal_literal_value = 1;
+        }
+
+        self->set_block(res_not_equal_block);
+        self->push_assign(HIR.Tag.ASSIGN, 
+            output_id, 
+            self->push_literal_number(not_equal_literal_value, src_info), 
+            src_info);
+        self->push_jump(after_block);
+
+        self->set_block(res_equal_block);
+        self->push_assign(HIR.Tag.ASSIGN, 
+            output_id, 
+            self->push_literal_number(equal_literal_value, src_info), 
+            src_info);
+        self->push_jump(after_block);
+
+        self->set_block(after_block);
+
+        return output_id;
     }
     
     export fn push_assign(self: HIRBuilder, tag: HIR.Tag, lhs_id: HIR.VarId, rhs_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {

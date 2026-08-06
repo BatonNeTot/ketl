@@ -119,4 +119,48 @@ class Namespace {
 
         return null;
     }
+
+    export fn has_vars(self: Namespace) => bool {
+        for (var bucket <- self.nodes.buckets) {
+            while (bucket != null) {
+                var node = bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    var value = node.value;
+                    if (value->is_type()) {
+                        from type import TypeClass
+                        var type = value.value$cast(raw)$cast(Type);
+                        if (type.kind == Type.Kind.Class && type$cast(TypeClass).namespace->has_vars()) {
+                            return true;
+                        }
+                    } else if (value->is_common_var()) {
+                        return true;
+                    }
+                }
+
+                bucket = bucket.next;
+            }
+        }
+        return false;
+    }
+
+    export fn has_classes(self: Namespace) => bool {
+        for (var bucket <- self.nodes.buckets) {
+            while (bucket != null) {
+                var node = bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    var value = node.value;
+                    if (value->is_type()) {
+                        from type import TypeClass
+                        var type = value.value$cast(raw)$cast(Type);
+                        if (type.kind == Type.Kind.Class) {
+                            return true;
+                        }
+                    }
+                }
+
+                bucket = bucket.next;
+            }
+        }
+        return false;
+    }
 }
