@@ -378,6 +378,7 @@ export class HIR {
     var return_type: Type;
     var parameters_count: u8;
     var max_call_arg_count: u8;
+    var entry: str;
 
     export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
         while (true) {

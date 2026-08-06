@@ -24,7 +24,8 @@ class Module {
     var namespace: Namespace;
     var lexer: Lexer;
     var compile_function_declarations: CompileFunctionDeclaration[];
-    var asm_x86: ASMX86;
+    var init_asm_x86: ASMX86;
+    var entry_asm_x86: ASMX86;
     var has_errors: bool;
     var header_loaded: bool; // after preload
     var body_loaded: bool; // after load
@@ -39,6 +40,17 @@ class Module {
         return self;
     }
 
+    fn get_func_index_offset(module: Module) => u16 {
+        var offset: u16;
+        if (module.init_asm_x86 != null) {
+            offset += 1;
+        }
+        if (module.entry_asm_x86 != null) {
+            offset += 1;
+        }
+        return offset;
+    }
+
     export fn print_asm(module: Module) {
         io.println("    .def    @feat.00;");
         io.println("    .scl    3;");
@@ -51,8 +63,12 @@ class Module {
 
         io.println("    .text                    # -- Functions");
 
-        if (module.asm_x86 != null) {
-            module.asm_x86->print(module.name .. "..init");
+        if (module.init_asm_x86 != null) {
+            module.init_asm_x86->print(module.name .. "..init");
+        }
+
+        if (module.entry_asm_x86 != null) {
+            module.entry_asm_x86->print("main");
         }
 
         for (var compile_func_decl <- module.compile_function_declarations) {
@@ -119,7 +135,56 @@ class Module {
             return false;
         }
 
-        module.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
+        if (hir.entry != null) {
+            var entry_source = 
+                "   from __ketl_rt import cstr2str" ..
+                "   from __ketl_rt import U64Wrapper" ..
+
+                "    var args = str[argc];" ..
+                "    var i: i64;" ..
+                "    while (i < argc) {" ..
+                "        var arg = (argv + i$cast(u64) * raw$size)$cast(U64Wrapper).value$cast(raw);" ..
+                "        args[i] = cstr2str(arg);" ..
+                "        i += 1;" ..
+                "    }" ..
+                "    " .. hir.entry .. "(args);" ..
+                "    return 0;";
+
+            var entry_lexer = Lexer();
+            entry_lexer->init();
+            entry_lexer->build_tokens(module_filename, entry_source, log_accum);
+
+            var entry_index: u16 = 1;
+            var parameters = VariableDecl[2];
+            {
+                var parameter = VariableDecl();
+
+                parameter.type = Types.instance.type_i64;
+                parameter.name = "argc";
+
+                parameters[0] = parameter;
+            }
+            {
+                var parameter = VariableDecl();
+
+                parameter.type = Types.instance.type_raw;
+                parameter.name = "argv";
+
+                parameters[1] = parameter;
+            }
+
+            var entry_hir = Parser.build_hir(entry_lexer, 0, entry_lexer.tokens.size$cast(TokenIterator.Index), 
+                module.namespace, parameters, Types.instance.type_i64, 
+                entry_index, false, log_accum);
+
+            //entry_hir->print();
+
+            assert(log_accum->check());
+
+            module.entry_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(entry_hir, entry_index);
+        }
+
+        module.init_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
 
         Modules.instance.active_module = stashed_module;
 
@@ -168,7 +233,7 @@ class Module {
 
             {
                 var log_accum = LogAccum.construct();
-                var func_index = (i + 1)$cast(u16);
+                var func_index = i$cast(u16) + self->get_func_index_offset();
 
                 from parser import Parser
                 var hir = Parser.build_hir(self.lexer, 
