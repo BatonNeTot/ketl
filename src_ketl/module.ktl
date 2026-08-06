@@ -245,6 +245,10 @@ class Module {
         io.println("   " .. 0$cast(u64)$cast(str) .. "    # name, TODO");
 
         io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fullname, TODO");
+
+        io.print("    .");
         ASMX86.print_directive_size(Types.instance.type_u64->get_stack_size()$cast(ASMX86.Size));
         io.println("   " .. type_class.fields.size$cast(str) .. "    # fields_count");
 
