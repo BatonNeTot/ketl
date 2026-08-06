@@ -233,6 +233,11 @@ class HIRBuilder {
             return var_id;
         }
 
+        if (type->is_pointer_kind() && target_type == Types.instance.type_raw$cast(Type) ||
+            target_type->is_pointer_kind() && type == Types.instance.type_raw$cast(Type)) {
+            return self->push_casted_var(var_id, target_type, src_info);
+        }
+
         if (type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum) {
             if (target_type.kind == Type.Kind.Primitive || target_type.kind == Type.Kind.Enum) {
                 var to_enum = false;
@@ -277,11 +282,6 @@ class HIRBuilder {
                     }), 
                     src_info), HIR.VarId[1]{ var_id }, src_info);
             }
-        }
-
-        if (type->is_pointer_kind() && target_type == Types.instance.type_raw$cast(Type) ||
-            target_type->is_pointer_kind() && type == Types.instance.type_raw$cast(Type)) {
-            return self->push_casted_var(var_id, target_type, src_info);
         }
 
         if (type == Types.instance->get_str_type()$cast(Type) && target_type == Types.instance->get_cstr_type()$cast(Type)) {
@@ -608,7 +608,19 @@ class HIRBuilder {
 
         var return_type = function_signature.parameters[0];
 
-        // TODO cast every argument to the parameter type and type check
+        var i: u64 = 0;
+        while (i < arguments.size) {
+            var arg_id = arguments[i];
+            if (self->is_undef(arg_id)) {
+                return self->push_error_var(src_info);
+            }
+
+            var arg = self.vars[arg_id];
+            var parameter_type = function_signature.parameters[i + 1];
+            arg_id = self->cast_to_type_forced(arg_id, parameter_type, arg.src_info, false);
+            arguments[i] = arg_id;
+            i += 1;
+        }
         
         var instr = HIR.Call();
         instr.tag = HIR.Tag.CALL;

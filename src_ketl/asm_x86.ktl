@@ -812,26 +812,26 @@ export class ASMX86 {
             }
 
             var varr = self.hir.vars[var_id];
-            var type = varr->get_type_forced();
+            var target_type = varr->get_type_forced();
 
             while (varr.kind == HIR.Var.Kind.Cast) {
                 var_id = varr$cast(HIR.VarCast).casted;
                 varr = self.hir.vars[var_id];
             }
 
-            if (varr.kind == HIR.Var.Kind.Literal) {
-                if (type == null) {
-                    type = Types.instance.type_i64;
-                }
+            var orig_type = varr->get_type_forced();
 
+            assert(target_type != null && orig_type != null);
+
+            if (varr.kind == HIR.Var.Kind.Literal) {
                 var value = varr$cast(HIR.VarLiteral).value;
-                assert(type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum || 
-                    (type->is_pointer_kind() && value == 0));
+                assert(orig_type.kind == Type.Kind.Primitive || orig_type.kind == Type.Kind.Enum ||
+                    (orig_type->is_pointer_kind() && value == 0));
 
                 var arg = AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
-                arg.size = type->get_stack_size()$cast(Size);
-                arg.type = type;
+                arg.size = target_type->get_stack_size()$cast(Size);
+                arg.type = orig_type;
 
                 arg.value = value;
 
@@ -844,10 +844,8 @@ export class ASMX86 {
 
                 var arg = AsmArgGlobal();
                 arg.kind = AsmArg.Kind.Global;
-                if (type != null) {
-                    arg.size = type->get_stack_size()$cast(Size);
-                }
-                arg.type = type;
+                arg.size = target_type->get_stack_size()$cast(Size);
+                arg.type = orig_type;
 
                 arg.label = name;
 
@@ -855,7 +853,7 @@ export class ASMX86 {
                     arg.kind = AsmArg.Kind.GlobalAddress;
                     arg.size = Size.Ptr;
                 } else {
-                    if (type.kind == Type.Kind.Function || type.kind == Type.Kind.CFunction) {
+                    if (target_type.kind == Type.Kind.Function || target_type.kind == Type.Kind.CFunction) {
                         arg.kind = AsmArg.Kind.GlobalAddress;
                         arg.size = Size.Ptr;
                     }
@@ -876,12 +874,10 @@ export class ASMX86 {
                 // TODO just create AsmArgOnStack directly into variables instead of ArgInfo
                 var arg_info = bucket.value$cast(ArgInfo);
 
-                assert(type != null);
-
                 var arg = AsmArgOnStack();
                 arg.kind = AsmArg.Kind.OnStack;
-                arg.size = type->get_stack_size()$cast(Size);
-                arg.type = type;
+                arg.size = target_type->get_stack_size()$cast(Size);
+                arg.type = orig_type;
 
                 arg.name = arg_info.name;
                 arg.stack = arg_info.stack_offset;
@@ -904,8 +900,6 @@ export class ASMX86 {
             }
 
             if (varr.kind == HIR.Var.Kind.Field) {
-                assert(type != null);
-
                 var var_field = varr$cast(HIR.VarField);
                 
                 var object_id = var_field.object;
@@ -937,8 +931,8 @@ export class ASMX86 {
 
                 var arg = AsmArgRef();
                 arg.kind = AsmArg.Kind.Ref;
-                arg.size = type->get_stack_size()$cast(Size);
-                arg.type = type;
+                arg.size = target_type->get_stack_size()$cast(Size);
+                arg.type = orig_type;
 
                 arg.parent = parent;
                 arg.name = field_fullname;
@@ -985,7 +979,7 @@ export class ASMX86 {
 
             if (arg.kind == AsmArg.Kind.Ref) {
                 var arg_ref = arg$cast(AsmArgRef);
-                self->insert_mov_to_reg(size, target_reg, arg_ref.parent);
+                self->insert_mov_to_reg(Size.Ptr, target_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
                     self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(target_reg, arg_ref.name, arg_ref.offset$cast(i32)));
@@ -1015,7 +1009,7 @@ export class ASMX86 {
             if (arg.kind == AsmArg.Kind.Ref) {
                 var arg_ref = arg$cast(AsmArgRef);
                 var donor_reg = Reg.R10;
-                self->insert_mov_to_reg(size, donor_reg, arg_ref.parent);
+                self->insert_mov_to_reg(Size.Ptr, donor_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
                     self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(donor_reg, arg_ref.name, arg_ref.offset$cast(i32)), source_reg);
@@ -1108,29 +1102,27 @@ export class ASMX86 {
             var i: u64 = arguments.size - 1;
             while (true) {
                 var arg = arguments[i];
-                var type = arg.type;
-                var size = type->get_stack_size()$cast(Size);
                 
                 var regs = parameters_regs[self.abi];
                 var reg_count = regs.size;
                 if (i < reg_count) {
                     var reg = regs[i];
-                    self->insert_mov_to_reg(size, reg, arg);
+                    self->insert_mov_to_reg(arg.size, reg, arg);
                 } else {
                     assert(self.abi == ABI.WINDOWS);
 
-                    self->insert_mov_to_reg(size, Reg.AX, arg);
+                    self->insert_mov_to_reg(arg.size, Reg.AX, arg);
                     var reg_space_size = raw$size * reg_count;
 
                     var parameter = AsmArgOnStack();
                     parameter.kind = AsmArg.Kind.OnStack;
-                    parameter.size = type->get_stack_size()$cast(Size);
-                    parameter.type = type;
+                    parameter.size = arg.size;
+                    parameter.type = arg.type;
 
                     parameter.name = null;
                     parameter.stack = reg_space_size + (i - reg_count) * raw$size;
 
-                    self->insert_mov_from_reg(size, parameter, Reg.AX);
+                    self->insert_mov_from_reg(arg.size, parameter, Reg.AX);
                 }
 
                 if (i == 0) {

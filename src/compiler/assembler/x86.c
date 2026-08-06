@@ -1296,7 +1296,12 @@ static void push_mov_to_stack_hir(ketl_hir_var_id_t var_id, ketl_asm_x86_reg_t s
         ketl_asm_x86_insert_reg_rm(p_builder, KETL_ASM_X86_MOV, KETL_ASM_X86_PTRSIZE, save_reg, MODRM_REG(source_reg));
 
         // get argument into rax
-        push_mov_from_stack_hir(donor_arg_reg, arg_id, size, p_builder);
+        
+        ketl_hir_var_t arg = p_builder->p_hir->p_vars[arg_id];
+        ketl_type* p_arg_type = arg.type != KETL_HIR_USED_TYPE_META && arg.type != KETL_HIR_USED_TYPE_LITERAL ? p_builder->p_hir->p_used_types[arg.type] : NULL;
+        ketl_asm_x86_size_t arg_size = p_arg_type != NULL ? ketl_type_get_stack_size(p_arg_type) : KETL_ASM_X86_64B;
+        push_mov_from_stack_hir(donor_arg_reg, arg_id, arg_size, p_builder);
+
         uint16_t value_stack_size = ketl_type_get_stack_size(p_value_type);
         if (value_stack_size > 1) {
             // get type size into rcx
