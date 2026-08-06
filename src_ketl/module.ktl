@@ -33,7 +33,7 @@ class Module {
         var self = Module();
 
         self.name = name;
-        self.namespace = Namespace.construct(name, global_namespace); // TODO global namespace?
+        self.namespace = Namespace.construct(name, global_namespace);
         self.compile_function_declarations = CompileFunctionDeclaration[0];
 
         return self;
@@ -100,6 +100,10 @@ class Module {
         module.lexer = lexer;
         lexer->init();
         lexer->build_tokens(module_filename, source, log_accum);
+
+        //for (var token <- lexer.tokens) {
+        //    io.errorln("from " .. token.offset$cast(str) .. " to " .. (token.offset + token.length)$cast(str) .. " " .. source[token.offset:token.offset + token.length]);
+        //}
 
         var func_index: u16 = 0;
 

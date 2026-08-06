@@ -209,7 +209,11 @@ export class Lexer {
                 break;
             }
 
-            lexer.offset += 1;
+            if (next_symbol == '\\') {
+                lexer.offset += 2;
+            } else {
+                lexer.offset += 1;
+            }
         }
 
         var literal_length = lexer.offset - literal_start_offset;

@@ -440,7 +440,15 @@ class Types {
             return lhs;
         }
 
-        if (lhs.kind == Type.Kind.Primitive && rhs.kind == Type.Kind.Primitive) {
+        if ((lhs.kind == Type.Kind.Primitive || lhs.kind == Type.Kind.Enum) && 
+            rhs.kind == Type.Kind.Primitive || rhs.kind == Type.Kind.Enum) {
+            if (lhs.kind == Type.Kind.Enum) {
+                lhs = lhs$cast(TypeEnum).parent;
+            }
+            if (rhs.kind == Type.Kind.Enum) {
+                rhs = rhs$cast(TypeEnum).parent;
+            }
+
             var lhs_primitive = lhs$cast(TypePrimitive);
             var rhs_primitive = rhs$cast(TypePrimitive);
 
