@@ -5,6 +5,7 @@ from common import LogAccum
 from io import File
 import io
 
+from type_base import Type
 from type import Types
 from type import TypeFunction
 
@@ -14,10 +15,16 @@ from func import CompileFunctionDeclaration
 
 from lexer import Lexer
 from lexer import TokenIterator
+from hir import HIR
 from variable import VariableDecl
 from asm_x86 import ASMX86
 
 class Module {
+
+    class ConstBlock {
+        var consts_infos: HIR.Const[];
+        var consts_literals: u8[];
+    }
 
     var name: str;
     var path: str;
@@ -26,6 +33,7 @@ class Module {
     var compile_function_declarations: CompileFunctionDeclaration[];
     var init_asm_x86: ASMX86;
     var entry_asm_x86: ASMX86;
+    var const_blocks: ConstBlock[];
     var has_errors: bool;
     var header_loaded: bool; // after preload
     var body_loaded: bool; // after load
@@ -36,6 +44,8 @@ class Module {
         self.name = name;
         self.namespace = Namespace.construct(name, global_namespace);
         self.compile_function_declarations = CompileFunctionDeclaration[0];
+
+        self.const_blocks = ConstBlock[0];
 
         return self;
     }
@@ -71,9 +81,199 @@ class Module {
             module.entry_asm_x86->print("main");
         }
 
+        var has_functions = false;
         for (var compile_func_decl <- module.compile_function_declarations) {
             if (compile_func_decl.asm_x86 != null) {
                 compile_func_decl.asm_x86->print(compile_func_decl.node.name);
+                has_functions = true;
+            }
+        }
+
+        // insert vars
+        if (module.namespace->has_vars()) {
+            io.println("    .bss                    # -- Zero-initialized Variables");
+
+            print_asm_zero_initialized_variables_namespace(module.namespace);
+        }
+
+        // insert classes and consts
+        if (module.namespace->has_classes() || module.const_blocks.size > 0) {
+            io.println("    .section   rdata,\"dr\"                    # -- Read-only Variables");
+
+            for (var const_block <- module.const_blocks) {
+                for (var const_info <- const_block.consts_infos) {
+                    var variable_name = const_info.name;
+
+                    io.println(variable_name .. ":");
+
+                    assert(const_info.is_string);
+                    io.print("    .asciz    \"");
+                    var literal = "";
+                    for (var symbol <- const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
+                        literal ..= symbol$cast(char);
+                    }
+                    io.print(literal);
+                    io.println("\"");
+                }
+            }
+            /*
+            for (uint32_t j = 0; j < consts.size; ++j) {
+                for (uint32_t i = 0; i < consts.p_data[j].consts_count; ++i) {
+                    ketl_hir_const_info_t* p_const_info = &consts.p_data[j].p_consts_infos[i];
+                    const char* p_variable_name = ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_const_info->s_name);
+
+                    io.println("%s:\n", p_variable_name);
+
+                    ANN_ASSERT(p_const_info->is_string);
+                    io.println("    .asciz    \"%.*s\"\n", p_const_info->const_size, (const char*)consts.p_data[j].p_consts + p_const_info->const_offset);
+                }
+                
+                ketl_free(p_state->p_allocator, consts.p_data[j].p_consts_infos);
+                ketl_free(p_state->p_allocator, consts.p_data[j].p_consts);
+            }*/
+
+            print_asm_read_only_data_namespace(module.namespace);
+        }
+
+        if (module.init_asm_x86 != null) {
+            io.println("    .section .ctors,\"dw\",unique,0");
+            io.println("    .p2align    3, 0x0");
+            io.println("    .quad " .. module.name .. "..init");
+        }
+
+        // insert addsigs
+        if (module.init_asm_x86 != null ||
+            module.entry_asm_x86 != null ||
+            has_functions) {
+            io.println("    .p2align    2, 0x0");
+            io.println("    .addrsig");
+
+            if (module.init_asm_x86 != null) {
+                print_asm_addrsig(module.name .. "..init");
+            }
+            if (module.entry_asm_x86 != null) {
+                print_asm_addrsig("main");
+            }
+            
+            for (var compile_func_decl <- module.compile_function_declarations) {
+                if (compile_func_decl.asm_x86 != null) {
+                    print_asm_addrsig(compile_func_decl.node.name);
+                }
+            }
+        }
+    }
+
+    fn print_asm_addrsig(func_name: str) {
+        io.println("    .addrsig_sym " .. func_name);
+    }
+
+    fn print_asm_zero_initialized_variable(node: Namespace.Node) {
+        var value = node.value;
+        if (value->is_type()) {
+            from type import TypeClass
+            var type = value.value$cast(raw)$cast(Type);
+            if (type.kind == Type.Kind.Class) {
+                print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace);
+            }
+            return;
+        }
+        
+        if (!value->is_common_var()) {
+            return;
+        }
+        
+        var variable_name = node.name;
+
+        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
+        io.println("    .p2align  " .. value.type.align$cast(str) .. ", 0x0");
+        io.println(variable_name .. ":");
+        io.print("    .");
+        ASMX86.print_directive_size(value.type->get_stack_size()$cast(ASMX86.Size));
+        io.println("   0");
+    }
+
+    fn print_asm_zero_initialized_variables_namespace(namespace: Namespace) {
+        for (var bucket <- namespace.nodes.buckets) {
+            while (bucket != null) {
+                var node = bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    print_asm_zero_initialized_variable(node);
+                }
+
+                bucket = bucket.next;
+            }
+        }
+    }
+
+    fn print_asm_read_only_data_variable(node: Namespace.Node) {
+        var value = node.value;
+        if (!value->is_type()) {
+            return;
+
+        }
+
+        from type import TypeClass
+        var type = value.value$cast(raw)$cast(Type);
+        if (type.kind != Type.Kind.Class) {
+            return;
+        }
+        var type_class = type$cast(TypeClass);
+        
+        var variable_name = node.name;
+
+        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
+        io.println("    .p2align  " .. (raw$size)$cast(u64)$cast(str) .. ", 0x0"); // TODO replace with $align
+        io.println(variable_name .. ":");
+
+        // TODO get types directly from fields with smth like 'typeof'
+        // TODO good place for reflection
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_u8->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. type_class.kind$cast(str) .. "    # kind");
+
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_u8->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. type_class.align$cast(str) .. "    # align");
+
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_u16->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. type_class.size$cast(str) .. "    # size");
+
+
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # name, TODO");
+
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_u64->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. type_class.fields.size$cast(str) .. "    # fields_count");
+
+        io.print("    .");
+        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fields, TODO");
+
+        /* TODO
+        // using .set directive as macro for field offset
+        // cool idea, but must dublicate in files where class is used - hard to track
+        for (uint32_t field_index = 0; field_index < p_class_type->fields_count; ++field_index) {
+            io.println("    .set %s.%s, %"PRIu16"\n", p_variable_name, 
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_class_type->p_fields[field_index].s_name),
+                ketl_type_get_field_offset((ketl_type*)p_class_type, p_class_type->p_fields[field_index].s_name, p_state));
+        }
+        */
+
+        print_asm_read_only_data_namespace(type_class.namespace);
+    }
+
+    fn print_asm_read_only_data_namespace(namespace: Namespace) {
+        for (var bucket <- namespace.nodes.buckets) {
+            while (bucket != null) {
+                var node = bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    print_asm_read_only_data_variable(node);
+                }
+
+                bucket = bucket.next;
             }
         }
     }
@@ -133,6 +333,15 @@ class Module {
             module.has_errors = true;
             // TODO something on error
             return false;
+        }
+
+        if (hir.consts_infos.size > 0) {
+            var const_block = ConstBlock();
+
+            const_block.consts_infos = hir.consts_infos;
+            const_block.consts_literals = hir.consts_literals;
+
+            module.const_blocks ..= const_block;
         }
 
         if (hir.entry != null) {
@@ -245,6 +454,15 @@ class Module {
                     // TODO something on error
                     i += 1;
                     continue;
+                }
+
+                if (hir.consts_infos.size > 0) {
+                    var const_block = ConstBlock();
+
+                    const_block.consts_infos = hir.consts_infos;
+                    const_block.consts_literals = hir.consts_literals;
+
+                    self.const_blocks ..= const_block;
                 }
 
                 compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);

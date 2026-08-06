@@ -107,7 +107,7 @@ export class ASMX86 {
         }
     }
 
-    fn print_directive_size(size: Size) {
+    export fn print_directive_size(size: Size) {
         switch (size) {
             case Size.Bit8  => io.print("byte");
             case Size.Bit16 => io.print("2byte");
