@@ -3,6 +3,7 @@
 from common import IntHashMap
 from common import align_forward
 from common import uint_to_str
+from common import LogAccum
 import io
 
 from type_base import Type
@@ -604,14 +605,17 @@ export class ASMX86 {
 
         };
 
+        var log_info: LogAccum.LogInfo;
         var hir: HIR;
-        var abi: ABI;
         var instrs: Instr[];
         var hir_to_asm_offsets: IntHashMap;
         var variables: IntHashMap;
         var stack_reserved_size: u32;
+        var abi: ABI;
+        var debug_is_stmt: bool;
+        var debug_inserted_prolog: bool;
         
-        export fn construct(abi: ABI) => Builder {
+        export fn construct(abi: ABI, log_info: LogAccum.LogInfo) => Builder {
             var self = Builder();
 
             self.abi = abi;
@@ -619,10 +623,43 @@ export class ASMX86 {
                 // TODO actually deduce from the system
                 self.abi = ABI.WINDOWS;
             }
+            self.log_info = log_info;
+
             self.hir_to_asm_offsets = IntHashMap.construct();
             self.variables = IntHashMap.construct();
 
+            self.debug_is_stmt = true;
+
             return self;
+        }
+
+        fn push_line_debug_info(self: Builder, src_info: HIR.SrcInfo, is_stmt: bool, additional: str) {
+            if (src_info == null) {
+                return;
+            }
+
+            assert(self.log_info.filename == src_info.filename);
+            var line = self.log_info->find_line(src_info.source_offset);
+            var col = src_info.source_offset - self.log_info->get_line_offset(line);
+            
+            var directive = "loc    1 " .. (line + 1)$cast(str) .. " " .. (col + 1)$cast(str);
+            if (additional != null) {
+                directive ..= " " .. additional;
+            }
+            if (!self.debug_inserted_prolog) {
+                directive ..= " prologue_end";
+                self.debug_inserted_prolog = true;
+            }
+            if (is_stmt != self.debug_is_stmt) {
+                if (is_stmt) {
+                    directive ..= " is_stmt 1";
+                } else {
+                    directive ..= " is_stmt 0";
+                }
+                self.debug_is_stmt = is_stmt;
+            }
+            directive ..= "     # " .. src_info.filename .. ":" .. (line + 1)$cast(str) .. ":" .. (col + 1)$cast(str);
+            self->directive(directive);
         }
 
         fn label(self: Builder, directive: str) {
@@ -758,36 +795,40 @@ export class ASMX86 {
             var kind: Kind;
             var size: Size;
             var type: Type;
+            var src_info: HIR.SrcInfo;
 
-            fn construct_literal(type: Type, value: u64) => AsmArg {
+            fn construct_literal(type: Type, value: u64, src_info: HIR.SrcInfo) => AsmArg {
                 var arg = AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
                 arg.size = type->get_stack_size()$cast(Size);
                 arg.type = type;
+                arg.src_info = src_info;
 
                 arg.value = value;
 
                 return arg;
             }
 
-            fn construct_type(type: Type) => AsmArg {
+            fn construct_type(type: Type, src_info: HIR.SrcInfo) => AsmArg {
                 var arg = AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
                 arg.size = Size.Ptr;
+                arg.src_info = src_info;
 
                 arg.label = type->get_full_name();
 
                 return arg;
             }
 
-            fn construct_constant(constant: HIR.Const) => AsmArg {
+            fn construct_constant(constant: HIR.Const, src_info: HIR.SrcInfo) => AsmArg {
                 if (constant == null) {
-                    return construct_literal(Types.instance.type_raw, 0);
+                    return construct_literal(Types.instance.type_raw, 0,  src_info);
                 } else {
                     var arg = AsmArgGlobal();
                     arg.kind = AsmArg.Kind.GlobalAddress;
                     arg.size = Size.Ptr;
                     arg.type = Types.instance.type_raw;
+                    arg.src_info = src_info;
 
                     arg.label = constant.name;
 
@@ -795,11 +836,11 @@ export class ASMX86 {
                 }
             }
 
-            fn construct_constant_size(constant: HIR.Const) => AsmArg {
+            fn construct_constant_size(constant: HIR.Const, src_info: HIR.SrcInfo) => AsmArg {
                 if (constant == null) {
-                    return construct_literal(Types.instance.type_u64, 0);
+                    return construct_literal(Types.instance.type_u64, 0, src_info);
                 } else {
-                    return construct_literal(Types.instance.type_u64, constant.mem_size);
+                    return construct_literal(Types.instance.type_u64, constant.mem_size, src_info);
                 }
             }
         }
@@ -829,7 +870,7 @@ export class ASMX86 {
 
         fn get_arg_from_hir(self: Builder, var_id: HIR.VarId) => AsmArg {
             if (var_id >= self.hir.vars.size) {
-                return AsmArg.construct_literal(null, 0);
+                return AsmArg.construct_literal(null, 0, null);
             }
 
             var varr = self.hir.vars[var_id];
@@ -853,6 +894,7 @@ export class ASMX86 {
                 arg.kind = AsmArg.Kind.Literal;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
+                arg.src_info = varr.src_info;
 
                 arg.value = value;
 
@@ -867,6 +909,7 @@ export class ASMX86 {
                 arg.kind = AsmArg.Kind.Global;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
+                arg.src_info = varr.src_info;
 
                 arg.label = name;
 
@@ -899,6 +942,7 @@ export class ASMX86 {
                 arg.kind = AsmArg.Kind.OnStack;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
+                arg.src_info = varr.src_info;
 
                 arg.name = arg_info.name;
                 arg.stack = arg_info.stack_offset;
@@ -914,6 +958,7 @@ export class ASMX86 {
                 var arg = AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
                 arg.size = Size.Ptr;
+                arg.src_info = varr.src_info;
 
                 arg.label = name;
 
@@ -954,6 +999,7 @@ export class ASMX86 {
                 arg.kind = AsmArg.Kind.Ref;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
+                arg.src_info = varr.src_info;
 
                 arg.parent = parent;
                 arg.name = field_fullname;
@@ -968,6 +1014,8 @@ export class ASMX86 {
         }
 
         fn insert_mov_to_reg(self: Builder, size: Size, target_reg: Reg, arg: AsmArg) {
+            self->push_line_debug_info(arg.src_info, false, null);
+
             if (arg.kind == AsmArg.Kind.Literal) {
                 var value = arg$cast(AsmArgLiteral).value;
 
@@ -1016,6 +1064,8 @@ export class ASMX86 {
         }
 
         fn insert_mov_from_reg(self: Builder, size: Size, arg: AsmArg, source_reg: Reg) {
+            self->push_line_debug_info(arg.src_info, false, null);
+
             if (arg.kind == AsmArg.Kind.Global) {
                 self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label), source_reg);
                 return;
@@ -1188,6 +1238,7 @@ export class ASMX86 {
             self.variables->clear();
 
             self.stack_reserved_size = 0;
+
 
             var abi_parameters_regs = parameters_regs[self.abi];
 
@@ -1500,7 +1551,7 @@ export class ASMX86 {
                         assert(callee_type.kind == Type.Kind.Class);
 
                         self->push_function_arguments(AsmArg[1]{
-                            AsmArg.construct_type(callee_type)
+                            AsmArg.construct_type(callee_type, hir_info.src_info)
                         });
 
                         // call
@@ -1526,10 +1577,10 @@ export class ASMX86 {
                         var initial_constant = self.hir->get_constant(hir_info.initial_value);
 
                         self->push_function_arguments(AsmArg[4]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
                             self->get_arg_from_hir(hir_info.size),
-                            AsmArg.construct_constant(initial_constant),
-                            AsmArg.construct_constant_size(initial_constant),
+                            AsmArg.construct_constant(initial_constant, hir_info.src_info),
+                            AsmArg.construct_constant_size(initial_constant, hir_info.src_info),
                         });
 
                         // call
@@ -1579,7 +1630,7 @@ export class ASMX86 {
                         var value_type = output->get_type_forced();
 
                         self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
                             self->get_arg_from_hir(hir_info.array),
                             self->get_arg_from_hir(hir_info.index),
                         });
@@ -1605,7 +1656,7 @@ export class ASMX86 {
                         var value_type = output->get_type_forced();
 
                         self->push_function_arguments(AsmArg[4]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size()),
+                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
                             self->get_arg_from_hir(hir_info.array),
                             self->get_arg_from_hir(hir_info.index),
                             self->get_arg_from_hir(hir_info.value),
@@ -1633,7 +1684,7 @@ export class ASMX86 {
                         assert(array_type.kind == Type.Kind.Array);
 
                         self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size()),
+                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
                             self->get_arg_from_hir(hir_info.array),
                             self->get_arg_from_hir(hir_info.appendee),
                         });
@@ -1658,7 +1709,7 @@ export class ASMX86 {
                         assert(array_type.kind == Type.Kind.Array);
 
                         self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size()),
+                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
                             self->get_arg_from_hir(hir_info.array),
                             self->get_arg_from_hir(hir_info.appendee),
                         });
@@ -1718,6 +1769,7 @@ export class ASMX86 {
                     case HIR.Tag.RETURN => {
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
+                            self->push_line_debug_info(instr.src_info, false, "epilogue_begin");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
                             self->directive("seh_endepilogue");
                         }
@@ -1734,6 +1786,7 @@ export class ASMX86 {
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
+                            self->push_line_debug_info(instr.src_info, false, "epilogue_begin");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
                             self->directive("seh_endepilogue");
                         }

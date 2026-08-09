@@ -3,7 +3,6 @@
 import common
 from type_base import Type
 from value import Value
-from variable import VariableDecl
 from namespace import Namespace
 
 export class TypePrimitive {
@@ -111,10 +110,15 @@ export class TypeArray {
 
 export class TypeClass {
 
+    class Field {
+        var type: Type;
+        var name: str;
+    }
+
     extend Type;
     var name: str;
     var fullname: str;
-    var fields: VariableDecl[];
+    var fields: Field[];
     var namespace: Namespace;
     var context_namespaces: Namespace[];
 
@@ -137,7 +141,7 @@ export class TypeClass {
         return self;
     }
 
-    export fn finalize(self: TypeClass, fields: VariableDecl[]) {
+    export fn finalize(self: TypeClass, fields: TypeClass.Field[]) {
         self.fields = fields;
 
         self.align = Type.Align.Byte;
@@ -182,6 +186,10 @@ export class TypeClass {
 
     // returns null if field doesn't exist
     export fn get_field_type(self: TypeClass, name: str) => Type {
+        if (self.fields == null) {
+            return null;
+        }
+
         for (var field <- self.fields) {
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
@@ -202,6 +210,10 @@ export class TypeClass {
 
     // returns -1 if field doesn't exist
     export fn get_field_offset(self: TypeClass, name: str) => i32 {
+        if (self.fields == null) {
+            return (-1)$cast(i32);
+        }
+        
         var offset: u16;
         for (var field <- self.fields) {
             var align = Align.Byte; // TODO delayed initialization
@@ -237,6 +249,10 @@ export class TypeClass {
 
     // returns -1 if field doesn't exist
     export fn find_extended_class_offset(self: TypeClass, type: TypeClass) => i32 {
+        if (self.fields == null) {
+            return (-1)$cast(i32);
+        }
+        
         var offset: u16;
         for (var field <- self.fields) {
             var align = Align.Byte; // TODO delayed initialization

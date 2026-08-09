@@ -4,6 +4,7 @@ from type_base import Type
 from namespace import Namespace
 
 from lexer import TokenIterator
+from hir import HIR
 from asm_x86 import ASMX86
 
 
@@ -11,6 +12,7 @@ export class CompileFunctionDeclaration {
     var parent_namespace: Namespace;
     var node: Namespace.Node;
     var parameters_names: str[];
+    var parameters_infos: HIR.SrcInfo[];
     var asm_x86: ASMX86;
     var start_pos: TokenIterator.Index;
     var end_pos: TokenIterator.Index;

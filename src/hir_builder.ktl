@@ -16,7 +16,6 @@ from type import TypeClass
 from value import Value
 
 from hir import HIR
-from variable import VariableDecl
 
 from namespace import Namespace
 
@@ -35,6 +34,7 @@ class HIRBuilder {
     var parameters_counter: u32;
     var max_call_arg_count: u8;
     var entry: str;
+    var entry_info: HIR.SrcInfo;
 
     var temp_counter: u32;
     var string_literal_counter: HIR.ConstId;
@@ -384,20 +384,22 @@ class HIRBuilder {
         self->append_instr(instr);
     }
 
-    export fn push_jump(self: HIRBuilder, target: HIR.BlockId) {
+    export fn push_jump(self: HIRBuilder, target: HIR.BlockId, src_info: HIR.SrcInfo) => HIR.Jump {
         var instr = HIR.Jump();
         instr.tag = HIR.Tag.JUMP;
-        instr.src_info = null; // TODO
+        instr.src_info = src_info;
         instr.dst = target;
         self->append_instr(instr);
+
+        return instr;
     }
 
-    export fn push_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId) {
+    export fn push_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId, src_info: HIR.SrcInfo) {
         // TODO check casting
 
         var instr = HIR.JumpIf();
         instr.tag = HIR.Tag.JUMP_IF_TRUE; // TODO pick best
-        instr.src_info = null; // TODO
+        instr.src_info = src_info;
         instr.expr = bool_expr_var;
         instr.true_dst = true_statement;
         instr.false_dst = false_statement;
@@ -545,7 +547,7 @@ class HIRBuilder {
             lhs_size_id, 
             rhs_size_id, 
             src_info);
-        self->push_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block);
+        self->push_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block, src_info);
 
         self->set_block(init_loop_block);
         var index_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
@@ -553,28 +555,28 @@ class HIRBuilder {
             index_id, 
             self->push_literal_number(0, src_info), 
             src_info);
-        self->push_jump(check_length_block);
+        self->push_jump(check_length_block, src_info);
 
         self->set_block(check_length_block);
         var is_index_less_size_id = self->push_binary_op(HIR.Tag.LESS, 
             index_id, 
             lhs_size_id, 
             src_info);
-        self->push_if(is_index_less_size_id, check_values_block, res_equal_block);
+        self->push_if(is_index_less_size_id, check_values_block, res_equal_block, src_info);
         
         self->set_block(check_values_block);
         var is_values_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
             self->push_get_array_value(lhs_id, index_id, src_info), 
             self->push_get_array_value(rhs_id, index_id, src_info), 
             src_info);
-        self->push_if(is_values_not_equal_id, res_not_equal_block, inc_index_block);
+        self->push_if(is_values_not_equal_id, res_not_equal_block, inc_index_block, src_info);
 
         self->set_block(inc_index_block);
         self->push_assign(HIR.Tag.ASSIGN_PLUS, 
             index_id, 
             self->push_literal_number(1, src_info), 
             src_info);
-        self->push_jump(check_length_block);
+        self->push_jump(check_length_block, src_info);
 
 
         // TODO allow explicit cast from bool to int
@@ -591,14 +593,14 @@ class HIRBuilder {
             output_id, 
             self->push_literal_number(not_equal_literal_value, src_info), 
             src_info);
-        self->push_jump(after_block);
+        self->push_jump(after_block, src_info);
 
         self->set_block(res_equal_block);
         self->push_assign(HIR.Tag.ASSIGN, 
             output_id, 
             self->push_literal_number(equal_literal_value, src_info), 
             src_info);
-        self->push_jump(after_block);
+        self->push_jump(after_block, src_info);
 
         self->set_block(after_block);
 
@@ -860,7 +862,10 @@ class HIRBuilder {
 
         var array = self.vars[array_id];
         var array_type = array->get_type_forced()$cast(TypeArray);
-        assert(array_type.kind == Type.Kind.Array);
+        if (array_type.kind != Type.Kind.Array) {
+            self->error(src_info.source_offset, src_info.length, "Can't append to '" .. array_type->get_name() .. "'.");
+            return self->push_error_var(src_info);
+        }
 
         var instr = HIR.Append();
         instr.src_info = src_info;
@@ -1030,8 +1035,8 @@ class HIRBuilder {
         self->append_instr(instr);
     }
 
-    export fn add_parameter(self: HIRBuilder, parameter: VariableDecl) {
-        var bucket = self->find_decl_bucket(parameter.name);
+    export fn add_parameter(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) {
+        var bucket = self->find_decl_bucket(name);
 
         // if got not null - redefinition
         if (bucket != null) {
@@ -1041,13 +1046,13 @@ class HIRBuilder {
         }
 
         var decl_id = self.decls.size$cast(HIR.DeclId);
-        bucket = self->last_name_to_decl()->get_or_insert(parameter.name, decl_id$cast(u64)$cast(raw));
+        bucket = self->last_name_to_decl()->get_or_insert(name, decl_id$cast(u64)$cast(raw));
         var decl = HIR.DeclParameter();
         decl.kind = HIR.Decl.Kind.Parameter;
-        decl.name = parameter.name;
+        decl.name = name;
 
-        decl.type = parameter.type;
-        decl.src_info = null; // TODO
+        decl.type = type;
+        decl.src_info = src_info;
         self.decls ..= decl;
 
         self.parameters_counter += 1;
@@ -1462,5 +1467,6 @@ class HIRBuilder {
         hir.parameters_count = self.parameters_counter$cast(u8);
         hir.max_call_arg_count = self.max_call_arg_count;
         hir.entry = self.entry;
+        hir.entry_info = self.entry_info;
     }
 }

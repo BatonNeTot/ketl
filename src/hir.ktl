@@ -105,18 +105,21 @@ export class HIR {
     export class SrcInfo {
         export mimic Length = u32;
 
+        var filename: str;
         var source_offset: Token.Offset;
         var length: Length;
 
-        export fn construct(source_offset: Token.Offset, length: Length) => SrcInfo {
+        export fn construct(filename: str, source_offset: Token.Offset, length: Length) => SrcInfo {
             var self = SrcInfo();
+            self.filename = filename;
             self.source_offset = source_offset;
             self.length = length;
             return self;
         }
 
-        export fn from_token(token: Token) => SrcInfo {
+        export fn from_token(filename: str, token: Token) => SrcInfo {
             var self = SrcInfo();
+            self.filename = filename;
             self.source_offset = token.offset;
             self.length = token.length;
             return self;
@@ -124,6 +127,8 @@ export class HIR {
 
         export fn merge(lhs: SrcInfo, rhs: SrcInfo) => SrcInfo {
             var self = SrcInfo();
+            assert(lhs.filename == rhs.filename);
+            self.filename = lhs.filename;
             self.source_offset = lhs.source_offset;
             self.length = rhs->get_end_offset() - lhs.source_offset;
             return self;
@@ -379,6 +384,7 @@ export class HIR {
     var parameters_count: u8;
     var max_call_arg_count: u8;
     var entry: str;
+    var entry_info: SrcInfo;
 
     export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
         while (true) {

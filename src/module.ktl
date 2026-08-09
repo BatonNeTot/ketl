@@ -70,6 +70,7 @@ class Module {
         io.println("@feat.00 = 0");
         io.println("    .intel_syntax noprefix");
         io.println("    .file   \"" .. module.name .. ".ktl\"");
+        io.println("    .file   1 \"" .. module.name .. ".ktl\"");
 
         io.println("    .text                    # -- Functions");
 
@@ -379,6 +380,7 @@ class Module {
 
                 parameter.type = Types.instance.type_i64;
                 parameter.name = "argc";
+                parameter.src_info = hir.entry_info;
 
                 parameters[0] = parameter;
             }
@@ -387,6 +389,7 @@ class Module {
 
                 parameter.type = Types.instance.type_raw;
                 parameter.name = "argv";
+                parameter.src_info = hir.entry_info;
 
                 parameters[1] = parameter;
             }
@@ -399,10 +402,10 @@ class Module {
 
             assert(log_accum->check());
 
-            module.entry_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(entry_hir, entry_index);
+            module.entry_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, lexer->construct_log_info())->build(entry_hir, entry_index);
         }
 
-        module.init_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
+        module.init_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, lexer->construct_log_info())->build(hir, func_index);
 
         Modules.instance.active_module = stashed_module;
 
@@ -431,6 +434,7 @@ class Module {
             var return_type = signature.parameters[0];
 
             var parameters_names = compile_function_declaration.parameters_names;
+            var parameters_infos = compile_function_declaration.parameters_infos;
             if (parameters_names.size != signature.parameters.size - 1) {
                 i += 1;
                 continue;
@@ -444,6 +448,7 @@ class Module {
 
                     parameter.type = signature.parameters[j + 1];
                     parameter.name = parameters_names[j];
+                    parameter.src_info = parameters_infos[j];
 
                     parameters ..= parameter;
                     
@@ -476,7 +481,7 @@ class Module {
                     self.const_blocks ..= const_block;
                 }
 
-                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT)->build(hir, func_index);
+                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, self.lexer->construct_log_info())->build(hir, func_index);
             }
 
             i += 1;

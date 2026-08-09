@@ -1,8 +1,10 @@
 //🫖ketl
 
 from type_base import Type
+from hir import HIR
 
 export class VariableDecl {
     var type: Type;
     var name: str;
+    var src_info: HIR.SrcInfo;
 }

@@ -353,7 +353,7 @@ class Parser {
 
     fn parse_identificator(context: Context) => HIR.VarId {
         var token = context->current_token(1);
-        var src_info = HIR.SrcInfo.from_token(token);
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, token);
 
         if (token.type == Token.Type.ID) {
             var name = context->token_str(token);
@@ -389,12 +389,12 @@ class Parser {
 
     fn parse_number(context: Context) => HIR.VarId {
         var token = context->current_token(1);
-        return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.from_token(token));
+        return context.hir_builder->push_literal_number(context->token_str(token)$cast(u64), HIR.SrcInfo.from_token(context.log_info.filename, token));
     }
 
     fn parse_string(context: Context) => HIR.VarId {
         var token = context->current_token(1);
-        return context.hir_builder->push_new_string_literal(context->token_str(token), HIR.SrcInfo.from_token(token));
+        return context.hir_builder->push_new_string_literal(context->token_str(token), HIR.SrcInfo.from_token(context.log_info.filename, token));
     }
 
     fn parse_char(context: Context) => HIR.VarId {
@@ -410,7 +410,7 @@ class Parser {
         } else {
             assert(false);
         }
-        return context.hir_builder->push_literal_number_of_type(int_repr, Types.instance.type_char, HIR.SrcInfo.from_token(token));
+        return context.hir_builder->push_literal_number_of_type(int_repr, Types.instance.type_char, HIR.SrcInfo.from_token(context.log_info.filename, token));
     }
 
     fn parse_sequence(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
@@ -431,10 +431,10 @@ class Parser {
     }
     
     fn parse_grouping(context: Context) => HIR.VarId {
-        var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
         var expr_id = context->parse_expression();
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after expression.");
-        src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+        src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         var expr = context->get_var(expr_id);
         var expr_as_type = context->get_var_as_type(expr_id);
@@ -466,15 +466,18 @@ class Parser {
 
     fn parse_indexing(context: Context, var_id: HIR.VarId) => HIR.VarId {
         if (context->token_match(Token.Type.SQUARE_RIGHT)) {
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             var var_as_type = context->get_var_as_type(var_id);
-            assert(var_as_type != null);
+            if (var_as_type == null) {
+                context->error(src_info.source_offset, src_info.length, "Can't have empty indexing expression.");
+                return context.hir_builder->push_error_var(src_info);
+            }
             var array_type = Types.instance->get_array_type(var_as_type);
-            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
             return context.hir_builder->push_literal_type(array_type, src_info);
         }
         
         if (context->token_match(Token.Type.COLON)) {
-            var start_id = context.hir_builder->push_literal_number(0, HIR.SrcInfo.from_token(context->current_token(1)));
+            var start_id = context.hir_builder->push_literal_number(0, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             
             var end_id: HIR.VarId;
             if (context->token_match(Token.Type.SQUARE_RIGHT)) {
@@ -486,7 +489,7 @@ class Parser {
             
             context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
 
-            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
         }
 
@@ -505,12 +508,12 @@ class Parser {
             
             context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
 
-            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
         }
         context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
 
-        var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+        var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         var var_as_type = context->get_var_as_type(var_id);
         if (var_as_type != null) {
@@ -586,7 +589,7 @@ class Parser {
         }
 
         var callee = context->get_var(callee_id);
-        var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+        var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         if (callee.kind == HIR.Var.Kind.Global) {
             var callee_node = callee$cast(HIR.VarGlobal).node;
@@ -638,7 +641,7 @@ class Parser {
         var id_token = context->current_token(1);
         var id = context->token_str(id_token);
 
-        var src_info = HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(id_token));
+        var src_info = HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(context.log_info.filename, id_token));
 
         if (context.hir_builder->is_undef(object_id)) {
             return context.hir_builder->push_error_var(src_info);
@@ -724,7 +727,7 @@ class Parser {
         var id_token = context->current_token(1);
         var id = context->token_str(id_token);
 
-        var src_info =  HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(id_token));
+        var src_info =  HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(context.log_info.filename, id_token));
 
         if (context.hir_builder->is_undef(lhs)) {
             return context.hir_builder->push_error_var(src_info);
@@ -758,7 +761,7 @@ class Parser {
             var target_type = context->parse_type();
             context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'cast' meta property parameter.");
 
-            src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+            src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
             return context.hir_builder->cast_to_type_forced(lhs, target_type, src_info, true);
         }
@@ -770,6 +773,12 @@ class Parser {
     fn parse_short_circuit(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
         var token_type = context->current_token(1).type;
         var parse_rule = token_type->get_parse_rule();
+
+        if (context.hir_builder->is_undef(lhs_id)) {
+            return lhs_id;
+        }
+        var lhs = context->get_var(lhs_id);
+        var src_info = lhs.src_info;
         
         var first_block = context.hir_builder->reserve_blocks(3);
         var second_block = first_block;
@@ -791,17 +800,15 @@ class Parser {
             }
             default => assert(false);
         }
-        context.hir_builder->push_if(lhs_id, true_statement, false_statement);
+        context.hir_builder->push_if(lhs_id, true_statement, false_statement, src_info);
 
         context.hir_builder->set_block(second_block);
         var rhs_id = context->parse_precedence(parse_rule.precedence + 1);
 
-        var lhs = context->get_var(lhs_id);
         var rhs = context->get_var(rhs_id);
+        src_info = HIR.SrcInfo.merge(src_info, rhs.src_info);
 
-        var src_info = HIR.SrcInfo.merge(lhs.src_info, rhs.src_info);
-
-        if (context.hir_builder->is_undef(lhs_id) || context.hir_builder->is_undef(rhs_id)) {
+        if (context.hir_builder->is_undef(rhs_id)) {
             return context.hir_builder->push_error_var(src_info);
         }
 
@@ -823,13 +830,12 @@ class Parser {
         
         rhs_id = context.hir_builder->cast_to_type_forced(rhs_id, output_type, rhs.src_info, false);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, rhs_id, src_info);
-        context.hir_builder->push_jump(after_block);
+        context.hir_builder->push_jump(after_block, src_info);
         
         context.hir_builder->set_block(short_circuit_block);
-
         lhs_id = context.hir_builder->cast_to_type_forced(lhs_id, output_type, lhs.src_info, false);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, lhs_id, src_info);
-        context.hir_builder->push_jump(after_block);
+        context.hir_builder->push_jump(after_block, src_info);
 
         context.hir_builder->set_block(after_block);
 
@@ -840,7 +846,7 @@ class Parser {
         var token = context->current_token(1);
         var token_type = token.type;
         var rhs_id = context->parse_precedence(Precedence.Call);
-        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(token), context->get_var(rhs_id).src_info);
+        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, token), context->get_var(rhs_id).src_info);
 
         switch (token_type) {
             case Token.Type.LOGICAL_NOT => return context.hir_builder->push_unary_op(HIR.Tag.LOGICAL_NOT, rhs_id, src_info);
@@ -914,7 +920,7 @@ class Parser {
         var prefix_rule = current_token.type->get_parse_rule().prefix;
         if (prefix_rule == null) {
             context->error(current_token.offset, current_token.length, "Expected expression.");
-            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(current_token));
+            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, current_token));
         }
 
         var lhs = context->prefix_rule();
@@ -935,7 +941,7 @@ class Parser {
                 }
 
                 context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator (ltr).");
-                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context->current_token(1)));
+                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             }
             lhs = context->ltr_infix_rule(lhs);
 
@@ -964,7 +970,7 @@ class Parser {
             var current_token_type = token.type;
             if (current_token_type == Token.Type.EOF) {
                 //context->error(token.offset, token.length, "Expected operator, got EOF.");
-                //return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(token));
+                //return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, token));
                 break;
             }
 
@@ -1003,7 +1009,7 @@ class Parser {
         // back to the rtl operator
         var rtl_infix = context->current_token(1).type->get_parse_rule().rtl_infix;
         if (rtl_infix == null) {
-            var src_info = HIR.SrcInfo.from_token(context->current_token(2)); // TODO really 2? not 1?
+            var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)); // TODO really 2? not 1?
             context->error(src_info.source_offset, src_info.length, "Expected operator (rtl).");
             return context.hir_builder->push_error_var(src_info);
         }
@@ -1097,7 +1103,7 @@ class Parser {
 
     fn parse_import(context: Context) => StatementInfo {
         var path = "";
-        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
+        var start_src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
 
         context->token_advance(); // import
         var module_token = context->current_token(0);
@@ -1111,7 +1117,7 @@ class Parser {
 
         var src_info = HIR.SrcInfo.merge(
             start_src_info,
-            HIR.SrcInfo.from_token(context->current_token(1)));
+            HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         var module_name = context->token_str(module_token);
 
@@ -1132,7 +1138,7 @@ class Parser {
         context->token_consume(Token.Type.ID, "Expected id after '#' prefix.");
         var id_token = context->current_token(1);
 
-        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context->current_token(2)), HIR.SrcInfo.from_token(id_token));
+        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.log_info.filename, id_token));
 
         var id = context->token_str(id_token);
 
@@ -1147,7 +1153,7 @@ class Parser {
 
     fn parse_from_import(context: Context) => StatementInfo {
         var path = "";
-        var start_src_info = HIR.SrcInfo.from_token(context->current_token(0));
+        var start_src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
 
         context->token_advance(); // import
         var module_token = context->current_token(0);
@@ -1165,7 +1171,7 @@ class Parser {
 
         var src_info = HIR.SrcInfo.merge(
             start_src_info,
-            HIR.SrcInfo.from_token(context->current_token(1)));
+            HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         var module_name = context->token_str(module_token);
 
@@ -1178,7 +1184,7 @@ class Parser {
 
         var name = context->token_str(name_token);
     
-        var target_namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(name_token), context.exxport);
+        var target_namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, name_token), context.exxport);
         if (target_namespace_node == null) {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
@@ -1216,7 +1222,7 @@ class Parser {
     }
 
     fn parse_var_declaration(context: Context) => StatementInfo {
-        var src_info = HIR.SrcInfo.from_token(context->current_token(0));
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
 
         context->token_advance(); // var
         var id_token = context->current_token(0);
@@ -1242,7 +1248,7 @@ class Parser {
             }
         } else {
             if (type == null) {
-                src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+                src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
                 context->error(src_info.source_offset, src_info.length, "Variable declaration without a type expects an initial expression.");
 
                 initial_value = context.hir_builder->push_error_var(src_info);
@@ -1262,23 +1268,27 @@ class Parser {
 
     class FunctionHeader {
         var namespace_node: Namespace.Node;
-        var function_parameters_names: str[];
+        var parameters_names: str[];
+        var parameters_infos: HIR.SrcInfo[];
     }
 
     fn parse_function_header(context: Context) => FunctionHeader {
         context->token_advance(); // fn/cimport
         var id_token = context->current_token(0);
         context->token_advance(); // id
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after function name.");
 
         var function_parameters_names = str[0];
+        var function_parameters_infos = HIR.SrcInfo[0];
         var function_parameters = Type[1];
 
         if (!context->token_check(Token.Type.PARENTHESIS_RIGHT)) {
             while (true) {
                 var parameter_token = context->current_token(0);
                 function_parameters_names ..= context->token_str(parameter_token);
+                function_parameters_infos ..= HIR.SrcInfo.from_token(context.log_info.filename, parameter_token);
                 context->token_advance(); // id
 
                 context->token_consume(Token.Type.COLON, "Expected ':' after parameter name.");
@@ -1309,17 +1319,19 @@ class Parser {
         if (context.cexxport) {
             name = key;
         }
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
 
         if (context.next_symbol_entry) {
             context.next_symbol_entry = false;
             context.hir_builder.entry = namespace_node.key;
+            context.hir_builder.entry_info = src_info;
         }
 
         var header = FunctionHeader();
 
         header.namespace_node = namespace_node;
-        header.function_parameters_names = function_parameters_names;
+        header.parameters_names = function_parameters_names;
+        header.parameters_infos = function_parameters_infos;
 
         return header;
     }
@@ -1356,7 +1368,8 @@ class Parser {
             var function_decl = CompileFunctionDeclaration();
             function_decl.parent_namespace = context.namespace;
             function_decl.node = header.namespace_node;
-            function_decl.parameters_names = header.function_parameters_names;
+            function_decl.parameters_names = header.parameters_names;
+            function_decl.parameters_infos = header.parameters_infos;
             function_decl.start_pos = start_pos;
             function_decl.end_pos = end_pos;
             
@@ -1377,7 +1390,7 @@ class Parser {
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
 
-    fn parse_class_declaration_inner(context: Context, class_fields: VariableDecl[]) {
+    fn parse_class_declaration_inner(context: Context, class_fields: TypeClass.Field[]) {
         while (true) switch (context->current_token(0).type) {
             case Token.Type.TERMINATION_CHARACTER => { 
                 context->token_advance(); // ;
@@ -1386,7 +1399,7 @@ class Parser {
             case Token.Type.VAR => {
                 context->token_advance(); // var
 
-                var field = VariableDecl();
+                var field = TypeClass.Field();
 
                 var field_token = context->current_token(0);
                 field.name = context->token_str(field_token);
@@ -1404,7 +1417,7 @@ class Parser {
             case Token.Type.EXTEND => {
                 context->token_advance(); // extend
 
-                var field = VariableDecl();
+                var field = TypeClass.Field();
 
                 field.type = context->parse_type();
 
@@ -1425,7 +1438,7 @@ class Parser {
             case Token.Type.EXPORT  => {
                 context->token_advance();
                 if (context.exxport) {
-                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
                     continue;
                 }
@@ -1437,7 +1450,7 @@ class Parser {
             case Token.Type.CEXPORT => {
                 context->token_advance();
                 if (context.cexxport) {
-                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
                     continue;
                 }
@@ -1483,7 +1496,7 @@ class Parser {
         var name = context->token_str(id_token);
         var class_type = TypeClass.construct(name, context.namespace, context.exxport);
         var class_namespace = class_type.namespace;
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
         namespace_node.value.kind = Value.Kind.Type;
         namespace_node.value.value = class_type$cast(raw)$cast(u64);
 
@@ -1495,7 +1508,7 @@ class Parser {
 
         context.hir_builder->push_symbol_map();
 
-        var class_fields = VariableDecl[0];
+        var class_fields = TypeClass.Field[0];
 
         while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
             context->parse_class_declaration_inner(class_fields);
@@ -1567,12 +1580,12 @@ class Parser {
                     }
                     
                     if (!found) {
-                        var src_info = HIR.SrcInfo.from_token(constant_token);
+                        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, constant_token);
                         context->error(src_info.source_offset, src_info.length, "Unexpected '" .. context->token_str(constant_token) .. "' for the enum constant value.");
                         current_value.value += 1;
                     }
                 } else {
-                    var src_info = HIR.SrcInfo.from_token(constant_token);
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, constant_token);
                     context->error(src_info.source_offset, src_info.length, "Unexpected '" .. context->token_str(constant_token) .. "' for the enum constant value.");
                     current_value.value += 1;
                 }
@@ -1595,7 +1608,7 @@ class Parser {
 
         var name = context->token_str(id_token);
         var enum_type = TypeEnum.construct(name, parent_primitive, enum_constants);
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
         if (namespace_node != null) {
             namespace_node.value.kind = Value.Kind.Type;
             namespace_node.value.value = enum_type$cast(raw)$cast(u64);
@@ -1613,7 +1626,7 @@ class Parser {
 
         var name = context->token_str(id_token);
         var type = context->parse_type();
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
         namespace_node.value.kind = Value.Kind.Type;
         namespace_node.value.value = type$cast(raw)$cast(u64);
 
@@ -1629,7 +1642,7 @@ class Parser {
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
             case Token.Type.SHARED => {
-                var src_info = HIR.SrcInfo.from_token(context->current_token(0));
+                var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
                 context->error(src_info.source_offset, src_info.length, "Can't use 'shared' outside class declaration.");
                 return context->parse_var_declaration();
             }
@@ -1641,7 +1654,7 @@ class Parser {
             case Token.Type.EXPORT => {
                 context->token_advance();
                 if (context.exxport) {
-                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
                     continue;
                 }
@@ -1653,7 +1666,7 @@ class Parser {
             case Token.Type.CEXPORT => {
                 context->token_advance();
                 if (context.cexxport) {
-                    var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
                     continue;
                 }
@@ -1713,10 +1726,11 @@ class Parser {
         var false_statement = first_block + 1;
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'if' keyword.");
-        var expr = context->parse_expression();
+        var expr_id = context->parse_expression();
+        var src_info = context->get_var(expr_id).src_info;
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'if' statement expression.");
 
-        context.hir_builder->push_if(expr, true_statement, false_statement);
+        context.hir_builder->push_if(expr_id, true_statement, false_statement, src_info);
 
         context.hir_builder->set_block(true_statement);
         var true_return_info = context->parse_statement().return_info;
@@ -1730,17 +1744,17 @@ class Parser {
                 false_return_info = context->parse_statement().return_info;
                 if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
                     var after_block = context.hir_builder->reserve_blocks(1);
-                    context.hir_builder->push_jump(after_block);
+                    context.hir_builder->push_jump(after_block, src_info);
                     context.hir_builder->set_block(after_block);
                 }
             } else {
                 var after_block = context.hir_builder->reserve_blocks(1);
-                context.hir_builder->push_jump(after_block);
+                context.hir_builder->push_jump(after_block, src_info);
             
                 context.hir_builder->set_block(false_statement);
                 false_return_info = context->parse_statement().return_info;
                 if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
-                    context.hir_builder->push_jump(after_block);
+                    context.hir_builder->push_jump(after_block, src_info);
                 }
 
                 context.hir_builder->set_block(after_block);
@@ -1751,7 +1765,7 @@ class Parser {
                 ((true_return_info | false_return_info) & StatementInfo.ReturnInfo.Undef);
         } else {
             if (!(true_return_info & StatementInfo.ReturnInfo.Always)) {
-                context.hir_builder->push_jump(false_statement);
+                context.hir_builder->push_jump(false_statement, src_info);
             }
             context.hir_builder->set_block(false_statement);
 
@@ -1769,13 +1783,16 @@ class Parser {
         var body_statement = first_block + 1;
         var after_statement = first_block + 2;
 
-        context.hir_builder->push_jump(expr_statement);
+        var first_jump = context.hir_builder->push_jump(expr_statement, null);
+
         context.hir_builder->set_block(expr_statement);
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'while' keyword.");
-        var expr = context->parse_expression();
+        var expr_id = context->parse_expression();
+        var src_info = context->get_var(expr_id).src_info;
+        first_jump.src_info = src_info;
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'while' statement expression.");
 
-        context.hir_builder->push_if(expr, body_statement, after_statement);
+        context.hir_builder->push_if(expr_id, body_statement, after_statement, src_info);
 
         var old_reserved_break = context.reserved_break;
         context.reserved_break = after_statement;
@@ -1789,7 +1806,7 @@ class Parser {
         context.reserved_break = old_reserved_break;
 
         if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-            context.hir_builder->push_jump(expr_statement);
+            context.hir_builder->push_jump(expr_statement,  src_info);
         }
         context.hir_builder->set_block(after_statement);
 
@@ -1801,7 +1818,7 @@ class Parser {
     fn parse_for_statement(context: Context) => StatementInfo {
         context->token_advance(); // for
 
-        var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'for' keyword.");
         context->token_consume(Token.Type.VAR, "Expected 'var' keyword in the beggining of 'for' statement expression.");
@@ -1829,7 +1846,7 @@ class Parser {
         }
 
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'for' statement expression.");
-        src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context->current_token(1)));
+        src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
         context.hir_builder->push_symbol_map();
 
@@ -1847,11 +1864,11 @@ class Parser {
         var inc_statement = first_block + 2;
         var after_statement = first_block + 3;
 
-        context.hir_builder->push_jump(expr_statement);
+        context.hir_builder->push_jump(expr_statement, src_info);
 
         context.hir_builder->set_block(expr_statement);
         var is_index_less_size_var = context.hir_builder->push_binary_op(HIR.Tag.LESS, index_var, array_size_var, src_info);
-        context.hir_builder->push_if(is_index_less_size_var, body_statement, after_statement);
+        context.hir_builder->push_if(is_index_less_size_var, body_statement, after_statement, src_info);
 
         context.hir_builder->set_block(body_statement);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, iterator_var, 
@@ -1864,7 +1881,7 @@ class Parser {
         context.reserved_continue = inc_statement;
 
         var body_return_info = context->parse_statement().return_info;
-        context.hir_builder->push_jump(inc_statement);
+        context.hir_builder->push_jump(inc_statement, src_info);
 
         context.hir_builder->set_block(inc_statement);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS, index_var, 
@@ -1875,7 +1892,7 @@ class Parser {
         context.reserved_continue = old_reserved_continue;
 
         if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-            context.hir_builder->push_jump(expr_statement);
+            context.hir_builder->push_jump(expr_statement, src_info);
         }
         context.hir_builder->set_block(after_statement);
 
@@ -1890,7 +1907,8 @@ class Parser {
         context->token_advance(); // switch
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'switch' keyword.");
-        var expr = context->parse_expression();
+        var expr_id = context->parse_expression();
+        var src_info = context->get_var(expr_id).src_info;
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'switch' statement expression.");
 
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after 'switch' statement.");
@@ -1904,14 +1922,14 @@ class Parser {
             var first_block = context.hir_builder->reserve_blocks(2);
             var after_statement = first_block;
             var next_cmp_block = first_block + 1;
-            context.hir_builder->push_jump(next_cmp_block);
+            context.hir_builder->push_jump(next_cmp_block, src_info);
 
             var old_reserved_break = context.reserved_break;
             context.reserved_break = after_statement;
 
             while (!context->token_match(Token.Type.CURLY_RIGHT)) {
                 var current = context->current_token(0);
-                var src_info = HIR.SrcInfo.from_token(current);
+                var src_info = HIR.SrcInfo.from_token(context.log_info.filename, current);
 
                 switch(current.type) {
                     case Token.Type.CASE => {
@@ -1924,11 +1942,11 @@ class Parser {
 
                         while (context->token_match(Token.Type.CASE)) {
                             src_info = context->get_var(case_expr).src_info;
-                            var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr, case_expr, src_info);
+                            var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr_id, case_expr, src_info);
 
                             next_cmp_block = context.hir_builder->reserve_blocks(1);
                             
-                            context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block);
+                            context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block, src_info);
 
                             ////////////////
 
@@ -1939,11 +1957,11 @@ class Parser {
                         context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
 
                         src_info = context->get_var(case_expr).src_info;
-                        var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr, case_expr, src_info);
+                        var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr_id, case_expr, src_info);
 
                         next_cmp_block = context.hir_builder->reserve_blocks(1);
                         
-                        context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block);
+                        context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block, src_info);
 
                         ///////////
 
@@ -1951,7 +1969,7 @@ class Parser {
                         var body_return_info = context->parse_statement().return_info;
 
                         if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-                            context.hir_builder->push_jump(after_statement);
+                            context.hir_builder->push_jump(after_statement, src_info);
                         }
 
                         return_info = 
@@ -1970,7 +1988,7 @@ class Parser {
                         var body_return_info = context->parse_statement().return_info;
 
                         if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-                            context.hir_builder->push_jump(after_statement);
+                            context.hir_builder->push_jump(after_statement, src_info);
                         }
 
                         default_return_info = body_return_info;
@@ -1987,11 +2005,11 @@ class Parser {
             context.hir_builder->set_block(next_cmp_block);
                 
             if (default_block == (-1)$cast(HIR.BlockId)) {
-                context.hir_builder->push_jump(after_statement);
+                context.hir_builder->push_jump(after_statement, src_info);
 
                 return_info &= StatementInfo.ReturnInfo.Undef;
             } else {
-                context.hir_builder->push_jump(default_block);
+                context.hir_builder->push_jump(default_block, src_info);
 
                 return_info = 
                     ((return_info & default_return_info) & StatementInfo.ReturnInfo.Always) |
@@ -2010,6 +2028,7 @@ class Parser {
 
     fn parse_break_statement(context: Context) => StatementInfo {
         context->token_advance(); // break
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
         var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
 
@@ -2017,7 +2036,7 @@ class Parser {
             var token = context->current_token(1);
             context->error(token.offset, token.length, "'break' statement outside of loop or switch body.");
         } else {
-            context.hir_builder->push_jump(context.reserved_break);
+            context.hir_builder->push_jump(context.reserved_break, src_info);
         }
             
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'break' statement.");
@@ -2026,6 +2045,7 @@ class Parser {
 
     fn parse_continue_statement(context: Context) => StatementInfo {
         context->token_advance(); // continue
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
         var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
 
@@ -2033,7 +2053,7 @@ class Parser {
             var token = context->current_token(1);
             context->error(token.offset, token.length, "'continue' statement outside of loop body.");
         } else {
-            context.hir_builder->push_jump(context.reserved_continue);
+            context.hir_builder->push_jump(context.reserved_continue, src_info);
         }
             
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'continue' statement.");
@@ -2042,7 +2062,8 @@ class Parser {
 
     fn parse_return_statement(context: Context) => StatementInfo {
         context->token_advance(); // return
-        var src_info = HIR.SrcInfo.from_token(context->current_token(1));
+        var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
+
         if (context->token_match(Token.Type.TERMINATION_CHARACTER)) {
             context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, src_info);
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysNone);
@@ -2094,7 +2115,7 @@ class Parser {
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.log_accum, context.log_info);
 
         for (var parameter <- parameters) {
-            context.hir_builder->add_parameter(parameter);
+            context.hir_builder->add_parameter(parameter.name, parameter.type, parameter.src_info);
         }
 
         if (lexer.tokens.size > 0) {
@@ -2116,7 +2137,7 @@ class Parser {
 
             if (!(statement_info.return_info & StatementInfo.ReturnInfo.Always)) {
                 // we need to return eventually
-                context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, HIR.SrcInfo.construct(lexer.tokens[end_pos - 1].offset, 1));
+                context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, HIR.SrcInfo.construct(context.log_info.filename, lexer.tokens[end_pos - 1].offset, 1));
             }
         }
 
