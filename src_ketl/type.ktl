@@ -162,9 +162,13 @@ export class TypeClass {
                 assert(field.type.kind == Type.Kind.Class);
 
                 align = field.type->get_align();
+                self.size = common.align_forward(self.size, Type.from_align_enum(align))$cast(u16);
+
                 size = field.type->get_size();
             } else {
                 align = field.type->get_stack_align();
+                self.size = common.align_forward(self.size, Type.from_align_enum(align))$cast(u16);
+
                 size = field.type->get_stack_size();
             }
 
@@ -172,7 +176,7 @@ export class TypeClass {
                 self.align = align;
             }
 
-            self.size = common.align_forward(self.size, Type.from_align_enum(align))$cast(u16) + size;
+            self.size += size;
         }
     }
 
@@ -206,26 +210,26 @@ export class TypeClass {
                 assert(field.type.kind == Type.Kind.Class);
 
                 align = field.type->get_align();
+                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
                 var extended_offset = field.type$cast(TypeClass)->get_field_offset(name);
                 if (extended_offset >= 0) {
-                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
-                    return offset$cast(i32);
+                    return offset$cast(i32) + extended_offset;
                 }
 
                 size = field.type->get_size();
             } else {
                 align = field.type->get_stack_align();
+                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
                 if (field.name == name) {
-                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
                     return offset$cast(i32);
                 }
 
                 size = field.type->get_stack_size();
             }
 
-            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+            offset += size;
         }
 
         return (-1)$cast(i32);
@@ -241,26 +245,26 @@ export class TypeClass {
                 assert(field.type.kind == Type.Kind.Class);
 
                 align = field.type->get_align();
+                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
                 if (field.type == type$cast(Type)) {
-                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
                     return offset$cast(i32);
                 }
 
                 var extended_offset = field.type$cast(TypeClass)->find_extended_class_offset(type);
                 if (extended_offset >= 0) {
-                    offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
-                    return offset$cast(i32);
+                    return offset$cast(i32) + extended_offset;
                 }
 
                 size = field.type->get_size();
             } else {
                 align = field.type->get_stack_align();
+                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
                 size = field.type->get_stack_size();
             }
 
-            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+            offset += size;
         }
 
         return (-1)$cast(i32);
@@ -331,16 +335,17 @@ export class TypeTuple {
         var i: i64;
         while (i < self.values.size$cast(i64)) {
             var value = self.values[i];
+
             var align = value->get_stack_align();
+            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
             if (i == index) {
-                offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
                 return offset$cast(i32);
             }
 
             var size = value->get_stack_size();
 
-            offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16) + size;
+            offset += size;
 
             i += 1;
         }

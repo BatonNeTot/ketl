@@ -17,6 +17,46 @@ export class Lexer {
         lexer.tokens = Token[0];
         lexer.lines_offsets = u32[0];
     }
+
+    fn resolve_escaped_char(symbol: char) => char {
+        switch (symbol) {
+            case '0' => return '\0'; // 0x00
+            case 'a' => return '\a'; // 0x07
+            case 'b' => return '\b'; // 0x08
+            case 'e' => return '\e'; // 0x1b
+            case 'f' => return '\f'; // 0x0c
+            case 'n' => return '\n'; // 0x0a
+            case 'r' => return '\r'; // 0x0d
+            case 't' => return '\t'; // 0x09
+            case 'v' => return '\v'; // 0x0b
+            case '\\' => return '\\'; // 0x5c
+            case '\'' => return '\''; // 0x27
+        }
+
+        return 0;
+    }
+
+    fn escape_char(symbol: char) => char {
+        switch (symbol) {
+            case '\0' => return '0'; // 0x00
+            case '\a' => return 'a'; // 0x07
+            case '\b' => return 'b'; // 0x08
+            case '\e' => return 'e'; // 0x1b
+            case '\f' => return 'f'; // 0x0c
+            case '\n' => return 'n'; // 0x0a
+            case '\r' => return 'r'; // 0x0d
+            case '\t' => return 't'; // 0x09
+            case '\v' => return 'v'; // 0x0b
+            case '\\' => return '\\'; // 0x5c
+            case '\'' => return '\''; // 0x27
+        }
+
+        return '\0';
+    }
+
+    fn is_char_need_escape(symbol: char) => bool {
+        return symbol == '\0' || escape_char(symbol) != '\0';
+    }
     
     fn is_space(symbol: char) => bool {
         return symbol == ' ' || (symbol >= '\t' && symbol <= '\r');

@@ -384,7 +384,6 @@ export class LogAccum {
         }
 
         export fn find_line(info: LogInfo, offset: u32) => u32 {
-            assert(info.lines_offsets.size < 5000);
             var lhs: u32 = 0;
             // TODO make cast deduce type from the left side
             var rhs: u32 = info.lines_offsets.size$cast(u32);
