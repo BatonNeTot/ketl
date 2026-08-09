@@ -399,7 +399,18 @@ class Parser {
 
     fn parse_char(context: Context) => HIR.VarId {
         var token = context->current_token(1);
-        return context.hir_builder->push_literal_number_of_type(context->token_str(token), Types.instance.type_char, HIR.SrcInfo.from_token(token));
+        var literal = context->token_str(token);
+        var int_repr: u64;
+        if (literal.size == 1) {
+            int_repr = literal[0]$cast(u64);
+        } else if (literal.size == 2) {
+            assert(literal[0] == '\\');
+            var symbol = literal[1];
+            int_repr = Lexer.resolve_escaped_char(symbol);
+        } else {
+            assert(false);
+        }
+        return context.hir_builder->push_literal_number_of_type(int_repr, Types.instance.type_char, HIR.SrcInfo.from_token(token));
     }
 
     fn parse_sequence(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
@@ -570,6 +581,10 @@ class Parser {
         if (collected_arguments != null && collected_arguments.size > 0) {
             arguments = collected_arguments .. arguments;
         }
+        if (context.hir_builder->is_undef(callee_id)) {
+            return callee_id;
+        }
+
         var callee = context->get_var(callee_id);
         var src_info = HIR.SrcInfo.merge(callee.src_info, HIR.SrcInfo.from_token(context->current_token(1)));
 
@@ -602,6 +617,10 @@ class Parser {
     }
 
     fn parse_dot_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
+        if (context.hir_builder->is_undef(object_id)) {
+            return object_id;
+        }
+
         var object = context->get_var(object_id);
         var is_arrow_op = false;
         switch (context->current_token(1).type) {
@@ -751,29 +770,28 @@ class Parser {
     fn parse_short_circuit(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
         var token_type = context->current_token(1).type;
         var parse_rule = token_type->get_parse_rule();
-
+        
         var first_block = context.hir_builder->reserve_blocks(3);
-        var true_statement = first_block;
-        var false_statement = first_block + 1;
+        var second_block = first_block;
+        var short_circuit_block = first_block + 1;
         var after_block = first_block + 2;
 
-        context.hir_builder->push_if(lhs_id, true_statement, false_statement);
-
-        var short_sircuit_block: HIR.BlockId;
-        var second_block: HIR.BlockId;
+        var true_statement: HIR.BlockId;
+        var false_statement: HIR.BlockId;
         switch (token_type) {
             case Token.Type.LOGICAL_OR => {
-                short_sircuit_block = true_statement;
-                second_block = false_statement;
+                true_statement = short_circuit_block;
+                false_statement = second_block;
                 break;
             }
             case Token.Type.LOGICAL_AND => {
-                short_sircuit_block = false_statement;
-                second_block = true_statement;
+                true_statement = second_block;
+                false_statement = short_circuit_block;
                 break;
             }
             default => assert(false);
         }
+        context.hir_builder->push_if(lhs_id, true_statement, false_statement);
 
         context.hir_builder->set_block(second_block);
         var rhs_id = context->parse_precedence(parse_rule.precedence + 1);
@@ -807,7 +825,7 @@ class Parser {
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, rhs_id, src_info);
         context.hir_builder->push_jump(after_block);
         
-        context.hir_builder->set_block(short_sircuit_block);
+        context.hir_builder->set_block(short_circuit_block);
 
         lhs_id = context.hir_builder->cast_to_type_forced(lhs_id, output_type, lhs.src_info, false);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, lhs_id, src_info);
@@ -1212,9 +1230,9 @@ class Parser {
         }
         if (context->token_match(Token.Type.ASSIGN)) {
             initial_value = context->parse_expression();
-            src_info = HIR.SrcInfo.merge(src_info, context->get_var(initial_value).src_info);
-            
+
             if (!context.hir_builder->is_undef(initial_value)) {
+                src_info = HIR.SrcInfo.merge(src_info, context->get_var(initial_value).src_info);
                 if (type == null) {
                     type = context->get_var(initial_value)->get_type_forced();
                 } else {

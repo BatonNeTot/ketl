@@ -14,6 +14,7 @@ from type import TypeArray
 from type import TypeClass
 from type import Types
 from hir import HIR
+from lexer import Lexer
 
 from namespace import Namespace
 
@@ -124,6 +125,7 @@ export class ASMX86 {
         MR,        // ModRM:r/m (w),        ModRM:reg (r)
         MI,        // ModRM:r/m (r, w),     imm
         MI_CHAR,   // ModRM:r/m (r, w),     char
+        M_CL,      // ModRM:r/m (r, w),     cl
         JI,        // .imm
     }
 
@@ -491,6 +493,11 @@ export class ASMX86 {
                         io.print(instr.modrm.literal);
                     }
                 }
+                case ArgType.M_CL => {
+                    instr.modrm->print(instr.size);
+                    io.print(", ");
+                    Reg.CX->print_reg(Size.Bit8);
+                }
                 case ArgType.RM => {
                     var rhs_size = instr.size;
                     switch (instr.tag) {
@@ -530,14 +537,16 @@ export class ASMX86 {
                     }
                 }
                 case ArgType.MI_CHAR => {
+                    var symbol = instr.imm64$cast(char);
                     instr.modrm->print(instr.size);
                     io.print(", 0x");
-                    io.print(uint_to_str(instr.imm64$cast(u64), 16));
-                    // TODO ketl_lexer_is_character_escaped
-                    // io.print("    # '\\");
+                    io.print(uint_to_str(symbol$cast(u64), 16));
                     io.print("    # '");
-                    // io.print(("" .. ketl_lexer_get_escape_character(instr.imm64)$cast(char)));
-                    io.print(("" .. instr.imm64$cast(char)));
+                    if (Lexer.is_char_need_escape(symbol)) {
+                        io.print("\\" .. Lexer.escape_char(symbol));
+                    } else {
+                        io.print("" .. symbol);
+                    }
                     io.print("'");
 
                     if (instr.modrm.label && instr.modrm.indir && instr.modrm.base != Reg.None) {
@@ -658,6 +667,18 @@ export class ASMX86 {
             instr.tag = tag;
             instr.size = size;
             instr.arg_type = ArgType.M;
+            instr.modrm = modrm;
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
+        }
+
+        fn insert_rm_cl(self: Builder, tag: Tag, size: Size, modrm: ModRM) {
+            var instr = Instr();
+
+            instr.tag = tag;
+            instr.size = size;
+            instr.arg_type = ArgType.M_CL;
             instr.modrm = modrm;
             instr.reg = Reg.None;
 
@@ -922,7 +943,7 @@ export class ASMX86 {
                     var class_type = object_type$cast(TypeClass);
                     class_name = class_type.namespace.fullname;
                 } else if (object_type.kind == Type.Kind.Array) {
-                    class_name = "ArrayHeader." .. field_name;
+                    class_name = "__ketl_rt.ArrayHeader";
                 } else {
                     assert(false);
                 }
@@ -1269,21 +1290,25 @@ export class ASMX86 {
                     case HIR.Tag.BITWISE_NOT
                     case HIR.Tag.UNARY_MINUS => {
                         var hir_info = instr$cast(HIR.UnaryOp);
+
+                        var arg = self.hir.vars[hir_info.arg];
+                        var arg_size = arg->get_type_forced()->get_stack_size()$cast(Size);
+
                         var output = self.hir.vars[hir_info.output];
-                        var type = output->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
-                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.arg));
+                        var output_size = output->get_type_forced()->get_stack_size()$cast(Size);
+
+                        self->insert_mov_to_reg(arg_size, Reg.AX, self->get_arg_from_hir(hir_info.arg));
 
                         switch (instr.tag) {
                             case HIR.Tag.LOGICAL_NOT => {
-                                self->insert_rm_reg(Tag.TEST, size, ModRM.construct_reg(Reg.AX), Reg.AX);
+                                self->insert_rm_reg(Tag.TEST, arg_size, ModRM.construct_reg(Reg.AX), Reg.AX);
                                 self->insert_rm(Tag.SETZ, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
-                            case HIR.Tag.BITWISE_NOT => self->insert_reg_rm(Tag.NOT, size, Reg.AX, ModRM.construct_reg(Reg.AX));
-                            case HIR.Tag.UNARY_MINUS => self->insert_reg_rm(Tag.NEG, size, Reg.AX, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.BITWISE_NOT => self->insert_rm(Tag.NOT, arg_size, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.UNARY_MINUS => self->insert_rm(Tag.NEG, arg_size, ModRM.construct_reg(Reg.AX));
                         }
 
-                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.output), Reg.AX);
+                        self->insert_mov_from_reg(output_size, self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
                     case HIR.Tag.PLUS
                     case HIR.Tag.MINUS
@@ -1306,73 +1331,78 @@ export class ASMX86 {
                     case HIR.Tag.GREATER
                     case HIR.Tag.GREATER_OR_EQUAL => {
                         var hir_info = instr$cast(HIR.BinaryOp);
+
+                        var arg = self.hir.vars[hir_info.lhs];
+                        var type = arg->get_type_forced();
+                        var arg_size = type->get_stack_size()$cast(Size);
+
                         var output = self.hir.vars[hir_info.output];
-                        var type = output->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
-                        self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.rhs));
-                        self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.lhs));
+                        var output_size = output->get_type_forced()->get_stack_size()$cast(Size);
+                        
+                        self->insert_mov_to_reg(arg_size, Reg.CX, self->get_arg_from_hir(hir_info.rhs));
+                        self->insert_mov_to_reg(arg_size, Reg.AX, self->get_arg_from_hir(hir_info.lhs));
 
                         switch (instr.tag) {
-                            case HIR.Tag.PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                            case HIR.Tag.MINUS => self->insert_reg_rm(Tag.SUB, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.PLUS => self->insert_reg_rm(Tag.ADD, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.MINUS => self->insert_reg_rm(Tag.SUB, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             
-                            case HIR.Tag.MULTY => // explicitly uses AX
-                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
-                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.MULTY => // implicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IMUL, arg_size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.MUL, arg_size, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.DIVIDE => {
-                                self->insert_reg_rm(Tag.IMUL, size, Reg.DX, ModRM.construct_reg(Reg.DX));
-                                // explicitly uses AX
-                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
-                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.XOR, arg_size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // implicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IDIV, arg_size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.DIV, arg_size, ModRM.construct_reg(Reg.CX));
                             }
                             case HIR.Tag.MOD => {
-                                self->insert_reg_rm(Tag.XOR, size, Reg.DX, ModRM.construct_reg(Reg.DX));
-                                // explicitly uses AX
-                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
-                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
-                                self->insert_reg_rm(Tag.MOV, size, Reg.AX, ModRM.construct_reg(Reg.DX));
+                                self->insert_reg_rm(Tag.XOR, arg_size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // implicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IDIV, arg_size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.DIV, arg_size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.MOV, arg_size, Reg.AX, ModRM.construct_reg(Reg.DX));
                             }
                             
-                            case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                            case HIR.Tag.BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                            case HIR.Tag.BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.BITWISE_OR => self->insert_reg_rm(Tag.OR, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                            case HIR.Tag.BITWISE_XOR => self->insert_reg_rm(Tag.XOR, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
 
-                            case HIR.Tag.BITWISE_SHIFT_LEFT => // explicitly uses CX
-                                if (type->is_signed()) self->insert_rm(Tag.SAL, size, ModRM.construct_reg(Reg.AX));
-                                else                   self->insert_rm(Tag.SHL, size, ModRM.construct_reg(Reg.AX));
-                            case HIR.Tag.BITWISE_SHIFT_RIGHT => // explicitly uses CX
-                                if (type->is_signed()) self->insert_rm(Tag.SAR, size, ModRM.construct_reg(Reg.AX));
-                                else                   self->insert_rm(Tag.SHR, size, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.BITWISE_SHIFT_LEFT =>
+                                if (type->is_signed()) self->insert_rm_cl(Tag.SAL, arg_size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm_cl(Tag.SHL, arg_size, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.BITWISE_SHIFT_RIGHT =>
+                                if (type->is_signed()) self->insert_rm_cl(Tag.SAR, arg_size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm_cl(Tag.SHR, arg_size, ModRM.construct_reg(Reg.AX));
 
                             case HIR.Tag.EQUAL => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                                 // TODO pick correct SETE or SETZ
                                 // and below
                                 self->insert_rm(Tag.SETE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.NOT_EQUAL => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                                self->insert_rm(Tag.SETE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_rm(Tag.SETNE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.LESS  => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                                 self->insert_rm(Tag.SETL, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.LESS_OR_EQUAL => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                                 self->insert_rm(Tag.SETLE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.GREATER => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                                 self->insert_rm(Tag.SETG, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.GREATER_OR_EQUAL => {
-                                self->insert_reg_rm(Tag.CMP, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
                                 self->insert_rm(Tag.SETGE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                         }
 
-                        self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.output), Reg.AX);
+                        self->insert_mov_from_reg(output_size, self->get_arg_from_hir(hir_info.output), Reg.AX);
                     }
 
                     case HIR.Tag.ASSIGN => {
@@ -1403,20 +1433,20 @@ export class ASMX86 {
                             case HIR.Tag.ASSIGN_PLUS => self->insert_reg_rm(Tag.ADD, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_MINUS => self->insert_reg_rm(Tag.SUB, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             
-                            case HIR.Tag.ASSIGN_MULTY => // explicitly uses AX
+                            case HIR.Tag.ASSIGN_MULTY => // implicitly uses AX
                                 if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
                                 else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_DIVIDE => {
-                                self->insert_reg_rm(Tag.IMUL, size, Reg.DX, ModRM.construct_reg(Reg.DX));
-                                // explicitly uses AX
-                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
-                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.XOR, size, Reg.DX, ModRM.construct_reg(Reg.DX));
+                                // implicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IDIV, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.DIV, size, ModRM.construct_reg(Reg.CX));
                             }
                             case HIR.Tag.ASSIGN_MOD => {
                                 self->insert_reg_rm(Tag.XOR, size, Reg.DX, ModRM.construct_reg(Reg.DX));
-                                // explicitly uses AX
-                                if (type->is_signed()) self->insert_rm(Tag.IMUL, size, ModRM.construct_reg(Reg.CX));
-                                else                   self->insert_rm(Tag.MUL, size, ModRM.construct_reg(Reg.CX));
+                                // implicitly uses AX
+                                if (type->is_signed()) self->insert_rm(Tag.IDIV, size, ModRM.construct_reg(Reg.CX));
+                                else                   self->insert_rm(Tag.DIV, size, ModRM.construct_reg(Reg.CX));
                                 self->insert_reg_rm(Tag.MOV, size, Reg.AX, ModRM.construct_reg(Reg.DX));
                             }
                             
@@ -1453,7 +1483,7 @@ export class ASMX86 {
                         if (true && arg_callee.kind == AsmArg.Kind.GlobalAddress) {
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(arg_callee$cast(AsmArgGlobal).label));
                         } else {
-                            self->insert_mov_to_reg(return_type->get_stack_size()$cast(Size), Reg.AX, arg_callee);
+                            self->insert_mov_to_reg(Size.Ptr, Reg.AX, arg_callee);
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_reg(Reg.AX));
                         }
                             
@@ -1618,8 +1648,6 @@ export class ASMX86 {
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
                         }
-                            
-                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.array), Reg.AX);
                     }
 
                     case HIR.Tag.APPEND_ARRAY => {
@@ -1645,8 +1673,6 @@ export class ASMX86 {
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
                             ketl_asm_x86_insert_rm(p_builder, KETL_ASM_X86_CALL, KETL_ASM_X86_PTRSIZE, MODRM_REG(KETL_ASM_X86_AX));*/
                         }
-                            
-                        self->insert_mov_from_reg(array_type->get_stack_size()$cast(Size), self->get_arg_from_hir(hir_info.array), Reg.AX);
                     }
 
                     case HIR.Tag.JUMP => {

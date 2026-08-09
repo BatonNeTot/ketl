@@ -144,8 +144,14 @@ class HIRBuilder {
         assert(lhs_type != null || lhs.kind == HIR.Var.Kind.Literal);
         assert(rhs_type != null || rhs.kind == HIR.Var.Kind.Literal);
 
-        var is_lhs_integer = lhs.kind == HIR.Var.Kind.Literal || (lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).integer) || lhs_type.kind == Type.Kind.Enum;
-        var is_rhs_integer = rhs.kind == HIR.Var.Kind.Literal || (rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).integer) || rhs_type.kind == Type.Kind.Enum;
+        var is_lhs_integer = 
+            lhs.kind == HIR.Var.Kind.Literal || 
+            (lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).integer) || 
+            lhs_type.kind == Type.Kind.Enum;
+        var is_rhs_integer = 
+            rhs.kind == HIR.Var.Kind.Literal || 
+            (rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).integer) || 
+            rhs_type.kind == Type.Kind.Enum;
 
         if (is_lhs_integer || is_rhs_integer) {
             if (lhs_type != null && rhs_type != null) {
@@ -172,14 +178,17 @@ class HIRBuilder {
     }
 
     export fn cast_to_type_forced(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool) => HIR.VarId {
-        return self->cast_to_type(var_id, target_type, src_info, explicit, false);
+        return self->cast_to_type(var_id, target_type, src_info, explicit, true);
     }
 
     fn cast_to_type(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo, explicit: bool, forced: bool) => HIR.VarId {
         if (target_type == null) {
-            io.errorln("null target type.");
-            assert(false);
-            return var_id;
+            if (forced) {
+                self->error(src_info.source_offset, src_info.length, "null target type.");
+                return self->push_error_var(src_info);
+            } else {
+                return (-1)$cast(HIR.VarId);
+            }
         }
 
         if (self->is_undef(var_id)) {
@@ -241,20 +250,21 @@ class HIRBuilder {
         if (type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum) {
             if (target_type.kind == Type.Kind.Primitive || target_type.kind == Type.Kind.Enum) {
                 var to_enum = false;
-                if (target_type.kind == Type.Kind.Enum) {
-                    to_enum = true;
-                    target_type = target_type$cast(TypeEnum).parent;
-                }
-                if (type.kind == Type.Kind.Enum) {
-                    type = type$cast(TypeEnum).parent;
-                }
-
                 var lhs_type_primitive = target_type$cast(TypePrimitive);
                 var rhs_type_primitive = type$cast(TypePrimitive);
-                if ((rhs_type_primitive.size > lhs_type_primitive.size || rhs_type_primitive.signed != lhs_type_primitive.signed) && !explicit) {
+
+                if (lhs_type_primitive.kind == Type.Kind.Enum) {
+                    to_enum = true;
+                    lhs_type_primitive = lhs_type_primitive$cast(Type)$cast(TypeEnum).parent;
+                }
+                if (rhs_type_primitive.kind == Type.Kind.Enum) {
+                    rhs_type_primitive = rhs_type_primitive$cast(Type)$cast(TypeEnum).parent;
+                }
+
+                if ((to_enum || rhs_type_primitive.size > lhs_type_primitive.size || rhs_type_primitive.signed != lhs_type_primitive.signed) && !explicit) {
                     if (forced) {
                         self->error(src_info.source_offset, src_info.length, "Can't cast type '" .. 
-                            rhs_type_primitive->get_name() .. "' to type '" .. lhs_type_primitive->get_name() .. "' implicitly.");
+                            type->get_name() .. "' to type '" .. target_type->get_name() .. "' implicitly.");
                         return self->push_error_var(src_info);
                     } else {
                         return (-1)$cast(HIR.VarId);
@@ -265,6 +275,15 @@ class HIRBuilder {
             }
 
             if (target_type == Types.instance->get_str_type()$cast(Type)) {
+                if (!explicit) {
+                    if (forced) {
+                        self->error(src_info.source_offset, src_info.length, "Can't implicitly cast primitive '" .. type->get_name() .. "' to str.");
+                        return self->push_error_var(src_info);
+                    } else {
+                        return (-1)$cast(HIR.VarId);
+                    }
+                }
+
                 var func_name: str;
                 var arg_type: Type;
                 if (type->is_signed()) {
@@ -285,6 +304,15 @@ class HIRBuilder {
         }
 
         if (type == Types.instance->get_str_type()$cast(Type) && target_type == Types.instance->get_cstr_type()$cast(Type)) {
+            if (!explicit) {
+                if (forced) {
+                    self->error(src_info.source_offset, src_info.length, "Can't implicitly cast str to cstr.");
+                    return self->push_error_var(src_info);
+                } else {
+                    return (-1)$cast(HIR.VarId);
+                }
+            }
+            
             return self->push_call(self->push_arbitrary_global_var(
                 "__ketl_rt.str2cstr", 
                 Types.instance->get_function_type(Type[2]{
@@ -295,6 +323,15 @@ class HIRBuilder {
         }
 
         if (type == Types.instance->get_str_type()$cast(Type) && target_type == Types.instance.type_u64$cast(Type)) {
+            if (!explicit) {
+                if (forced) {
+                    self->error(src_info.source_offset, src_info.length, "Can't implicitly cast str to u64.");
+                    return self->push_error_var(src_info);
+                } else {
+                    return (-1)$cast(HIR.VarId);
+                }
+            }
+            
             return self->push_call(self->push_arbitrary_global_var(
                 "__ketl_rt.str2uint", 
                 Types.instance->get_function_type(Type[2]{
@@ -453,10 +490,25 @@ class HIRBuilder {
                 => output_type = Types.instance.type_bool;
         }
 
-        var lhs_src_info = self.vars[lhs_id].src_info;
-        var rhs_src_info = self.vars[rhs_id].src_info;
-        lhs_id = self->cast_to_type_forced(lhs_id, arg_type, lhs_src_info, false);
-        rhs_id = self->cast_to_type_forced(rhs_id, arg_type, rhs_src_info, false);
+        {
+            var lhs = self.vars[lhs_id];
+            var lhs_src_info = lhs.src_info;
+            if (lhs.kind == HIR.Var.Kind.Literal && lhs->get_type() == null && arg_type.kind == Type.Kind.Enum) {
+                // if literal used in expression with Enum and was not specified yet, will allow implicit cast by passing parent Primitive
+                lhs_id = self->cast_to_type_forced(lhs_id, arg_type$cast(TypeEnum).parent, lhs_src_info, false);
+            } else {
+                lhs_id = self->cast_to_type_forced(lhs_id, arg_type, lhs_src_info, false);
+            }
+            
+            var rhs = self.vars[rhs_id];
+            var rhs_src_info = rhs.src_info;
+            if (rhs.kind == HIR.Var.Kind.Literal && rhs->get_type() == null && arg_type.kind == Type.Kind.Enum) {
+                // if literal used in expression with Enum and was not specified yet, will allow implicit cast by passing parent Primitive
+                rhs_id = self->cast_to_type_forced(rhs_id, arg_type$cast(TypeEnum).parent, rhs_src_info, false);
+            } else {
+                rhs_id = self->cast_to_type_forced(rhs_id, arg_type, rhs_src_info, false);
+            }
+        }
 
         if (common_type.kind == Type.Kind.Array &&
             (tag == HIR.Tag.EQUAL || tag == HIR.Tag.NOT_EQUAL)) {
@@ -700,6 +752,8 @@ class HIRBuilder {
         assert(array_type.kind == Type.Kind.Array);
         var value_type = array_type.value;
 
+        index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
+
         var instr = HIR.GetArrayValue();
         instr.tag = HIR.Tag.GET_ARRAY_VALUE;
         instr.src_info = src_info;
@@ -721,6 +775,8 @@ class HIRBuilder {
         var array_type = array->get_type_forced()$cast(TypeArray);
         assert(array_type.kind == Type.Kind.Array);
         var value_type = array_type.value;
+
+        index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
         
         var value_src_info = self.vars[value_id].src_info;
         value_id = self->cast_to_type_forced(value_id, value_type, value_src_info, false);
@@ -842,7 +898,7 @@ class HIRBuilder {
         var rhs_type = rhs->get_type_forced();
 
         var common_array_type: TypeArray;
-        var size_id: HIR.VarId;
+        var size_id = self->push_literal_number_of_type(0, Types.instance.type_u64, src_info);
 
         if (lhs_type.kind == Type.Kind.Array) {
             if (rhs_type.kind == Type.Kind.Array) {
@@ -852,6 +908,7 @@ class HIRBuilder {
                 }
 
                 common_array_type = lhs_type$cast(TypeArray);
+                /*
                 size_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN, size_id, 
                     self->push_field_access_forced(lhs_id, "size", src_info),
@@ -859,6 +916,7 @@ class HIRBuilder {
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
                     self->push_field_access_forced(rhs_id, "size", src_info),
                     src_info);
+                    */
             } else {
                 rhs_id = self->cast_to_type_forced(rhs_id, lhs_type$cast(TypeArray).value, src_info, false);
                 if (self->is_undef(rhs_id)) {
@@ -866,6 +924,7 @@ class HIRBuilder {
                 }
 
                 common_array_type = lhs_type$cast(TypeArray);
+                /*
                 size_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN, size_id, 
                     self->push_literal_number(1, src_info),
@@ -873,6 +932,7 @@ class HIRBuilder {
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
                     self->push_field_access_forced(lhs_id, "size", src_info),
                     src_info);
+                    */
             }
         } else {
             if (rhs_type.kind == Type.Kind.Array) {
@@ -882,6 +942,7 @@ class HIRBuilder {
                 }
 
                 common_array_type = rhs_type$cast(TypeArray);
+                /*
                 size_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
                 size_id = self->push_assign(HIR.Tag.ASSIGN, size_id, 
                     self->push_literal_number(1, src_info),
@@ -889,6 +950,7 @@ class HIRBuilder {
                 size_id = self->push_assign(HIR.Tag.ASSIGN_PLUS, size_id, 
                     self->push_field_access_forced(rhs_id, "size", src_info),
                     src_info);
+                    */
             } else {
                 var common_type = self->get_common_type(lhs_id, rhs_id);
 
@@ -899,7 +961,9 @@ class HIRBuilder {
                 }
                 
                 common_array_type = Types.instance->get_array_type(common_type);
+                /*
                 size_id = self->push_literal_number_of_type(2, Types.instance.type_u64, src_info);
+                */
             }
         }
         
@@ -917,7 +981,7 @@ class HIRBuilder {
         var initial_value = (-1)$cast(HIR.ConstId);
         if (string.size > 0) {
             initial_value = self->push_string_const(string);
-            size = self.consts_infos[initial_value].literal_size;
+            size = self.consts_infos[initial_value].mem_size;
         }
 
         var size_id = self->push_literal_number(size, src_info);
@@ -934,7 +998,7 @@ class HIRBuilder {
         var escape_characters_count: u32;
         var i: u32;
         while (i < string.size) {
-            if (string[i] == '\\') {
+            if (string[i] == '\\' && (i == 0 || string[i - 1] != '\\')) {
                 escape_characters_count += 1;
             }
 

@@ -91,6 +91,7 @@ enum {
     KETL_ASM_X86_MR,        // ModRM:r/m (w),        ModRM:reg (r)
     KETL_ASM_X86_MI,        // ModRM:r/m (r, w),     imm
     KETL_ASM_X86_MI_CHAR,   // ModRM:r/m (r, w),     char
+    KETL_ASM_X86_M_CL,      // ModRM:r/m (r, w),     CL
     KETL_ASM_X86_JI,        // .imm
 };
 

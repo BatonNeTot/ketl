@@ -326,8 +326,6 @@ export fn cstr2str(string: cstr) => str {
 }
 
 export fn buffer_as_str(buffer: raw, size: u64) => str {
-    from __ketl_rt import ArrayHeader
-
     var string = ArrayHeader();
 
     string.data = buffer;

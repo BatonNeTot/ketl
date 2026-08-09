@@ -141,7 +141,7 @@ class Module {
             io.println("    .quad " .. module.name .. "..init");
         }
 
-        // insert addsigs
+        // insert addrsigs
         if (module.init_asm_x86 != null ||
             module.entry_asm_x86 != null ||
             has_functions) {
@@ -314,6 +314,12 @@ class Module {
 
         var fullpath_filename = fullpath .. module_filename;
         var source = File.read(fullpath_filename);
+        
+        if (source == null) {
+            module.has_errors = true;
+            // TODO something on error
+            return false;
+        }
 
         var log_accum = LogAccum.construct();
         var lexer = Lexer();
@@ -360,8 +366,7 @@ class Module {
                 "        args[i] = cstr2str(arg);" ..
                 "        i += 1;" ..
                 "    }" ..
-                "    " .. hir.entry .. "(args);" ..
-                "    return 0;";
+                "    return " .. hir.entry .. "(args);";
 
             var entry_lexer = Lexer();
             entry_lexer->init();
@@ -404,6 +409,8 @@ class Module {
         if (namespace != null) {
             module->add_to_namespace(namespace, Namespace.Info.construct(exxport, false));
         }
+
+        Modules.instance.load_queue ..= module;
         
         return true;
     }
@@ -486,6 +493,7 @@ class Modules {
 
     var global_namespace: Namespace;
     var modules: StrHashMap;
+    var load_queue: Module[];
     var active_module: Module;
     var loading_modules: bool;
 
@@ -497,6 +505,7 @@ class Modules {
     fn init_modules_if_needed(self: Modules) {
         if (self.modules == null) {
             self.modules = StrHashMap.construct();
+            self.load_queue = Module[0];
         }
     }
 
@@ -516,7 +525,7 @@ class Modules {
 
     shared instance = construct();
 
-    export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Module {
+    export fn load(self: Modules, module_name: str, folder_path: str, namespace: Namespace, exxport: bool) => Module {        
         self->init_modules_if_needed();
         self->init_global_namespace();
 
@@ -549,13 +558,12 @@ class Modules {
         }
 
         // postloading everything
-        for (var tmp_bucket <- self.modules.buckets) {
-            while (tmp_bucket != null) {
-                var tmp_module = tmp_bucket.value$cast(Module);
-                if (tmp_module.header_loaded && !tmp_module.body_loaded) {
-                    tmp_module->load();
-                }
-                tmp_bucket = tmp_bucket.next;
+        while (self.load_queue.size > 0) {
+            var tmp_module = self.load_queue[self.load_queue.size - 1];
+            self.load_queue->pop();
+
+            if (tmp_module.header_loaded && !tmp_module.body_loaded) {
+                tmp_module->load();
             }
         }
 

@@ -9,7 +9,7 @@ export class File {
             error(path);
             error("':");
             errorln(get_last_error()$cast(str));
-            assert(false);
+            return null;
         }
         
         var SEEK_END: i32 = 2;
@@ -208,7 +208,7 @@ export class FileInfo {
         cimport stat(filename: cstr, stat: FileInfo) => i32;
 
         var info = FileInfo();
-        if (stat(path, info) != 0) {
+        if (stat(path$cast(cstr), info) != 0) {
             return null;
         }
 
