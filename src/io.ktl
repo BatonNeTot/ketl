@@ -103,35 +103,39 @@ export fn stderr_redirect_restore() {
     _dup2(stderr_backup, stderr_handle);
 }
 
-export fn stdout_redirect(target_filename: str) {
+export fn stdout_redirect(target_filename: str) => bool {
     stdout_redirect_restore();
     
     stdout_redirect_file = fopen(target_filename$cast(cstr), "w"$cast(cstr));
     if (stdout_redirect_file == null) {
         errorln("Can't open file '" .. target_filename .. "'");
-        return;
+        return false;
     }
 
     // stdout now refers to file p_target_filename
     if (-1 == _dup2(_fileno(stdout_redirect_file), stdout_handle)) {
         errorln("Can't _dup2 stdout");
-        return;
+        return false;
     }
+
+    return true;
 }
-export fn stderr_redirect(target_filename: str) {
+export fn stderr_redirect(target_filename: str) => bool {
     stderr_redirect_restore();
     
     stderr_redirect_file = fopen(target_filename$cast(cstr), "a"$cast(cstr));
     if (stderr_redirect_file == null) {
         errorln("Can't open file '" .. target_filename .. "'");
-        return;
+        return false;
     }
 
     // stderr now refers to file p_target_filename
     if (-1 == _dup2(_fileno(stderr_redirect_file), stderr_handle)) {
         errorln("Can't _dup2 stderr");
-        return;
+        return false;
     }
+
+    return true;
 }
 
 export class Dir {
@@ -230,6 +234,26 @@ export class FileInfo {
     shared _S_IWRITE: u16 = 128; // 0x0080
     shared _S_IEXEC:  u16 = 64;  // 0x0040
 
+    shared _S_IRWXU:  u16 = (_S_IREAD | _S_IWRITE | _S_IEXEC);
+    shared _S_IRUSR:  u16 = _S_IREAD;
+    shared _S_IWUSR:  u16 = _S_IWRITE;
+    shared _S_IXUSR:  u16 = _S_IEXEC;
+
+    export shared S_IRWXU:   u16 = _S_IRWXU;
+    export shared S_IRUSR:   u16 = _S_IRUSR;
+    export shared S_IWUSR:   u16 = _S_IWUSR;
+    export shared S_IXUSR:   u16 = _S_IXUSR;
+
+    export shared S_IRWXG:   u16 = (S_IRWXU >> 3);
+    export shared S_IRGRP:   u16 = (S_IRUSR >> 3);
+    export shared S_IWGRP:   u16 = (S_IWUSR >> 3);
+    export shared S_IXGRP:   u16 = (S_IXUSR >> 3);
+
+    export shared S_IRWXO:   u16 = (S_IRWXG >> 3);
+    export shared S_IROTH:   u16 = (S_IRGRP >> 3);
+    export shared S_IWOTH:   u16 = (S_IWGRP >> 3);
+    export shared S_IXOTH:   u16 = (S_IXGRP >> 3);
+
     export fn get_kind(info: FileInfo) => Kind {
         switch (info.st_mode & _S_IFMT) {
             case _S_IFDIR => return Kind.Directory;
@@ -240,4 +264,45 @@ export class FileInfo {
 
 }
 
-export fn create_folders_if_needed() {}
+fn find_last(string: str, symbol: char) => i64 {
+    var last_index = string.size$cast(i64) - 1;
+    while (last_index >= 0 && string[last_index] != symbol) {
+        last_index -= 1;
+    }
+    return last_index;
+}
+
+cimport mkdir(path: cstr, mode: u16) => i64;
+
+export fn create_dirs_if_needed(path: str) => bool {
+    if (path == null || path == "" || path == ".") {
+        return true;
+    }
+
+    var after_last_slash_index = find_last(path, '/') + 1;
+    if (after_last_slash_index != 0) {
+        var dir_path = path[0:after_last_slash_index - 1];
+
+        if (!create_dirs_if_needed(dir_path)) {
+            return false;
+        }
+    }
+
+    var info = FileInfo.get(path);
+    if (info == null) {
+        if (mkdir(path$cast(cstr), 
+            FileInfo.S_IRUSR | FileInfo.S_IWUSR |
+            FileInfo.S_IRGRP | FileInfo.S_IWGRP |
+            FileInfo.S_IROTH | FileInfo.S_IWOTH) != 0) {
+            return false;
+        } 
+        return true;
+    }
+    
+    var kind = info->get_kind();
+    if (kind == FileInfo.Kind.Directory) {
+        return true;
+    }
+
+    return false;
+}
