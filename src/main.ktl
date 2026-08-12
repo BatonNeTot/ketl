@@ -75,9 +75,6 @@ fn main(args: str[]) => i64 {
         }
     }
 
-    if (args.size >= 4 && args[4] == "src_out") {
-        assert(false);
-    }
     return 0;
 }
 

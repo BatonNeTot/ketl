@@ -1158,6 +1158,7 @@ class HIRBuilder {
         value->set_type(type);
         node.value = value;
         node.info = Namespace.Info.construct(true, false);
+        node.info.const = (type.kind == Type.Kind.Function || type.kind == Type.Kind.CFunction);
 
         return self->push_node_var(node, src_info);
     }
@@ -1314,17 +1315,17 @@ class HIRBuilder {
         return var_id;
     }
 
-    export fn declare_global_var(self: HIRBuilder, namespace: Namespace, name: str, type: Type, src_info: HIR.SrcInfo, exxport: bool) => HIR.VarId {
-        var bucket = self->find_decl_bucket(name);
+    export fn declare_global_var(self: HIRBuilder, namespace: Namespace, key: str, name: str, type: Type, src_info: HIR.SrcInfo, exxport: bool) => HIR.VarId {
+        var bucket = self->find_decl_bucket(key);
 
         // if got not null, we found existing decl
-        if (self->find_decl_bucket(name) != null) {
+        if (self->find_decl_bucket(key) != null) {
             self->error(src_info.source_offset, src_info.length, "Overriding existing variable.");
             return self->push_error_var(src_info);
         }
 
         // TODO Namespace.declare_var still can crash
-        var namespace_node = namespace->declare_var(name, null, type, exxport);
+        var namespace_node = namespace->declare_var(key, name, type, exxport);
         if (namespace_node == null) {
             self->error(src_info.source_offset, src_info.length, "Overriding existing variable.");
             return self->push_error_var(src_info);

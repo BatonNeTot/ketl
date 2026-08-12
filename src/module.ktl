@@ -290,7 +290,7 @@ class Module {
     fn preload(module: Module, module_filename: str, folder_path: str, namespace: Namespace, exxport: bool) => bool {
         if (module.header_loaded) {
             if (namespace != null) {
-                module->add_to_namespace(namespace, Namespace.Info.construct(exxport, false));
+                module->add_to_namespace(namespace, Namespace.Info.construct(exxport, true));
             }
 
             return true;
@@ -410,7 +410,7 @@ class Module {
         Modules.instance.active_module = stashed_module;
 
         if (namespace != null) {
-            module->add_to_namespace(namespace, Namespace.Info.construct(exxport, false));
+            module->add_to_namespace(namespace, Namespace.Info.construct(exxport, true));
         }
 
         Modules.instance.load_queue ..= module;
@@ -519,12 +519,13 @@ class Modules {
             self.global_namespace = Namespace.construct("", null);
 
             from type_base import Type
-            self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
+            var node = self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
                 Type[2] {
                     Types.instance.type_void,
                     Types.instance.type_bool
                 }
             ), true);
+            node.info.const = true;
         }
     }
 

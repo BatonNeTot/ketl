@@ -42,6 +42,7 @@ class Parser {
         var exxport: bool;
         var cexxport: bool;
         var next_symbol_entry: bool;
+        var omit_var_init: bool;
     }
 
     fn error(self: Context, offset: u32, length: u32, message: str) {
@@ -1147,6 +1148,11 @@ class Parser {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
 
+        if (id == "uninitialized") {
+            context.omit_var_init = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        }
+
         context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
@@ -1198,18 +1204,24 @@ class Parser {
         target_namespace_node.name = source_namespace_node.name;
         target_namespace_node.value = source_namespace_node.value->copy();
         target_namespace_node.info.imported = true;
+        //target_namespace_node.info.exxport = source_namespace_node.info.exxport;
+        target_namespace_node.info.const = source_namespace_node.info.const;
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
     }
     
     // TODO move this to hir_builder
-    fn declare_var(context: Context, name: str, type: Type, init_value: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
+    fn declare_var(context: Context, key: str, type: Type, init_value_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
         var var_id: HIR.VarId;
         // TODO can't do local scope vars in global this way
         if (context.is_global_scope) {
-            var_id = context.hir_builder->declare_global_var(context.namespace, name, type, src_info, context.exxport);
+            var name: str;
+            if (context.cexxport) {
+                name = key;
+            }
+            var_id = context.hir_builder->declare_global_var(context.namespace, key, name, type, src_info, context.exxport);
         } else {
-            var_id = context.hir_builder->declare_local_var(name, type, src_info);
+            var_id = context.hir_builder->declare_local_var(key, type, src_info);
         }
 
         if (context.hir_builder->is_undef(var_id)) {
@@ -1217,7 +1229,9 @@ class Parser {
         }
 
         // TODO if const zero and global omit assign
-        context.hir_builder->push_assign(HIR.Tag.ASSIGN, var_id, init_value, src_info);
+        if (!context.hir_builder->is_undef(init_value_id)) {
+            context.hir_builder->push_assign(HIR.Tag.ASSIGN, var_id, init_value_id, src_info);
+        }
         return var_id;
     }
 
@@ -1253,14 +1267,18 @@ class Parser {
 
                 initial_value = context.hir_builder->push_error_var(src_info);
             } else {
-                initial_value = context.hir_builder->get_default_initial_value(type, src_info);
+                if (!context.omit_var_init) {
+                    initial_value = context.hir_builder->get_default_initial_value(type, src_info);
+                } else {
+                    context.omit_var_init = false;
+                }
             }
         }
         if (type == null) {
             context->error(src_info.source_offset, src_info.length, "Can't deduce var type.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
         }
-        
+
         context->declare_var(name, type, initial_value, src_info);
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
@@ -1320,6 +1338,7 @@ class Parser {
             name = key;
         }
         var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
+        namespace_node.info.const = true;
 
         if (context.next_symbol_entry) {
             context.next_symbol_entry = false;

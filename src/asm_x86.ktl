@@ -917,7 +917,7 @@ export class ASMX86 {
                     arg.kind = AsmArg.Kind.GlobalAddress;
                     arg.size = Size.Ptr;
                 } else {
-                    if (target_type.kind == Type.Kind.Function || target_type.kind == Type.Kind.CFunction) {
+                    if (namespace_node.info.const && (target_type.kind == Type.Kind.Function || target_type.kind == Type.Kind.CFunction)) {
                         arg.kind = AsmArg.Kind.GlobalAddress;
                         arg.size = Size.Ptr;
                     }
@@ -1060,6 +1060,7 @@ export class ASMX86 {
                 return;
             }
 
+            io.errorln("Unknown asm arg kind - " .. arg.kind$cast(str));
             assert(false);
         }
 
@@ -1092,6 +1093,7 @@ export class ASMX86 {
                 return;
             }
 
+            io.errorln("Unknown asm arg kind - " .. arg.kind$cast(str));
             assert(false);
         }
 

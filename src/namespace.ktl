@@ -9,6 +9,7 @@ class Namespace {
         // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
         var exxport: bool;
         var imported: bool;
+        var const: bool;
 
         export fn construct(exxport: bool, imported: bool) => Info {
             var self = Info();
