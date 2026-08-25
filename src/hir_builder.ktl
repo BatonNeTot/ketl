@@ -30,8 +30,8 @@ class HIRBuilder {
     var consts_literals: u8[];
 
     var current_block: u32;
-    var func_index: u16;
     var parameters_counter: u32;
+    var func_index: u16;
     var max_call_arg_count: u8;
     var entry: str;
     var entry_info: HIR.SrcInfo;
@@ -86,12 +86,16 @@ class HIRBuilder {
         self.current_block = block;
     }
 
-    fn get_current_block(self: HIRBuilder) => HIR.Instr[] {
+    export fn get_current_block(self: HIRBuilder) => HIR.BlockId {
+        return self.current_block$cast(HIR.BlockId);
+    }
+
+    fn get_current_block_instrs(self: HIRBuilder) => HIR.Instr[] {
         return self.blocks[self.current_block];
     }
 
     fn append_instr(self: HIRBuilder, instr: HIR.Instr) {
-        self->get_current_block() ..= instr;
+        self->get_current_block_instrs() ..= instr;
         self->on_append(instr);
     }
 
@@ -224,14 +228,22 @@ class HIRBuilder {
                     return var_id;
                 }
 
-                if (target_type->is_pointer_kind() && literal.value == 0) {
-                    literal.type = target_type;
-                    return var_id;
+                if (target_type == Types.instance->get_str_type()$cast(Type)) {
+                    if (!explicit) {
+                        if (forced) {
+                            self->error(src_info.source_offset, src_info.length, "Can't implicitly cast literal number to str.");
+                            return self->push_error_var(src_info);
+                        } else {
+                            return (-1)$cast(HIR.VarId);
+                        }
+                    }
+
+                    return self->push_new_string_literal(literal.value$cast(str), src_info);
                 }
             }
 
             if (forced) {
-                self->error(src_info.source_offset, src_info.length, "Can't implicitly cast literal number to '" .. target_type->get_name() .. "'.");
+                self->error(src_info.source_offset, src_info.length, "Can't cast an expression of undefined type number to '" .. target_type->get_name() .. "'.");
                 return self->push_error_var(src_info);
             } else {
                 return (-1)$cast(HIR.VarId);
@@ -394,7 +406,7 @@ class HIRBuilder {
         return instr;
     }
 
-    export fn push_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId, src_info: HIR.SrcInfo) {
+    export fn push_jump_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId, src_info: HIR.SrcInfo) => HIR.JumpIf {
         // TODO check casting
 
         var instr = HIR.JumpIf();
@@ -404,6 +416,8 @@ class HIRBuilder {
         instr.true_dst = true_statement;
         instr.false_dst = false_statement;
         self->append_instr(instr);
+
+        return instr;
     }
     
     export fn push_unary_op(self: HIRBuilder, tag: HIR.Tag, var_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
@@ -547,7 +561,7 @@ class HIRBuilder {
             lhs_size_id, 
             rhs_size_id, 
             src_info);
-        self->push_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block, src_info);
+        self->push_jump_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block, src_info);
 
         self->set_block(init_loop_block);
         var index_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
@@ -562,14 +576,14 @@ class HIRBuilder {
             index_id, 
             lhs_size_id, 
             src_info);
-        self->push_if(is_index_less_size_id, check_values_block, res_equal_block, src_info);
+        self->push_jump_if(is_index_less_size_id, check_values_block, res_equal_block, src_info);
         
         self->set_block(check_values_block);
         var is_values_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
             self->push_get_array_value(lhs_id, index_id, src_info), 
             self->push_get_array_value(rhs_id, index_id, src_info), 
             src_info);
-        self->push_if(is_values_not_equal_id, res_not_equal_block, inc_index_block, src_info);
+        self->push_jump_if(is_values_not_equal_id, res_not_equal_block, inc_index_block, src_info);
 
         self->set_block(inc_index_block);
         self->push_assign(HIR.Tag.ASSIGN_PLUS, 
@@ -823,7 +837,7 @@ class HIRBuilder {
         var old_instr = decl.instr$cast(HIR.GetArrayValue);
         assert(old_instr.tag == HIR.Tag.GET_ARRAY_VALUE);
 
-        var block = self->get_current_block();
+        var block = self->get_current_block_instrs();
         var i = block.size;
         while (i > 0) {
             i -= 1;
@@ -1003,12 +1017,18 @@ class HIRBuilder {
         var escape_characters_count: u32;
         var i: u32;
         while (i < string.size) {
-            if (string[i] == '\\' && (i == 0 || string[i - 1] != '\\')) {
+            if (string[i] == '\\') {
                 escape_characters_count += 1;
+
+                self.consts_literals[const_offset + i] = string[i]$cast(u8);
+                i += 1;
+
+                if (i >= string.size) {
+                    break;
+                }
             }
 
             self.consts_literals[const_offset + i] = string[i]$cast(u8);
-
             i += 1;
         }
 
@@ -1299,7 +1319,7 @@ class HIRBuilder {
 
     export fn get_default_initial_value(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
         // TODO do default contructor or smth
-        return self->push_literal_number(0, src_info);
+        return self->push_literal_number_of_type(0, type, src_info);
     }
 
     fn push_node_var(self: HIRBuilder, namespace_node: Namespace.Node, src_info: HIR.SrcInfo) => HIR.VarId {

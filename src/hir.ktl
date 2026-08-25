@@ -10,6 +10,7 @@ export class HIR {
 
     enum Tag: u16 {
         NONE_STMT,
+        BEGIN_STMT,
 
         LOGICAL_NOT,
         BITWISE_NOT,
@@ -388,8 +389,14 @@ export class HIR {
 
     export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
         while (true) {
+            assert(block < hir.block_offsets.size);
             var instr_offset = hir.block_offsets[block];
+            assert(instr_offset < hir.instrs.size);
             var instr = hir.instrs[instr_offset];
+            while ((instr.tag == Tag.NONE_STMT || instr.tag == Tag.BEGIN_STMT) &&
+                (instr_offset += 1) < hir.instrs.size) {
+                instr = hir.instrs[instr_offset];
+            }
             if (instr.tag != Tag.JUMP) {
                 return block;
             }
@@ -412,18 +419,35 @@ export class HIR {
     fn print_var(hir: HIR, var_id: HIR.VarId) {
         var varr = hir.vars[var_id];
         switch (varr.kind) {
-            default => io.print("<unknown>");
+            default => io.error("<unknown " .. varr.kind$cast(str) .. ">");
             case HIR.Var.Kind.Common => {
                 var decl_id = varr$cast(HIR.VarCommon).decl;
                 var decl = hir.decls[decl_id];
-                io.print(decl.name);
+                io.error(decl.name);
             }
-            case HIR.Var.Kind.Literal => io.print(varr$cast(HIR.VarLiteral).value$cast(str));
+            case HIR.Var.Kind.Global => io.error(varr$cast(HIR.VarGlobal).node.name$cast(str));
+            case HIR.Var.Kind.Literal => io.error(varr$cast(HIR.VarLiteral).value$cast(str));
+            case HIR.Var.Kind.Cast => {
+                var var_cast = varr$cast(HIR.VarCast);
+                hir->print_var(var_cast.casted);
+                // TODO show that it casted?
+            }
+            case HIR.Var.Kind.Field => {
+                var var_field = varr$cast(HIR.VarField);
+                hir->print_var(var_field.object);
+                io.error("." .. var_field.field);
+            }
         }
     }
 
     fn get_str_representation(tag: HIR.Tag) => str {
         switch (tag) {
+            case HIR.Tag.LOGICAL_NOT       => return "!";
+            case HIR.Tag.BITWISE_NOT       => return "~";
+
+            case HIR.Tag.UNARY_PLUS        => return "+";
+            case HIR.Tag.UNARY_MINUS       => return "-";
+
             case HIR.Tag.PLUS              => return "+";
             case HIR.Tag.MINUS             => return "-";
 
@@ -443,6 +467,17 @@ export class HIR {
             case HIR.Tag.IGREATER_OR_EQUAL => return ">=";
 
             case HIR.Tag.ASSIGN            => return "=";
+            
+            case HIR.Tag.ASSIGN_PLUS            => return "+=";
+            case HIR.Tag.ASSIGN_MINUS            => return "-=";
+            
+            case HIR.Tag.ASSIGN_MULTY            => return "*=";
+            case HIR.Tag.ASSIGN_DIVIDE            => return "/=";
+            case HIR.Tag.ASSIGN_MOD            => return "%=";
+            
+            case HIR.Tag.ASSIGN_BITWISE_AND            => return "&=";
+            case HIR.Tag.ASSIGN_BITWISE_OR            => return "|=";
+            case HIR.Tag.ASSIGN_BITWISE_XOR            => return "^=";
         }
 
         return "[" .. tag$cast(str) .. "]";
@@ -451,32 +486,31 @@ export class HIR {
     fn print_instr(hir: HIR, instr: HIR.Instr) {
         switch (instr.tag) {
             default => {
-                io.print("unknown tag: ");
-                io.print(instr.tag$cast(str));
+                io.error("unknown tag: ");
+                io.error(instr.tag$cast(str));
             }
-            case HIR.Tag.NONE_STMT => io.print("none");
+            case HIR.Tag.NONE_STMT => io.error("none");
+            case HIR.Tag.BEGIN_STMT => io.error("@begin_stmt");
 
-/*
-            case HIR.Tag.LOGICAL_NOT => {
+            case HIR.Tag.LOGICAL_NOT
+            case HIR.Tag.BITWISE_NOT
 
+            case HIR.Tag.UNARY_PLUS
+            case HIR.Tag.UNARY_MINUS => {
+                var hir_info = instr$cast(HIR.UnaryOp);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                io.error(get_str_representation(instr.tag));
+                io.error(" ");
+                hir->print_var(hir_info.arg);
             }
-            */
 
             case HIR.Tag.PLUS 
             case HIR.Tag.MINUS 
 
             case HIR.Tag.MULTY 
             case HIR.Tag.DIVIDE 
-            case HIR.Tag.MOD => {
-                var hir_info = instr$cast(HIR.BinaryOp);
-                hir->print_var(hir_info.output);
-                io.print(" = ");
-                hir->print_var(hir_info.lhs);
-                io.print(" ");
-                io.print(get_str_representation(instr.tag));
-                io.print(" ");
-                hir->print_var(hir_info.rhs);
-            }
+            case HIR.Tag.MOD
 
 /*
             case HIR.Tag.BITWISE_AND =>
@@ -485,43 +519,155 @@ export class HIR {
 
             case HIR.Tag.COMPARE =>
             case HIR.Tag.TEST =>
-
-            case HIR.Tag.EQUAL =>
-            case HIR.Tag.NOT_EQUAL =>
-            case HIR.Tag.LESS =>
-            case HIR.Tag.ILESS =>
-            case HIR.Tag.LESS_OR_EQUAL =>
-            case HIR.Tag.ILESS_OR_EQUAL =>
-            case HIR.Tag.GREATER =>
-            case HIR.Tag.IGREATER =>
-            case HIR.Tag.GREATER_OR_EQUAL =>
-            case HIR.Tag.IGREATER_OR_EQUAL =>
             */
 
-            case HIR.Tag.ASSIGN => {
+            case HIR.Tag.EQUAL
+            case HIR.Tag.NOT_EQUAL
+            case HIR.Tag.LESS
+            case HIR.Tag.ILESS
+            case HIR.Tag.LESS_OR_EQUAL
+            case HIR.Tag.ILESS_OR_EQUAL
+            case HIR.Tag.GREATER
+            case HIR.Tag.IGREATER
+            case HIR.Tag.GREATER_OR_EQUAL
+            case HIR.Tag.IGREATER_OR_EQUAL => {
+                var hir_info = instr$cast(HIR.BinaryOp);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                hir->print_var(hir_info.lhs);
+                io.error(" ");
+                io.error(get_str_representation(instr.tag));
+                io.error(" ");
+                hir->print_var(hir_info.rhs);
+            }
+
+            case HIR.Tag.ASSIGN
+
+            case HIR.Tag.ASSIGN_PLUS
+            case HIR.Tag.ASSIGN_MINUS
+
+            case HIR.Tag.ASSIGN_MULTY
+            case HIR.Tag.ASSIGN_DIVIDE
+            case HIR.Tag.ASSIGN_MOD
+
+            case HIR.Tag.ASSIGN_BITWISE_AND
+            case HIR.Tag.ASSIGN_BITWISE_OR
+            case HIR.Tag.ASSIGN_BITWISE_XOR  => {
                 var hir_info = instr$cast(HIR.Assign);
                 hir->print_var(hir_info.dst);
-                switch (instr.tag) {
-                    case HIR.Tag.ASSIGN => io.print(" = ");
-                }
+                io.error(" ");
+                io.error(get_str_representation(instr.tag));
+                io.error(" ");
                 hir->print_var(hir_info.src);
             }
 
+            case HIR.Tag.CALL => {
+                var hir_info = instr$cast(HIR.Call);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                hir->print_var(hir_info.callee);
+                io.error("(");
+                for (var arg <- hir_info.args) {
+                    hir->print_var(arg);
+                    io.error(", ");
+                }
+                io.error(")");
+            }
+
+            case HIR.Tag.NEW_CLASS => {
+                var hir_info = instr$cast(HIR.New);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                io.error(hir_info.type->get_full_name());
+                io.error("(");
+                for (var arg <- hir_info.args) {
+                    hir->print_var(arg);
+                    io.error(", ");
+                }
+                io.error(")");
+            }
+            case HIR.Tag.NEW_ARRAY => {
+                var hir_info = instr$cast(HIR.NewArray);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                io.error(hir_info.type->get_full_name());
+                io.error("[");
+                hir->print_var(hir_info.size);
+                io.error("]");
+
+                if (hir_info.initial_value != (-1)$cast(HIR.ConstId)) {
+                    var constant = hir->get_constant(hir_info.initial_value);
+                    assert(constant.is_string);
+
+                    io.error("\"");
+                    for (var symbol <- hir.consts_literals[constant.offset:constant.offset + constant.literal_size]) {
+                        io.error("" .. symbol);
+                    }
+                    io.error("\"");
+                }
+            }
+            case HIR.Tag.NEW_SLICE => {
+                var hir_info = instr$cast(HIR.NewSlice);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                hir->print_var(hir_info.mirrored);
+                io.error("[");
+                hir->print_var(hir_info.start);
+                io.error(":");
+                hir->print_var(hir_info.end);
+                io.error("]");
+            }
+
+            case HIR.Tag.GET_ARRAY_VALUE => {
+                var hir_info = instr$cast(HIR.GetArrayValue);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                hir->print_var(hir_info.array);
+                io.error("[");
+                hir->print_var(hir_info.index);
+                io.error("]");
+            }
+            case HIR.Tag.SET_ARRAY_VALUE => {
+                var hir_info = instr$cast(HIR.SetArrayValue);
+                hir->print_var(hir_info.output);
+                io.error(" = ");
+                hir->print_var(hir_info.array);
+                io.error("[");
+                hir->print_var(hir_info.index);
+                io.error("] = ");
+                hir->print_var(hir_info.value);
+            }
+
 /*
-            case HIR.Tag.CALL_VOID =>
-            case HIR.Tag.CALL =>
-
-            case HIR.Tag.NEW_CLASS =>
-            case HIR.Tag.NEW_ARRAY =>
-            case HIR.Tag.NEW_SLICE =>
-
             case HIR.Tag.APPEND_VALUE =>
+            */
 
-            case HIR.Tag.JUMP =>
+            case HIR.Tag.JUMP => {
+                var hir_info = instr$cast(HIR.Jump);
+                io.error("jump BB");
+                io.error(hir_info.dst$cast(str));
+            }
 
-            case HIR.Tag.JUMP_IF_TRUE =>
-            case HIR.Tag.JUMP_IF_FALSE =>
-            
+            case HIR.Tag.JUMP_IF_TRUE => {
+                var hir_info = instr$cast(HIR.JumpIf);
+                io.error("jump if ");
+                hir->print_var(hir_info.expr);
+                io.error(" to BB");
+                io.error(hir_info.true_dst$cast(str));
+                io.error(" or BB");
+                io.error(hir_info.false_dst$cast(str));
+            }
+            case HIR.Tag.JUMP_IF_FALSE => {
+                var hir_info = instr$cast(HIR.JumpIf);
+                io.error("jump if not ");
+                hir->print_var(hir_info.expr);
+                io.error(" to BB");
+                io.error(hir_info.true_dst$cast(str));
+                io.error(" or BB");
+                io.error(hir_info.false_dst$cast(str));
+            }
+
+            /*
             case HIR.Tag.JUMP_IF_EQUAL =>
             case HIR.Tag.JUMP_IF_NOT_EQAUL =>
             case HIR.Tag.JUMP_IF_LESS =>
@@ -535,10 +681,10 @@ export class HIR {
 
             */
 
-            case HIR.Tag.RETURN => io.print("return");
+            case HIR.Tag.RETURN => io.error("return");
             case HIR.Tag.RETURN_VALUE => {
                 var hir_info = instr$cast(HIR.ReturnValue);
-                io.print("return ");
+                io.error("return ");
                 hir->print_var(hir_info.value);
             }
         }
@@ -555,22 +701,27 @@ export class HIR {
         var block: BlockId;
 
         while (block < hir.block_offsets.size) {
-            io.print("BB");
-            io.print(block$cast(str));
-            io.println(":");
+            io.error("BB");
+            io.error(block$cast(str));
+            io.errorln(":");
+
+            var end_offset: HIR.InstrOffset;
+            if (block + 1 < hir.block_offsets.size) {
+                end_offset = hir.block_offsets[block + 1];
+            } else {
+                end_offset = hir.instrs.size$cast(HIR.InstrOffset);
+            }
 
             var i = hir.block_offsets[block];
-            while (i < hir.instrs.size) {
-                io.print(tab);
+            while (i < end_offset) {
+                io.error(tab);
+                io.error(i$cast(str));
+                io.error(": ");
 
                 var instr = hir.instrs[i];
 
                 hir->print_instr(instr);
-                io.println("");
-
-                if (instr.tag->is_terminator()) {
-                    break;
-                }
+                io.errorln("");
 
                 i += 1;
             }
@@ -578,6 +729,6 @@ export class HIR {
             block += 1;
         }
 
-        io.println("");
+        io.errorln("");
     }
 }

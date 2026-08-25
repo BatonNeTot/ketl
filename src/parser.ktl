@@ -35,10 +35,16 @@ class Parser {
         var namespace: Namespace;
         var iterator: TokenIterator;
         var hir_builder: HIRBuilder;
+        
+        var unprocessed_breaks: HIR.Jump[];
+        var unprocessed_continues: HIR.Jump[];
 
-        var reserved_break: HIR.BlockId;
-        var reserved_continue: HIR.BlockId;
+        var break_available: bool;
+        var continue_available: bool;
+        
         var is_global_scope: bool;
+        var emit_debug_info: bool;
+
         var exxport: bool;
         var cexxport: bool;
         var next_symbol_entry: bool;
@@ -138,22 +144,33 @@ class Parser {
 
     class StatementInfo {
         enum ReturnInfo: u8 {
-            Empty   = 0,
-            None    = 1,
-            Value   = 2,
-            Undef   = 3, // None | Value
-            Always  = 4,
+            Undefined   = 0,
+            
+            TypeVoid    = 1,
+            TypeValue   = 2,
+            TypeUndef   = 3, // TypeVoid | TypeValue
+            
+            Always      = 4,
 
-            AlwaysNone  = 5, //None  | Always
-            AlwaysValue = 6, //Value | Always;
-            AlwaysUndef = 7, //Undef | Always;
+            AlwaysVoid  = 5, // TypeVoid  | Always
+            AlwaysValue = 6, // TypeValue | Always
+            AlwaysUndef = 7, // TypeUndef | Always
+        }
+
+        enum BlockStatus: u8 {
+            Undefined   = 0,
+
+            Unfinished  = Undefined,
+            Finished    = 1,
         }
 
         var return_info: ReturnInfo;
+        var block_status: BlockStatus;
 
-        export fn construct(return_info: ReturnInfo) => StatementInfo {
+        export fn construct(return_info: ReturnInfo, block_status: BlockStatus) => StatementInfo {
             var self = StatementInfo();
             self.return_info = return_info;
+            self.block_status = block_status;
             return self;
         }
     }
@@ -382,7 +399,8 @@ class Parser {
             case Token.Type.NULL  => return context.hir_builder->push_literal_number_of_type(0, Types.instance.type_raw, src_info);
             case Token.Type.RAW   => return context.hir_builder->push_literal_type(Types.instance.type_raw, src_info);
             case Token.Type.STR   => return context.hir_builder->push_literal_type(Types.instance->get_str_type(), src_info);
-            case Token.Type.TRUE => return context.hir_builder->push_literal_number_of_type(1, Types.instance.type_bool, src_info);
+            case Token.Type.TRUE  => return context.hir_builder->push_literal_number_of_type(1, Types.instance.type_bool, src_info);
+            case Token.Type.VOID  => return context.hir_builder->push_literal_type(Types.instance.type_void, src_info);
         }
 
         return error_var();
@@ -433,7 +451,7 @@ class Parser {
     
     fn parse_grouping(context: Context) => HIR.VarId {
         var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
-        var expr_id = context->parse_expression();
+        var expr_id = context->parse_precedence(Precedence.None + 1);
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after expression.");
         src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
@@ -780,30 +798,29 @@ class Parser {
         }
         var lhs = context->get_var(lhs_id);
         var src_info = lhs.src_info;
-        
-        var first_block = context.hir_builder->reserve_blocks(3);
-        var second_block = first_block;
-        var short_circuit_block = first_block + 1;
-        var after_block = first_block + 2;
 
-        var true_statement: HIR.BlockId;
-        var false_statement: HIR.BlockId;
+        var lhs_jump_if = context.hir_builder->push_jump_if(lhs_id, (-1)$cast(HIR.BlockId), (-1)$cast(HIR.BlockId), src_info);
+
+        var first_block = context.hir_builder->reserve_blocks(2);
+        var lhs_cast_block = first_block;
+        var rhs_block = first_block + 1;
+
         switch (token_type) {
             case Token.Type.LOGICAL_OR => {
-                true_statement = short_circuit_block;
-                false_statement = second_block;
+                lhs_jump_if.true_dst = lhs_cast_block;
+                lhs_jump_if.false_dst = rhs_block;
                 break;
             }
             case Token.Type.LOGICAL_AND => {
-                true_statement = second_block;
-                false_statement = short_circuit_block;
+                lhs_jump_if.false_dst = lhs_cast_block;
+                lhs_jump_if.true_dst = rhs_block;
                 break;
             }
             default => assert(false);
         }
-        context.hir_builder->push_if(lhs_id, true_statement, false_statement, src_info);
 
-        context.hir_builder->set_block(second_block);
+        context.hir_builder->set_block(rhs_block);
+
         var rhs_id = context->parse_precedence(parse_rule.precedence + 1);
 
         var rhs = context->get_var(rhs_id);
@@ -812,6 +829,8 @@ class Parser {
         if (context.hir_builder->is_undef(rhs_id)) {
             return context.hir_builder->push_error_var(src_info);
         }
+
+        var after_block = context.hir_builder->reserve_blocks(1);
 
         // TODO check if both literals and calc
 
@@ -833,7 +852,7 @@ class Parser {
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, rhs_id, src_info);
         context.hir_builder->push_jump(after_block, src_info);
         
-        context.hir_builder->set_block(short_circuit_block);
+        context.hir_builder->set_block(lhs_cast_block);
         lhs_id = context.hir_builder->cast_to_type_forced(lhs_id, output_type, lhs.src_info, false);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, output_var, lhs_id, src_info);
         context.hir_builder->push_jump(after_block, src_info);
@@ -1022,11 +1041,18 @@ class Parser {
     }
 
     fn parse_expression(context: Context) => HIR.VarId {
-        return context->parse_precedence(Precedence.None + 1);
+        return context->parse_expression_with_precedence(Precedence.None + 1, false);
+    }
+
+    fn parse_expression_with_precedence(context: Context, precedence: Precedence, is_static: bool) => HIR.VarId {
+        if (context.emit_debug_info && !is_static) {
+            context.hir_builder->push_tagonly_instr(HIR.Tag.BEGIN_STMT, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0)));
+        }
+        return context->parse_precedence(precedence);
     }
 
     fn parse_type(context: Context) => Type {
-        var type_var_id = context->parse_precedence(Precedence.Assigment + 1);
+        var type_var_id = context->parse_expression_with_precedence(Precedence.Assigment + 1, true);
         var type = context->get_var_as_type(type_var_id);
 
         if (type == null) {
@@ -1100,6 +1126,7 @@ class Parser {
         Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
         Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
         Token.Type.TRUE                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
+        Token.Type.VOID                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
     };
 
     fn parse_import(context: Context) => StatementInfo {
@@ -1123,38 +1150,15 @@ class Parser {
         var module_name = context->token_str(module_token);
 
         from module import Modules
-        var module = Modules.instance->load(module_name, path, null, true);
+        var module = Modules.instance->load(module_name, path, context.emit_debug_info);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         context.namespace->import_namespace(module_name, null, module.namespace, context.exxport);
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-    }
-
-    fn parse_sharp_prefix(context: Context) => StatementInfo {
-        context->token_advance(); // #
-        context->token_consume(Token.Type.ID, "Expected id after '#' prefix.");
-        var id_token = context->current_token(1);
-
-        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.log_info.filename, id_token));
-
-        var id = context->token_str(id_token);
-
-        if (id == "entry") {
-            context.next_symbol_entry = true;
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-        }
-
-        if (id == "uninitialized") {
-            context.omit_var_init = true;
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
-        }
-
-        context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_from_import(context: Context) => StatementInfo {
@@ -1182,23 +1186,23 @@ class Parser {
         var module_name = context->token_str(module_token);
 
         from module import Modules
-        var module = Modules.instance->load(module_name, path, null, true);
+        var module = Modules.instance->load(module_name, path, context.emit_debug_info);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         var name = context->token_str(name_token);
     
         var target_namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, name_token), context.exxport);
         if (target_namespace_node == null) {
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         var source_namespace_node = module.namespace->find(name);
         if (source_namespace_node == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't find '" .. name .. "' in module '" .. module_name .. "'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         target_namespace_node.name = source_namespace_node.name;
@@ -1207,7 +1211,30 @@ class Parser {
         //target_namespace_node.info.exxport = source_namespace_node.info.exxport;
         target_namespace_node.info.const = source_namespace_node.info.const;
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+    }
+
+    fn parse_sharp_prefix(context: Context) => StatementInfo {
+        context->token_advance(); // #
+        context->token_consume(Token.Type.ID, "Expected id after '#' prefix.");
+        var id_token = context->current_token(1);
+
+        var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.log_info.filename, id_token));
+
+        var id = context->token_str(id_token);
+
+        if (id == "entry") {
+            context.next_symbol_entry = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+
+        if (id == "uninitialized") {
+            context.omit_var_init = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+
+        context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
     
     // TODO move this to hir_builder
@@ -1276,12 +1303,12 @@ class Parser {
         }
         if (type == null) {
             context->error(src_info.source_offset, src_info.length, "Can't deduce var type.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         context->declare_var(name, type, initial_value, src_info);
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     class FunctionHeader {
@@ -1370,7 +1397,7 @@ class Parser {
             var token = context->current_token(0);
             if (token.type == Token.Type.EOF) {
                 context->error(token.offset, token.length, "Expected '}' after function body.");
-                return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
             }
 
             context->dummy_parse_bracket(brackets_stack, token);
@@ -1395,7 +1422,7 @@ class Parser {
             Modules.instance.active_module.compile_function_declarations ..= function_decl;
         }
         
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_cimport_declaration(context: Context) => StatementInfo {
@@ -1406,7 +1433,7 @@ class Parser {
 
         context.cexxport = old_cexxport;
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_class_declaration_inner(context: Context, class_fields: TypeClass.Field[]) {
@@ -1415,6 +1442,9 @@ class Parser {
                 context->token_advance(); // ;
                 return;
             }
+            case Token.Type.SHARP   => { context->parse_sharp_prefix(); return; }
+            case Token.Type.IMPORT  => { context->parse_import      (); return; }
+            case Token.Type.FROM    => { context->parse_from_import (); return; }
             case Token.Type.VAR => {
                 context->token_advance(); // var
 
@@ -1478,24 +1508,6 @@ class Parser {
                 context.cexxport = false;
                 return;
             }
-            case Token.Type.IMPORT => { 
-                var keyword_token = context->current_token(0);
-                context->error(keyword_token.offset, keyword_token.length, "'import' is not supported inside class declaration.");
-                context->parse_import();
-                return;
-            }
-            case Token.Type.FROM   => { 
-                var keyword_token = context->current_token(0);
-                context->error(keyword_token.offset, keyword_token.length, "'import' is not supported inside class declaration.");
-                context->parse_from_import();
-                return;
-            }
-            case Token.Type.SHARP => {
-                var keyword_token = context->current_token(0);
-                context->error(keyword_token.offset, keyword_token.length, "'#' prefixes are not supported inside class declaration.");
-                context->parse_statement();
-                return;
-            }
             default => {
                 var keyword_token = context->current_token(0);
                 context->error(keyword_token.offset, keyword_token.length, "Statements are not supported inside class declaration.");
@@ -1542,7 +1554,7 @@ class Parser {
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' in the end of a class declaration.");
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
     
     fn parse_enum_declaration(context: Context) => StatementInfo {
@@ -1633,7 +1645,7 @@ class Parser {
             namespace_node.value.value = enum_type$cast(raw)$cast(u64);
         }
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_mimic_declaration(context: Context) => StatementInfo {
@@ -1651,7 +1663,7 @@ class Parser {
 
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' at the end of a mimic declaration.");
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_declaration(context: Context) => StatementInfo {
@@ -1702,27 +1714,29 @@ class Parser {
     }
 
     fn parse_block_statement_inner(context: Context) => StatementInfo {
-        var return_info = StatementInfo.ReturnInfo.Empty;
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
         while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
-            if (return_info & StatementInfo.ReturnInfo.Always > 0) {
+            if ((statement_info.block_status & StatementInfo.BlockStatus.Finished) == StatementInfo.BlockStatus.Finished) {
                 var statement_start = context->current_token(0).offset;
 
-                var decl_return_info = context->parse_declaration().return_info;
+                var decl_statement_info = context->parse_declaration();
 
                 var last_token = context->current_token(1);
                 var statement_end = last_token.offset + last_token.length;
 
                 context->error(statement_start, statement_end - statement_start, "Unreachable statement.");
 
-                return_info |= decl_return_info;
+                statement_info.return_info |= decl_statement_info.return_info;
+                statement_info.block_status |= decl_statement_info.block_status;
             } else {
-                return_info |= context->parse_declaration().return_info;
+                var decl_statement_info = context->parse_declaration();
+                
+                statement_info.return_info |= decl_statement_info.return_info;
+                statement_info.block_status |= decl_statement_info.block_status;
             }
         }
 
-        var statement_info = StatementInfo();
-        statement_info.return_info = return_info;
         return statement_info;
     }
 
@@ -1740,98 +1754,116 @@ class Parser {
     fn parse_if_statement(context: Context) => StatementInfo {
         context->token_advance(); // if
 
-        var first_block = context.hir_builder->reserve_blocks(2);
-        var true_statement = first_block;
-        var false_statement = first_block + 1;
+        var true_block = context.hir_builder->reserve_blocks(1);
+        var after_block = (-1)$cast(HIR.BlockId);
+
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'if' keyword.");
         var expr_id = context->parse_expression();
         var src_info = context->get_var(expr_id).src_info;
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'if' statement expression.");
 
-        context.hir_builder->push_if(expr_id, true_statement, false_statement, src_info);
+        var jump_if = context.hir_builder->push_jump_if(expr_id, true_block, (-1)$cast(HIR.BlockId), src_info);
 
-        context.hir_builder->set_block(true_statement);
-        var true_return_info = context->parse_statement().return_info;
-
-        var return_info = StatementInfo.ReturnInfo.None;
+        context.hir_builder->set_block(true_block);
+        var true_block_info = context->parse_statement();
+        var false_block_info = statement_info;
 
         if (context->token_match(Token.Type.ELSE)) {
-            var false_return_info = StatementInfo.ReturnInfo.None;
-            if (true_return_info & StatementInfo.ReturnInfo.Always) {
-                context.hir_builder->set_block(false_statement);
-                false_return_info = context->parse_statement().return_info;
-                if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
-                    var after_block = context.hir_builder->reserve_blocks(1);
-                    context.hir_builder->push_jump(after_block, src_info);
-                    context.hir_builder->set_block(after_block);
-                }
-            } else {
-                var after_block = context.hir_builder->reserve_blocks(1);
-                context.hir_builder->push_jump(after_block, src_info);
+            var true_end_jump: HIR.Jump;
+
+            var false_block = context.hir_builder->reserve_blocks(1);
+
+            jump_if.false_dst = false_block;
+            if (!(true_block_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                true_end_jump = context.hir_builder->push_jump((-1)$cast(HIR.BlockId), src_info);
+            }
             
-                context.hir_builder->set_block(false_statement);
-                false_return_info = context->parse_statement().return_info;
-                if (!(false_return_info & StatementInfo.ReturnInfo.Always)) {
-                    context.hir_builder->push_jump(after_block, src_info);
-                }
+            context.hir_builder->set_block(false_block);
+            false_block_info = context->parse_statement();
 
-                context.hir_builder->set_block(after_block);
+            after_block = context.hir_builder->reserve_blocks(1);
+
+            if (true_end_jump != null) {
+                true_end_jump.dst = after_block;
             }
-
-            return_info = 
-                ((true_return_info & false_return_info) & StatementInfo.ReturnInfo.Always) |
-                ((true_return_info | false_return_info) & StatementInfo.ReturnInfo.Undef);
+            if (!(false_block_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                context.hir_builder->push_jump(after_block, src_info);
+            }
         } else {
-            if (!(true_return_info & StatementInfo.ReturnInfo.Always)) {
-                context.hir_builder->push_jump(false_statement, src_info);
-            }
-            context.hir_builder->set_block(false_statement);
+            after_block = context.hir_builder->reserve_blocks(1);
 
-            return_info = true_return_info & StatementInfo.ReturnInfo.Undef;
+            jump_if.false_dst = after_block;
+            if (!(true_block_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                context.hir_builder->push_jump(after_block, src_info);
+            }
         }
 
-        return StatementInfo.construct(return_info);
+        statement_info.return_info = 
+            ((true_block_info.return_info & false_block_info.return_info) & StatementInfo.ReturnInfo.Always) |
+            ((true_block_info.return_info | false_block_info.return_info) & StatementInfo.ReturnInfo.TypeUndef);
+        statement_info.block_status =
+            (true_block_info.block_status & false_block_info.block_status) & StatementInfo.BlockStatus.Finished;
+
+        if (!(statement_info.return_info & StatementInfo.ReturnInfo.Always)) {
+            context.hir_builder->set_block(after_block);
+        }
+
+        return statement_info;
     }
 
     fn parse_while_statement(context: Context) => StatementInfo {
         context->token_advance(); // while
 
-        var first_block = context.hir_builder->reserve_blocks(3);
-        var expr_statement = first_block;
-        var body_statement = first_block + 1;
-        var after_statement = first_block + 2;
+        var first_block = context.hir_builder->reserve_blocks(2);
+        var expr_block = first_block;
+        var body_block = first_block + 1;
 
-        var first_jump = context.hir_builder->push_jump(expr_statement, null);
+        var first_jump = context.hir_builder->push_jump(expr_block, null);
 
-        context.hir_builder->set_block(expr_statement);
+        context.hir_builder->set_block(expr_block);
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'while' keyword.");
         var expr_id = context->parse_expression();
         var src_info = context->get_var(expr_id).src_info;
         first_jump.src_info = src_info;
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'while' statement expression.");
 
-        context.hir_builder->push_if(expr_id, body_statement, after_statement, src_info);
+        var expr_jump_if = context.hir_builder->push_jump_if(expr_id, body_block, (-1)$cast(HIR.BlockId), src_info);
 
-        var old_reserved_break = context.reserved_break;
-        context.reserved_break = after_statement;
-        var old_reserved_continue = context.reserved_continue;
-        context.reserved_continue = expr_statement;
+        var unprocessed_breaks_mark = context.unprocessed_breaks.size;
+        var unprocessed_continues_mark = context.unprocessed_continues.size;
+        var old_break_available = context.break_available;
+        var old_continue_available = context.continue_available;
+        context.break_available = true;
+        context.continue_available = true;
 
-        context.hir_builder->set_block(body_statement);
-        var body_return_info = context->parse_statement().return_info;
+        context.hir_builder->set_block(body_block);
+        var body_block_info = context->parse_statement();
 
-        context.reserved_continue = old_reserved_continue;
-        context.reserved_break = old_reserved_break;
+        var after_block = context.hir_builder->reserve_blocks(1);
+        expr_jump_if.false_dst = after_block;
 
-        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-            context.hir_builder->push_jump(expr_statement,  src_info);
+        while (unprocessed_breaks_mark < context.unprocessed_breaks.size) {
+            context.unprocessed_breaks[context.unprocessed_breaks.size - 1].dst = after_block;
+            context.unprocessed_breaks->pop();
         }
-        context.hir_builder->set_block(after_statement);
+        while (unprocessed_continues_mark < context.unprocessed_continues.size) {
+            context.unprocessed_continues[context.unprocessed_continues.size - 1].dst = expr_block;
+            context.unprocessed_continues->pop();
+        }
+        context.break_available = old_break_available;
+        context.continue_available = old_continue_available;
 
-        var return_info = body_return_info & StatementInfo.ReturnInfo.Undef;
+        if (!(body_block_info.block_status & StatementInfo.BlockStatus.Finished)) {
+            context.hir_builder->push_jump(expr_block,  src_info);
+        }
 
-        return StatementInfo.construct(return_info);
+        // TODO check if expression is const and adapt return Always info and set_block
+        var return_info = body_block_info.return_info & StatementInfo.ReturnInfo.TypeUndef;
+        context.hir_builder->set_block(after_block);
+
+        return StatementInfo.construct(return_info, StatementInfo.BlockStatus.Undefined);
     }
     
     fn parse_for_statement(context: Context) => StatementInfo {
@@ -1853,7 +1885,7 @@ class Parser {
         var array_id = context->parse_expression();
 
         if (context.hir_builder->is_undef(array_id)) {
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         var array_var = context->get_var(array_id);
@@ -1877,49 +1909,70 @@ class Parser {
 
         var array_size_var = context.hir_builder->push_field_access_forced(array_id, "size", src_info);
 
-        var first_block = context.hir_builder->reserve_blocks(4);
-        var expr_statement = first_block;
-        var body_statement = first_block + 1;
-        var inc_statement = first_block + 2;
-        var after_statement = first_block + 3;
+        var first_block = context.hir_builder->reserve_blocks(2);
+        var expr_block = first_block;
+        var body_block = first_block + 1;
 
-        context.hir_builder->push_jump(expr_statement, src_info);
+        context.hir_builder->push_jump(expr_block, src_info);
 
-        context.hir_builder->set_block(expr_statement);
+        context.hir_builder->set_block(expr_block);
         var is_index_less_size_var = context.hir_builder->push_binary_op(HIR.Tag.LESS, index_var, array_size_var, src_info);
-        context.hir_builder->push_if(is_index_less_size_var, body_statement, after_statement, src_info);
+        var expr_jump_if = context.hir_builder->push_jump_if(is_index_less_size_var, body_block, (-1)$cast(HIR.BlockId), src_info);
 
-        context.hir_builder->set_block(body_statement);
+        context.hir_builder->set_block(body_block);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, iterator_var, 
             context.hir_builder->push_get_array_value(array_id, index_var, src_info),
             src_info);
 
-        var old_reserved_break = context.reserved_break;
-        context.reserved_break = after_statement;
-        var old_reserved_continue = context.reserved_continue;
-        context.reserved_continue = inc_statement;
+        var unprocessed_breaks_mark = context.unprocessed_breaks.size;
+        var unprocessed_continues_mark = context.unprocessed_continues.size;
+        var old_break_available = context.break_available;
+        var old_continue_available = context.continue_available;
+        context.break_available = true;
+        context.continue_available = true;
 
-        var body_return_info = context->parse_statement().return_info;
-        context.hir_builder->push_jump(inc_statement, src_info);
+        var body_statement_info = context->parse_statement();
+        
+        first_block = context.hir_builder->reserve_blocks(2);
+        var inc_block = first_block;
+        var after_block = first_block + 1;
 
-        context.hir_builder->set_block(inc_statement);
+        while (unprocessed_breaks_mark < context.unprocessed_breaks.size) {
+            context.unprocessed_breaks[context.unprocessed_breaks.size - 1].dst = after_block;
+            context.unprocessed_breaks->pop();
+        }
+        while (unprocessed_continues_mark < context.unprocessed_continues.size) {
+            context.unprocessed_continues[context.unprocessed_continues.size - 1].dst = inc_block;
+            context.unprocessed_continues->pop();
+        }
+        context.break_available = old_break_available;
+        context.continue_available = old_continue_available;
+
+        expr_jump_if.false_dst = after_block;
+
+        if (!(body_statement_info.block_status & StatementInfo.BlockStatus.Finished)) {
+            context.hir_builder->push_jump(inc_block, src_info);
+        }
+
+        context.hir_builder->set_block(inc_block);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS, index_var, 
             context.hir_builder->push_literal_number(1, src_info), 
             src_info);
-        
-        context.reserved_break = old_reserved_break;
-        context.reserved_continue = old_reserved_continue;
 
-        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-            context.hir_builder->push_jump(expr_statement, src_info);
-        }
-        context.hir_builder->set_block(after_statement);
+        context.hir_builder->push_jump(expr_block, src_info);
 
         context.hir_builder->pop_symbol_map();
 
-        var return_info = body_return_info & StatementInfo.ReturnInfo.Undef;
+        // TODO check if iterable is const and adapt return Always info and set_block
+        var return_info = body_statement_info.return_info & StatementInfo.ReturnInfo.TypeUndef;
+        context.hir_builder->set_block(after_block);
 
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(return_info, StatementInfo.BlockStatus.Undefined);
+    }
+
+    class SwitchCaseInfo {
+        var case_jump_ifs: HIR.JumpIf[];
+        var body_end_jump: HIR.Jump;
     }
 
     fn parse_switch_statement(context: Context) => StatementInfo {
@@ -1932,68 +1985,75 @@ class Parser {
 
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after 'switch' statement.");
         
-        var return_info = StatementInfo.ReturnInfo.Always;
-        var default_return_info = StatementInfo.ReturnInfo.Undef;
+        var entry_block = context.hir_builder->get_current_block();
+        var entry_end_jump: HIR.Jump;
 
+        var case_infos = SwitchCaseInfo[0];
+        var last_case_jump_if: HIR.JumpIf;
         var default_block = (-1)$cast(HIR.BlockId);
+        var default_end_jump: HIR.Jump;
+        
+        var non_default_statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Always, StatementInfo.BlockStatus.Finished);
+        var default_statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
         if (!context->token_match(Token.Type.CURLY_RIGHT)) {
-            var first_block = context.hir_builder->reserve_blocks(2);
-            var after_statement = first_block;
-            var next_cmp_block = first_block + 1;
-            context.hir_builder->push_jump(next_cmp_block, src_info);
-
-            var old_reserved_break = context.reserved_break;
-            context.reserved_break = after_statement;
+            var unprocessed_breaks_mark = context.unprocessed_breaks.size;
+            var old_break_available = context.break_available;
+            context.break_available = true;
 
             while (!context->token_match(Token.Type.CURLY_RIGHT)) {
                 var current = context->current_token(0);
-                var src_info = HIR.SrcInfo.from_token(context.log_info.filename, current);
 
                 switch(current.type) {
                     case Token.Type.CASE => {
-                        context->token_advance(); // case
-
-                        var current_block = context.hir_builder->reserve_blocks(1);
-
-                        context.hir_builder->set_block(next_cmp_block);
-                        var case_expr = context->parse_precedence(Precedence.Pair + 1);
+                        var case_info = SwitchCaseInfo();
+                        case_info.case_jump_ifs = HIR.JumpIf[0];
+                        case_infos ..= case_info;
 
                         while (context->token_match(Token.Type.CASE)) {
-                            src_info = context->get_var(case_expr).src_info;
-                            var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr_id, case_expr, src_info);
+                            var case_block = context.hir_builder->reserve_blocks(1);
 
-                            next_cmp_block = context.hir_builder->reserve_blocks(1);
-                            
-                            context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block, src_info);
+                            if (entry_end_jump == null) {
+                                entry_end_jump = context.hir_builder->push_jump(case_block, src_info);
+                            }
 
-                            ////////////////
+                            context.hir_builder->set_block(case_block);
 
-                            context.hir_builder->set_block(next_cmp_block);
-                            case_expr = context->parse_precedence(Precedence.Pair + 1);
+                            if (last_case_jump_if != null) {
+                                last_case_jump_if.false_dst = case_block;
+                            }
+
+                            var case_expr = context->parse_expression_with_precedence(Precedence.Pair + 1, false);
+                            var src_info = context->get_var(case_expr).src_info;
+                            var is_equal_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr_id, case_expr, src_info);
+
+                            last_case_jump_if = context.hir_builder->push_jump_if(is_equal_expr, (-1)$cast(HIR.BlockId), (-1)$cast(HIR.BlockId), src_info);
+                            case_info.case_jump_ifs ..= last_case_jump_if;
                         }
 
                         context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'case' statement expression.");
 
-                        src_info = context->get_var(case_expr).src_info;
-                        var cmp_expr = context.hir_builder->push_binary_op(HIR.Tag.EQUAL, expr_id, case_expr, src_info);
-
-                        next_cmp_block = context.hir_builder->reserve_blocks(1);
-                        
-                        context.hir_builder->push_if(cmp_expr, current_block, next_cmp_block, src_info);
-
                         ///////////
 
-                        context.hir_builder->set_block(current_block);
-                        var body_return_info = context->parse_statement().return_info;
+                        var body_block = context.hir_builder->reserve_blocks(1);
 
-                        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-                            context.hir_builder->push_jump(after_statement, src_info);
+                        for (var case_jump_if <- case_info.case_jump_ifs) {
+                            case_jump_if.true_dst = body_block;
                         }
 
-                        return_info = 
-                            ((return_info & body_return_info) & StatementInfo.ReturnInfo.Always) |
-                            ((return_info | body_return_info) & StatementInfo.ReturnInfo.Undef);
+                        context.hir_builder->set_block(body_block);
+
+                        var body_statement_info = context->parse_statement();
+
+                        if (!(body_statement_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                            case_info.body_end_jump = context.hir_builder->push_jump((-1)$cast(HIR.BlockId), src_info);
+                        }
+
+                        non_default_statement_info.return_info = 
+                            ((non_default_statement_info.return_info & body_statement_info.return_info) & StatementInfo.ReturnInfo.Always) |
+                            ((non_default_statement_info.return_info | body_statement_info.return_info) & StatementInfo.ReturnInfo.TypeUndef);
+                        non_default_statement_info.block_status =
+                            (non_default_statement_info.block_status & body_statement_info.block_status) & StatementInfo.BlockStatus.Finished;
                     }
                     case Token.Type.DEFAULT => {
                         context->token_advance(); // default
@@ -2001,16 +2061,19 @@ class Parser {
                         context->token_consume(Token.Type.DOUBLE_ARROW_RIGHT, "Expected '=>' after 'default' statement expression.");
 
                         assert(default_block == (-1)$cast(HIR.BlockId));
+
                         default_block = context.hir_builder->reserve_blocks(1);
                         context.hir_builder->set_block(default_block);
 
-                        var body_return_info = context->parse_statement().return_info;
+                        default_statement_info = context->parse_statement();
 
-                        if (!(body_return_info & StatementInfo.ReturnInfo.Always)) {
-                            context.hir_builder->push_jump(after_statement, src_info);
+                        if (!(default_statement_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                            default_end_jump = context.hir_builder->push_jump((-1)$cast(HIR.BlockId), src_info);
                         }
 
-                        default_return_info = body_return_info;
+                        if (entry_end_jump == null) {
+                            context.hir_builder->set_block(entry_block);
+                        }
                     }
                     default => {
                         context->error(src_info.source_offset, src_info.length, "Unexpected token inside 'switch' body.");
@@ -2019,43 +2082,72 @@ class Parser {
                 }
             }
 
-            context.reserved_break = old_reserved_break;
+            if (entry_end_jump == null) {
+                if (default_block != (-1)$cast(HIR.BlockId)) {
+                    entry_end_jump = context.hir_builder->push_jump(default_block, src_info);
 
-            context.hir_builder->set_block(next_cmp_block);
+                    if (default_end_jump != null) {
+                        var after_block = context.hir_builder->reserve_blocks(1);
+
+                        default_end_jump.dst = after_block;
+
+                        context.hir_builder->set_block(after_block);
+                    }
+                }
+
+                return default_statement_info;
+            }
+
+            var after_block = context.hir_builder->reserve_blocks(1);
+
+            while (unprocessed_breaks_mark < context.unprocessed_breaks.size) {
+                context.unprocessed_breaks[context.unprocessed_breaks.size - 1].dst = after_block;
+                context.unprocessed_breaks->pop();
+            }
+            context.break_available = old_break_available;
+
+            if (default_end_jump != null) {
+                default_end_jump.dst = after_block;
+            }
                 
-            if (default_block == (-1)$cast(HIR.BlockId)) {
-                context.hir_builder->push_jump(after_statement, src_info);
-
-                return_info &= StatementInfo.ReturnInfo.Undef;
+            assert(last_case_jump_if != null);
+            if (default_block != (-1)$cast(HIR.BlockId)) {
+                last_case_jump_if.false_dst = default_block;
             } else {
-                context.hir_builder->push_jump(default_block, src_info);
+                last_case_jump_if.false_dst = after_block;
+            }
 
-                return_info = 
-                    ((return_info & default_return_info) & StatementInfo.ReturnInfo.Always) |
-                    ((return_info | default_return_info) & StatementInfo.ReturnInfo.Undef);
+            for (var case_info <- case_infos) {
+                if (case_info.body_end_jump != null) {
+                    case_info.body_end_jump.dst = after_block;
+                }
             }
-                
-            if (!(return_info & StatementInfo.ReturnInfo.Always)) {
-                context.hir_builder->set_block(after_statement);
-            }
+
+            context.hir_builder->set_block(after_block);
+
+            var statement_info = StatementInfo.construct(
+                ((non_default_statement_info.return_info & default_statement_info.return_info) & StatementInfo.ReturnInfo.Always) |
+                ((non_default_statement_info.return_info | default_statement_info.return_info) & StatementInfo.ReturnInfo.TypeUndef), 
+                (non_default_statement_info.block_status & default_statement_info.block_status) & StatementInfo.BlockStatus.Finished);
+            return statement_info;
         } else {
-            return_info &= StatementInfo.ReturnInfo.Undef;
+            return default_statement_info;
         }
-
-        return StatementInfo.construct(return_info);
     }
 
     fn parse_break_statement(context: Context) => StatementInfo {
         context->token_advance(); // break
         var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
-        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
-        if (context.reserved_break == (-1)$cast(HIR.BlockId)) {
+        if (context.break_available) {
+            var break_jump = context.hir_builder->push_jump((-1)$cast(HIR.BlockId), src_info);
+            context.unprocessed_breaks ..= break_jump;
+            statement_info.block_status = StatementInfo.BlockStatus.Finished;
+        } else {
             var token = context->current_token(1);
             context->error(token.offset, token.length, "'break' statement outside of loop or switch body.");
-        } else {
-            context.hir_builder->push_jump(context.reserved_break, src_info);
         }
             
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'break' statement.");
@@ -2066,13 +2158,15 @@ class Parser {
         context->token_advance(); // continue
         var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
-        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        var statement_info = StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
-        if (context.reserved_continue == (-1)$cast(HIR.BlockId)) {
+        if (context.continue_available) {
+            var continue_jump = context.hir_builder->push_jump((-1)$cast(HIR.BlockId), src_info);
+            context.unprocessed_continues ..= continue_jump;
+            statement_info.block_status = StatementInfo.BlockStatus.Finished;
+        } else {
             var token = context->current_token(1);
             context->error(token.offset, token.length, "'continue' statement outside of loop body.");
-        } else {
-            context.hir_builder->push_jump(context.reserved_continue, src_info);
         }
             
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after 'continue' statement.");
@@ -2085,22 +2179,24 @@ class Parser {
 
         if (context->token_match(Token.Type.TERMINATION_CHARACTER)) {
             context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, src_info);
-            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysNone);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
         } else {
             context.hir_builder->push_return_value(context->parse_expression(), src_info);
             context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after return statement expression.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysValue);
+            return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysValue, StatementInfo.BlockStatus.Finished);
         }
     }
 
     fn parse_expression_statement(context: Context) => StatementInfo {
         context->parse_expression();
         context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after expression.");
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
     fn parse_statement(context: Context) => StatementInfo {
-        switch (context->current_token(0).type) {
+        var token = context->current_token(0);
+        var token_type = token.type;
+        switch (token_type) {
             case Token.Type.CURLY_LEFT            => return context->parse_block_statement();
             case Token.Type.IF                    => return context->parse_if_statement();
             case Token.Type.WHILE                 => return context->parse_while_statement();
@@ -2111,13 +2207,13 @@ class Parser {
             case Token.Type.RETURN                => return context->parse_return_statement();
             case Token.Type.TERMINATION_CHARACTER => { 
                 context->token_advance(); 
-                return StatementInfo.construct(StatementInfo.ReturnInfo.Empty);
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
             }
             default                               => return context->parse_expression_statement();
         }
     }
 
-    export fn build_hir(lexer: Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters: VariableDecl[], return_type: Type, func_index: u16, is_global_scope: bool, log_accum: LogAccum) => HIR {
+    export fn build_hir(lexer: Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters: VariableDecl[], return_type: Type, func_index: u16, is_global_scope: bool, emit_debug_info: bool, log_accum: LogAccum) => HIR {
         var context = Context();
 
         context.log_accum = log_accum;
@@ -2127,9 +2223,10 @@ class Parser {
         context.namespace = namespace;
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
 
-        context.reserved_break = (-1)$cast(HIR.BlockId);
-        context.reserved_continue = (-1)$cast(HIR.BlockId);
+        context.unprocessed_breaks = HIR.Jump[0];
+        context.unprocessed_continues = HIR.Jump[0];
         context.is_global_scope = is_global_scope;
+        context.emit_debug_info = emit_debug_info;
 
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.log_accum, context.log_info);
 
@@ -2139,24 +2236,36 @@ class Parser {
 
         if (lexer.tokens.size > 0) {
             var statement_info = context->parse_block_statement_inner();
-            if ((statement_info.return_info & StatementInfo.ReturnInfo.Undef) == StatementInfo.ReturnInfo.Undef ||
-                (!(statement_info.return_info & StatementInfo.ReturnInfo.Always) && (
-                    !!(statement_info.return_info & StatementInfo.ReturnInfo.Value) || (return_type != null && !return_type->is_void())
-                ))) {
-                var last_token = lexer.tokens[end_pos - 1];
-                context->error(last_token.offset, 1, "Not all control returns value.");
+
+            if (!(statement_info.block_status & StatementInfo.BlockStatus.Finished)) {
+                // we need to return eventually
+                context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, HIR.SrcInfo.construct(context.log_info.filename, lexer.tokens[end_pos - 1].offset, 1));
             }
 
-            /* // Doesn't look like necessary
-            if (p_context->reserved_break != (ketl_hir_block_index_t)-1 ||
-                p_context->reserved_continue != (ketl_hir_block_index_t)-1) {
-                errorf(p_lexer->tokens.p_data[end_pos - 1].offset, 1, "Expected statement.");
+/*
+            if ((statement_info.return_info & StatementInfo.ReturnInfo.TypeUndef) == StatementInfo.ReturnInfo.TypeUndef ||
+                (
+                    !(statement_info.block_status & StatementInfo.BlockStatus.Finished) &&
+                    ((statement_info.return_info & StatementInfo.ReturnInfo.TypeValue) == StatementInfo.ReturnInfo.TypeValue || (return_type != null && !return_type->is_void()))
+                )) {
+                var last_token = lexer.tokens[end_pos - 1];
+                context->error(last_token.offset, 1, "Not all control branches returns value.");
             }
             */
 
-            if (!(statement_info.return_info & StatementInfo.ReturnInfo.Always)) {
-                // we need to return eventually
-                context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, HIR.SrcInfo.construct(context.log_info.filename, lexer.tokens[end_pos - 1].offset, 1));
+            if ((statement_info.return_info & StatementInfo.ReturnInfo.TypeUndef) == StatementInfo.ReturnInfo.TypeUndef) {
+                var last_token = lexer.tokens[end_pos - 1];
+                context->error(last_token.offset, 1, "Not all control branches returns value.");
+            } else if (
+                !(statement_info.block_status & StatementInfo.BlockStatus.Finished) &&
+                ((statement_info.return_info & StatementInfo.ReturnInfo.TypeValue) == StatementInfo.ReturnInfo.TypeValue || (return_type != null && !return_type->is_void()))
+                ) {
+                var last_token = lexer.tokens[end_pos - 1];
+                if ((statement_info.return_info & StatementInfo.ReturnInfo.TypeValue) == StatementInfo.ReturnInfo.TypeValue) {
+                    context->error(last_token.offset, 1, "Last block aren't finished. Global return type is TypeValue. " .. (statement_info.return_info & StatementInfo.ReturnInfo.TypeValue)$cast(str));
+                } else {
+                    context->error(last_token.offset, 1, "Last block aren't finished. return_type is " .. return_type->get_name());
+                }
             }
         }
 

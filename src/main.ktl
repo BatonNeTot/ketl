@@ -24,11 +24,15 @@ class ArgsParser {
     
     var compilation_targets: str[];
     var output_target: str;
+
+    var emit_debug_info: bool;
 }
+
+var parser: ArgsParser;
 
 #entry
 fn main(args: str[]) => i64 {
-    var parser = ArgsParser();
+    parser = ArgsParser();
 
     for (var arg <- args[1:args.size]) {
         if (arg[0] == '-') {
@@ -43,6 +47,10 @@ fn main(args: str[]) => i64 {
                     case 'o' => {
                         // TODO check known conditions
                         parser.state = ArgsParser.State.ExpectingOutputTarget;
+                        continue;
+                    }
+                    case 'g' => {
+                        parser.emit_debug_info = true;
                         continue;
                     }
                 }
@@ -126,54 +134,44 @@ fn compile_asm(target: str, output: str) => bool {
     return compile_asm_file(target, output);
 }
 
-fn find_last(string: str, symbol: char) => i64 {
-    var last_index = string.size$cast(i64) - 1;
-    while (last_index >= 0 && string[last_index] != symbol) {
-        last_index -= 1;
-    }
-    return last_index;
-}
-
 fn compile_asm_file(path: str, output_path: str) => bool {
     var dir_path: str;
     var module_name: str;
 
     {
-        var after_last_slash_index = find_last(path, '/') + 1;
-        dir_path = path[0:after_last_slash_index];
-
-        var after_last_dot_index = find_last(path, '.') + 1;
-        if (after_last_dot_index == 0 || path[after_last_dot_index:path.size] != "ktl") {
+        var ext = io.get_ext(path);
+        if (ext != "ktl") {
             return true;
         }
 
-        module_name = path[after_last_slash_index:after_last_dot_index - 1];
+        module_name = io.get_filename(path);
+        module_name = module_name[0:module_name.size - ext.size - 1];
+
+        dir_path = io.get_dir(path);
+        if (dir_path.size > 0) {
+            dir_path ..= "/";
+        }
     }
 
     if (output_path == null) {
         if (dir_path == null || dir_path.size == 0) {
             output_path = module_name .. ".s";
         } else {
-            output_path = dir_path .. "/" .. module_name .. ".s";
+            output_path = dir_path .. module_name .. ".s";
         }
     } else {
-        var after_last_dot_index = find_last(output_path, '.') + 1;
-        if (after_last_dot_index != 0 && output_path[after_last_dot_index:output_path.size] == "ktl") {
-            output_path = output_path[0:after_last_dot_index] .. "s";
+        var ext = io.get_ext(output_path);
+        if (ext == "ktl") {
+            output_path = output_path[0:output_path.size - ext.size] .. "s";
         }
     }
 
-    var module = Modules.instance->load(module_name, dir_path, null, true);
+    var module = Modules.instance->load(module_name, dir_path, parser.emit_debug_info);
     if (module == null || module.has_errors) {
         return false;
     }
 
-    var output_dir_path: str;
-    {
-        var after_last_slash_index = find_last(output_path, '/') + 1;
-        output_dir_path = output_path[0:after_last_slash_index];
-    }
-    if (!io.create_dirs_if_needed(output_dir_path)) {
+    if (!io.create_dirs_if_needed(io.get_dir(output_path))) {
         return false;
     }
     if (!io.stdout_redirect(output_path)) {

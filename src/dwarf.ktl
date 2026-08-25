@@ -1,0 +1,866 @@
+//🫖ketl
+
+from common import HashMap
+from common import IntHashMap
+from common import StrHashMap
+
+export enum UnitType: u8 {
+    none,
+    compile,
+    type,
+    partial,
+    skeleton,
+    split_compile,
+    split_type,
+}
+
+export enum Tag: u8 {
+    none,
+    array_type,
+    class_type,
+    entry_point,
+    enumeration_type,
+    formal_parameter,
+    __reserved__,
+    __reserved__,
+    imported_declaration,
+    __reserved__,
+    label,
+    lexical_block,
+    __reserved__,
+    member,
+    __reserved__,
+    pointer_type,
+    reference_type,
+    compile_unit,
+    string_type,
+    structure_type,
+    __reserved__,
+    subroutine_type,
+    typedef,
+    union_type,
+    unspecified_parameters,
+    variant,
+    common_block,
+    common_inclusion,
+    inheritance,
+    inlined_subroutine,
+    module,
+    ptr_to_member_type,
+    set_type,
+    subrange_type,
+    with_stmt,
+    access_declaration,
+    base_type,
+    catch_block,
+    const_type,
+    constant,
+    enumerator,
+    file_type,
+    friend,
+    namelist,
+    namelist_item,
+    packed_type,
+    subprogram,
+    template_type_parameter,
+    template_value_parameter,
+    thrown_type,
+    try_block,
+    variant_part,
+    variable,
+    volatile_type,
+    dwarf_procedure,
+    restrict_type,
+    interface_type,
+    namespace,
+    imported_module,
+    unspecified_type,
+    partial_unit,
+    imported_unit,
+    __reserved__,
+    condition,
+    shared_type,
+    type_unit,
+    rvalue_reference_type,
+    template_alias,
+    coarray_type,
+    generic_subrange,
+    dynamic_type,
+    atomic_type,
+    call_site,
+    call_site_parameter,
+    skeleton_unit,
+    immutable_type,
+}
+
+export enum Children: u8 {
+    no,
+    yes,
+}
+
+export enum Attr: u8 {
+    none,
+    sibling,
+    location,
+    name,
+    __reserved__,
+    __reserved__,
+    __reserved__,
+    __reserved__,
+    __reserved__,
+    ordering,
+    __reserved__,
+    byte_size,
+    __reserved__,
+    bit_size,
+    __reserved__,
+    __reserved__,
+    stmt_list,
+    low_pc,
+    high_pc,
+    language,
+    __reserved__,
+    discr,
+    discr_value,
+    visibility,
+    immport,
+    string_length,
+    common_reference,
+    comp_dir,
+    const_value,
+    containing_type,
+    default_value,
+    __reserved__,
+    inline,
+    is_optional,
+    lower_bound,
+    __reserved__,
+    __reserved__,
+    producer,
+    __reserved__,
+    prototyped,
+    __reserved__,
+    __reserved__,
+    return_addr,
+    __reserved__,
+    start_scope,
+    __reserved__,
+    bit_stride,
+    upper_bound,
+    __reserved__,
+    abstract_origin,
+    accessibility,
+    address_class,
+    artificial,
+    base_types,
+    calling_convention,
+    count,
+    data_member_location,
+    decl_column,
+    decl_file,
+    decl_line,
+    declaration,
+    discr_list,
+    encoding,
+    external,
+    frame_base,
+    friend,
+    identifier_case,
+    __reserved__,
+    namelist_item,
+    priority,
+    segment,
+    specification,
+    static_link,
+    type,
+    use_location,
+    variable_parameter,
+    virtuality,
+    vtable_elem_location,
+    allocated,
+    associated,
+    data_location,
+    byte_stride,
+    entry_pc,
+    use_UTF8,
+    extension,
+    ranges,
+    trampoline,
+    call_column,
+    call_file,
+    call_line,
+    description,
+    binary_scale,
+    decimal_scale,
+    small,
+    decimal_sign,
+    digit_count,
+    picture_string,
+    mutable,
+    threads_scaled,
+    explicit,
+    object_pointer,
+    endianity,
+    elemental,
+    pure,
+    recursive,
+    signature,
+    main_subprogram,
+    data_bit_offset,
+    const_expr,
+    enum_class,
+    linkage_name,
+    string_length_bit_size,
+    string_length_byte_size,
+    rank,
+    str_offsets_base,
+    addr_base,
+    rnglists_base,
+    __reserved__,
+    dwo_name,
+    reference,
+    rvalue_reference,
+    macros,
+    call_all_calls,
+    call_all_source_calls,
+    call_all_tail_calls,
+    call_return_pc,
+    call_value,
+    call_origin,
+    call_parameter,
+    call_pc,
+    call_tail_call,
+    call_target,
+    call_target_clobbered,
+    call_data_location,
+    call_data_value,
+    noreturn,
+    alignment,
+    export_symbols,
+    deleted,
+    defaulted,
+    loclists_base,
+}
+
+export enum Form: u8 {
+    none,
+    addr,
+    __reserved__,
+    block2,
+    block4,
+    data2,
+    data4,
+    data8,
+    string,
+    block,
+    block1,
+    data1,
+    flag,
+    sdata,
+    strp,
+    udata,
+    ref_addr,
+    ref1,
+    ref2,
+    ref4,
+    ref8,
+    ref_udata,
+    indirect,
+    sec_offset,
+    exprloc,
+    flag_present,
+    strx,
+    addrx,
+    ref_sup4,
+    strp_sup,
+    data16,
+    line_strp,
+    ref_sig8,
+    implicit_const,
+    loclistx,
+    rnglistx,
+    ref_sup8,
+    strx1,
+    strx2,
+    strx3,
+    strx4,
+    addrx1,
+    addrx2,
+    addrx3,
+    addrx4,
+}
+
+class AttrHeader {
+    var attr: Attr;
+    var form: Form;
+
+    fn construct(attr: Attr, form: Form) => AttrHeader {
+        var self = AttrHeader();
+        self.attr = attr;
+        self.form = form;
+        return self;
+    }
+}
+
+export class Abbreviation {
+    var tag: Tag;
+    var has_children: bool;
+    var attrs: AttrHeader[];
+
+    fn get_hash(self: Abbreviation) => u64 {
+        var hash = self.tag$cast(u64);
+        if (self.attrs != null) {
+            for (var header <- self.attrs) {
+                hash = (hash << 2) ^ (header.attr << 1) ^ header.form;
+            }
+        }
+        return hash;
+    }
+
+    fn is_equal(lhs: Abbreviation, rhs: Abbreviation) => bool {
+        if (lhs.tag != rhs.tag) {
+            return false;
+        }
+
+        var lhs_attrs_size: u64;
+        var rhs_attrs_size: u64;
+        if (lhs.attrs != null) {
+            lhs_attrs_size = lhs.attrs.size;
+        }
+        if (rhs.attrs != null) {
+            rhs_attrs_size = rhs.attrs.size;
+        }
+        if (lhs_attrs_size != rhs_attrs_size) {
+            return false;
+        }
+        if (lhs_attrs_size == 0) {
+            return true;
+        }
+
+        var i: u64;
+        while (i < lhs_attrs_size) {
+            if (lhs.attrs[i].attr != rhs.attrs[i].attr) {
+                return false;
+            }
+            if (lhs.attrs[i].form != rhs.attrs[i].form) {
+                return false;
+            }
+            i += 1;
+        }
+
+        return true;
+    }
+
+    fn print(self: Abbreviation) {
+        import io
+        io.println("	.byte	" .. self.tag$cast(str) .. "                               #");
+        if (self.has_children) {
+            io.println("	.byte	" .. Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
+        } else {
+            io.println("	.byte	" .. Children.no$cast(str) .. "                               # DW_CHILDREN_no");
+        }
+        for (var header <- self.attrs) {
+            io.println("	.byte	" .. header.attr$cast(str) .. "                               #");
+            io.println("	.byte	" .. header.form$cast(str) .. "                               #");
+        }
+    }
+}
+
+class AttrValue {
+    var print: (AttrValue) => void;
+    var form: Form;
+
+    fn construct_empty(form: Form) => AttrValue {
+        var self = AttrValue();
+        self.form = form;
+        return self;
+    }
+}
+
+class AttrStr {
+    extend AttrValue;
+    var value: str;
+    var index: u64;
+
+    fn construct(value: str) => AttrStr {
+        var self = AttrStr();
+        self.print = print;
+        self.form = Form.string;
+        self.value = value;
+        return self;
+    }
+
+    fn print(attr: AttrValue) {
+        import io
+        var self = attr$cast(AttrStr);
+        io.println("	.byte	" .. self.index$cast(str) .. "                               #");
+    }
+}
+
+class AttrSecOffset {
+    extend AttrValue;
+    var value: str;
+
+    fn construct(value: str) => AttrSecOffset {
+        var self = AttrSecOffset();
+        self.print = print;
+        self.form = Form.sec_offset;
+        self.value = value;
+        return self;
+    }
+
+    fn print(attr: AttrValue) {
+        import io
+        var self = attr$cast(AttrSecOffset);
+        io.println("	.secrel32	" .. self.value .. "                               #");
+    }
+}
+
+class AttrAddr {
+    extend AttrValue;
+    var value: str;
+
+    fn construct(value: str) => AttrAddr {
+        var self = AttrAddr();
+        self.print = print;
+        self.form = Form.addrx;
+        self.value = value;
+        return self;
+    }
+
+    fn print(attr: AttrValue) {
+        import io
+        var self = attr$cast(AttrAddr);
+        io.println("	.byte	" .. self.value .. "                               #");
+    }
+}
+
+class AttrAddrData {
+    extend AttrValue;
+    var value: str;
+
+    fn construct(value: str, size: u64) => AttrAddrData {
+        var self = AttrAddrData();
+        self.print = print;
+        switch (size) {
+            case 1 => self.form = Form.data1;
+            case 2 => self.form = Form.data2;
+            case 4 => self.form = Form.data4;
+            case 8 => self.form = Form.data8;
+            case 16 => self.form = Form.data16;
+            default => self.form = Form.udata;
+        }
+        self.value = value;
+        return self;
+    }
+
+    fn print(attr: AttrValue) {
+        import io
+        var self = attr$cast(AttrAddrData);
+        switch (self.form) {
+            case Form.data1 => io.print("	.byte");
+            case Form.data2 => io.print("	.2byte");
+            case Form.data4 => io.print("	.4byte");
+            case Form.data8 => io.print("	.8byte");
+            case Form.data16 => assert(false);
+            case Form.udata => assert(false);
+            default => assert(false);
+        }
+        io.println("	" .. self.value .. "                               #");
+    }
+}
+
+class AttrData {
+    extend AttrValue;
+    var value: u64;
+
+    fn construct(value: u64, size: u64) => AttrData {
+        var self = AttrData();
+        self.print = print;
+        switch (size) {
+            case 1 => self.form = Form.data1;
+            case 2 => self.form = Form.data2;
+            case 4 => self.form = Form.data4;
+            case 8 => self.form = Form.data8;
+            case 16 => self.form = Form.data16;
+            default => self.form = Form.udata;
+        }
+        self.value = value;
+        return self;
+    }
+
+    fn print(attr: AttrValue) {
+        import io
+        var self = attr$cast(AttrData);
+        switch (self.form) {
+            case Form.data1 => io.print("	.byte");
+            case Form.data2 => io.print("	.2byte");
+            case Form.data4 => io.print("	.4byte");
+            case Form.data8 => io.print("	.8byte");
+            case Form.data16 => assert(false);
+            case Form.udata => assert(false);
+            default => assert(false);
+        }
+        io.println("	" .. self.value$cast(str) .. "                               #");
+    }
+}
+
+enum AttrEncoding: u8 {
+    none,
+    address,
+    boolean,
+    complex_float,
+    float,
+    signed,
+    signed_char,
+    unsigned,
+    unsigned_char,
+    imaginary_float,
+    packed_decimal,
+    numeric_string,
+    edited,
+    signed_fixed,
+    unsigned_fixed,
+    decimal_float,
+    UTF,
+    UCS,
+    ASCII,
+}
+
+class AttrPair {
+    var attr: Attr;
+    var value: AttrValue;
+
+    fn construct(attr: Attr, value: AttrValue) => AttrPair {
+        var self = AttrPair();
+        self.attr = attr;
+        self.value = value;
+        return self;
+    }
+}
+
+export class DIE {
+
+    var tag: Tag;
+    var abbr_index: u64;
+    var attrs: AttrPair[];
+    var children: DIE[];
+
+    fn construct() => DIE {
+        var self = DIE();
+        self.attrs = AttrPair[0];
+        self.children = DIE[0];
+        return self;
+    }
+
+    fn get_abbreviation(self: DIE) => Abbreviation {
+        var abbr = Abbreviation();
+
+        abbr.tag = self.tag;
+        abbr.has_children = (self.children != null && self.children.size > 0);
+
+        abbr.attrs = AttrHeader[0];
+
+        for (var attr <- self.attrs) {
+            abbr.attrs ..= AttrHeader.construct(attr.attr, attr.value.form);
+        }
+
+        return abbr;
+    }
+
+    fn sort_attrs(self: DIE) {
+        var pairs = self.attrs;
+        var i: u64 = pairs.size;
+        while (i > 0) {
+            i -= 1;
+
+            var updated = false;
+
+            var j: u64;
+            while (j < i) {
+                if (pairs[j].attr > pairs[j + 1].attr) {
+                    // (pairs[j + 1], pairs[j]) = (pairs[j], pairs[j + 1]); // TODO
+                    var pair = pairs[j];
+                    pairs[j] = pairs[j + 1];
+                    pairs[j + 1] = pair;
+
+                    updated = true;
+                }
+                j += 1;
+            }
+
+            if (!updated) {
+                return;
+            }
+        }
+    }
+}
+
+export class DebugInfo {
+    var version: u8;
+    var abbr_section_offset: str;
+
+    var dies: DIE[];
+    var dies_indices: IntHashMap;
+    var dies_by_name: StrHashMap;
+
+    var abbrs: Abbreviation[];
+    var abbrs_indices: HashMap;
+
+    var strings: str[];
+    var strings_indices: StrHashMap;
+
+    var func_addresses: str[];
+
+    var platform_reg_to_dwarf: (u64) => u64;
+
+    fn get_abbr_hash(key: raw) => u64 {
+        return key$cast(Abbreviation)->get_hash();
+    }
+
+    fn is_abbrs_equal(lhs: raw, rhs: raw) => bool {
+        return Abbreviation.is_equal(lhs, rhs);
+    }
+
+    fn construct(version: u8,
+        has_functions: bool,
+        compile_unit_name: str, 
+        str_offsets_base: str, 
+        stmt_list: str, 
+        comp_dir: str, 
+        compile_unit_size: str, 
+        addr_base: str, 
+        platform_reg_to_dwarf: (u64) => u64) => DebugInfo {
+        var self = DebugInfo();
+
+        self.version = version;
+        assert(version == 5);
+
+        self.dies = DIE[0];
+        self.dies_indices = IntHashMap.construct();
+        self.dies_by_name = StrHashMap.construct();
+
+        self.abbrs = Abbreviation[0];
+        self.abbrs_indices = HashMap.construct(is_abbrs_equal, get_abbr_hash);
+
+        self.strings = str[0];
+        self.strings_indices = StrHashMap.construct();
+
+        self.func_addresses = str[0];
+
+        self.platform_reg_to_dwarf = platform_reg_to_dwarf;
+
+        var compile_unit_die = DIE();
+        compile_unit_die.tag = Tag.compile_unit;
+        compile_unit_die.attrs = AttrPair[9] {
+            AttrPair.construct(Attr.producer, AttrStr.construct("ketl 0.1.0")),
+            AttrPair.construct(Attr.language, AttrData.construct(64214, 2)), // 0xFAD6 // 0x(1)FAD6 - teapot unicode
+            AttrPair.construct(Attr.name, AttrStr.construct(compile_unit_name)),
+            AttrPair.construct(Attr.str_offsets_base, AttrSecOffset.construct(str_offsets_base)),
+            AttrPair.construct(Attr.stmt_list, AttrSecOffset.construct(stmt_list)),
+            AttrPair.construct(Attr.comp_dir, AttrStr.construct(comp_dir)),
+            AttrPair.construct(Attr.low_pc, AttrAddr.construct("0")),
+            AttrPair.construct(Attr.high_pc, AttrAddrData.construct(compile_unit_size, 4)),
+            AttrPair.construct(Attr.addr_base, AttrSecOffset.construct(addr_base)),
+        };
+
+        self->add_die(compile_unit_die);
+
+        return self;
+    }
+
+    export fn print(self: DebugInfo) {
+        import io
+        io.println("	.p2align	2, 0x0");
+        io.println("	.section	.debug_abbrev,\"dr\"");
+        {
+            var i = 0;
+            for (var abbr <- self.abbrs) {
+                i += 1;
+                io.println("	.byte	" .. i$cast(str) .. "                               # Abbreviation Code");
+                abbr->print();
+                io.println("	.byte	0                               # EOM(1)");
+                io.println("	.byte	0                               # EOM(2)");
+            }
+        }
+        io.println("	.byte	0                               # EOM(3)");
+
+        io.println("	.section	.debug_info,\"dr\"");
+        io.println(".Lcu_begin0:");
+        io.println("	.long	.Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
+        io.println(".Ldebug_info_start0:");
+        io.println("	.short	" .. self.version$cast(str) .. "                               # DWARF version number");
+        io.println("	.byte	" .. UnitType.compile$cast(str) .. "                               # DWARF Unit Type");
+        io.println("	.byte	" .. raw$size$cast(str) .. "                               # Address Size (in bytes)");
+        io.println("	.secrel32	.debug_abbrev           # Offset Into Abbrev. Section");
+        
+        for (var die <- self.dies) {
+            io.println("	.byte	" .. die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "]");
+
+            for (var attr <- die.attrs) {
+                if (attr.value.print != null) {
+                    attr.value->print();
+                }
+            }
+        }
+
+        io.println(".Ldebug_info_end0:");
+        io.println("	.section	.debug_str_offsets,\"dr\"");
+        io.println("	.long	" .. (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
+        io.println("	.short	" .. self.version$cast(str));
+        io.println("	.short	0"); // Reserved
+        io.println(".Lstr_offsets_base0:");
+        io.println("	.section	.debug_str,\"dr\"");
+
+        {
+            var i: u64;
+            while (i < self.strings.size) {
+                io.println(".Linfo_string" .. i$cast(str) .. ":");
+                io.println("	.asciz	\"" .. io.escaped_string(self.strings[i]) .. "\"");
+                i += 1;
+            }
+            io.println("	.section	.debug_str,\"dr\"");
+
+            i = 0;
+            while (i < self.strings.size) {
+                io.println("	.secrel32	.Linfo_string" .. i$cast(str));
+                i += 1;
+            }
+        }
+
+        io.println("	.section	.debug_addr,\"dr\"");
+        io.println("	.long	.Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
+        io.println(".Ldebug_addr_start0:");
+        io.println("	.short	" .. self.version$cast(str) .. "                               # DWARF version number");
+        io.println("	.byte	8                               # Address size");
+        io.println("	.byte	0                               # Segment selector size");
+        io.println(".Laddr_table_base0:");
+        for (var func_address <- self.func_addresses) {
+            io.println("	.quad	" .. func_address);
+        }
+        io.println(".Ldebug_addr_end0:");
+    }
+
+    export fn add_function(self: DebugInfo, 
+        func_name: str,
+        func_index: u16,
+        decl_line: u64,
+        is_pub: bool, // DW_AT_external
+        is_main: bool) { // DW_AT_main_subprogram 
+        self.abbrs[0].has_children = true;
+
+        var low_pc_index = self.func_addresses.size;
+        self.func_addresses ..= ".Lfunc_begin" .. func_index$cast(str);
+
+        var die = DIE();
+
+        die.tag = DIE.Tag.subroutine_type;
+        die.attrs = AttrPair[5]{
+            AttrPair.construct(Attr.low_pc, AttrAddr.construct(low_pc_index$cast(str))),
+            AttrPair.construct(Attr.high_pc, AttrAddrData.construct(".Lfunc_end" .. func_index$cast(str) .. "-.Lfunc_begin" .. func_index$cast(str), 4)),
+            // frame base
+            AttrPair.construct(Attr.name, AttrStr.construct(func_name)),
+            AttrPair.construct(Attr.decl_file, AttrData.construct(0, 1)),
+            AttrPair.construct(Attr.decl_file, AttrData.construct(decl_line, 1)),
+        };
+
+        if (is_pub) {
+            AttrPair.construct(Attr.external, AttrValue.construct_empty(Form.flag_present));
+        }
+
+        if (is_main) {
+            AttrPair.construct(Attr.main_subprogram, AttrValue.construct_empty(Form.flag_present));
+        }
+
+        self->add_die(die);
+    }
+
+    fn add_die(self: DebugInfo, die: DIE) => u64 {
+        var die_bucket = self.dies_indices->get_or_insert(die$cast(raw)$cast(u64), null);
+        if (die_bucket.value != null) {
+            return die_bucket.value$cast(u64);
+        }
+
+        self.dies ..= die;
+        var die_index  = self.dies.size;
+        die_bucket.value = die_index$cast(u64)$cast(raw);
+
+        for (var attr <- die.attrs) {
+            var value = attr.value;
+            if (value.form == Form.string) {
+                var str_value = value$cast(AttrStr);
+                var string_index = self->register_string(str_value.value);
+                assert(string_index < 255);
+
+                str_value.form = Form.strx1;
+                str_value.index = string_index;
+            }
+        }
+
+        var abbr = die->get_abbreviation();
+        var abbr_bucket = self.abbrs_indices->get_or_insert(abbr$cast(raw)$cast(u64), null);
+        if (abbr_bucket.value != null) {
+            die.abbr_index = abbr_bucket.value$cast(u64);
+        } else {
+            self.abbrs ..= abbr;
+            die.abbr_index = self.abbrs.size;
+            abbr_bucket.value = die.abbr_index$cast(u64)$cast(raw);
+        }
+
+        if (die.children != null) {
+            for (var child <- die.children) {
+                self->add_die(child);
+            }
+        }
+        return die_index;
+    }
+
+    fn register_string(self: DebugInfo, string: str) => u64 {
+        var string_bucket = self.strings_indices->get_or_insert(string, self.strings.size$cast(u64)$cast(raw));
+        if (string_bucket.value$cast(u64) != self.strings.size) {
+            return string_bucket.value$cast(u64);
+        }
+
+        self.strings ..= string;
+        var string_index = string_bucket.value$cast(u64);
+    
+        return string_index;
+    }
+
+    from type_base import Type
+    export fn construct_type_die(type: Type) => DIE {
+        if (type.kind == Type.Kind.Primitive) {
+            from type import TypePrimitive
+            var type_primitive = type$cast(TypePrimitive);
+
+            var die = DIE();
+
+            die.tag = DIE.Tag.base_type;
+            die.attrs = AttrPair[1]{
+                AttrPair.construct(Attr.name, AttrStr.construct(type_primitive.name)),
+            };
+
+            if (type_primitive.size > 0) {
+                die.attrs ..= AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(type_primitive.size, 1));
+            }
+
+            if (type_primitive.numeric) {
+                var encoding = AttrEncoding.none;
+                if (type_primitive.signed) {
+                    encoding = AttrEncoding.signed;
+                } else {
+                    encoding = AttrEncoding.unsigned;
+                }
+                die.attrs ..= AttrPair.construct(DIE.Attr.encoding, AttrData.construct(encoding$cast(u64), 1));
+            } else {
+                assert(false);
+            }
+
+            return die;
+        }
+        
+        assert(false);
+        return null;
+    }
+
+}

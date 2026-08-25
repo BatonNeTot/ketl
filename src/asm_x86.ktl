@@ -150,7 +150,29 @@ export class ASMX86 {
         None,
     }
 
-    fn print_reg(reg: Reg, size: Size) {
+    export fn reg_to_dwarf(reg: u64) => u64 {
+        switch (reg$cast(Reg)) {
+            case Reg.AX => return 0;
+            case Reg.CX => return 2;
+            case Reg.DX => return 1;
+            case Reg.BX => return 3;
+            case Reg.SP => return 7;
+            case Reg.BP => return 6;
+            case Reg.SI => return 4;
+            case Reg.DI => return 5;
+            case Reg.R8 => return 8;
+            case Reg.R9 => return 9;
+            case Reg.R10 => return 10;
+            case Reg.R11 => return 11;
+            case Reg.R12 => return 12;
+            case Reg.R13 => return 13;
+            case Reg.R14 => return 14;
+            case Reg.R15 => return 15;
+        }
+        return (-1)$cast(u64);
+    }
+
+    export fn print_reg(reg: Reg, size: Size) {
         switch (reg) {
             case Reg.AX =>
                 switch (size) {
@@ -485,7 +507,7 @@ export class ASMX86 {
             }
 
             switch (instr.arg_type) {
-                case ArgType.EMPTY => break;
+                case ArgType.EMPTY => {}
                 case ArgType.M => {
                     instr.modrm->print(instr.size);
 
@@ -612,10 +634,12 @@ export class ASMX86 {
         var variables: IntHashMap;
         var stack_reserved_size: u32;
         var abi: ABI;
+        var emit_debug_info: bool;
         var debug_is_stmt: bool;
+        var debug_begin_stmt: bool;
         var debug_inserted_prolog: bool;
         
-        export fn construct(abi: ABI, log_info: LogAccum.LogInfo) => Builder {
+        export fn construct(abi: ABI, emit_debug_info: bool, log_info: LogAccum.LogInfo) => Builder {
             var self = Builder();
 
             self.abi = abi;
@@ -623,18 +647,17 @@ export class ASMX86 {
                 // TODO actually deduce from the system
                 self.abi = ABI.WINDOWS;
             }
+            self.emit_debug_info = emit_debug_info;
             self.log_info = log_info;
 
             self.hir_to_asm_offsets = IntHashMap.construct();
             self.variables = IntHashMap.construct();
 
-            self.debug_is_stmt = true;
-
             return self;
         }
 
-        fn push_line_debug_info(self: Builder, src_info: HIR.SrcInfo, is_stmt: bool, additional: str) {
-            if (src_info == null) {
+        fn push_line_debug_info(self: Builder, src_info: HIR.SrcInfo, additional: str) {
+            if (!self.emit_debug_info || src_info == null) {
                 return;
             }
 
@@ -646,18 +669,22 @@ export class ASMX86 {
             if (additional != null) {
                 directive ..= " " .. additional;
             }
+
             if (!self.debug_inserted_prolog) {
                 directive ..= " prologue_end";
                 self.debug_inserted_prolog = true;
             }
-            if (is_stmt != self.debug_is_stmt) {
-                if (is_stmt) {
+
+            if (self.debug_begin_stmt != self.debug_is_stmt) {
+                if (self.debug_begin_stmt) {
                     directive ..= " is_stmt 1";
                 } else {
                     directive ..= " is_stmt 0";
                 }
-                self.debug_is_stmt = is_stmt;
+                self.debug_is_stmt = self.debug_begin_stmt;
             }
+            self.debug_begin_stmt = false;
+
             directive ..= "     # " .. src_info.filename .. ":" .. (line + 1)$cast(str) .. ":" .. (col + 1)$cast(str);
             self->directive(directive);
         }
@@ -1014,13 +1041,12 @@ export class ASMX86 {
         }
 
         fn insert_mov_to_reg(self: Builder, size: Size, target_reg: Reg, arg: AsmArg) {
-            self->push_line_debug_info(arg.src_info, false, null);
-
             if (arg.kind == AsmArg.Kind.Literal) {
                 var value = arg$cast(AsmArgLiteral).value;
 
                 var type = arg.type;
 
+                self->push_line_debug_info(arg.src_info, null);
                 if (type == Types.instance.type_char$cast(Type)) {
                     self->insert_rm_char(Tag.MOV, Size.Bit8, ModRM.construct_reg(target_reg), value$cast(char));
                 } else {
@@ -1031,17 +1057,20 @@ export class ASMX86 {
             }
 
             if (arg.kind == AsmArg.Kind.Global) {
+                self->push_line_debug_info(arg.src_info, null);
                 self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label));
                 return;
             }
 
             if (arg.kind == AsmArg.Kind.GlobalAddress) {
+                self->push_line_debug_info(arg.src_info, null);
                 self->insert_reg_rm(Tag.LEA, Size.Ptr, target_reg, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label));
                 return;
             }
 
             if (arg.kind == AsmArg.Kind.OnStack) {
                 var arg_on_stack = arg$cast(AsmArgOnStack);
+                self->push_line_debug_info(arg.src_info, null);
                 self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, arg_on_stack.stack, arg_on_stack.name));
                 return;
             }
@@ -1051,6 +1080,7 @@ export class ASMX86 {
                 self->insert_mov_to_reg(Size.Ptr, target_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
+                    self->push_line_debug_info(arg.src_info, null);
                     self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(target_reg, arg_ref.name, arg_ref.offset$cast(i32)));
                 } else {
                     /*
@@ -1065,15 +1095,15 @@ export class ASMX86 {
         }
 
         fn insert_mov_from_reg(self: Builder, size: Size, arg: AsmArg, source_reg: Reg) {
-            self->push_line_debug_info(arg.src_info, false, null);
-
             if (arg.kind == AsmArg.Kind.Global) {
+                self->push_line_debug_info(arg.src_info, null);
                 self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_rip_label(arg$cast(AsmArgGlobal).label), source_reg);
                 return;
             }
 
             if (arg.kind == AsmArg.Kind.OnStack) {
                 var arg_on_stack = arg$cast(AsmArgOnStack);
+                self->push_line_debug_info(arg.src_info, null);
                 self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(arg.size, arg_on_stack.stack, arg_on_stack.name), source_reg);
                 return;
             }
@@ -1084,6 +1114,7 @@ export class ASMX86 {
                 self->insert_mov_to_reg(Size.Ptr, donor_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
+                    self->push_line_debug_info(arg.src_info, null);
                     self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(donor_reg, arg_ref.name, arg_ref.offset$cast(i32)), source_reg);
                 } else {
                     /*
@@ -1240,7 +1271,7 @@ export class ASMX86 {
             self.variables->clear();
 
             self.stack_reserved_size = 0;
-
+            self.debug_is_stmt = true;
 
             var abi_parameters_regs = parameters_regs[self.abi];
 
@@ -1311,23 +1342,35 @@ export class ASMX86 {
                 }
             }
 
-            var first_instr_in_block = true;
-            var block_counter: u16;
+            var first_instr_in_block: bool;
+            var met_jump_in_block: bool;
+            var block_counter = (-1)$cast(u16);
+            var first_in_next_block = self.hir.block_offsets[block_counter + 1];
 
             var i: u32;
             while (i < self.hir.instrs.size) {
-                if (first_instr_in_block) {
-                    first_instr_in_block = false;
-                    
+                while (first_in_next_block == i) {
                     self.hir_to_asm_offsets->get_or_insert(i, self.instrs.size$cast(raw));
 
-                    var label = ".LBB";
-                    label ..= func_index$cast(str);
-                    label ..= "_";
-                    label ..= block_counter$cast(str);
                     block_counter += 1;
 
+                    var label = ".LBB";
+                    if (func_index != (-1)$cast(u16)) {
+                        label ..= func_index$cast(str);
+                    }
+                    label ..= "_";
+                    label ..= block_counter$cast(str);
+
                     self->label(label);
+                    
+                    if (block_counter + 1 < self.hir.block_offsets.size) {
+                        first_in_next_block = self.hir.block_offsets[block_counter + 1];
+                    } else {
+                        first_in_next_block = self.hir.instrs.size$cast(u32);
+                    }
+
+                    first_instr_in_block = true;
+                    met_jump_in_block = false;
                 }
 
                 var instr = self.hir.instrs[i];
@@ -1338,6 +1381,7 @@ export class ASMX86 {
                         io.println(instr.tag$cast(str));
                         assert(false);
                     }
+                    case HIR.Tag.BEGIN_STMT => self.debug_begin_stmt = true;
                     case HIR.Tag.UNARY_PLUS => {}
                     case HIR.Tag.LOGICAL_NOT
                     case HIR.Tag.BITWISE_NOT
@@ -1731,15 +1775,26 @@ export class ASMX86 {
                     case HIR.Tag.JUMP => {
                         var hir_info = instr$cast(HIR.Jump);
 
-                        if (!first_instr_in_block) {
-                            var dest = self.hir->get_first_non_empty_block(hir_info.dst);
-                            
-                            if (self.hir.block_offsets[dest] != i + 1) {
-                                self->insert_jimm(Tag.JMP, Size.None, dest);
-                            }
-                        }
+                        var dest = self.hir->get_first_non_empty_block(hir_info.dst);
 
-                        first_instr_in_block = true;
+                        if (met_jump_in_block) {
+                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            assert(false);
+                        }
+                        met_jump_in_block = true;
+
+                        // skip jump if it is the first in block - all jumps to this block will be rerouted to dest of this jump, so block can be skipped
+                        // for the first we never want to skip first jump - its the target of other callers using this function, those can't be rerouted
+                        if (first_instr_in_block && block_counter != 0) {
+                            break;
+                        }
+                            
+                        // don't insert if next block is the jump target - just "fall through"
+                        if (self.hir.block_offsets[dest] == i + 1) {
+                            break;
+                        }
+                            
+                        self->insert_jimm(Tag.JMP, Size.None, dest);
                     }
 
                     case HIR.Tag.JUMP_IF_TRUE => {
@@ -1747,6 +1802,12 @@ export class ASMX86 {
 
                         var true_dest = self.hir->get_first_non_empty_block(hir_info.true_dst);
                         var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
+
+                        if (met_jump_in_block) {
+                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. true_dest$cast(str) .. " or block " .. false_dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            assert(false);
+                        }
+                        met_jump_in_block = true;
                         
                         var expr = self.hir.vars[hir_info.expr];
                         var type = expr->get_type_forced();
@@ -1763,21 +1824,16 @@ export class ASMX86 {
                                 }
                             }
                         }
-
-
-                        first_instr_in_block = true;
                     }
 
                     case HIR.Tag.RETURN => {
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
-                            self->push_line_debug_info(instr.src_info, false, "epilogue_begin");
+                            self->push_line_debug_info(instr.src_info, "epilogue_begin");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
                             self->directive("seh_endepilogue");
                         }
                         self->insert(Tag.RET);
-
-                        first_instr_in_block = true;
                     }
 
                     case HIR.Tag.RETURN_VALUE => {
@@ -1788,14 +1844,16 @@ export class ASMX86 {
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
-                            self->push_line_debug_info(instr.src_info, false, "epilogue_begin");
+                            self->push_line_debug_info(instr.src_info, "epilogue_begin");
                             self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
                             self->directive("seh_endepilogue");
                         }
                         self->insert(Tag.RET);
-
-                        first_instr_in_block = true;
                     }
+                }
+                
+                if (instr.tag != HIR.Tag.NONE_STMT && instr.tag != HIR.Tag.BEGIN_STMT) {
+                    first_instr_in_block = false;
                 }
 
                 i += 1;
@@ -1811,6 +1869,10 @@ export class ASMX86 {
                         var block = instr.goto_offset$cast(HIR.BlockId);
                         var block_offset = self.hir.block_offsets[block];
                         var bucket = self.hir_to_asm_offsets->get_or_null(block_offset);
+                        if (bucket == null) {
+                            io.errorln("Can't find block " .. block$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            assert(false);
+                        }
                         instr.goto_offset = bucket.value$cast(u64)$cast(u32);
                     }
                 }
@@ -1824,7 +1886,7 @@ export class ASMX86 {
         }
     }
 
-    export fn print(self: ASMX86, func_name: str) {
+    export fn print(self: ASMX86, func_name: str, func_index: u16, emit_debug_info: bool) {
         io.println("    .def    " .. func_name .. ";                    # @" .. func_name);
         io.println("    .scl    2;");
         io.println("    .type   32;");
@@ -1832,6 +1894,9 @@ export class ASMX86 {
         io.println("    .globl	" .. func_name);
         io.println("    .p2align	4");
         io.println(func_name .. ":");
+        if (emit_debug_info) {
+            io.println(".Lfunc_begin" .. func_index$cast(str) .. ":");
+        }
         io.println(".seh_proc " .. func_name);
 
         for (var instr <- self.instrs) {
@@ -1840,5 +1905,8 @@ export class ASMX86 {
         }
 
         io.println("    .seh_endproc");
+        if (emit_debug_info) {
+            io.println(".Lfunc_end" .. func_index$cast(str) .. ":");
+        }
     } 
 }

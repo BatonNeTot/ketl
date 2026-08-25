@@ -95,6 +95,7 @@ class GC {
     }
 
     export fn append_value(gc: GC, stack_size: u64, array_header: ArrayHeader, value: u64) {
+        assert(array_header != null);
         var value_size = stack_size;
         if (array_header.is_slice) {
             var capacity = array_header.size + 1; // plus appended one
@@ -127,6 +128,7 @@ class GC {
     }
 
     export fn append_array(gc: GC, stack_size: u64, array_header: ArrayHeader, other_array_header: ArrayHeader) {
+        assert(array_header != null);
         assert(other_array_header != null);
         var value_size = stack_size;
         if (array_header.is_slice) {
@@ -322,10 +324,10 @@ export fn cstr2str(string: cstr) => str {
     var buffer = malloc(string_length);
     memcpy(buffer, string, string_length);
 
-    return buffer_as_str(buffer, string_length);
+    return buffer_as_str(buffer, string_length, string_length);
 }
 
-export fn buffer_as_str(buffer: raw, size: u64) => str {
+export fn buffer_as_str(buffer: raw, size: u64, capacity: u64) => str {
     var string = ArrayHeader();
 
     string.data = buffer;

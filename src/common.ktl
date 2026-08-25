@@ -64,7 +64,7 @@ export class HashMap {
             if (bucket.hash == hash && self.equality(bucket.key, key)) {
                 return bucket;
             }
-    
+
             bucket = bucket.next;
         }
             

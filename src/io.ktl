@@ -27,7 +27,7 @@ export class File {
         fclose(file);
 
         from __ketl_rt import buffer_as_str
-        return buffer_as_str(buffer, filesize);
+        return buffer_as_str(buffer, filesize, filesize);
     }
 } 
 
@@ -45,6 +45,7 @@ cimport fflush(file: File) => i64
 cimport fclose(file: File)
 
 cimport malloc(size: u64) => raw
+cimport free(pointer: raw)
 
 class IntPointer {
     var value: i32;
@@ -274,28 +275,69 @@ fn find_last(string: str, symbol: char) => i64 {
 
 cimport mkdir(path: cstr, mode: u16) => i64;
 
-export fn create_dirs_if_needed(path: str) => bool {
-    if (path == null || path == "" || path == ".") {
-        return true;
+export fn get_dir(path: str) => str {
+    var last_fslash_index = find_last(path, '/');
+    var last_bslash_index = find_last(path, '\\');
+
+    var last_slash_index: i64;
+    if (last_fslash_index > last_bslash_index) {
+        last_slash_index = last_fslash_index;
+    } else {
+        last_slash_index = last_bslash_index;
     }
 
-    var after_last_slash_index = find_last(path, '/') + 1;
-    if (after_last_slash_index != 0) {
-        var dir_path = path[0:after_last_slash_index - 1];
+    if (last_slash_index > 0) {
+        return path[0:last_slash_index];
+    } else {
+        return "";
+    }
+}
 
-        if (!create_dirs_if_needed(dir_path)) {
-            return false;
-        }
+export fn get_filename(path: str) => str {
+    var last_fslash_index = find_last(path, '/');
+    var last_bslash_index = find_last(path, '\\');
+
+    var after_last_slash_index: i64;
+    if (last_fslash_index > last_bslash_index) {
+        after_last_slash_index = last_fslash_index + 1;
+    } else {
+        after_last_slash_index = last_bslash_index + 1;
     }
 
+    if (after_last_slash_index > 0) {
+        return path[after_last_slash_index:path.size];
+    } else {
+        return path;
+    }
+}
+
+export fn get_ext(path: str) => str {
+    var after_last_dot_index = find_last(path, '.') + 1;
+
+    if (after_last_dot_index > 0) {
+        return path[after_last_dot_index:path.size];
+    } else {
+        return path;
+    }
+}
+
+fn create_dirs_if_needed_resolved(path: str) => bool {
     var info = FileInfo.get(path);
     if (info == null) {
+        var dir = get_dir(path);
+        if (dir != "") {
+            if (!create_dirs_if_needed_resolved(dir)) {
+                return false;
+            }
+        }
+
         if (mkdir(path$cast(cstr), 
             FileInfo.S_IRUSR | FileInfo.S_IWUSR |
             FileInfo.S_IRGRP | FileInfo.S_IWGRP |
             FileInfo.S_IROTH | FileInfo.S_IWOTH) != 0) {
             return false;
         } 
+
         return true;
     }
     
@@ -305,4 +347,45 @@ export fn create_dirs_if_needed(path: str) => bool {
     }
 
     return false;
+}
+
+export fn create_dirs_if_needed(path: str) => bool {
+    return create_dirs_if_needed_resolved(resolve_path(path));
+}
+
+#uninitialized
+cexport var __imp_GetFullPathNameA: (cstr, u32, raw, raw) => u32;
+
+export fn resolve_path(path: str) => str {
+    if (path == null || path.size == 0) {
+        path = ".";
+    }
+
+    var capacity: u64 = 64;
+    var buffer = malloc(capacity);
+
+    var size = __imp_GetFullPathNameA(path$cast(cstr), capacity$cast(u32), buffer, null);
+    if (size == 0) {
+        free(buffer);
+        return null;
+    }
+
+    from __ketl_rt import buffer_as_str
+    return buffer_as_str(buffer, size, capacity);
+}
+
+export fn escaped_string(string: str) => str {
+    var result = "";
+    var last_index: u64;
+    var i: u64;
+    while (i < string.size) {
+        if (string[i] == '\\') {
+            result ..= string[last_index:i];
+            result ..= "\\\\";
+            last_index = i + 1;
+        }
+        i += 1;
+    }
+    result ..= string[last_index:i];
+    return result;
 }
