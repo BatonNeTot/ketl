@@ -4,6 +4,16 @@ from common import HashMap
 from common import IntHashMap
 from common import StrHashMap
 
+from asm_x86 import ASMX86
+fn print_data_directive(directive: ASMX86.DataDirective, value: str) => u8 {
+    import io
+    io.print("	.");
+    ASMX86.print_data_directive(directive);
+    io.print("	");
+    io.println(value);
+    return ASMX86.get_data_directive_size(directive);
+}
+
 export enum UnitType: u8 {
     none,
     compile,
@@ -352,22 +362,21 @@ export class Abbreviation {
     }
 
     fn print(self: Abbreviation) {
-        import io
-        io.println("	.byte	" .. self.tag$cast(str) .. "                               #");
+        print_data_directive(ASMX86.DataDirective.Byte, self.tag$cast(str) .. "                               #");
         if (self.has_children) {
-            io.println("	.byte	" .. Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
+            print_data_directive(ASMX86.DataDirective.Byte, Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
         } else {
-            io.println("	.byte	" .. Children.no$cast(str) .. "                               # DW_CHILDREN_no");
+            print_data_directive(ASMX86.DataDirective.Byte, Children.no$cast(str) .. "                               # DW_CHILDREN_no");
         }
         for (var header <- self.attrs) {
-            io.println("	.byte	" .. header.attr$cast(str) .. "                               #");
-            io.println("	.byte	" .. header.form$cast(str) .. "                               #");
+            print_data_directive(ASMX86.DataDirective.Byte, header.attr$cast(str) .. "                               #");
+            print_data_directive(ASMX86.DataDirective.Byte, header.form$cast(str) .. "                               #");
         }
     }
 }
 
 class AttrValue {
-    var print: (AttrValue) => void;
+    var print: (AttrValue) => u32;
     var form: Form;
 
     fn construct_empty(form: Form) => AttrValue {
@@ -390,10 +399,9 @@ class AttrStr {
         return self;
     }
 
-    fn print(attr: AttrValue) {
-        import io
+    fn print(attr: AttrValue) => u32 {
         var self = attr$cast(AttrStr);
-        io.println("	.byte	" .. self.index$cast(str) .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Byte, self.index$cast(str) .. "                               #");
     }
 }
 
@@ -409,10 +417,9 @@ class AttrSecOffset {
         return self;
     }
 
-    fn print(attr: AttrValue) {
-        import io
+    fn print(attr: AttrValue) => u32 {
         var self = attr$cast(AttrSecOffset);
-        io.println("	.secrel32	" .. self.value .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               #");
     }
 }
 
@@ -428,11 +435,56 @@ class AttrAddr {
         return self;
     }
 
-    fn print(attr: AttrValue) {
-        import io
+    fn print(attr: AttrValue) => u32 {
         var self = attr$cast(AttrAddr);
-        io.println("	.byte	" .. self.value .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               #");
     }
+}
+
+fn print_data(value: str, form: Form) => u32 {
+    import io
+    var size: u32;
+    io.print("	.");
+    switch (form) {
+        case Form.data1 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit8);
+            size += 1;
+        }
+        case Form.data2 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit16);
+            size += 2;
+        }
+        case Form.data4 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit32);
+            size += 4;
+        }
+        case Form.data8 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit64);
+            size += 8;
+        }
+        case Form.data16 => assert(false);
+        case Form.udata => assert(false);
+        case Form.ref1 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit8);
+            size += 1;
+        }
+        case Form.ref2 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit16);
+            size += 2;
+        }
+        case Form.ref4 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit32);
+            size += 4;
+        }
+        case Form.ref8 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit64);
+            size += 8;
+        }
+        case Form.ref_udata => assert(false);
+        default => assert(false);
+    }
+    io.println("	" .. value);
+    return size;
 }
 
 class AttrAddrData {
@@ -454,19 +506,9 @@ class AttrAddrData {
         return self;
     }
 
-    fn print(attr: AttrValue) {
-        import io
+    fn print(attr: AttrValue) => u32 {
         var self = attr$cast(AttrAddrData);
-        switch (self.form) {
-            case Form.data1 => io.print("	.byte");
-            case Form.data2 => io.print("	.2byte");
-            case Form.data4 => io.print("	.4byte");
-            case Form.data8 => io.print("	.8byte");
-            case Form.data16 => assert(false);
-            case Form.udata => assert(false);
-            default => assert(false);
-        }
-        io.println("	" .. self.value .. "                               #");
+        return print_data(self.value .. "                               #", self.form);
     }
 }
 
@@ -489,19 +531,9 @@ class AttrData {
         return self;
     }
 
-    fn print(attr: AttrValue) {
-        import io
+    fn print(attr: AttrValue) => u32 {
         var self = attr$cast(AttrData);
-        switch (self.form) {
-            case Form.data1 => io.print("	.byte");
-            case Form.data2 => io.print("	.2byte");
-            case Form.data4 => io.print("	.4byte");
-            case Form.data8 => io.print("	.8byte");
-            case Form.data16 => assert(false);
-            case Form.udata => assert(false);
-            default => assert(false);
-        }
-        io.println("	" .. self.value$cast(str) .. "                               #");
+        return print_data(self.value$cast(str) .. "                               #", self.form);
     }
 }
 
@@ -542,6 +574,7 @@ class AttrPair {
 export class DIE {
 
     var tag: Tag;
+    var data_offset: u32;
     var abbr_index: u64;
     var attrs: AttrPair[];
     var children: DIE[];
@@ -596,6 +629,30 @@ export class DIE {
     }
 }
 
+class AttrRef {
+    extend AttrValue;
+    var die: DIE;
+
+    fn construct(die: DIE, size: u64) => AttrRef {
+        var self = AttrRef();
+        self.print = print;
+        switch (size) {
+            case 1 => self.form = Form.ref1;
+            case 2 => self.form = Form.ref2;
+            case 4 => self.form = Form.ref4;
+            case 8 => self.form = Form.ref8;
+            default => self.form = Form.ref_udata;
+        }
+        self.die = die;
+        return self;
+    }
+
+    fn print(attr: AttrValue) => u32 {
+        var self = attr$cast(AttrRef);
+        return print_data(self.die.data_offset$cast(str) .. "                               #", self.form);
+    }
+}
+
 export class DebugInfo {
     var version: u8;
     var abbr_section_offset: str;
@@ -603,6 +660,8 @@ export class DebugInfo {
     var dies: DIE[];
     var dies_indices: IntHashMap;
     var dies_by_name: StrHashMap;
+
+    var types_to_dies: IntHashMap;
 
     var abbrs: Abbreviation[];
     var abbrs_indices: HashMap;
@@ -639,6 +698,8 @@ export class DebugInfo {
         self.dies = DIE[0];
         self.dies_indices = IntHashMap.construct();
         self.dies_by_name = StrHashMap.construct();
+
+        self.types_to_dies = IntHashMap.construct();
 
         self.abbrs = Abbreviation[0];
         self.abbrs_indices = HashMap.construct(is_abbrs_equal, get_abbr_hash);
@@ -677,29 +738,32 @@ export class DebugInfo {
             var i = 0;
             for (var abbr <- self.abbrs) {
                 i += 1;
-                io.println("	.byte	" .. i$cast(str) .. "                               # Abbreviation Code");
+                print_data_directive(ASMX86.DataDirective.Byte, i$cast(str) .. "                               # Abbreviation Code");
                 abbr->print();
-                io.println("	.byte	0                               # EOM(1)");
-                io.println("	.byte	0                               # EOM(2)");
+                print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(1)");
+                print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(2)");
             }
         }
-        io.println("	.byte	0                               # EOM(3)");
+        print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(3)");
+
+        var data_size: u32;
 
         io.println("	.section	.debug_info,\"dr\"");
         io.println(".Lcu_begin0:");
-        io.println("	.long	.Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
+        data_size += print_data_directive(ASMX86.DataDirective.Long, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
         io.println(".Ldebug_info_start0:");
-        io.println("	.short	" .. self.version$cast(str) .. "                               # DWARF version number");
-        io.println("	.byte	" .. UnitType.compile$cast(str) .. "                               # DWARF Unit Type");
-        io.println("	.byte	" .. raw$size$cast(str) .. "                               # Address Size (in bytes)");
-        io.println("	.secrel32	.debug_abbrev           # Offset Into Abbrev. Section");
+        data_size += print_data_directive(ASMX86.DataDirective.Short, self.version$cast(str) .. "                               # DWARF version number");
+        data_size += print_data_directive(ASMX86.DataDirective.Byte, UnitType.compile$cast(str) .. "                               # DWARF Unit Type");
+        data_size += print_data_directive(ASMX86.DataDirective.Byte, raw$size$cast(str) .. "                               # Address Size (in bytes)");
+        data_size += print_data_directive(ASMX86.DataDirective.Secrel32, ".debug_abbrev           # Offset Into Abbrev. Section");
         
         for (var die <- self.dies) {
-            io.println("	.byte	" .. die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "]");
+            die.data_offset = data_size;
+            data_size += print_data_directive(ASMX86.DataDirective.Byte, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "]");
 
             for (var attr <- die.attrs) {
                 if (attr.value.print != null) {
-                    attr.value->print();
+                    data_size += attr.value->print();
                 }
             }
         }
@@ -741,13 +805,21 @@ export class DebugInfo {
         io.println(".Ldebug_addr_end0:");
     }
 
+    from type_base import Type
     export fn add_function(self: DebugInfo, 
         func_name: str,
+        return_type: Type,
         func_index: u16,
         decl_line: u64,
         is_pub: bool, // DW_AT_external
         is_main: bool) { // DW_AT_main_subprogram 
         self.abbrs[0].has_children = true;
+
+        var return_type_die: DIE;
+        from type import Types
+        if (return_type != null && return_type != Types.instance.type_void$cast(Type)) {
+            return_type_die = self->construct_type_die(return_type);
+        }
 
         var low_pc_index = self.func_addresses.size;
         self.func_addresses ..= ".Lfunc_begin" .. func_index$cast(str);
@@ -764,12 +836,16 @@ export class DebugInfo {
             AttrPair.construct(Attr.decl_file, AttrData.construct(decl_line, 1)),
         };
 
+        if (return_type_die != null) {
+            die.attrs ..= AttrPair.construct(Attr.type, AttrRef.construct(return_type_die, 4));
+        }
+
         if (is_pub) {
-            AttrPair.construct(Attr.external, AttrValue.construct_empty(Form.flag_present));
+            die.attrs ..= AttrPair.construct(Attr.external, AttrValue.construct_empty(Form.flag_present));
         }
 
         if (is_main) {
-            AttrPair.construct(Attr.main_subprogram, AttrValue.construct_empty(Form.flag_present));
+            die.attrs ..= AttrPair.construct(Attr.main_subprogram, AttrValue.construct_empty(Form.flag_present));
         }
 
         self->add_die(die);
@@ -827,13 +903,41 @@ export class DebugInfo {
         return string_index;
     }
 
-    from type_base import Type
-    export fn construct_type_die(type: Type) => DIE {
+    export fn construct_pointer_type_die(self: DebugInfo, wrapped_die: DIE, name: str) => DIE {
+        var die = DIE();
+
+        die.tag = DIE.Tag.pointer_type;
+        die.attrs = AttrPair[0];
+        if (name != null) {
+            die.attrs ..= AttrPair.construct(Attr.name, AttrStr.construct(name));
+        }
+        if (wrapped_die != null) {
+            die.attrs ..= AttrPair.construct(Attr.type, AttrRef.construct(wrapped_die, 4));
+        }
+
+        self->add_die(die);
+        return die;
+    }
+
+    export fn construct_type_die(self: DebugInfo, type: Type) => DIE {
+        import io
+        var bucket = self.types_to_dies->get_or_insert(type$cast(raw)$cast(u64), null);
+        if (bucket.value != null) {
+            return bucket.value$cast(DIE);
+        }
+
         if (type.kind == Type.Kind.Primitive) {
             from type import TypePrimitive
             var type_primitive = type$cast(TypePrimitive);
 
+            from type import Types
+            if (type_primitive == Types.instance.type_raw) {
+                bucket.value = self->construct_pointer_type_die(null, type_primitive.name);
+                return bucket.value$cast(DIE);
+            }
+
             var die = DIE();
+            bucket.value = die;
 
             die.tag = DIE.Tag.base_type;
             die.attrs = AttrPair[1]{
@@ -844,21 +948,102 @@ export class DebugInfo {
                 die.attrs ..= AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(type_primitive.size, 1));
             }
 
+            var encoding = AttrEncoding.none;
             if (type_primitive.numeric) {
-                var encoding = AttrEncoding.none;
                 if (type_primitive.signed) {
                     encoding = AttrEncoding.signed;
                 } else {
                     encoding = AttrEncoding.unsigned;
                 }
-                die.attrs ..= AttrPair.construct(DIE.Attr.encoding, AttrData.construct(encoding$cast(u64), 1));
             } else {
-                assert(false);
+                if (type_primitive == Types.instance.type_bool) {
+                    encoding = AttrEncoding.boolean;
+                } else if (type_primitive == Types.instance.type_char) {
+                    encoding = AttrEncoding.unsigned_char;
+                } else {
+                    io.errorln("Unsupported primitive type " .. type->get_name());
+                    assert(false);
+                }
             }
+            die.attrs ..= AttrPair.construct(DIE.Attr.encoding, AttrData.construct(encoding$cast(u64), 1));
 
+            self->add_die(die);
             return die;
         }
+
+        if (type.kind == Type.Kind.Enum) {
+            from type import TypeEnum
+            var type_enum = type$cast(TypeEnum);
+
+            var parent_type_die = self->construct_type_die(type_enum.parent);
+
+            var die = DIE();
+            bucket.value = die;
+
+            die.tag = DIE.Tag.enumeration_type;
+            die.attrs = AttrPair[3]{
+                AttrPair.construct(Attr.name, AttrStr.construct(type_enum.name)),
+                AttrPair.construct(Attr.type, AttrRef.construct(parent_type_die, 4)),
+                AttrPair.construct(Attr.byte_size, AttrData.construct(type_enum.size, 1)),
+            };
+
+            self->add_die(die);
+            return die;
+        }
+
+        if (type.kind == Type.Kind.Function) {
+            // TODO
+            return self->construct_type_die(Types.instance.type_raw);
+        }
+
+        if (type.kind == Type.Kind.Array) {
+            // TODO
+            return self->construct_type_die(Types.instance.type_raw);
+        }
+
+        if (type.kind == Type.Kind.CArray) {
+            // TODO
+            return self->construct_type_die(Types.instance.type_raw);
+        }
+
+        if (type.kind == Type.Kind.Class) {
+            from type import TypeClass
+            var type_class = type$cast(TypeClass);
+
+            var die = DIE();
+            bucket.value = self->construct_pointer_type_die(die, type_class.name);
+
+            die.tag = DIE.Tag.structure_type;
+            die.attrs = AttrPair[1]{
+                AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(type_class.size, 1)),
+            };
+
+            die.children = DIE[0];
+            for (var field <- type_class.fields) {
+                if (field.name == null || field.name == "") {
+                    continue;
+                }
+
+                var member_die = DIE();
+
+                // TODO count in extended classes
+                var member_type_die = self->construct_type_die(field.type);
+
+                member_die.tag = DIE.Tag.member;
+                member_die.attrs = AttrPair[3]{
+                    AttrPair.construct(Attr.name, AttrStr.construct(field.name)),
+                    AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
+                    AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(type_class.size, 1))
+                };
+
+                die.children ..= member_die;
+            } 
+
+            self->add_die(die);
+            return bucket.value$cast(DIE);
+        }
         
+        io.errorln("Unsupported yet type " .. type->get_name());
         assert(false);
         return null;
     }

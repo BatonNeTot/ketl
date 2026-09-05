@@ -90,6 +90,43 @@ export class ASMX86 {
         RET,
     }
 
+    export enum DataDirective: u8 {
+        Byte,
+        Word,
+        Short,
+        Long,
+        Int,
+        Quad,
+        Secrel32,
+    }
+
+    export fn print_data_directive(directive: DataDirective) {
+        switch (directive) {
+            case DataDirective.Byte  => io.print("byte");
+            case DataDirective.Word => io.print("word");
+            case DataDirective.Short => io.print("short");
+            case DataDirective.Long => io.print("long");
+            case DataDirective.Int => io.print("int");
+            case DataDirective.Quad => io.print("quad");
+            case DataDirective.Secrel32 => io.print("secrel32");
+            default => io.print("error");
+        }
+    }
+
+    export fn get_data_directive_size(directive: DataDirective) => u8 {
+        switch (directive) {
+            case DataDirective.Byte  => return 1;
+            case DataDirective.Word
+            case DataDirective.Short => return 2;
+            case DataDirective.Long
+            case DataDirective.Int
+            case DataDirective.Secrel32 => return 4;
+            case DataDirective.Quad => return 8;
+            default => assert(false); 
+        }
+        return 0;
+    }
+
     export enum Size: u8 {
         Bit8    = 1,
         Bit16   = 2,
@@ -111,10 +148,10 @@ export class ASMX86 {
 
     export fn print_directive_size(size: Size) {
         switch (size) {
-            case Size.Bit8  => io.print("byte");
-            case Size.Bit16 => io.print("2byte");
-            case Size.Bit32 => io.print("4byte");
-            case Size.Bit64 => io.print("8byte");
+            case Size.Bit8  => print_data_directive(DataDirective.Byte);
+            case Size.Bit16 => print_data_directive(DataDirective.Short);
+            case Size.Bit32 => print_data_directive(DataDirective.Long);
+            case Size.Bit64 => print_data_directive(DataDirective.Quad);
             default => io.print("error"); 
         }
     }
@@ -1457,6 +1494,7 @@ export class ASMX86 {
                                 // implicitly uses AX
                                 if (type->is_signed()) self->insert_rm(Tag.IDIV, arg_size, ModRM.construct_reg(Reg.CX));
                                 else                   self->insert_rm(Tag.DIV, arg_size, ModRM.construct_reg(Reg.CX));
+                                self->insert_reg_rm(Tag.MOV, arg_size, Reg.AX, ModRM.construct_reg(Reg.DX));
                                 self->insert_reg_rm(Tag.MOV, arg_size, Reg.AX, ModRM.construct_reg(Reg.DX));
                             }
                             

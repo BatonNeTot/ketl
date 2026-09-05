@@ -639,10 +639,6 @@ class Parser {
     }
 
     fn parse_dot_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
-        if (context.hir_builder->is_undef(object_id)) {
-            return object_id;
-        }
-
         var object = context->get_var(object_id);
         var is_arrow_op = false;
         switch (context->current_token(1).type) {
@@ -691,7 +687,12 @@ class Parser {
 
         var object_as_namespace = context->get_var_as_namespace(object_id);
         if (object_as_namespace != null) {
-            return context.hir_builder->get_namespace_var(object_as_namespace, id, src_info, true);
+            var var_id = context.hir_builder->get_namespace_var(object_as_namespace, id, src_info, true);
+            if (context.hir_builder->is_undef(var_id)) {
+                context->error(src_info.source_offset, src_info.length, "Undeclared entity '" .. id .. "' from namespace '" .. object_as_namespace.name .. "'.");
+                return context.hir_builder->push_error_var(src_info);
+            }
+            return var_id;
         }
 
         var object_type = object->get_type();
@@ -2181,7 +2182,13 @@ class Parser {
             context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, src_info);
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
         } else {
-            context.hir_builder->push_return_value(context->parse_expression(), src_info);
+            var expr_id = context->parse_expression();
+            /*
+            if (context.hir_builder->is_undef(expr_id)) {
+                context->error(src_info.source_offset, src_info.length, "Trying to return undefined expression.");
+            }
+            */
+            context.hir_builder->push_return_value(expr_id, src_info);
             context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after return statement expression.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysValue, StatementInfo.BlockStatus.Finished);
         }

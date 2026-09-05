@@ -679,13 +679,14 @@ class HIRBuilder {
         var i: u64 = 0;
         while (i < arguments.size) {
             var arg_id = arguments[i];
+            var arg = self.vars[arg_id];
+            var parameter_type = function_signature.parameters[i + 1];
+            arg_id = self->cast_to_type_forced(arg_id, parameter_type, arg.src_info, false);
+
             if (self->is_undef(arg_id)) {
                 return self->push_error_var(src_info);
             }
 
-            var arg = self.vars[arg_id];
-            var parameter_type = function_signature.parameters[i + 1];
-            arg_id = self->cast_to_type_forced(arg_id, parameter_type, arg.src_info, false);
             arguments[i] = arg_id;
             i += 1;
         }
@@ -1047,6 +1048,10 @@ class HIRBuilder {
 
     export fn push_return_value(self: HIRBuilder, var_id: HIR.VarId, src_info: HIR.SrcInfo) {
         var_id = self->cast_to_type_forced(var_id, self.return_type, src_info, false);
+
+        if (self->is_undef(var_id)) {
+            return;
+        }
 
         var instr = HIR.ReturnValue();
         instr.tag = HIR.Tag.RETURN_VALUE;
