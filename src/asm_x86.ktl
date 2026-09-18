@@ -426,7 +426,8 @@ export class ASMX86 {
             return self;
         }
 
-        shared scale_powers = u8[4]{
+        #shared
+        scale_powers := u8[4]{
             1, 2, 4, 8
         };
 

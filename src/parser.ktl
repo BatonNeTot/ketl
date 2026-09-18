@@ -32,21 +32,19 @@ class Parser {
         var log_info: ErrorsAccum.SourceInfo;
 
         var source: str;
-        var namespace: Namespace;
         var iterator: TokenIterator;
         var hir_builder: HIRBuilder;
         
         var unprocessed_breaks: HIR.Jump[];
         var unprocessed_continues: HIR.Jump[];
 
+        var class_fields: TypeClass.Field[];
+
         var break_available: bool;
         var continue_available: bool;
         
         var is_global_scope: bool;
         var emit_debug_info: bool;
-
-        var exxport: bool;
-        var cexxport: bool;
 
         // sharp modifiers
         var next_symbol_entry: bool;
@@ -399,7 +397,7 @@ class Parser {
 
         if (token.type == Token.Type.ID) {
             var name = context->token_str(token);
-            var var_id = context.hir_builder->get_var(context.namespace, name, name, src_info);
+            var var_id = context.hir_builder->get_var(context.hir_builder.namespace, name, name, src_info);
             if (context.hir_builder->is_undef(var_id)) {
                 var error_id = context->error_type(ErrorsAccum.Error.UndefinedId, src_info.source_offset, src_info.length, "Undeclared variable.");
                 
@@ -741,7 +739,7 @@ class Parser {
                 return field_var_id;
             }
 
-            field_var_id = context.hir_builder->get_var(context.namespace, field_id, field_id, src_info);
+            field_var_id = context.hir_builder->get_var(context.hir_builder.namespace, field_id, field_id, src_info);
             if (context.hir_builder->is_undef(field_var_id)) {
                 var error_id = context->error_type(ErrorsAccum.Error.UndefinedId, src_info.source_offset, src_info.length, "Undeclared variable.");
                 
@@ -828,7 +826,9 @@ class Parser {
 
     fn parse_var_decl_expr(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
         var src_info = HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
-        if (!context.hir_builder->check_var_declaration_conditions(lhs_id)) {
+
+        key := context.hir_builder->check_var_declaration_conditions(lhs_id);
+        if (key == null) {
             return context.hir_builder->push_empty_error_var(src_info);
         }
 
@@ -842,6 +842,11 @@ class Parser {
             context->error(type_src_info.source_offset, type_src_info.length, "Can't be used as type for var declaration.");
             return context.hir_builder->push_empty_error_var(src_info);
         }  
+
+        if (context.class_fields != null && !context.hir_builder.shhared) {
+            context->add_class_field(key, type);
+            return context.hir_builder->push_temp_var_of_type(Types.instance.type_void, src_info);
+        }
         
         if (!context.hir_builder->declare_var_from_var_id(lhs_id, type, src_info)) {
             return context.hir_builder->push_empty_error_var(src_info);
@@ -864,7 +869,9 @@ class Parser {
 
     fn parse_var_decl_expr_postfix(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
         var src_info = HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
-        if (!context.hir_builder->check_var_declaration_conditions(lhs_id)) {
+        
+        key := context.hir_builder->check_var_declaration_conditions(lhs_id);
+        if (key == null) {
             return context.hir_builder->push_empty_error_var(src_info);
         }
         
@@ -1257,7 +1264,7 @@ class Parser {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
-        context.namespace->import_namespace(module_name, null, module.namespace, context.exxport);
+        context.hir_builder.namespace->import_namespace(module_name, null, module.namespace, context.hir_builder.exxport);
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
@@ -1295,7 +1302,7 @@ class Parser {
 
         var name = context->token_str(name_token);
     
-        var target_namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, name_token), context.exxport);
+        var target_namespace_node = context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, name_token), context.hir_builder.exxport);
         if (target_namespace_node == null) {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
@@ -1317,7 +1324,8 @@ class Parser {
 
     fn parse_sharp_modifier(context: Context) => StatementInfo {
         context->token_advance(); // #
-        context->token_consume(Token.Type.ID, "Expected id after '#' operator.");
+        context->token_advance(); // id // TODO replace with regular consume(ID); tmp fix for shared
+        //context->token_consume(Token.Type.ID, "Expected id after '#' operator.");
         var id_token = context->current_token(1);
 
         var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.log_info.filename, id_token));
@@ -1339,6 +1347,11 @@ class Parser {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
+        if (id == "shared") {
+            context.hir_builder.shhared = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+
         context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
@@ -1349,10 +1362,10 @@ class Parser {
         // TODO can't do local scope vars in global this way
         if (context.is_global_scope) {
             var name: str;
-            if (context.cexxport) {
+            if (context.hir_builder.cexxport) {
                 name = key;
             }
-            var_id = context.hir_builder->declare_global_var(context.namespace, key, name, type, src_info, context.exxport);
+            var_id = context.hir_builder->declare_global_var(context.hir_builder.namespace, key, name, type, src_info, context.hir_builder.exxport);
         } else {
             var_id = context.hir_builder->declare_local_var(key, type, src_info);
         }
@@ -1471,10 +1484,10 @@ class Parser {
         var function_type = Types.instance->get_function_type(function_parameters);
         var key = context->token_str(id_token);
         var name: str;
-        if (context.cexxport) {
+        if (context.hir_builder.cexxport) {
             name = key;
         }
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, key, name, function_type, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.hir_builder.namespace, key, name, function_type, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.hir_builder.exxport);
         namespace_node.info.const = true;
 
         if (context.next_symbol_entry) {
@@ -1522,7 +1535,7 @@ class Parser {
 
         if (header.namespace_node != null) {
             var function_decl = CompileFunctionDeclaration();
-            function_decl.parent_namespace = context.namespace;
+            function_decl.parent_namespace = context.hir_builder.namespace;
             function_decl.node = header.namespace_node;
             function_decl.parameters_names = header.parameters_names;
             function_decl.parameters_infos = header.parameters_infos;
@@ -1536,17 +1549,31 @@ class Parser {
     }
 
     fn parse_cimport_declaration(context: Context) => StatementInfo {
-        var old_cexxport = context.cexxport;
-        context.cexxport = true;
+        var old_cexxport = context.hir_builder.cexxport;
+        context.hir_builder.cexxport = true;
 
         context->parse_function_header();
 
-        context.cexxport = old_cexxport;
+        context.hir_builder.cexxport = old_cexxport;
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
-    fn parse_class_declaration_inner(context: Context, class_fields: TypeClass.Field[]) {
+    fn add_class_field(context: Context, name: str, type: Type) {
+        var field = TypeClass.Field();
+
+        if (context.facade_field) {
+            context.facade_field = false;
+            field.facaded = true;
+        }
+
+        field.name = name;
+        field.type = type;
+
+        context.class_fields ..= field;
+    }
+
+    fn parse_class_declaration_inner(context: Context) {
         while (true) switch (context->current_token(0).type) {
             case Token.Type.TERMINATION_CHARACTER => { 
                 context->token_advance(); // ;
@@ -1558,36 +1585,27 @@ class Parser {
             case Token.Type.VAR => {
                 context->token_advance(); // var
 
-                var field = TypeClass.Field();
-
-                if (context.facade_field) {
-                    context.facade_field = false;
-                    field.facaded = true;
-                }
-
                 var field_token = context->current_token(0);
-                field.name = context->token_str(field_token);
+                field_name := context->token_str(field_token);
                 context->token_advance(); // id
 
                 context->token_consume(Token.Type.COLON, "Expected ':' after field name.");
 
-                field.type = context->parse_type();
+                field_type := context->parse_type();
 
                 context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
-                class_fields ..= field;
+                context->add_class_field(field_name, field_type);
                 return;
             }
             case Token.Type.EXTEND => {
                 context->token_advance(); // extend
 
-                var field = TypeClass.Field();
-
-                field.type = context->parse_type();
+                field_type := context->parse_type();
 
                 context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
 
-                class_fields ..= field;
+                context->add_class_field(null, field_type);
                 return;
             }
             case Token.Type.SHARED => {
@@ -1601,31 +1619,31 @@ class Parser {
             case Token.Type.MIMIC   => { context->parse_mimic_declaration   (); return; }
             case Token.Type.EXPORT  => {
                 context->token_advance();
-                if (context.exxport) {
+                if (context.hir_builder.exxport) {
                     var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
                     continue;
                 }
-                context.exxport = true;
-                context->parse_class_declaration_inner(class_fields);
-                context.exxport = false;
+                context.hir_builder.exxport = true;
+                context->parse_class_declaration_inner();
+                context.hir_builder.exxport = false;
                 return;
             }
             case Token.Type.CEXPORT => {
                 context->token_advance();
-                if (context.cexxport) {
+                if (context.hir_builder.cexxport) {
                     var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
                     continue;
                 }
-                context.cexxport = true;
-                context->parse_class_declaration_inner(class_fields);
-                context.cexxport = false;
+                context.hir_builder.cexxport = true;
+                context->parse_class_declaration_inner();
+                context.hir_builder.cexxport = false;
                 return;
             }
             default => {
                 var keyword_token = context->current_token(0);
-                context->error(keyword_token.offset, keyword_token.length, "Statements are not supported inside class declaration.");
+                //context->error(keyword_token.offset, keyword_token.length, "Statements are not supported inside class declaration.");
                 context->parse_statement();
                 return;
             }
@@ -1640,32 +1658,34 @@ class Parser {
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after class name.");
 
         var name = context->token_str(id_token);
-        var class_type = TypeClass.construct(name, context.namespace, context.exxport);
+        var class_type = TypeClass.construct(name, context.hir_builder.namespace, context.hir_builder.exxport);
         var class_namespace = class_type.namespace;
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.hir_builder.exxport);
         namespace_node.value.kind = Value.Kind.Type;
         namespace_node.value.value = class_type$cast(raw)$cast(u64);
 
-        var old_namespace = context.namespace;
-        context.namespace = class_namespace;
+        var old_namespace = context.hir_builder.namespace;
+        context.hir_builder.namespace = class_namespace;
 
-        var old_export = context.exxport;
-        context.exxport = false;
+        var old_export = context.hir_builder.exxport;
+        context.hir_builder.exxport = false;
 
         context.hir_builder->push_symbol_map();
 
-        var class_fields = TypeClass.Field[0];
+        old_class_fields := context.class_fields;
+        context.class_fields = TypeClass.Field[0];
 
         while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
-            context->parse_class_declaration_inner(class_fields);
+            context->parse_class_declaration_inner();
         }
 
         context.hir_builder->pop_symbol_map();
         
-        context.exxport = old_export;
-        context.namespace = old_namespace;
+        context.hir_builder.exxport = old_export;
+        context.hir_builder.namespace = old_namespace;
 
-        class_type->finalize(class_fields);
+        class_type->finalize(context.class_fields);
+        context.class_fields = old_class_fields;
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' in the end of a class declaration.");
 
@@ -1754,7 +1774,7 @@ class Parser {
 
         var name = context->token_str(id_token);
         var enum_type = TypeEnum.construct(name, parent_primitive, enum_constants);
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.hir_builder.exxport);
         if (namespace_node != null) {
             namespace_node.value.kind = Value.Kind.Type;
             namespace_node.value.value = enum_type$cast(raw)$cast(u64);
@@ -1772,7 +1792,7 @@ class Parser {
 
         var name = context->token_str(id_token);
         var type = context->parse_type();
-        var namespace_node = context.hir_builder->declare_global_node(context.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.exxport);
+        var namespace_node = context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.hir_builder.exxport);
         namespace_node.value.kind = Value.Kind.Type;
         namespace_node.value.value = type$cast(raw)$cast(u64);
 
@@ -1799,26 +1819,26 @@ class Parser {
             case Token.Type.MIMIC   => return context->parse_mimic_declaration();
             case Token.Type.EXPORT => {
                 context->token_advance();
-                if (context.exxport) {
+                if (context.hir_builder.exxport) {
                     var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'export' operator.");
                     continue;
                 }
-                context.exxport = true;
+                context.hir_builder.exxport = true;
                 var result = context->parse_declaration();
-                context.exxport = false;
+                context.hir_builder.exxport = false;
                 return result;
             }
             case Token.Type.CEXPORT => {
                 context->token_advance();
-                if (context.cexxport) {
+                if (context.hir_builder.cexxport) {
                     var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
                     context->error(src_info.source_offset, src_info.length, "Excessive 'cexport' operator.");
                     continue;
                 }
-                context.cexxport = true;
+                context.hir_builder.cexxport = true;
                 var result = context->parse_declaration();
-                context.cexxport = false;
+                context.hir_builder.cexxport = false;
                 return result;
             }
             default                 => return context->parse_statement();
@@ -2341,7 +2361,6 @@ class Parser {
         context.log_info = lexer->construct_log_info();
 
         context.source = lexer.source;
-        context.namespace = namespace;
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
 
         context.unprocessed_breaks = HIR.Jump[0];
@@ -2350,6 +2369,7 @@ class Parser {
         context.emit_debug_info = emit_debug_info;
 
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.errors_accum, context.log_info, is_global_scope);
+        context.hir_builder.namespace = namespace;
 
         for (var parameter <- parameters) {
             context.hir_builder->add_parameter(parameter.name, parameter.type, parameter.src_info);

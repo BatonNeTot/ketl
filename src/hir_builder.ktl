@@ -44,6 +44,11 @@ class HIRBuilder {
     var local_map_stack: StrHashMap[];
     var global_map_stack: StrHashMap[];
 
+    var namespace: Namespace;
+    var exxport: bool;
+    var cexxport: bool;
+    var shhared: bool;
+
     export fn construct(return_type: Type, func_index: u16, errors_accum: ErrorsAccum, log_info: ErrorsAccum.SourceInfo, is_global: bool) => HIRBuilder {
         var self = HIRBuilder();
 
@@ -1330,7 +1335,7 @@ class HIRBuilder {
         return var_id;
     }
 
-    export fn check_var_declaration_conditions(self: HIRBuilder, var_id: HIR.VarId) => bool {
+    export fn check_var_declaration_conditions(self: HIRBuilder, var_id: HIR.VarId) => str {
         var varr = self.vars[var_id];
         var src_info = self.vars[var_id].src_info;
         
@@ -1342,23 +1347,27 @@ class HIRBuilder {
             //} else {
                 self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
             //}
-            return false;
+            return null;
         } else if (varr.kind != HIR.Var.Kind.Common) {
             self->error(src_info.source_offset, src_info.length, "Must use plain id to declare a variable.");
-            return false;
+            return null;
         }
 
         var decl = self.decls[varr$cast(HIR.VarCommon).decl];
         switch (decl.kind) {
             case HIR.Decl.Kind.Error => {
                 var error = self.errors_accum->get_kind(decl$cast(HIR.DeclError).error_id);
-                return error == ErrorsAccum.Error.UndefinedId;
+                if (error != ErrorsAccum.Error.UndefinedId) {
+                    return null;
+                }
+
+                return decl.name;
             }
             case HIR.Decl.Kind.Parameter
             case HIR.Decl.Kind.Common => {
                 if (decl.name[0] == '~') {
                     self->error(src_info.source_offset, src_info.length, "Must use plain id to declare a variable.");
-                    return false;
+                    return null;
                 }
                 var bucket = self->find_decl_bucket_scoped(decl.name);
                 if (bucket != null && bucket.value$cast(HIR.Decl) == decl) {
@@ -1369,13 +1378,13 @@ class HIRBuilder {
                     } else {
                         self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
                     }
-                    return false;
+                    return null;
                 }
-                return true;
+                return decl.name;
             }
             default => {
                 self->error(src_info.source_offset, src_info.length, "Must use plain id to declare a variable.");
-                return false;
+                return null;
             }
         }
     }
@@ -1437,28 +1446,47 @@ class HIRBuilder {
         var decl_id = varr$cast(HIR.VarCommon).decl;
         var prev_decl = self.decls[decl_id];
 
-        var common_decl = HIR.DeclCommon();
-        common_decl.kind = HIR.Decl.Kind.Common;
-        common_decl.name = prev_decl.name;
+        if (self.local_map_stack.size == 0 || self.shhared) {
+            // declaring global
+            self.shhared = false;
 
-        common_decl.type = type;
-        common_decl.src_info = src_info;
-
-        varr$cast(HIR.VarWithType).type = type;
-
-        if (prev_decl.kind == HIR.Decl.Kind.Error) {
+            assert(prev_decl.kind == HIR.Decl.Kind.Error);
             self.errors_accum->remove(prev_decl$cast(HIR.DeclError).error_id);
-            
-            self.decls[decl_id] = common_decl;
+
+            assert(var_id + 1 == self.vars.size);
+            self.vars->pop();
+
+            var name: str;
+            if (self.cexxport) {
+                name = prev_decl.name;
+            }
+            var global_var_id = self->declare_global_var(self.namespace, prev_decl.name, name, type, src_info, self.exxport);
+            assert(var_id == global_var_id);
         } else {
-            var decl_id = self.decls.size$cast(HIR.DeclId);
-            self.decls ..= common_decl;
+            // declaring local
+            var common_decl = HIR.DeclCommon();
+            common_decl.kind = HIR.Decl.Kind.Common;
+            common_decl.name = prev_decl.name;
+
+            common_decl.type = type;
+            common_decl.src_info = src_info;
+
+            varr$cast(HIR.VarWithType).type = type;
+
+            if (prev_decl.kind == HIR.Decl.Kind.Error) {
+                self.errors_accum->remove(prev_decl$cast(HIR.DeclError).error_id);
                 
-            var bucket = self->last_local_map()->get_or_insert(
-                    prev_decl.name, decl_id$cast(u64)$cast(raw));
-            assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
-            
-            varr$cast(HIR.VarCommon).decl = decl_id;
+                self.decls[decl_id] = common_decl;
+            } else {
+                var decl_id = self.decls.size$cast(HIR.DeclId);
+                self.decls ..= common_decl;
+                    
+                var bucket = self->last_local_map()->get_or_insert(
+                        prev_decl.name, decl_id$cast(u64)$cast(raw));
+                assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
+                
+                varr$cast(HIR.VarCommon).decl = decl_id;
+            }
         }
 
         return true;
@@ -1645,8 +1673,11 @@ class HIRBuilder {
 
             self.decls ..= decl;
 
-            bucket = self->last_local_map()->get_or_insert(
+            // TODO use global map instead
+            if (self.local_map_stack.size > 0) {
+                bucket = self->last_local_map()->get_or_insert(
                     fullname, decl_id$cast(u64)$cast(raw));
+            }
         } 
 
         return self->push_common_var(type, src_info, decl_id);
