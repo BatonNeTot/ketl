@@ -90,7 +90,7 @@ add_custom_command(
     ARGS -S src -o src_out -g
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS ${PROJECT_KETL_SOURCES} ${PROJECT_EXE_TARGET}
-    COMMENT "Compiling ketl compiler"
+    COMMENT "Compiling test ketl compiler"
 )
 
 ################################

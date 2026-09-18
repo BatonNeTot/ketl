@@ -2,8 +2,8 @@
 
 from common import IntHashMap
 from common import align_forward
-from common import uint_to_str
-from common import LogAccum
+from strings import uint_to_str
+from errors import ErrorsAccum
 import io
 
 from type_base import Type
@@ -66,18 +66,27 @@ export class ASMX86 {
         TEST,
 
         SETE,
-        SETZ = SETE, // TODO actually separate them
+        SETZ,
         SETNE,
-        SETNZ = SETNE,
+        SETNZ,
+
+        SETA,
+        SETNBE,
+        SETAE,
+        SETNB,
+        SETB,
+        SETNAE,
+        SETBE,
+        SETNA,
 
         SETG,
-        SETNLE = SETG,
+        SETNLE,
         SETGE,
-        SETNL = SETGE,
+        SETNL,
         SETL,
-        SETNGE = SETL,
+        SETNGE,
         SETLE,
-        SETNG = SETLE,
+        SETNG,
 
         JMP,
 
@@ -529,11 +538,27 @@ export class ASMX86 {
                 case Tag.TEST => io.print("test ");
                     
                 case Tag.SETE => io.print("sete ");
+                case Tag.SETZ => io.print("setz ");
                 case Tag.SETNE => io.print("setne ");
+                case Tag.SETNZ => io.print("setnz ");
+
+                case Tag.SETA => io.print("seta ");
+                case Tag.SETNBE => io.print("setnbe ");
+                case Tag.SETAE => io.print("setae ");
+                case Tag.SETNB => io.print("setnb ");
+                case Tag.SETB => io.print("setb ");
+                case Tag.SETNAE => io.print("setnae ");
+                case Tag.SETBE => io.print("setbe ");
+                case Tag.SETNA => io.print("setna ");
+
                 case Tag.SETG => io.print("setg ");
+                case Tag.SETNLE => io.print("setnle ");
                 case Tag.SETGE => io.print("setge ");
+                case Tag.SETNL => io.print("setnl ");
                 case Tag.SETL => io.print("setl ");
+                case Tag.SETNGE => io.print("setnge ");
                 case Tag.SETLE => io.print("setle ");
+                case Tag.SETNG => io.print("setng ");
 
                 case Tag.JMP => io.print("jmp ");
                 case Tag.JNE => io.print("jne ");
@@ -664,7 +689,7 @@ export class ASMX86 {
 
         };
 
-        var log_info: LogAccum.LogInfo;
+        var log_info: ErrorsAccum.SourceInfo;
         var hir: HIR;
         var instrs: Instr[];
         var hir_to_asm_offsets: IntHashMap;
@@ -676,7 +701,7 @@ export class ASMX86 {
         var debug_begin_stmt: bool;
         var debug_inserted_prolog: bool;
         
-        export fn construct(abi: ABI, emit_debug_info: bool, log_info: LogAccum.LogInfo) => Builder {
+        export fn construct(abi: ABI, emit_debug_info: bool, log_info: ErrorsAccum.SourceInfo) => Builder {
             var self = Builder();
 
             self.abi = abi;
@@ -1495,7 +1520,6 @@ export class ASMX86 {
                                 if (type->is_signed()) self->insert_rm(Tag.IDIV, arg_size, ModRM.construct_reg(Reg.CX));
                                 else                   self->insert_rm(Tag.DIV, arg_size, ModRM.construct_reg(Reg.CX));
                                 self->insert_reg_rm(Tag.MOV, arg_size, Reg.AX, ModRM.construct_reg(Reg.DX));
-                                self->insert_reg_rm(Tag.MOV, arg_size, Reg.AX, ModRM.construct_reg(Reg.DX));
                             }
                             
                             case HIR.Tag.BITWISE_AND => self->insert_reg_rm(Tag.AND, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
@@ -1521,19 +1545,23 @@ export class ASMX86 {
                             }
                             case HIR.Tag.LESS  => {
                                 self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                                self->insert_rm(Tag.SETL, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                if (type->is_signed()) self->insert_rm(Tag.SETL, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SETB, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.LESS_OR_EQUAL => {
                                 self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                                self->insert_rm(Tag.SETLE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                if (type->is_signed()) self->insert_rm(Tag.SETLE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SETBE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.GREATER => {
                                 self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                                self->insert_rm(Tag.SETG, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                if (type->is_signed()) self->insert_rm(Tag.SETG, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SETA, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                             case HIR.Tag.GREATER_OR_EQUAL => {
                                 self->insert_reg_rm(Tag.CMP, arg_size, Reg.AX, ModRM.construct_reg(Reg.CX));
-                                self->insert_rm(Tag.SETGE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                if (type->is_signed()) self->insert_rm(Tag.SETGE, Size.Bit8, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm(Tag.SETAE, Size.Bit8, ModRM.construct_reg(Reg.AX));
                             }
                         }
 

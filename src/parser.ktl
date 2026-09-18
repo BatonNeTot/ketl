@@ -1,7 +1,7 @@
 //🫖ketl
 
 from common import FilePointer
-from common import LogAccum
+from errors import ErrorsAccum
 from variable import VariableDecl
 
 import io
@@ -28,8 +28,8 @@ from hir_builder import HIRBuilder
 class Parser {
 
     class Context {
-        var log_accum: LogAccum;
-        var log_info: LogAccum.LogInfo;
+        var errors_accum: ErrorsAccum;
+        var log_info: ErrorsAccum.SourceInfo;
 
         var source: str;
         var namespace: Namespace;
@@ -47,14 +47,27 @@ class Parser {
 
         var exxport: bool;
         var cexxport: bool;
+
+        // sharp modifiers
         var next_symbol_entry: bool;
         var omit_var_init: bool;
+        var facade_field: bool;
+    }
+
+    fn error_type(self: Context, type: ErrorsAccum.Error, offset: u32, length: u32, message: str) => u64 {
+        return self.errors_accum->error(
+            type,
+            self.log_info,
+            FilePointer.construct(offset, offset, length),
+            message 
+        );
     }
 
     fn error(self: Context, offset: u32, length: u32, message: str) {
-        self.log_accum->error(
-            self.log_info,
-            FilePointer.construct(offset, offset, length),
+        self->error_type(
+            ErrorsAccum.Error.Nonspecific,
+            offset,
+            length,
             message 
         );
     }
@@ -66,6 +79,14 @@ class Parser {
  
     fn current_token(context: Context, offset: u64) => Token {
         return context.iterator->current(offset);
+    }
+
+    fn check_next_line(context: Context, offset: u64) => bool {
+        var token_line = context.log_info->find_line(context->current_token(offset).offset);
+        var prev_token_line = context.log_info->find_line(context->current_token(offset + 1).offset);
+
+        // Line break, replaces terminator ';'
+        return token_line > prev_token_line;
     }
 
     fn token_check(context: Context, token_type: Token.Type) => bool {
@@ -228,22 +249,25 @@ class Parser {
         var prefix: (Context) => HIR.VarId;
         var ltr_infix: (Context, HIR.VarId) => HIR.VarId;
         var rtl_infix: (Context, HIR.VarId, HIR.VarId) => HIR.VarId;
+        var postfix: (Context, HIR.VarId) => HIR.VarId;
         var precedence: Precedence;
 
         export fn construct(prefix: (Context) => HIR.VarId, 
                             ltr_infix: (Context, HIR.VarId) => HIR.VarId, 
                             rtl_infix: (Context, HIR.VarId, HIR.VarId) => HIR.VarId,
+                            postfix: (Context, HIR.VarId) => HIR.VarId, 
                             precedence: Precedence) => ParseRule {
             var self = ParseRule();
             self.prefix = prefix;
             self.ltr_infix = ltr_infix;
             self.rtl_infix = rtl_infix;
+            self.postfix = postfix;
             self.precedence = precedence;
             return self;
         }
     }
 
-    shared parse_rule_default = ParseRule.construct(null, null, null, Precedence.None);
+    shared parse_rule_default = ParseRule.construct(null, null, null, null, Precedence.None);
     
     fn get_parse_rule(token_type: Token.Type) => ParseRule {
         var parse_rule = parse_rules[token_type];
@@ -377,7 +401,13 @@ class Parser {
             var name = context->token_str(token);
             var var_id = context.hir_builder->get_var(context.namespace, name, name, src_info);
             if (context.hir_builder->is_undef(var_id)) {
-                context->error(src_info.source_offset, src_info.length, "Undeclared variable.");
+                var error_id = context->error_type(ErrorsAccum.Error.UndefinedId, src_info.source_offset, src_info.length, "Undeclared variable.");
+                
+                var varr = context->get_var(var_id);
+                if (varr.kind == HIR.Decl.Kind.Common) {
+                    var decl_id = varr$cast(HIR.VarCommon).decl;
+                    context.hir_builder.decls[decl_id]$cast(HIR.DeclError).error_id = error_id;
+                }
             }
 
             return var_id;
@@ -489,7 +519,7 @@ class Parser {
             var var_as_type = context->get_var_as_type(var_id);
             if (var_as_type == null) {
                 context->error(src_info.source_offset, src_info.length, "Can't have empty indexing expression.");
-                return context.hir_builder->push_error_var(src_info);
+                return context.hir_builder->push_empty_error_var(src_info);
             }
             var array_type = Types.instance->get_array_type(var_as_type);
             return context.hir_builder->push_literal_type(array_type, src_info);
@@ -500,14 +530,14 @@ class Parser {
             
             var end_id: HIR.VarId;
             if (context->token_match(Token.Type.SQUARE_RIGHT)) {
-                io.errorln("Subrange with deducted end");
-                assert(false);
+                var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
+                end_id = context.hir_builder->push_field_access_forced(var_id, "size", src_info);
             } else {
                 end_id = context->parse_precedence(Precedence.Colon + 1);
+
+                context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
             }
             
-            context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
-
             var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
         }
@@ -519,13 +549,13 @@ class Parser {
 
             var end_id: HIR.VarId;
             if (context->token_match(Token.Type.SQUARE_RIGHT)) {
-                io.errorln("Subrange with deducted end");
-                assert(false);
+                var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
+                end_id = context.hir_builder->push_field_access_forced(var_id, "size", src_info);
             } else {
                 end_id = context->parse_precedence(Precedence.Colon + 1);
-            }
             
-            context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
+                context->token_consume(Token.Type.SQUARE_RIGHT, "Expected ']' after expression.");
+            }
 
             var src_info = HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
             return context.hir_builder->push_new_slice(var_id, start_id, end_id, src_info);
@@ -617,7 +647,7 @@ class Parser {
                 var callee_type = callee_node.value.value$cast(raw)$cast(Type);
                 if (callee_type.kind != Type.Kind.Class) {
                     context->error(src_info.source_offset, src_info.length, "Only class objects can be constructed through calling a type.");
-                    return context.hir_builder->push_error_var(src_info);
+                    return context.hir_builder->push_empty_error_var(src_info);
                 }
 
                 return context.hir_builder->push_new(callee_type$cast(TypeClass), arguments, src_info);
@@ -659,7 +689,7 @@ class Parser {
         var src_info = HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(context.log_info.filename, id_token));
 
         if (context.hir_builder->is_undef(object_id)) {
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->push_empty_error_var(src_info);
         }
 
         var object_as_type = context->get_var_as_type(object_id);
@@ -675,14 +705,14 @@ class Parser {
                 
                 if (constant == null) {
                     context->error(src_info.source_offset, src_info.length, "Undeclared constant '" .. id .. "' of enum '" .. type->get_name() .. "'.");
-                    return context.hir_builder->push_error_var(src_info);
+                    return context.hir_builder->push_empty_error_var(src_info);
                 }
 
                 return context.hir_builder->push_literal_number_of_type(constant.value, type, src_info);
             }
 
-            context->error(src_info.source_offset, src_info.length, "Unknown property '" .. id .. "' of type '" .. type->get_name() .. "'.");
-            return context.hir_builder->push_error_var(src_info);
+            context->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' of type '" .. type->get_name() .. "'.");
+            return context.hir_builder->push_empty_error_var(src_info);
         }
 
         var object_as_namespace = context->get_var_as_namespace(object_id);
@@ -690,33 +720,39 @@ class Parser {
             var var_id = context.hir_builder->get_namespace_var(object_as_namespace, id, src_info, true);
             if (context.hir_builder->is_undef(var_id)) {
                 context->error(src_info.source_offset, src_info.length, "Undeclared entity '" .. id .. "' from namespace '" .. object_as_namespace.name .. "'.");
-                return context.hir_builder->push_error_var(src_info);
+                return context.hir_builder->push_empty_error_var(src_info);
             }
             return var_id;
         }
 
         var object_type = object->get_type();
 
-        if (!is_arrow_op && object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
+        if (!is_arrow_op && object_type != null && object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
             context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class and array objects.");
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->push_empty_error_var(src_info);
         }
 
         var field_id = context->token_str(id_token);
         if (!is_arrow_op) {
             return context.hir_builder->push_field_access_forced(object_id, field_id, src_info);
         } else {
-            var field_var = context.hir_builder->try_push_field_access(object_id, field_id, src_info);
-            if (!context.hir_builder->is_undef(field_var)) {
-                return field_var;
+            var field_var_id = context.hir_builder->try_push_field_access(object_id, field_id, src_info);
+            if (!context.hir_builder->is_undef(field_var_id)) {
+                return field_var_id;
             }
 
-            field_var = context.hir_builder->get_var(context.namespace, field_id, field_id, src_info);
-            if (context.hir_builder->is_undef(field_var)) {
-                context->error(src_info.source_offset, src_info.length, "Undeclared variable.");
+            field_var_id = context.hir_builder->get_var(context.namespace, field_id, field_id, src_info);
+            if (context.hir_builder->is_undef(field_var_id)) {
+                var error_id = context->error_type(ErrorsAccum.Error.UndefinedId, src_info.source_offset, src_info.length, "Undeclared variable.");
+                
+                var field_var = context->get_var(field_var_id);
+                if (field_var.kind == HIR.Decl.Kind.Common) {
+                    var decl_id = field_var$cast(HIR.VarCommon).decl;
+                    context.hir_builder.decls[decl_id]$cast(HIR.DeclError).error_id = error_id;
+                }
             }
 
-            return field_var;
+            return field_var_id;
         }
     }
 
@@ -738,7 +774,7 @@ class Parser {
         }
         
         context->error(src_info.source_offset, src_info.length, "WTF.");
-        return context.hir_builder->push_error_var(src_info);
+        return context.hir_builder->push_empty_error_var(src_info);
     }
     
     fn parse_dollar_operator(context: Context, lhs: HIR.VarId) => HIR.VarId {
@@ -750,7 +786,7 @@ class Parser {
         var src_info =  HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(context.log_info.filename, id_token));
 
         if (context.hir_builder->is_undef(lhs)) {
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->push_empty_error_var(src_info);
         }
 
         {
@@ -764,7 +800,7 @@ class Parser {
                 if (id == "count") {
                     if (object_as_type.kind != Type.Kind.Enum) {
                         context->error(src_info.source_offset, src_info.length, "Only enum has meta property 'count'.");
-                        return context.hir_builder->push_error_var(src_info);
+                        return context.hir_builder->push_empty_error_var(src_info);
                     }
 
                     var enum_count = object_as_type$cast(TypeEnum).constants.size;
@@ -772,7 +808,7 @@ class Parser {
                 }
 
                 context->error(src_info.source_offset, src_info.length, "There is no meta property '" .. id .. "' of type.");
-                return context.hir_builder->push_error_var(src_info);
+                return context.hir_builder->push_empty_error_var(src_info);
             }
         }
 
@@ -787,7 +823,60 @@ class Parser {
         }
 
         context->error(src_info.source_offset, src_info.length, "There is no meta property '" .. id .. "'.");
-        return context.hir_builder->push_error_var(src_info);
+        return context.hir_builder->push_empty_error_var(src_info);
+    }
+
+    fn parse_var_decl_expr(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
+        var src_info = HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
+        if (!context.hir_builder->check_var_declaration_conditions(lhs_id)) {
+            return context.hir_builder->push_empty_error_var(src_info);
+        }
+
+        var type_var_id = context->parse_precedence(Precedence.Colon + 1);
+        var type_src_info = context->get_var(type_var_id).src_info;
+
+        src_info = HIR.SrcInfo.merge(src_info, type_src_info);
+
+        var type = context->get_var_as_type(type_var_id);
+        if (type == null) {
+            context->error(type_src_info.source_offset, type_src_info.length, "Can't be used as type for var declaration.");
+            return context.hir_builder->push_empty_error_var(src_info);
+        }  
+        
+        if (!context.hir_builder->declare_var_from_var_id(lhs_id, type, src_info)) {
+            return context.hir_builder->push_empty_error_var(src_info);
+        }
+
+        var init_value_id = (-1)$cast(HIR.VarId);
+        if (!context.omit_var_init) {
+            init_value_id = context.hir_builder->get_default_initial_value(type, src_info);
+        } else {
+            context.omit_var_init = false;
+        }
+
+        // TODO if const zero and global omit assign
+        if (!context.hir_builder->is_undef(init_value_id)) {
+            context.hir_builder->push_assign(HIR.Tag.ASSIGN, lhs_id, init_value_id, src_info);
+        }
+
+        return lhs_id;
+    }
+
+    fn parse_var_decl_expr_postfix(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
+        var src_info = HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
+        if (!context.hir_builder->check_var_declaration_conditions(lhs_id)) {
+            return context.hir_builder->push_empty_error_var(src_info);
+        }
+        
+        var lhs_var = context->get_var(lhs_id);
+        var decl_id = lhs_var$cast(HIR.VarCommon).decl;
+        var error_decl = context.hir_builder.decls[decl_id];
+
+        if (!context.hir_builder->declare_var_from_var_id(lhs_id, null, src_info)) {
+            return context.hir_builder->push_empty_error_var(src_info);
+        }
+        
+        return lhs_id;
     }
 
     fn parse_short_circuit(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
@@ -828,7 +917,7 @@ class Parser {
         src_info = HIR.SrcInfo.merge(src_info, rhs.src_info);
 
         if (context.hir_builder->is_undef(rhs_id)) {
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->push_empty_error_var(src_info);
         }
 
         var after_block = context.hir_builder->reserve_blocks(1);
@@ -843,7 +932,7 @@ class Parser {
 
             context->error(src_info.source_offset, src_info.length, "Can't do logical operations over '" 
                 .. lhs_type->get_name() .. "' and '" .. rhs_type->get_name() .. "'.");
-            return context.hir_builder->push_error_var(src_info);
+            return context.hir_builder->push_empty_error_var(src_info);
         }
         
         var output_type = common_type;
@@ -941,7 +1030,7 @@ class Parser {
         var prefix_rule = current_token.type->get_parse_rule().prefix;
         if (prefix_rule == null) {
             context->error(current_token.offset, current_token.length, "Expected expression.");
-            return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, current_token));
+            return context.hir_builder->push_empty_error_var(HIR.SrcInfo.from_token(context.log_info.filename, current_token));
         }
 
         var lhs = context->prefix_rule();
@@ -951,20 +1040,25 @@ class Parser {
         while (associativity[current_precedence] == Associativity.LTR && precedence <= current_precedence) {
             context->token_advance();
 
-            var ltr_infix_rule = context->current_token(1).type->get_parse_rule().ltr_infix;
-            if (ltr_infix_rule == null) {
-                var token_line = context.log_info->find_line(context->current_token(1).offset);
-                var prev_token_line = context.log_info->find_line(context->current_token(2).offset);
+            var parse_rule = context->current_token(1).type->get_parse_rule();
 
-                if (token_line > prev_token_line) {
-                    // Line break, replaces terminator ';'
-                    break;
+            var postfix = parse_rule.postfix;
+            if (postfix != null && (context->current_token(0).type->get_parse_rule().prefix == null || context->check_next_line(0))) {
+                lhs = context->postfix(lhs);
+            } else {
+                var ltr_infix = parse_rule.ltr_infix;
+                if (ltr_infix == null) {
+                    if (context->check_next_line(1)) {
+                        // Line break, replaces terminator ';'
+                        break;
+                    }
+
+                    var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
+                    context->error(src_info.source_offset, src_info.length, "Expected operator (ltr).");
+                    return context.hir_builder->push_empty_error_var(src_info);
                 }
-
-                context->error(context->current_token(1).offset, context->current_token(1).length, "Expected operator (ltr).");
-                return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
+                lhs = context->ltr_infix(lhs);
             }
-            lhs = context->ltr_infix_rule(lhs);
 
             current_token = context->current_token(0);
             current_precedence = current_token.type->get_parse_rule().precedence;
@@ -991,7 +1085,7 @@ class Parser {
             var current_token_type = token.type;
             if (current_token_type == Token.Type.EOF) {
                 //context->error(token.offset, token.length, "Expected operator, got EOF.");
-                //return context.hir_builder->push_error_var(HIR.SrcInfo.from_token(context.log_info.filename, token));
+                //return context.hir_builder->push_empty_error_var(HIR.SrcInfo.from_token(context.log_info.filename, token));
                 break;
             }
 
@@ -1027,14 +1121,19 @@ class Parser {
             
         context->token_advance();
 
-        // back to the rtl operator
-        var rtl_infix = context->current_token(1).type->get_parse_rule().rtl_infix;
-        if (rtl_infix == null) {
-            var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)); // TODO really 2? not 1?
-            context->error(src_info.source_offset, src_info.length, "Expected operator (rtl).");
-            return context.hir_builder->push_error_var(src_info);
+        // Line break, replaces terminator ';'
+        if (!context->check_next_line(1)) {
+            // back to the rtl operator
+            parse_rule = context->current_token(1).type->get_parse_rule();
+            var rtl_infix = parse_rule.rtl_infix;
+            if (rtl_infix == null) {
+                var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
+                context->error(src_info.source_offset, src_info.length, "Expected operator (rtl).");
+                return context.hir_builder->push_empty_error_var(src_info);
+            }
+
+            lhs = context->rtl_infix(lhs, rhs);
         }
-        lhs = context->rtl_infix(lhs, rhs);
 
         // restore token iterator
         context.iterator->rewind(end_pos);
@@ -1065,69 +1164,70 @@ class Parser {
     }
 
     shared parse_rules = ParseRule[Token.Type$count]{
-        Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             Precedence.Primary), 
-        Token.Type.LITERAL_STRING      => ParseRule.construct(parse_string,        null,                        null,             Precedence.Primary), 
-        Token.Type.LITERAL_CHAR        => ParseRule.construct(parse_char,          null,                        null,             Precedence.Primary), 
-        Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,                  null,             Precedence.Call),
-        Token.Type.SQUARE_LEFT         => ParseRule.construct(null,                parse_indexing,              null,             Precedence.Call),
-        Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,          null,             Precedence.Call),
-        Token.Type.COMMA               => ParseRule.construct(null,                parse_sequence,              null,             Precedence.Sequence),
-        Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator,       null,             Precedence.Call),
-        Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             Precedence.None),
-        Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,         null,             Precedence.LogicalAnd),
-        Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,         null,             Precedence.LogicalOr),
-        Token.Type.ARROW_RIGHT         => ParseRule.construct(null,                parse_arrow_operator,        null,             Precedence.Call),
-        Token.Type.DOUBLE_ARROW_RIGHT  => ParseRule.construct(null,                parse_double_arrow_operator, null,             Precedence.Pair),
-        Token.Type.LESS                => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Comparison),
-        Token.Type.LESS_OR_EQUAL       => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Comparison),
-        Token.Type.GREATER             => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Comparison),
-        Token.Type.GREATER_OR_EQUAL    => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Comparison),
-        Token.Type.EQUAL               => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Equality),
-        Token.Type.NOT_EQUAL           => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Equality),
-        Token.Type.BITWISE_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             Precedence.None),
-        Token.Type.BITWISE_AND         => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.BitwiseAnd),
-        Token.Type.BITWISE_OR          => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.BitwiseOr),
-        Token.Type.BITWISE_XOR         => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.BitwiseXor),
-        Token.Type.BITWISE_SHIFT_LEFT  => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Shift),
-        Token.Type.BITWISE_SHIFT_RIGHT => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Shift),
-        Token.Type.INCREMENT           => ParseRule.construct(null,                null,                        null,             Precedence.None),
-        Token.Type.DECREMENT           => ParseRule.construct(null,                null,                        null,             Precedence.None),
-        Token.Type.PLUS                => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             Precedence.Term),
-        Token.Type.MINUS               => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             Precedence.Term),
-        Token.Type.MULTIPLY            => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Factor),
-        Token.Type.DIVIDE              => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Factor),
-        Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Factor),
-        Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,            null,             Precedence.Concat),
-        Token.Type.ASSIGN              => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_PLUS         => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_MINUS        => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_MULTIPLY     => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_DIVIDE       => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_REMAINDER    => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_CONCAT       => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_AND  => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_OR   => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_XOR  => ParseRule.construct(null,                null,                        parse_binary_rtl, Precedence.Assigment),
-        Token.Type.I8                  => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.I16                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.I32                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.I64                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.U8                  => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.U16                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.U32                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.U64                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.BOOL                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.CHAR                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.CSTR                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.FALSE               => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.NULL                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.TRUE                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
-        Token.Type.VOID                => ParseRule.construct(parse_identificator, null,                        null,             Precedence.Primary),
+        Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.LITERAL_STRING      => ParseRule.construct(parse_string,        null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.LITERAL_CHAR        => ParseRule.construct(parse_char,          null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,                  null,             null,                        Precedence.Call),
+        Token.Type.SQUARE_LEFT         => ParseRule.construct(null,                parse_indexing,              null,             null,                        Precedence.Call),
+        Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,          null,             null,                        Precedence.Call),
+        Token.Type.COMMA               => ParseRule.construct(null,                parse_sequence,              null,             null,                        Precedence.Sequence),
+        Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator,       null,             null,                        Precedence.Call),
+        Token.Type.COLON               => ParseRule.construct(null,                parse_var_decl_expr,         null,             parse_var_decl_expr_postfix, Precedence.Colon),
+        Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
+        Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalAnd),
+        Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalOr),
+        Token.Type.ARROW_RIGHT         => ParseRule.construct(null,                parse_arrow_operator,        null,             null,                        Precedence.Call),
+        Token.Type.DOUBLE_ARROW_RIGHT  => ParseRule.construct(null,                parse_double_arrow_operator, null,             null,                        Precedence.Pair),
+        Token.Type.LESS                => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.LESS_OR_EQUAL       => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.GREATER             => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.GREATER_OR_EQUAL    => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.EQUAL               => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
+        Token.Type.NOT_EQUAL           => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
+        Token.Type.BITWISE_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
+        Token.Type.BITWISE_AND         => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseAnd),
+        Token.Type.BITWISE_OR          => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseOr),
+        Token.Type.BITWISE_XOR         => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseXor),
+        Token.Type.BITWISE_SHIFT_LEFT  => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
+        Token.Type.BITWISE_SHIFT_RIGHT => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
+        Token.Type.INCREMENT           => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
+        Token.Type.DECREMENT           => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
+        Token.Type.PLUS                => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
+        Token.Type.MINUS               => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
+        Token.Type.MULTIPLY            => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.DIVIDE              => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Concat),
+        Token.Type.ASSIGN              => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_PLUS         => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_MINUS        => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_MULTIPLY     => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_DIVIDE       => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_REMAINDER    => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_CONCAT       => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_AND  => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_OR   => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_XOR  => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.I8                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I16                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U8                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U16                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.BOOL                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.CHAR                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.CSTR                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.FALSE               => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.NULL                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.TRUE                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.VOID                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
     };
 
     fn parse_import(context: Context) => StatementInfo {
@@ -1215,9 +1315,9 @@ class Parser {
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
 
-    fn parse_sharp_prefix(context: Context) => StatementInfo {
+    fn parse_sharp_modifier(context: Context) => StatementInfo {
         context->token_advance(); // #
-        context->token_consume(Token.Type.ID, "Expected id after '#' prefix.");
+        context->token_consume(Token.Type.ID, "Expected id after '#' operator.");
         var id_token = context->current_token(1);
 
         var src_info = HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.log_info.filename, id_token));
@@ -1231,6 +1331,11 @@ class Parser {
 
         if (id == "uninitialized") {
             context.omit_var_init = true;
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+
+        if (id == "facade") {
+            context.facade_field = true;
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
@@ -1293,7 +1398,7 @@ class Parser {
                 src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
                 context->error(src_info.source_offset, src_info.length, "Variable declaration without a type expects an initial expression.");
 
-                initial_value = context.hir_builder->push_error_var(src_info);
+                initial_value = context.hir_builder->push_empty_error_var(src_info);
             } else {
                 if (!context.omit_var_init) {
                     initial_value = context.hir_builder->get_default_initial_value(type, src_info);
@@ -1304,6 +1409,10 @@ class Parser {
         }
         if (type == null) {
             context->error(src_info.source_offset, src_info.length, "Can't deduce var type.");
+            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+        if (type == Types.instance.type_void$cast(Type)) {
+            context->error(src_info.source_offset, src_info.length, "Can't declare var of type 'void'.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
@@ -1443,13 +1552,18 @@ class Parser {
                 context->token_advance(); // ;
                 return;
             }
-            case Token.Type.SHARP   => { context->parse_sharp_prefix(); return; }
-            case Token.Type.IMPORT  => { context->parse_import      (); return; }
-            case Token.Type.FROM    => { context->parse_from_import (); return; }
+            case Token.Type.SHARP   => { context->parse_sharp_modifier(); return; }
+            case Token.Type.IMPORT  => { context->parse_import        (); return; }
+            case Token.Type.FROM    => { context->parse_from_import   (); return; }
             case Token.Type.VAR => {
                 context->token_advance(); // var
 
                 var field = TypeClass.Field();
+
+                if (context.facade_field) {
+                    context.facade_field = false;
+                    field.facaded = true;
+                }
 
                 var field_token = context->current_token(0);
                 field.name = context->token_str(field_token);
@@ -1669,7 +1783,7 @@ class Parser {
 
     fn parse_declaration(context: Context) => StatementInfo {
         while (true) switch (context->current_token(0).type) {
-            case Token.Type.SHARP   => return context->parse_sharp_prefix();
+            case Token.Type.SHARP   => return context->parse_sharp_modifier();
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
@@ -2220,10 +2334,10 @@ class Parser {
         }
     }
 
-    export fn build_hir(lexer: Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters: VariableDecl[], return_type: Type, func_index: u16, is_global_scope: bool, emit_debug_info: bool, log_accum: LogAccum) => HIR {
+    export fn build_hir(lexer: Lexer, start_pos: TokenIterator.Index, end_pos: TokenIterator.Index, namespace: Namespace, parameters: VariableDecl[], return_type: Type, func_index: u16, is_global_scope: bool, emit_debug_info: bool, errors_accum: ErrorsAccum) => HIR {
         var context = Context();
 
-        context.log_accum = log_accum;
+        context.errors_accum = errors_accum;
         context.log_info = lexer->construct_log_info();
 
         context.source = lexer.source;
@@ -2235,7 +2349,7 @@ class Parser {
         context.is_global_scope = is_global_scope;
         context.emit_debug_info = emit_debug_info;
 
-        context.hir_builder = HIRBuilder.construct(return_type, func_index, context.log_accum, context.log_info);
+        context.hir_builder = HIRBuilder.construct(return_type, func_index, context.errors_accum, context.log_info, is_global_scope);
 
         for (var parameter <- parameters) {
             context.hir_builder->add_parameter(parameter.name, parameter.type, parameter.src_info);

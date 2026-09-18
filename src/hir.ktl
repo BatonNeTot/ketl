@@ -263,19 +263,27 @@ export class HIR {
         }
     }
 
+    export class DeclError {
+        extend Decl;
+        var error_id: u64;
+    }
+
     export class DeclWithType {
         extend Decl;
         var type: Type;
     }
 
-    export class DeclCommon {
+    export class DeclWithScrInfo {
         extend DeclWithType;
         var src_info: SrcInfo;
     }
 
+    export class DeclCommon {
+        extend DeclWithScrInfo;
+    }
+
     export class DeclParameter {
-        extend DeclWithType;
-        var src_info: SrcInfo;
+        extend DeclWithScrInfo;
     }
 
     export class DeclInstrResult {
@@ -322,6 +330,11 @@ export class HIR {
 
             return varr->get_type();
         }
+    }
+
+    export class VarError {
+        extend Var;
+        var error_id: u64;
     }
 
     export class VarWithType {
@@ -462,7 +475,7 @@ export class HIR {
             case HIR.Tag.LESS_OR_EQUAL
             case HIR.Tag.ILESS_OR_EQUAL    => return "<=";
             case HIR.Tag.GREATER
-            case HIR.Tag.IGREATER          => return ">=";
+            case HIR.Tag.IGREATER          => return ">";
             case HIR.Tag.GREATER_OR_EQUAL
             case HIR.Tag.IGREATER_OR_EQUAL => return ">=";
 

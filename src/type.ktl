@@ -4,6 +4,7 @@ import common
 from type_base import Type
 from value import Value
 from namespace import Namespace
+from namespace import NamespaceContext
 
 export class TypePrimitive {
     extend Type;
@@ -113,6 +114,7 @@ export class TypeClass {
     class Field {
         var type: Type;
         var name: str;
+        var facaded: bool;
     }
 
     extend Type;
@@ -121,6 +123,7 @@ export class TypeClass {
     var fields: Field[];
     var namespace: Namespace;
     var context_namespaces: Namespace[];
+    var context: NamespaceContext;
 
     export fn construct(name: str, parent_namespace: Namespace, exxport: bool) => TypeClass {
         var self = TypeClass();
@@ -132,11 +135,10 @@ export class TypeClass {
 
         if (exxport) {
             // skip first dot
-            self.fullname = self.namespace.fullname[1:self.namespace.fullname.size];
+            self.fullname = self.namespace.fullname[1:];
         } else {
             self.fullname = self.namespace.fullname;
         }
-        self.namespace = Namespace.construct(name, parent_namespace);
 
         return self;
     }
@@ -303,6 +305,11 @@ export class TypeClass {
             }
         }
 
+        return null;
+    }    
+
+    fn extract_extended_classes(self: TypeClass) => TypeClass[] {
+        // TODO
         return null;
     }
 }
@@ -504,6 +511,13 @@ class Types {
         if (lhs == Types.instance.type_raw$cast(Type) && rhs->is_pointer_kind() ||
             rhs == Types.instance.type_raw$cast(Type) && lhs->is_pointer_kind()) {
             return Types.instance.type_raw;
+        }
+
+        if (lhs.kind == Type.Kind.Class && rhs.kind == Type.Kind.Class) {
+            var lhs_class = lhs$cast(TypeClass);
+            var rhs_class = rhs$cast(TypeClass);
+
+            
         }
 
         return null;

@@ -1,7 +1,7 @@
 //🫖ketl
 
 from common import StrHashMap
-from common import LogAccum
+from errors import ErrorsAccum
 from io import File
 import io
 
@@ -348,11 +348,11 @@ class Module {
             return false;
         }
 
-        var log_accum = LogAccum.construct();
+        var errors_accum = ErrorsAccum.construct();
         var lexer = Lexer();
         module.lexer = lexer;
         lexer->init();
-        lexer->build_tokens(module_filename, source, log_accum);
+        lexer->build_tokens(module_filename, source, errors_accum);
 
         //for (var token <- lexer.tokens) {
         //    io.errorln("from " .. token.offset$cast(str) .. " to " .. (token.offset + token.length)$cast(str) .. " " .. source[token.offset:token.offset + token.length]);
@@ -362,11 +362,11 @@ class Module {
 
         from parser import Parser
         var hir = Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
-            func_index, true, module.emit_debug_info, log_accum);
+            func_index, true, module.emit_debug_info, errors_accum);
 
         //hir->print();
         
-        if (!log_accum->check()) {
+        if (!errors_accum->check()) {
             module.has_errors = true;
             // TODO something on error
             return false;
@@ -400,7 +400,7 @@ class Module {
 
             var entry_lexer = Lexer();
             entry_lexer->init();
-            entry_lexer->build_tokens(module_filename, entry_source, log_accum);
+            entry_lexer->build_tokens(module_filename, entry_source, errors_accum);
 
             var entry_index = (-1)$cast(u16);
             var parameters = VariableDecl[2];
@@ -425,11 +425,11 @@ class Module {
 
             var entry_hir = Parser.build_hir(entry_lexer, 0, entry_lexer.tokens.size$cast(TokenIterator.Index), 
                 module.namespace, parameters, Types.instance.type_i64, 
-                entry_index, false, false, log_accum);
+                entry_index, false, false, errors_accum);
 
             //entry_hir->print();
 
-            assert(log_accum->check());
+            assert(errors_accum->check());
 
             module.entry_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, false, lexer->construct_log_info())
                 ->build(entry_hir, entry_index);
@@ -481,15 +481,15 @@ class Module {
             }
 
             {
-                var log_accum = LogAccum.construct();
+                var errors_accum = ErrorsAccum.construct();
                 var func_index = i$cast(u16) + module->get_func_index_offset();
 
                 from parser import Parser
                 var hir = Parser.build_hir(module.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
-                    local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, log_accum);
+                    local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, errors_accum);
                 
-                if (!log_accum->check()) {
+                if (!errors_accum->check()) {
                     module.has_errors = true;
                     // TODO something on error
                     i += 1;

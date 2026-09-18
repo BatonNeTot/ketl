@@ -77,7 +77,7 @@ class Namespace {
 
                 if (info.exxport) {
                     // skip first dot
-                    name = self.fullname[1:self.fullname.size] .. "." .. name;
+                    name = self.fullname[1:] .. "." .. name;
                 } else {
                     name = self.fullname .. "." .. name;
                 }
@@ -163,5 +163,20 @@ class Namespace {
             }
         }
         return false;
+    }
+}
+
+class NamespaceContext {
+    var namespaces: Namespace[];
+
+    export fn find(self: NamespaceContext, key: str) => Namespace.Node {
+        for (var namespace <- self.namespaces) {
+            var node = namespace->find(key);
+            if (node != null) {
+                return node;
+            }
+        }
+
+        return null;
     }
 }

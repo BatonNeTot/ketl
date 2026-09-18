@@ -34,9 +34,9 @@ var parser: ArgsParser;
 fn main(args: str[]) => i64 {
     parser = ArgsParser();
 
-    for (var arg <- args[1:args.size]) {
+    for (var arg <- args[1:]) {
         if (arg[0] == '-') {
-            for (var symbol <- arg[1:arg.size]) {
+            for (var symbol <- arg[1:]) {
                 switch (symbol) {
                     case 'S' => {
                         parser.op = ArgsParser.Operation.CompileToAsm;
@@ -84,7 +84,7 @@ fn main(args: str[]) => i64 {
     }
 
     var prog_name = args[0];
-    if (prog_name[prog_name.size - 8:prog_name.size - 4] == "test") {
+    if (prog_name.size >= 8 && prog_name[prog_name.size - 8:prog_name.size - 4] == "test") {
         assert(false);
     }
 

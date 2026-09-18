@@ -282,7 +282,9 @@ export fn str2uint(string: str) => u64 {
 export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64) => u64 {
     var pointer: raw;
     if (array_header.is_slice) {
-        pointer = (array_header.data$cast(ArrayHeader).data + stack_size * (array_header.capacity + index));
+        pointer = array_header.data$cast(ArrayHeader).data;
+        assert(pointer != null);
+        pointer += stack_size * (array_header.capacity + index);
     } else {
         assert(index < array_header.size);
         pointer = (array_header.data + stack_size * index);

@@ -818,7 +818,7 @@ export class DebugInfo {
         var return_type_die: DIE;
         from type import Types
         if (return_type != null && return_type != Types.instance.type_void$cast(Type)) {
-            return_type_die = self->construct_type_die(return_type);
+            //return_type_die = self->construct_type_die(return_type);
         }
 
         var low_pc_index = self.func_addresses.size;

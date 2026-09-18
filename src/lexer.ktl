@@ -1,12 +1,12 @@
 //🫖ketl
 
 from common import FilePointer
-from common import LogAccum
+from errors import ErrorsAccum
 
 from token import Token
 
 export class Lexer {
-    var log_accum: LogAccum;
+    var errors_accum: ErrorsAccum;
     var tokens: Token[];
     var lines_offsets: u32[];
     var filename: str;
@@ -768,8 +768,8 @@ export class Lexer {
         }
     }
     
-    fn build_tokens(lexer: Lexer, filename: str, source: str, log_accum: LogAccum) {
-        lexer.log_accum = log_accum;
+    fn build_tokens(lexer: Lexer, filename: str, source: str, errors_accum: ErrorsAccum) {
+        lexer.errors_accum = errors_accum;
         lexer.filename = filename;
         lexer.source = source;
         lexer.offset = 0;
@@ -825,8 +825,8 @@ export class Lexer {
         lexer->add_token(Token.Type.EOF, 0);
     }
 
-    export fn construct_log_info(lexer: Lexer) => LogAccum.LogInfo {
-        var info = LogAccum.LogInfo();
+    export fn construct_log_info(lexer: Lexer) => ErrorsAccum.SourceInfo {
+        var info = ErrorsAccum.SourceInfo();
         info.lines_offsets = lexer.lines_offsets;
         info.filename = lexer.filename;
         info.source = lexer.source;
@@ -834,7 +834,8 @@ export class Lexer {
     }
 
     fn error(lexer: Lexer, offset: u32, length: u32, message: str) {
-        lexer.log_accum->error(
+        lexer.errors_accum->error(
+            ErrorsAccum.Error.Nonspecific,
             lexer->construct_log_info(),
             FilePointer.construct(offset, offset, length),
             message 
