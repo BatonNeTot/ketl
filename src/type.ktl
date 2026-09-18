@@ -469,7 +469,7 @@ class Types {
         }
     }
 
-    export shared instance = Types.construct(); 
+    export #shared instance := Types.construct(); 
 
     export fn get_common_type(lhs: Type, rhs: Type) => Type {
         if (lhs == null || rhs == null) {

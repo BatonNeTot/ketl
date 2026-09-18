@@ -556,7 +556,7 @@ class Modules {
         }
     }
 
-    shared instance = construct();
+    #shared instance := construct();
 
     export fn load(self: Modules, module_name: str, folder_path: str, emit_debug_info: bool) => Module {        
         self->init_modules_if_needed();

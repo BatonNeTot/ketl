@@ -177,12 +177,12 @@ export class StrHashMap {
     }
 
     // TODO make m's and p's bigger
-    shared m1: u32 = 1000000007;
-    shared m2: u32 = 1000000009;
+    #shared m1: u32 = 1000000007;
+    #shared m2: u32 = 1000000009;
 
-    shared MAX_STRING_LENGTH: u64 = 100;
+    #shared MAX_STRING_LENGTH: u64 = 100;
 
-    shared pow_p1 = u64[MAX_STRING_LENGTH]{
+    #shared pow_p1 := u64[MAX_STRING_LENGTH]{
         1, 31, 961, 29791, 923521, 28629151, 
         887503681, 512613922, 891031477, 621975598, 
         281243405, 718545499, 274910315, 522219709, 
@@ -209,7 +209,7 @@ export class StrHashMap {
         451875419, 8137891, 252274621, 820513202, 
         435909087, 513181606
     };
-    shared pow_p2 = u64[MAX_STRING_LENGTH]{
+    #shared pow_p2 := u64[MAX_STRING_LENGTH]{
         1, 37, 1369, 50653, 1874161, 69343957, 
         565726391, 931876287, 479422313, 738625428, 
         329140593, 178201833, 593467767, 958307190, 

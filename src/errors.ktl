@@ -68,7 +68,7 @@ export class ErrorsAccum {
     var errors: ErrorInfo[];
     var free_id: u64;
 
-    shared NON_ID: u64 = 0;
+    #shared NON_ID: u64 = 0;
 
     export fn construct() => ErrorsAccum {
         var obj = ErrorsAccum();

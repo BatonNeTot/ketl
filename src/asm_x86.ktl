@@ -426,8 +426,7 @@ export class ASMX86 {
             return self;
         }
 
-        #shared
-        scale_powers := u8[4]{
+        #shared scale_powers := u8[4]{
             1, 2, 4, 8
         };
 
@@ -647,7 +646,7 @@ export class ASMX86 {
 
     var instrs: Instr[];
 
-    shared parameters_regs = Reg[][ABI$count] {
+    #shared parameters_regs := Reg[][ABI$count] {
         Reg[4]{
             Reg.CX,
             Reg.DX,

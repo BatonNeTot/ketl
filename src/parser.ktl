@@ -221,7 +221,7 @@ class Parser {
         RTL, // Right To Left
     }
 
-    shared associativity = Associativity[Precedence$count]{
+    #shared associativity := Associativity[Precedence$count]{
         Precedence.None       => Associativity.LTR,
         Precedence.Sequence   => Associativity.LTR,
         Precedence.Assigment  => Associativity.RTL,
@@ -265,7 +265,7 @@ class Parser {
         }
     }
 
-    shared parse_rule_default = ParseRule.construct(null, null, null, null, Precedence.None);
+    #shared parse_rule_default := ParseRule.construct(null, null, null, null, Precedence.None);
     
     fn get_parse_rule(token_type: Token.Type) => ParseRule {
         var parse_rule = parse_rules[token_type];
@@ -1170,7 +1170,7 @@ class Parser {
         return type;
     }
 
-    shared parse_rules = ParseRule[Token.Type$count]{
+    #shared parse_rules := ParseRule[Token.Type$count]{
         Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
         Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             null,                        Precedence.Primary), 
         Token.Type.LITERAL_STRING      => ParseRule.construct(parse_string,        null,                        null,             null,                        Precedence.Primary), 
@@ -1608,10 +1608,6 @@ class Parser {
                 context->add_class_field(null, field_type);
                 return;
             }
-            case Token.Type.SHARED => {
-                context->parse_var_declaration();
-                return;
-            }
             case Token.Type.CIMPORT => { context->parse_cimport_declaration (); return; }
             case Token.Type.FN      => { context->parse_function_declaration(); return; }
             case Token.Type.CLASS   => { context->parse_class_declaration   (); return; }
@@ -1807,11 +1803,6 @@ class Parser {
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.VAR     => return context->parse_var_declaration();
-            case Token.Type.SHARED => {
-                var src_info = HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
-                context->error(src_info.source_offset, src_info.length, "Can't use 'shared' outside class declaration.");
-                return context->parse_var_declaration();
-            }
             case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
             case Token.Type.CLASS   => return context->parse_class_declaration();

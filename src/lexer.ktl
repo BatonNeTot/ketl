@@ -444,10 +444,6 @@ export class Lexer {
                 }
             }
             case 's' => {
-                if ("shared" == lexer.source[lexer.offset:lexer.offset + id_length]) {
-                    lexer->add_token(Token.Type.SHARED, id_length);
-                    return true;
-                }
                 if ("str" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.STR, id_length);
                     return true;

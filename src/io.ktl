@@ -226,34 +226,34 @@ export class FileInfo {
         RegularFile,
     }
 
-    shared _S_IFMT:   u16 = 61440; // 0xF000
-    shared _S_IFDIR:  u16 = 16384;  // 0x4000
-    shared _S_IFCHR:  u16 = 8192;  // 0x2000
-    shared _S_IFIFO:  u16 = 4096;  // 0x1000
-    shared _S_IFREG:  u16 = 32768;  // 0x8000
-    shared _S_IREAD:  u16 = 256;  // 0x0100
-    shared _S_IWRITE: u16 = 128; // 0x0080
-    shared _S_IEXEC:  u16 = 64;  // 0x0040
+    #shared _S_IFMT:   u16 = 61440; // 0xF000
+    #shared _S_IFDIR:  u16 = 16384;  // 0x4000
+    #shared _S_IFCHR:  u16 = 8192;  // 0x2000
+    #shared _S_IFIFO:  u16 = 4096;  // 0x1000
+    #shared _S_IFREG:  u16 = 32768;  // 0x8000
+    #shared _S_IREAD:  u16 = 256;  // 0x0100
+    #shared _S_IWRITE: u16 = 128; // 0x0080
+    #shared _S_IEXEC:  u16 = 64;  // 0x0040
 
-    shared _S_IRWXU:  u16 = (_S_IREAD | _S_IWRITE | _S_IEXEC);
-    shared _S_IRUSR:  u16 = _S_IREAD;
-    shared _S_IWUSR:  u16 = _S_IWRITE;
-    shared _S_IXUSR:  u16 = _S_IEXEC;
+    #shared _S_IRWXU:  u16 = (_S_IREAD | _S_IWRITE | _S_IEXEC);
+    #shared _S_IRUSR:  u16 = _S_IREAD;
+    #shared _S_IWUSR:  u16 = _S_IWRITE;
+    #shared _S_IXUSR:  u16 = _S_IEXEC;
 
-    export shared S_IRWXU:   u16 = _S_IRWXU;
-    export shared S_IRUSR:   u16 = _S_IRUSR;
-    export shared S_IWUSR:   u16 = _S_IWUSR;
-    export shared S_IXUSR:   u16 = _S_IXUSR;
+    export #shared S_IRWXU:   u16 = _S_IRWXU;
+    export #shared S_IRUSR:   u16 = _S_IRUSR;
+    export #shared S_IWUSR:   u16 = _S_IWUSR;
+    export #shared S_IXUSR:   u16 = _S_IXUSR;
 
-    export shared S_IRWXG:   u16 = (S_IRWXU >> 3);
-    export shared S_IRGRP:   u16 = (S_IRUSR >> 3);
-    export shared S_IWGRP:   u16 = (S_IWUSR >> 3);
-    export shared S_IXGRP:   u16 = (S_IXUSR >> 3);
+    export #shared S_IRWXG:   u16 = (S_IRWXU >> 3);
+    export #shared S_IRGRP:   u16 = (S_IRUSR >> 3);
+    export #shared S_IWGRP:   u16 = (S_IWUSR >> 3);
+    export #shared S_IXGRP:   u16 = (S_IXUSR >> 3);
 
-    export shared S_IRWXO:   u16 = (S_IRWXG >> 3);
-    export shared S_IROTH:   u16 = (S_IRGRP >> 3);
-    export shared S_IWOTH:   u16 = (S_IWGRP >> 3);
-    export shared S_IXOTH:   u16 = (S_IXGRP >> 3);
+    export #shared S_IRWXO:   u16 = (S_IRWXG >> 3);
+    export #shared S_IROTH:   u16 = (S_IRGRP >> 3);
+    export #shared S_IWOTH:   u16 = (S_IWGRP >> 3);
+    export #shared S_IXOTH:   u16 = (S_IXGRP >> 3);
 
     export fn get_kind(info: FileInfo) => Kind {
         switch (info.st_mode & _S_IFMT) {

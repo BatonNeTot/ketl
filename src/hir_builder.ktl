@@ -1453,15 +1453,15 @@ class HIRBuilder {
             assert(prev_decl.kind == HIR.Decl.Kind.Error);
             self.errors_accum->remove(prev_decl$cast(HIR.DeclError).error_id);
 
-            assert(var_id + 1 == self.vars.size);
-            self.vars->pop();
 
             var name: str;
             if (self.cexxport) {
                 name = prev_decl.name;
             }
             var global_var_id = self->declare_global_var(self.namespace, prev_decl.name, name, type, src_info, self.exxport);
-            assert(var_id == global_var_id);
+            
+            self.vars[var_id] = self.vars[global_var_id];
+            self.vars->pop();
         } else {
             // declaring local
             var common_decl = HIR.DeclCommon();
