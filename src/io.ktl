@@ -3,7 +3,7 @@
 export class File {
 
     export fn read(path: str) => str {
-        var file = fopen(path$cast(cstr), "rb"$cast(cstr));
+        file := fopen(path$cast(cstr), "rb"$cast(cstr));
         if (file == null) {
             error("error opening file '");
             error(path);
@@ -12,14 +12,14 @@ export class File {
             return null;
         }
         
-        var SEEK_END: i32 = 2;
+        SEEK_END: i32 = 2;
         fseek(file, 0, SEEK_END);
-        var filesize = ftell(file)$cast(u64);
+        filesize := ftell(file)$cast(u64);
         assert(filesize >= 0);
 
-        var buffer = malloc(filesize);
+        buffer := malloc(filesize);
 
-        var SEEK_SET: i32 = 0;
+        SEEK_SET: i32 = 0;
         fseek(file, 0, SEEK_SET);
         fread(buffer, 1, filesize, file);
         assert(ferror(file) == 0);
@@ -48,18 +48,18 @@ cimport malloc(size: u64) => raw
 cimport free(pointer: raw)
 
 class IntPointer {
-    var value: i32;
+    value: i32;
 }
 cimport _errno() => IntPointer
 
 mimic FileHandle = i64;
 
-var stdout_handle: FileHandle = 1;
-var stderr_handle: FileHandle = 2;
+stdout_handle: FileHandle = 1;
+stderr_handle: FileHandle = 2;
 
 cimport __acrt_iob_func(handle: FileHandle) => File
-var stdout = __acrt_iob_func(stdout_handle);
-var stderr = __acrt_iob_func(stderr_handle);
+stdout := __acrt_iob_func(stdout_handle);
+stderr := __acrt_iob_func(stderr_handle);
 
 
 export fn print(message: str) {
@@ -84,10 +84,10 @@ cimport _fileno(file: File) => FileHandle
 cimport _dup(handle: FileHandle) => FileHandle
 cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
 
-var stdout_backup = _dup(stdout_handle);
-var stderr_backup = _dup(stderr_handle);
-var stdout_redirect_file: File;
-var stderr_redirect_file: File;
+stdout_backup := _dup(stdout_handle);
+stderr_backup := _dup(stderr_handle);
+stdout_redirect_file: File;
+stderr_redirect_file: File;
 
 export fn stdout_redirect_restore() {
     fflush(stdout);
@@ -142,13 +142,13 @@ export fn stderr_redirect(target_filename: str) => bool {
 export class Dir {
 
     export fn get_items(path: str) => str[] {
-        var dir = Dir.open(path);
+        dir := Dir.open(path);
         if (dir == null) {
             return null;
         }
 
-        var items = str[0];
-        var item = dir->next_item();
+        items := str[0];
+        item := dir->next_item();
         while (item != null) {
             items ..= item;
             item = dir->next_item();
@@ -160,7 +160,7 @@ export class Dir {
 
     export fn open(path: str) => Dir {
         cimport opendir(path: cstr) => Dir;
-        var dir = opendir(path$cast(cstr));
+        dir := opendir(path$cast(cstr));
         if (dir == null)
         {
             errorln("Failed to open directory '" .. path .. "'");
@@ -172,13 +172,13 @@ export class Dir {
     // returns null when reaches end
     export fn next_item(dir: Dir) => str {
         cimport readdir(dir: Dir) => raw;
-        var dirent = readdir(dir);
+        dirent := readdir(dir);
         if (dirent == null) {
             return null;
         }
 
-        var dirent_name_offset = (i32$size + i16$size + i16$size)$cast(u64);
-        var cstr_name = dirent + dirent_name_offset;
+        dirent_name_offset := (i32$size + i16$size + i16$size)$cast(u64);
+        cstr_name := dirent + dirent_name_offset;
 
         from __ketl_rt import cstr2str
         return cstr2str(cstr_name);
@@ -197,22 +197,22 @@ export class FileInfo {
     mimic off_t = i32;
     mimic time_t = i64;
 
-    var st_dev: _dev_t;
-    var st_ino: _ino_t;
-    var st_mode: u16;
-    var st_nlink: i16;
-    var st_uid: i16;
-    var st_gid: i16;
-    var st_rdev: _dev_t;
-    var st_size: off_t; /* off_t follows _FILE_OFFSET_BITS */
-    var st_atime: time_t; /* time_t follows _USE_32BIT_TIME_T */
-    var st_mtime: time_t;
-    var st_ctime: time_t;
+    st_dev: _dev_t;
+    st_ino: _ino_t;
+    st_mode: u16;
+    st_nlink: i16;
+    st_uid: i16;
+    st_gid: i16;
+    st_rdev: _dev_t;
+    st_size: off_t; /* off_t follows _FILE_OFFSET_BITS */
+    st_atime: time_t; /* time_t follows _USE_32BIT_TIME_T */
+    st_mtime: time_t;
+    st_ctime: time_t;
 
     export fn get(path: str) => FileInfo {
         cimport stat(filename: cstr, stat: FileInfo) => i32;
 
-        var info = FileInfo();
+        info := FileInfo();
         if (stat(path$cast(cstr), info) != 0) {
             return null;
         }
@@ -266,7 +266,7 @@ export class FileInfo {
 }
 
 fn find_last(string: str, symbol: char) => i64 {
-    var last_index = string.size$cast(i64) - 1;
+    last_index := string.size$cast(i64) - 1;
     while (last_index >= 0 && string[last_index] != symbol) {
         last_index -= 1;
     }
@@ -276,10 +276,10 @@ fn find_last(string: str, symbol: char) => i64 {
 cimport mkdir(path: cstr, mode: u16) => i64;
 
 export fn get_dir(path: str) => str {
-    var last_fslash_index = find_last(path, '/');
-    var last_bslash_index = find_last(path, '\\');
+    last_fslash_index := find_last(path, '/');
+    last_bslash_index := find_last(path, '\\');
 
-    var last_slash_index: i64;
+    last_slash_index: i64;
     if (last_fslash_index > last_bslash_index) {
         last_slash_index = last_fslash_index;
     } else {
@@ -294,10 +294,10 @@ export fn get_dir(path: str) => str {
 }
 
 export fn get_filename(path: str) => str {
-    var last_fslash_index = find_last(path, '/');
-    var last_bslash_index = find_last(path, '\\');
+    last_fslash_index := find_last(path, '/');
+    last_bslash_index := find_last(path, '\\');
 
-    var after_last_slash_index: i64;
+    after_last_slash_index: i64;
     if (last_fslash_index > last_bslash_index) {
         after_last_slash_index = last_fslash_index + 1;
     } else {
@@ -312,7 +312,7 @@ export fn get_filename(path: str) => str {
 }
 
 export fn get_ext(path: str) => str {
-    var after_last_dot_index = find_last(path, '.') + 1;
+    after_last_dot_index := find_last(path, '.') + 1;
 
     if (after_last_dot_index > 0) {
         return path[after_last_dot_index:];
@@ -322,9 +322,9 @@ export fn get_ext(path: str) => str {
 }
 
 fn create_dirs_if_needed_resolved(path: str) => bool {
-    var info = FileInfo.get(path);
+    info := FileInfo.get(path);
     if (info == null) {
-        var dir = get_dir(path);
+        dir := get_dir(path);
         if (dir != "") {
             if (!create_dirs_if_needed_resolved(dir)) {
                 return false;
@@ -341,7 +341,7 @@ fn create_dirs_if_needed_resolved(path: str) => bool {
         return true;
     }
     
-    var kind = info->get_kind();
+    kind := info->get_kind();
     if (kind == FileInfo.Kind.Directory) {
         return true;
     }
@@ -354,17 +354,17 @@ export fn create_dirs_if_needed(path: str) => bool {
 }
 
 #uninitialized
-cexport var __imp_GetFullPathNameA: (cstr, u32, raw, raw) => u32;
+cexport __imp_GetFullPathNameA: (cstr, u32, raw, raw) => u32;
 
 export fn resolve_path(path: str) => str {
     if (path == null || path.size == 0) {
         path = ".";
     }
 
-    var capacity: u64 = 64;
-    var buffer = malloc(capacity);
+    capacity: u64 = 64;
+    buffer := malloc(capacity);
 
-    var size = __imp_GetFullPathNameA(path$cast(cstr), capacity$cast(u32), buffer, null);
+    size := __imp_GetFullPathNameA(path$cast(cstr), capacity$cast(u32), buffer, null);
     if (size == 0) {
         free(buffer);
         return null;
@@ -375,9 +375,9 @@ export fn resolve_path(path: str) => str {
 }
 
 export fn escaped_string(string: str) => str {
-    var result = "";
-    var last_index: u64;
-    var i: u64;
+    result := "";
+    last_index: u64;
+    i: u64;
     while (i < string.size) {
         if (string[i] == '\\') {
             result ..= string[last_index:i];

@@ -20,37 +20,37 @@ from hir import HIR
 from namespace import Namespace
 
 class HIRBuilder {
-    var errors_accum: ErrorsAccum;
-    var log_info: ErrorsAccum.SourceInfo;
+    errors_accum: ErrorsAccum;
+    log_info: ErrorsAccum.SourceInfo;
 
-    var blocks: HIR.Instr[][];
-    var vars: HIR.Var[];
-    var decls: HIR.Decl[];
-    var consts_infos: HIR.Const[];
-    var consts_literals: u8[];
+    blocks: HIR.Instr[][];
+    vars: HIR.Var[];
+    decls: HIR.Decl[];
+    consts_infos: HIR.Const[];
+    consts_literals: u8[];
 
-    var current_block: u32;
-    var parameters_counter: u32;
-    var func_index: u16;
-    var max_call_arg_count: u8;
-    var entry: str;
-    var entry_info: HIR.SrcInfo;
+    current_block: u32;
+    parameters_counter: u32;
+    func_index: u16;
+    max_call_arg_count: u8;
+    entry: str;
+    entry_info: HIR.SrcInfo;
 
-    var temp_counter: u32;
-    var string_literal_counter: HIR.ConstId;
-    var numeric_literal_counter: HIR.ConstId;
+    temp_counter: u32;
+    string_literal_counter: HIR.ConstId;
+    numeric_literal_counter: HIR.ConstId;
 
-    var return_type: Type;
-    var local_map_stack: StrHashMap[];
-    var global_map_stack: StrHashMap[];
+    return_type: Type;
+    local_map_stack: StrHashMap[];
+    global_map_stack: StrHashMap[];
 
-    var namespace: Namespace;
-    var exxport: bool;
-    var cexxport: bool;
-    var shhared: bool;
+    namespace: Namespace;
+    exxport: bool;
+    cexxport: bool;
+    shhared: bool;
 
     export fn construct(return_type: Type, func_index: u16, errors_accum: ErrorsAccum, log_info: ErrorsAccum.SourceInfo, is_global: bool) => HIRBuilder {
-        var self = HIRBuilder();
+        self := HIRBuilder();
 
         self.errors_accum = errors_accum;
         self.log_info = log_info;
@@ -98,7 +98,7 @@ class HIRBuilder {
     }
     
     export fn reserve_blocks(self: HIRBuilder, count: u32) => HIR.BlockId {
-        var first_block = self.blocks.size$cast(HIR.BlockId);
+        first_block := self.blocks.size$cast(HIR.BlockId);
         while (count > 0) {
             self.blocks ..= HIR.Instr[0];
             count -= 1;
@@ -146,7 +146,7 @@ class HIRBuilder {
             return true;
         }
 
-        var varr = self.vars[var_id];
+        varr := self.vars[var_id];
 
         if (varr.kind == HIR.Var.Kind.Error) {
             return true;
@@ -156,26 +156,26 @@ class HIRBuilder {
             return false;
         }
 
-        var decl_id = varr$cast(HIR.VarCommon).decl;
-        var decl = self.decls[decl_id];
+        decl_id := varr$cast(HIR.VarCommon).decl;
+        decl := self.decls[decl_id];
         return decl.kind == HIR.Decl.Kind.Error;
     }
 
     fn get_common_type(self: HIRBuilder, lhs_id: HIR.VarId, rhs_id: HIR.VarId) => Type {
-        var lhs = self.vars[lhs_id];
-        var rhs = self.vars[rhs_id];
+        lhs := self.vars[lhs_id];
+        rhs := self.vars[rhs_id];
 
-        var lhs_type = lhs->get_type();
-        var rhs_type = rhs->get_type();
+        lhs_type := lhs->get_type();
+        rhs_type := rhs->get_type();
 
         assert(lhs_type != null || lhs.kind == HIR.Var.Kind.Literal);
         assert(rhs_type != null || rhs.kind == HIR.Var.Kind.Literal);
 
-        var is_lhs_integer = 
+        is_lhs_integer := 
             lhs.kind == HIR.Var.Kind.Literal || 
             (lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).integer) || 
             lhs_type.kind == Type.Kind.Enum;
-        var is_rhs_integer = 
+        is_rhs_integer := 
             rhs.kind == HIR.Var.Kind.Literal || 
             (rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).integer) || 
             rhs_type.kind == Type.Kind.Enum;
@@ -226,13 +226,13 @@ class HIRBuilder {
             }
         }
 
-        var varr = self.vars[var_id];
+        varr := self.vars[var_id];
 
-        var type = varr->get_type();
+        type := varr->get_type();
 
         if (type == null) {
             if (varr.kind == HIR.Var.Kind.Literal) {
-                var literal = varr$cast(HIR.VarLiteral);
+                literal := varr$cast(HIR.VarLiteral);
                 if (target_type.kind == Type.Kind.Primitive) {
                     literal.type = target_type;
                     return var_id;
@@ -284,9 +284,9 @@ class HIRBuilder {
 
         if (type.kind == Type.Kind.Primitive || type.kind == Type.Kind.Enum) {
             if (target_type.kind == Type.Kind.Primitive || target_type.kind == Type.Kind.Enum) {
-                var to_enum = false;
-                var lhs_type_primitive = target_type$cast(TypePrimitive);
-                var rhs_type_primitive = type$cast(TypePrimitive);
+                to_enum := false;
+                lhs_type_primitive := target_type$cast(TypePrimitive);
+                rhs_type_primitive := type$cast(TypePrimitive);
 
                 if (lhs_type_primitive.kind == Type.Kind.Enum) {
                     to_enum = true;
@@ -319,8 +319,8 @@ class HIRBuilder {
                     }
                 }
 
-                var func_name: str;
-                var arg_type: Type;
+                func_name: str;
+                arg_type: Type;
                 if (type->is_signed()) {
                     func_name = "__ketl_rt.int2str";
                     arg_type = Types.instance.type_i64;
@@ -377,10 +377,10 @@ class HIRBuilder {
         }
 
         if (type.kind == Type.Kind.Class && target_type.kind == Type.Kind.Class) {
-            var rhs_class_type = type$cast(TypeClass);
-            var lhs_class_type = target_type$cast(TypeClass);
+            rhs_class_type := type$cast(TypeClass);
+            lhs_class_type := target_type$cast(TypeClass);
 
-            var extended_offset = rhs_class_type->find_extended_class_offset(lhs_class_type);
+            extended_offset := rhs_class_type->find_extended_class_offset(lhs_class_type);
             if (extended_offset >= 0) {
                 // TODO align class
                 assert(extended_offset == 0);
@@ -413,14 +413,14 @@ class HIRBuilder {
     }
 
     export fn push_tagonly_instr(self: HIRBuilder, tag: HIR.Tag, src_info: HIR.SrcInfo) {
-        var instr = HIR.Instr();
+        instr := HIR.Instr();
         instr.tag = tag;
         instr.src_info = src_info;
         self->append_instr(instr);
     }
 
     export fn push_jump(self: HIRBuilder, target: HIR.BlockId, src_info: HIR.SrcInfo) => HIR.Jump {
-        var instr = HIR.Jump();
+        instr := HIR.Jump();
         instr.tag = HIR.Tag.JUMP;
         instr.src_info = src_info;
         instr.dst = target;
@@ -432,7 +432,7 @@ class HIRBuilder {
     export fn push_jump_if(self: HIRBuilder, bool_expr_var: HIR.VarId, true_statement: HIR.BlockId, false_statement: HIR.BlockId, src_info: HIR.SrcInfo) => HIR.JumpIf {
         // TODO check casting
 
-        var instr = HIR.JumpIf();
+        instr := HIR.JumpIf();
         instr.tag = HIR.Tag.JUMP_IF_TRUE; // TODO pick best
         instr.src_info = src_info;
         instr.expr = bool_expr_var;
@@ -448,11 +448,11 @@ class HIRBuilder {
             return self->push_empty_error_var(src_info);
         }
 
-        var varr = self.vars[var_id];
-        var type = varr->get_type_forced();
+        varr := self.vars[var_id];
+        type := varr->get_type_forced();
         // TODO deduce
-        var arg_type = type;
-        var output_type = type;
+        arg_type := type;
+        output_type := type;
         switch (tag) {
             case HIR.Tag.LOGICAL_NOT => output_type = Types.instance.type_bool;
             case HIR.Tag.BITWISE_NOT
@@ -466,10 +466,10 @@ class HIRBuilder {
             }
         }
 
-        var arg_src_info = self.vars[var_id].src_info;
+        arg_src_info := self.vars[var_id].src_info;
         var_id = self->cast_to_type_forced(var_id, arg_type, arg_src_info, false);
 
-        var instr = HIR.UnaryOp();
+        instr := HIR.UnaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(output_type, instr);
@@ -486,21 +486,21 @@ class HIRBuilder {
 
         // TODO check if both literals and calc
 
-        var common_type = self->get_common_type(lhs_id, rhs_id);
+        common_type := self->get_common_type(lhs_id, rhs_id);
 
         if (common_type == null) {
-            var lhs = self.vars[lhs_id];
-            var rhs = self.vars[rhs_id];
+            lhs := self.vars[lhs_id];
+            rhs := self.vars[rhs_id];
 
-            var lhs_type = lhs->get_type_forced();
-            var rhs_type = rhs->get_type_forced();
+            lhs_type := lhs->get_type_forced();
+            rhs_type := rhs->get_type_forced();
 
             // special case for pointer arithmetic
             if ((tag == HIR.Tag.PLUS || tag == HIR.Tag.MINUS) && 
                 (lhs_type == Types.instance.type_raw$cast(Type) && rhs_type.kind == Type.Kind.Primitive && rhs_type$cast(TypePrimitive).numeric ||
                 rhs_type == Types.instance.type_raw$cast(Type) && lhs_type.kind == Type.Kind.Primitive && lhs_type$cast(TypePrimitive).numeric)) {
                 
-                var instr = HIR.BinaryOp();
+                instr := HIR.BinaryOp();
                 instr.tag = tag;
                 instr.src_info = src_info;
                 instr.output = self->push_instr_result_var(Types.instance.type_raw, instr);
@@ -517,8 +517,8 @@ class HIRBuilder {
         }
 
         // TODO deduce
-        var arg_type = common_type;
-        var output_type = common_type;
+        arg_type := common_type;
+        output_type := common_type;
         switch (tag) {
             case HIR.Tag.LESS
             case HIR.Tag.LESS_OR_EQUAL
@@ -530,8 +530,8 @@ class HIRBuilder {
         }
 
         {
-            var lhs = self.vars[lhs_id];
-            var lhs_src_info = lhs.src_info;
+            lhs := self.vars[lhs_id];
+            lhs_src_info := lhs.src_info;
             if (lhs.kind == HIR.Var.Kind.Literal && lhs->get_type() == null && arg_type.kind == Type.Kind.Enum) {
                 // if literal used in expression with Enum and was not specified yet, will allow implicit cast by passing parent Primitive
                 lhs_id = self->cast_to_type_forced(lhs_id, arg_type$cast(TypeEnum).parent, lhs_src_info, false);
@@ -539,8 +539,8 @@ class HIRBuilder {
                 lhs_id = self->cast_to_type_forced(lhs_id, arg_type, lhs_src_info, false);
             }
             
-            var rhs = self.vars[rhs_id];
-            var rhs_src_info = rhs.src_info;
+            rhs := self.vars[rhs_id];
+            rhs_src_info := rhs.src_info;
             if (rhs.kind == HIR.Var.Kind.Literal && rhs->get_type() == null && arg_type.kind == Type.Kind.Enum) {
                 // if literal used in expression with Enum and was not specified yet, will allow implicit cast by passing parent Primitive
                 rhs_id = self->cast_to_type_forced(rhs_id, arg_type$cast(TypeEnum).parent, rhs_src_info, false);
@@ -554,7 +554,7 @@ class HIRBuilder {
             return self->push_array_equality(tag, lhs_id, rhs_id, common_type$cast(TypeArray), src_info);
         }
 
-        var instr = HIR.BinaryOp();
+        instr := HIR.BinaryOp();
         instr.tag = tag;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(output_type, instr);
@@ -566,28 +566,28 @@ class HIRBuilder {
     }
 
     fn push_array_equality(self: HIRBuilder, tag: HIR.Tag, lhs_id: HIR.VarId, rhs_id: HIR.VarId, common_type: TypeArray, src_info: HIR.SrcInfo) => HIR.VarId {
-        var output_id = self->push_temp_var_of_type(Types.instance.type_bool, src_info);
+        output_id := self->push_temp_var_of_type(Types.instance.type_bool, src_info);
 
-        var first_block = self->reserve_blocks(7);
-        var init_loop_block = first_block + 0;
-        var check_length_block = first_block + 1;
-        var check_values_block = first_block + 2;
-        var inc_index_block = first_block + 3;
-        var res_not_equal_block = first_block + 4;
-        var res_equal_block = first_block + 5;
-        var after_block = first_block + 6;
+        first_block := self->reserve_blocks(7);
+        init_loop_block := first_block + 0;
+        check_length_block := first_block + 1;
+        check_values_block := first_block + 2;
+        inc_index_block := first_block + 3;
+        res_not_equal_block := first_block + 4;
+        res_equal_block := first_block + 5;
+        after_block := first_block + 6;
 
-        var lhs_size_id = self->push_field_access_forced(lhs_id, "size", src_info);
-        var rhs_size_id = self->push_field_access_forced(rhs_id, "size", src_info);
+        lhs_size_id := self->push_field_access_forced(lhs_id, "size", src_info);
+        rhs_size_id := self->push_field_access_forced(rhs_id, "size", src_info);
 
-        var is_sizes_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
+        is_sizes_not_equal_id := self->push_binary_op(HIR.Tag.NOT_EQUAL, 
             lhs_size_id, 
             rhs_size_id, 
             src_info);
         self->push_jump_if(is_sizes_not_equal_id, res_not_equal_block, init_loop_block, src_info);
 
         self->set_block(init_loop_block);
-        var index_id = self->push_temp_var_of_type(Types.instance.type_u64, src_info);
+        index_id := self->push_temp_var_of_type(Types.instance.type_u64, src_info);
         self->push_assign(HIR.Tag.ASSIGN, 
             index_id, 
             self->push_literal_number(0, src_info), 
@@ -595,14 +595,14 @@ class HIRBuilder {
         self->push_jump(check_length_block, src_info);
 
         self->set_block(check_length_block);
-        var is_index_less_size_id = self->push_binary_op(HIR.Tag.LESS, 
+        is_index_less_size_id := self->push_binary_op(HIR.Tag.LESS, 
             index_id, 
             lhs_size_id, 
             src_info);
         self->push_jump_if(is_index_less_size_id, check_values_block, res_equal_block, src_info);
         
         self->set_block(check_values_block);
-        var is_values_not_equal_id = self->push_binary_op(HIR.Tag.NOT_EQUAL, 
+        is_values_not_equal_id := self->push_binary_op(HIR.Tag.NOT_EQUAL, 
             self->push_get_array_value(lhs_id, index_id, src_info), 
             self->push_get_array_value(rhs_id, index_id, src_info), 
             src_info);
@@ -617,8 +617,8 @@ class HIRBuilder {
 
 
         // TODO allow explicit cast from bool to int
-        var not_equal_literal_value: u8;
-        var equal_literal_value: u8;
+        not_equal_literal_value: u8;
+        equal_literal_value: u8;
         if (tag == HIR.Tag.NOT_EQUAL) {
             not_equal_literal_value = 1;
         } else {
@@ -659,9 +659,9 @@ class HIRBuilder {
                 return self->push_empty_error_var(src_info);
             }
 
-            var type = self.vars[rhs_id]->get_type_forced();
+            type := self.vars[rhs_id]->get_type_forced();
             if (type == null) {
-                var src_info = self.vars[lhs_id].src_info;
+                src_info := self.vars[lhs_id].src_info;
                 self->error(src_info.source_offset, src_info.length, "Can't deduce type for var declaration.");
                 return self->push_empty_error_var(src_info);
             } 
@@ -680,16 +680,16 @@ class HIRBuilder {
             }
         }
 
-        var lhs = self.vars[lhs_id];
-        var type = lhs->get_type_forced();
-        var rhs_src_info = self.vars[rhs_id].src_info;
+        lhs := self.vars[lhs_id];
+        type := lhs->get_type_forced();
+        rhs_src_info := self.vars[rhs_id].src_info;
         rhs_id = self->cast_to_type_forced(rhs_id, type, rhs_src_info, false);
 
         if (self->is_undef(rhs_id)) {
             return self->push_empty_error_var(src_info);
         }
 
-        var instr = HIR.Assign();
+        instr := HIR.Assign();
         instr.tag = tag;
         instr.src_info = src_info;
         instr.dst = lhs_id;
@@ -705,28 +705,28 @@ class HIRBuilder {
             return self->push_empty_error_var(src_info);
         }
 
-        var callee = self.vars[callee_id];
-        var type = callee->get_type_forced();
+        callee := self.vars[callee_id];
+        type := callee->get_type_forced();
 
         if (type.kind != Type.Kind.Function && type.kind != Type.Kind.CFunction) {
             self->error(src_info.source_offset, src_info.length, "Only functions can be called.");
             return self->push_empty_error_var(src_info);
         }
-        var function_type = type$cast(TypeFunction);
-        var function_signature = function_type.signature;
+        function_type := type$cast(TypeFunction);
+        function_signature := function_type.signature;
 
         if (function_signature.parameters.size - 1 != arguments.size) {
             self->error(src_info.source_offset, src_info.length, "Arguments count does not match function parameters count: " .. arguments.size$cast(str) .. " instead of " .. (function_signature.parameters.size - 1)$cast(str) .. ".");
             return self->push_empty_error_var(src_info);
         }
 
-        var return_type = function_signature.parameters[0];
+        return_type := function_signature.parameters[0];
 
-        var i: u64 = 0;
+        i: u64 = 0;
         while (i < arguments.size) {
-            var arg_id = arguments[i];
-            var arg = self.vars[arg_id];
-            var parameter_type = function_signature.parameters[i + 1];
+            arg_id := arguments[i];
+            arg := self.vars[arg_id];
+            parameter_type := function_signature.parameters[i + 1];
             arg_id = self->cast_to_type_forced(arg_id, parameter_type, arg.src_info, false);
 
             if (self->is_undef(arg_id)) {
@@ -737,7 +737,7 @@ class HIRBuilder {
             i += 1;
         }
         
-        var instr = HIR.Call();
+        instr := HIR.Call();
         instr.tag = HIR.Tag.CALL;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(return_type, instr);
@@ -749,7 +749,7 @@ class HIRBuilder {
     }
     
     export fn push_new(self: HIRBuilder, callee_type: Type, arguments: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
-        var instr = HIR.New();
+        instr := HIR.New();
         instr.tag = HIR.Tag.NEW_CLASS;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(callee_type, instr);
@@ -770,7 +770,7 @@ class HIRBuilder {
         }
         // TODO check types
 
-        var instr = HIR.NewArray();
+        instr := HIR.NewArray();
         instr.tag = HIR.Tag.NEW_ARRAY;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(array_type, instr);
@@ -788,11 +788,11 @@ class HIRBuilder {
         }
         // TODO check types
 
-        var array = self.vars[array_id];
-        var array_type = array->get_type_forced()$cast(TypeArray);
+        array := self.vars[array_id];
+        array_type := array->get_type_forced()$cast(TypeArray);
         assert(array_type.kind == Type.Kind.Array);
         
-        var instr = HIR.NewSlice();
+        instr := HIR.NewSlice();
         instr.tag = HIR.Tag.NEW_SLICE;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(array_type, instr);
@@ -810,14 +810,14 @@ class HIRBuilder {
         }
         // TODO check types
 
-        var array = self.vars[array_id];
-        var array_type = array->get_type_forced()$cast(TypeArray);
+        array := self.vars[array_id];
+        array_type := array->get_type_forced()$cast(TypeArray);
         assert(array_type.kind == Type.Kind.Array);
-        var value_type = array_type.value;
+        value_type := array_type.value;
 
         index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
 
-        var instr = HIR.GetArrayValue();
+        instr := HIR.GetArrayValue();
         instr.tag = HIR.Tag.GET_ARRAY_VALUE;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(value_type, instr);
@@ -834,17 +834,17 @@ class HIRBuilder {
         }
         // TODO check types
 
-        var array = self.vars[array_id];
-        var array_type = array->get_type_forced()$cast(TypeArray);
+        array := self.vars[array_id];
+        array_type := array->get_type_forced()$cast(TypeArray);
         assert(array_type.kind == Type.Kind.Array);
-        var value_type = array_type.value;
+        value_type := array_type.value;
 
         index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
         
-        var value_src_info = self.vars[value_id].src_info;
+        value_src_info := self.vars[value_id].src_info;
         value_id = self->cast_to_type_forced(value_id, value_type, value_src_info, false);
 
-        var instr = HIR.SetArrayValue();
+        instr := HIR.SetArrayValue();
         instr.tag = HIR.Tag.SET_ARRAY_VALUE;
         instr.src_info = src_info;
         instr.output = self->push_instr_result_var(value_type, instr);
@@ -857,12 +857,12 @@ class HIRBuilder {
     }
 
     export fn is_get_array_value(self: HIRBuilder, value_id: HIR.VarId) => bool {
-        var value = self.vars[value_id]$cast(HIR.VarCommon);
+        value := self.vars[value_id]$cast(HIR.VarCommon);
         if (value.kind != HIR.Var.Kind.Common) {
             return false;
         }
 
-        var decl = self.decls[value.decl]$cast(HIR.DeclInstrResult);
+        decl := self.decls[value.decl]$cast(HIR.DeclInstrResult);
         if (decl.kind != HIR.Decl.Kind.InstrResult) {
             return false;
         }
@@ -875,17 +875,17 @@ class HIRBuilder {
             return self->push_empty_error_var(src_info);
         }
 
-        var output = self.vars[output_id]$cast(HIR.VarCommon);
+        output := self.vars[output_id]$cast(HIR.VarCommon);
         assert(output.kind == HIR.Var.Kind.Common);
 
-        var decl = self.decls[output.decl]$cast(HIR.DeclInstrResult);
+        decl := self.decls[output.decl]$cast(HIR.DeclInstrResult);
         assert(decl.kind == HIR.Decl.Kind.InstrResult);
 
-        var old_instr = decl.instr$cast(HIR.GetArrayValue);
+        old_instr := decl.instr$cast(HIR.GetArrayValue);
         assert(old_instr.tag == HIR.Tag.GET_ARRAY_VALUE);
 
-        var block = self->get_current_block_instrs();
-        var i = block.size;
+        block := self->get_current_block_instrs();
+        i := block.size;
         while (i > 0) {
             i -= 1;
 
@@ -897,11 +897,11 @@ class HIRBuilder {
         // i will be (-1)$cast(u64), so u64$max;
         assert(i < block.size);
 
-        var type = output->get_type_forced();
-        var value_src_info = self.vars[value_id].src_info;
+        type := output->get_type_forced();
+        value_src_info := self.vars[value_id].src_info;
         value_id = self->cast_to_type_forced(value_id, type, value_src_info, false);
 
-        var instr = HIR.SetArrayValue();
+        instr := HIR.SetArrayValue();
         instr.tag = HIR.Tag.SET_ARRAY_VALUE;
         instr.src_info = old_instr.src_info;
         instr.output = old_instr.output;
@@ -921,20 +921,20 @@ class HIRBuilder {
             return self->push_empty_error_var(src_info);
         }
 
-        var array = self.vars[array_id];
-        var array_type = array->get_type_forced()$cast(TypeArray);
+        array := self.vars[array_id];
+        array_type := array->get_type_forced()$cast(TypeArray);
         if (array_type.kind != Type.Kind.Array) {
             self->error(src_info.source_offset, src_info.length, "Can't append to '" .. array_type->get_name() .. "'.");
             return self->push_empty_error_var(src_info);
         }
 
-        var instr = HIR.Append();
+        instr := HIR.Append();
         instr.src_info = src_info;
         instr.array = array_id;
         instr.appendee = rhs_id;
 
-        var rhs = self.vars[rhs_id];
-        var rhs_type = rhs->get_type_forced();
+        rhs := self.vars[rhs_id];
+        rhs_type := rhs->get_type_forced();
 
         rhs_id = self->try_cast_to_type(rhs_id, array_type.value, src_info, false);
         if (!self->is_undef(rhs_id)) {
@@ -957,14 +957,14 @@ class HIRBuilder {
             return self->push_empty_error_var(src_info);
         }
 
-        var lhs = self.vars[lhs_id];
-        var rhs = self.vars[rhs_id];
+        lhs := self.vars[lhs_id];
+        rhs := self.vars[rhs_id];
 
-        var lhs_type = lhs->get_type_forced();
-        var rhs_type = rhs->get_type_forced();
+        lhs_type := lhs->get_type_forced();
+        rhs_type := rhs->get_type_forced();
 
-        var common_array_type: TypeArray;
-        var size_id = self->push_literal_number_of_type(0, Types.instance.type_u64, src_info);
+        common_array_type: TypeArray;
+        size_id := self->push_literal_number_of_type(0, Types.instance.type_u64, src_info);
 
         if (lhs_type.kind == Type.Kind.Array) {
             if (rhs_type.kind == Type.Kind.Array) {
@@ -1018,7 +1018,7 @@ class HIRBuilder {
                     src_info);
                     */
             } else {
-                var common_type = self->get_common_type(lhs_id, rhs_id);
+                common_type := self->get_common_type(lhs_id, rhs_id);
 
                 lhs_id = self->cast_to_type_forced(lhs_id, common_type, src_info, false);
                 rhs_id = self->cast_to_type_forced(rhs_id, common_type, src_info, false);
@@ -1033,7 +1033,7 @@ class HIRBuilder {
             }
         }
         
-        var array_id = self->push_new_array(common_array_type, size_id, src_info);
+        array_id := self->push_new_array(common_array_type, size_id, src_info);
 
         array_id = self->push_append(array_id, lhs_id, src_info);
         array_id = self->push_append(array_id, rhs_id, src_info);
@@ -1042,27 +1042,27 @@ class HIRBuilder {
     }
 
     fn push_new_string_literal(self: HIRBuilder, string: str, src_info: HIR.SrcInfo) => HIR.VarId {
-        var size = string.size;
+        size := string.size;
 
-        var initial_value = (-1)$cast(HIR.ConstId);
+        initial_value := (-1)$cast(HIR.ConstId);
         if (string.size > 0) {
             initial_value = self->push_string_const(string);
             size = self.consts_infos[initial_value].mem_size;
         }
 
-        var size_id = self->push_literal_number(size, src_info);
+        size_id := self->push_literal_number(size, src_info);
 
         return self->push_new_array_and_init(Types.instance->get_str_type(), size_id, initial_value, src_info);
     }
 
     fn push_string_const(self: HIRBuilder, string: str) => HIR.ConstId {
-        var const_id = self.consts_infos.size$cast(HIR.ConstId);
-        var const_offset = self.consts_literals.size$cast(u32);
+        const_id := self.consts_infos.size$cast(HIR.ConstId);
+        const_offset := self.consts_literals.size$cast(u32);
 
         self.consts_literals ..= u8[string.size];
 
-        var escape_characters_count: u32;
-        var i: u32;
+        escape_characters_count: u32;
+        i: u32;
         while (i < string.size) {
             if (string[i] == '\\') {
                 escape_characters_count += 1;
@@ -1079,7 +1079,7 @@ class HIRBuilder {
             i += 1;
         }
 
-        var const = HIR.Const();
+        const := HIR.Const();
         const.offset = const_offset;
         const.literal_size = string.size$cast(u32);
         const.mem_size = const.literal_size - escape_characters_count;
@@ -1099,7 +1099,7 @@ class HIRBuilder {
             return;
         }
 
-        var instr = HIR.ReturnValue();
+        instr := HIR.ReturnValue();
         instr.tag = HIR.Tag.RETURN_VALUE;
         instr.src_info = src_info;
         instr.value = var_id;
@@ -1107,7 +1107,7 @@ class HIRBuilder {
     }
 
     export fn add_parameter(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) {
-        var bucket = self->find_decl_bucket(name);
+        bucket := self->find_decl_bucket(name);
 
         // if got not null - redefinition
         if (bucket != null) {
@@ -1116,9 +1116,9 @@ class HIRBuilder {
             return;
         }
 
-        var decl_id = self.decls.size$cast(HIR.DeclId);
+        decl_id := self.decls.size$cast(HIR.DeclId);
         bucket = self->last_local_map()->get_or_insert(name, decl_id$cast(u64)$cast(raw));
-        var decl = HIR.DeclParameter();
+        decl := HIR.DeclParameter();
         decl.kind = HIR.Decl.Kind.Parameter;
         decl.name = name;
 
@@ -1132,8 +1132,8 @@ class HIRBuilder {
     export fn push_literal_number_of_type(self: HIRBuilder, value: u64, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
         // TODO check if type big enough for a value
 
-        var literal_var_id = self.vars.size$cast(HIR.VarId);
-        var literal_var = HIR.VarLiteral();
+        literal_var_id := self.vars.size$cast(HIR.VarId);
+        literal_var := HIR.VarLiteral();
         self.vars ..= literal_var;
 
         literal_var.kind = HIR.Var.Kind.Literal;
@@ -1150,8 +1150,8 @@ class HIRBuilder {
     }
 
     fn push_common_var(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo, decl_id: HIR.DeclId) => HIR.VarId {
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarCommon();
+        var_id := self.vars.size$cast(HIR.VarId);
+        varr := HIR.VarCommon();
         self.vars ..= varr;
 
         varr.kind = HIR.Var.Kind.Common;
@@ -1164,8 +1164,8 @@ class HIRBuilder {
     }
 
     fn push_casted_var(self: HIRBuilder, var_id: HIR.VarId, target_type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var cast_var_id = self.vars.size$cast(HIR.VarId);
-        var cast_var = HIR.VarCast();
+        cast_var_id := self.vars.size$cast(HIR.VarId);
+        cast_var := HIR.VarCast();
         self.vars ..= cast_var;
 
         cast_var.kind = HIR.Var.Kind.Cast;
@@ -1178,14 +1178,14 @@ class HIRBuilder {
     }
 
     fn generate_temp_name(self: HIRBuilder) => str {
-        var name = "~tmp" .. self.temp_counter$cast(str);
+        name := "~tmp" .. self.temp_counter$cast(str);
         self.temp_counter += 1;
         return name;
     }
 
-    fn push_instr_result_var(self: HIRBuilder, type: Type, instr: HIR.Instr) => HIR.VarId {var temp_decl_id = self.decls.size$cast(HIR.DeclId);
-        var decl_id = self.decls.size$cast(HIR.DeclId);
-        var decl = HIR.DeclInstrResult();
+    fn push_instr_result_var(self: HIRBuilder, type: Type, instr: HIR.Instr) => HIR.VarId {temp_decl_id := self.decls.size$cast(HIR.DeclId);
+        decl_id := self.decls.size$cast(HIR.DeclId);
+        decl := HIR.DeclInstrResult();
         decl.kind = HIR.Decl.Kind.InstrResult;
 
         decl.name = self->generate_temp_name();
@@ -1197,7 +1197,7 @@ class HIRBuilder {
     }
 
     fn push_class_namespace_access(self: HIRBuilder, type: TypeClass, id: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
-        var var_id = self->get_namespace_var(type.namespace, id, src_info, forced);
+        var_id := self->get_namespace_var(type.namespace, id, src_info, forced);
         if (self->is_undef(var_id) && forced) {
             self->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from class '" .. type.name .. "'.");
         }
@@ -1205,8 +1205,8 @@ class HIRBuilder {
     }
 
     fn push_field_access_impl(self: HIRBuilder, object_id: HIR.VarId, field_type: Type, field_name: str, field_offset: u16, src_info: HIR.SrcInfo) => HIR.VarId {
-        var field_var_id = self.vars.size$cast(HIR.VarId);
-        var field_var = HIR.VarField();
+        field_var_id := self.vars.size$cast(HIR.VarId);
+        field_var := HIR.VarField();
         self.vars ..= field_var;
 
         field_var.kind = HIR.Var.Kind.Field;
@@ -1221,11 +1221,11 @@ class HIRBuilder {
     }
 
     fn push_arbitrary_global_var(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var node = Namespace.Node();
+        node := Namespace.Node();
         node.key = name;
         node.name = name;
 
-        var value = Value();
+        value := Value();
         value->set_type(type);
         node.value = value;
         node.info = Namespace.Info.construct(true, false);
@@ -1243,14 +1243,14 @@ class HIRBuilder {
     }
 
     fn push_field_access(self: HIRBuilder, object_id: HIR.VarId, field_name: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
-        var object = self.vars[object_id];
-        var object_type = object->get_type_forced();
+        object := self.vars[object_id];
+        object_type := object->get_type_forced();
         assert(object_type != null);
 
         if (object_type.kind == Type.Kind.Class) {
-            var type_class = object_type$cast(TypeClass);
+            type_class := object_type$cast(TypeClass);
 
-            var field_type = type_class->get_field_type(field_name);
+            field_type := type_class->get_field_type(field_name);
             if (field_type != null) {
                 return self->push_field_access_impl(
                     object_id, 
@@ -1264,7 +1264,7 @@ class HIRBuilder {
         }
 
         if (object_type.kind == Type.Kind.Array) {
-            var type_array = object_type$cast(TypeArray);
+            type_array := object_type$cast(TypeArray);
 
             if (field_name == "size") {
                 return self->push_field_access_impl(
@@ -1301,8 +1301,8 @@ class HIRBuilder {
     }
 
     export fn push_temp_var_of_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var temp_decl_id = self.decls.size$cast(HIR.DeclId);
-        var temp_decl = HIR.DeclCommon();
+        temp_decl_id := self.decls.size$cast(HIR.DeclId);
+        temp_decl := HIR.DeclCommon();
         temp_decl.kind = HIR.Decl.Kind.Common;
         temp_decl.name = self->generate_temp_name();
 
@@ -1323,8 +1323,8 @@ class HIRBuilder {
     }
 
     export fn push_error_var(self: HIRBuilder, src_info: HIR.SrcInfo, error_id: u64) => HIR.VarId {
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarError();
+        var_id := self.vars.size$cast(HIR.VarId);
+        varr := HIR.VarError();
         self.vars ..= varr;
 
         varr.kind = HIR.Var.Kind.Error;
@@ -1335,28 +1335,32 @@ class HIRBuilder {
         return var_id;
     }
 
-    export fn check_var_declaration_conditions(self: HIRBuilder, var_id: HIR.VarId) => str {
-        var varr = self.vars[var_id];
-        var src_info = self.vars[var_id].src_info;
+    export fn check_var_declaration_conditions(self: HIRBuilder, var_id: HIR.VarId, is_field: bool) => str {
+        varr := self.vars[var_id];
+        src_info := self.vars[var_id].src_info;
         
         if (varr.kind == HIR.Var.Kind.Global) {
-            //var orig_src_info = decl->get_src_info();
-            //if (orig_src_info != null) {
-            //    self->error(src_info.source_offset, src_info.length, "Variable redefinition.");
-            //    self->error(orig_src_info.source_offset, orig_src_info.length, "Was defined first here.");
-            //} else {
-                self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
-            //}
-            return null;
+            node := varr$cast(HIR.VarGlobal).node;
+            if (!is_field && self.local_map_stack.size == 0) {
+                //orig_src_info := decl->get_src_info();
+                //if (orig_src_info != null) {
+                //    self->error(src_info.source_offset, src_info.length, "Variable redefinition.");
+                //    self->error(orig_src_info.source_offset, orig_src_info.length, "Was defined first here.");
+                //} else {
+                    self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown (fullname " .. node.name .. ").");
+                //}
+                return null;
+            }
+            return node.key;
         } else if (varr.kind != HIR.Var.Kind.Common) {
             self->error(src_info.source_offset, src_info.length, "Must use plain id to declare a variable.");
             return null;
         }
 
-        var decl = self.decls[varr$cast(HIR.VarCommon).decl];
+        decl := self.decls[varr$cast(HIR.VarCommon).decl];
         switch (decl.kind) {
             case HIR.Decl.Kind.Error => {
-                var error = self.errors_accum->get_kind(decl$cast(HIR.DeclError).error_id);
+                error := self.errors_accum->get_kind(decl$cast(HIR.DeclError).error_id);
                 if (error != ErrorsAccum.Error.UndefinedId) {
                     return null;
                 }
@@ -1369,14 +1373,14 @@ class HIRBuilder {
                     self->error(src_info.source_offset, src_info.length, "Must use plain id to declare a variable.");
                     return null;
                 }
-                var bucket = self->find_decl_bucket_scoped(decl.name);
-                if (bucket != null && bucket.value$cast(HIR.Decl) == decl) {
-                    var orig_src_info = decl->get_src_info();
+                bucket := self->find_decl_bucket_scoped(decl.name);
+                if (!is_field && bucket != null && bucket.value$cast(HIR.Decl) == decl) {
+                    orig_src_info := decl->get_src_info();
                     if (orig_src_info != null) {
                         self->error(src_info.source_offset, src_info.length, "Variable redefinition.");
                         self->error(orig_src_info.source_offset, orig_src_info.length, "Was defined first here.");
                     } else {
-                        self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
+                        self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown (error).");
                     }
                     return null;
                 }
@@ -1390,105 +1394,120 @@ class HIRBuilder {
     }
 
     fn check_error_var(self: HIRBuilder, var_id: HIR.VarId, error_kind: ErrorsAccum.Error) => bool {
-        var varr = self.vars[var_id];
+        varr := self.vars[var_id];
         if (varr.kind != HIR.Var.Kind.Common) {
             return false;
         }
 
-        var decl = self.decls[varr$cast(HIR.VarCommon).decl];
+        decl := self.decls[varr$cast(HIR.VarCommon).decl];
         if (decl.kind != HIR.Decl.Kind.Error) {
             return false;
         }
 
-        var error = self.errors_accum->get_kind(decl$cast(HIR.DeclError).error_id);
+        error := self.errors_accum->get_kind(decl$cast(HIR.DeclError).error_id);
         return error == error_kind;
     }
 
     export fn declare_var_from_var_id(self: HIRBuilder, var_id: HIR.VarId, type: Type, src_info: HIR.SrcInfo) => bool {
-        // type must be deduced, creating error var for later
-        if (type == null) {
-            var varr = self.vars[var_id];
-            assert(varr.kind == HIR.Var.Kind.Common);
-            
-            var decl_id = varr$cast(HIR.VarCommon).decl;
-            var prev_decl = self.decls[decl_id];
-
-            if (prev_decl.kind == HIR.Decl.Kind.Error) {
-                self.errors_accum->update(prev_decl$cast(HIR.DeclError).error_id, ErrorsAccum.Error.UndefinedDeclaredId, "Declaring variable without type or initial value.");
-            } else {
-                var error_id = self->error_type(ErrorsAccum.Error.UndefinedDeclaredId, src_info.source_offset, src_info.length, "Declaring variable without type or initial value.");
-                
-                var error_decl = HIR.DeclError();
-                error_decl.kind = HIR.Decl.Kind.Error;
-                error_decl.name = prev_decl.name;
-
-                error_decl.error_id = error_id;
-                
-                decl_id = self.decls.size$cast(HIR.DeclId);
-                self.decls ..= error_decl;
-                
-                var bucket = self->last_local_map()->get_or_insert(
-                        prev_decl.name, decl_id$cast(u64)$cast(raw));
-                assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
-
-                varr$cast(HIR.VarCommon).decl = decl_id;
-            }
-            return true;
-        }
-
         if (type == Types.instance.type_void$cast(Type)) {
             self->error(src_info.source_offset, src_info.length, "Can't declare var of type 'void'.");
             return false;
         }
 
-        var varr = self.vars[var_id];
-        assert(varr.kind == HIR.Var.Kind.Common);
-        var decl_id = varr$cast(HIR.VarCommon).decl;
-        var prev_decl = self.decls[decl_id];
+        global_var := (self.local_map_stack.size == 0 || self.shhared);
+        self.shhared = false;
 
-        if (self.local_map_stack.size == 0 || self.shhared) {
-            // declaring global
-            self.shhared = false;
+        varr: HIR.Var = self.vars[var_id];
+        key: str;
+        
+        common_var: HIR.VarCommon;
+        old_decl_id: HIR.DeclId;
+        old_decl: HIR.Decl;
 
-            assert(prev_decl.kind == HIR.Decl.Kind.Error);
-            self.errors_accum->remove(prev_decl$cast(HIR.DeclError).error_id);
+        // gathering data
+        if (varr.kind == HIR.Var.Kind.Common) {
+            common_var = varr$cast(HIR.VarCommon);
+            old_decl_id = common_var.decl;
+            old_decl = self.decls[old_decl_id];
+            key = old_decl.name;
+        } else if (varr.kind == HIR.Var.Kind.Global) {
+            key = varr$cast(HIR.VarGlobal).node.key;
+        } else {
+            assert(false);
+        }
 
-
-            var name: str;
-            if (self.cexxport) {
-                name = prev_decl.name;
+        decl: HIR.Decl;
+        // deal with error decl
+        if (old_decl != null && old_decl.kind == HIR.Decl.Kind.Error) {
+            old_error_id := old_decl$cast(HIR.DeclError).error_id;
+            if (type == null) {
+                self.errors_accum->update(old_error_id, ErrorsAccum.Error.UndefinedDeclaredId, "Declaring variable without type or initial value.");
+            } else {
+                self.errors_accum->remove(old_error_id);
             }
-            var global_var_id = self->declare_global_var(self.namespace, prev_decl.name, name, type, src_info, self.exxport);
-            
+        } else {
+            if (type == null && !global_var) {
+                // CREATE NEW DECL - ERROR
+                error_id := self->error_type(ErrorsAccum.Error.UndefinedDeclaredId, src_info.source_offset, src_info.length, "Declaring variable without type or initial value.");
+                
+                decl = error_decl := HIR.DeclError();
+                error_decl.kind = HIR.Decl.Kind.Error;
+                error_decl.error_id = error_id;
+            }
+        }
+
+        if (type != null && global_var) {
+            // creating global var always
+            name: str;
+            if (self.cexxport) {
+                name = key;
+            }
+            global_var_id := self->declare_global_var(self.namespace, key, name, type, src_info, self.exxport);
             self.vars[var_id] = self.vars[global_var_id];
             self.vars->pop();
-        } else {
-            // declaring local
-            var common_decl = HIR.DeclCommon();
+            return true;
+        }
+        
+        // creating common var if needed
+        if (common_var == null) {
+            common_var_id := self->push_common_var(null, varr.src_info, (-1)$cast(HIR.DeclId));
+            common_var = (self.vars[var_id] = self.vars[common_var_id])$cast(HIR.VarCommon);
+            self.vars->pop();
+        }
+
+        if (type != null && !global_var) {
+            // CREATE NEW DECL - COMMON
+            common_decl := HIR.DeclCommon();
             common_decl.kind = HIR.Decl.Kind.Common;
-            common_decl.name = prev_decl.name;
 
             common_decl.type = type;
             common_decl.src_info = src_info;
 
-            varr$cast(HIR.VarWithType).type = type;
+            common_var.type = type;
 
-            if (prev_decl.kind == HIR.Decl.Kind.Error) {
-                self.errors_accum->remove(prev_decl$cast(HIR.DeclError).error_id);
-                
-                self.decls[decl_id] = common_decl;
+            if (old_decl != null && old_decl.kind == HIR.Decl.Kind.Error) {
+                // replacing old, no need add and register new
+                common_decl.name = key;
+                self.decls[old_decl_id] = common_decl;
             } else {
-                var decl_id = self.decls.size$cast(HIR.DeclId);
-                self.decls ..= common_decl;
-                    
-                var bucket = self->last_local_map()->get_or_insert(
-                        prev_decl.name, decl_id$cast(u64)$cast(raw));
-                assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
-                
-                varr$cast(HIR.VarCommon).decl = decl_id;
+                decl = common_decl;
             }
         }
 
+        if (decl != null) {
+            // ADD DECL AND REGISTER ID
+            decl_id := self.decls.size$cast(HIR.DeclId);
+            self.decls ..= decl;
+                
+            decl.name = key;
+            bucket := self->last_local_map()->get_or_insert(
+                    key, decl_id$cast(u64)$cast(raw));
+            assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
+            
+            // REPLACE DECL ID
+            common_var.decl = decl_id;
+        }
+            
         return true;
     }
 
@@ -1507,11 +1526,11 @@ class HIRBuilder {
     }
 
     fn find_decl_bucket(self: HIRBuilder, name: str) => StrHashMap.Bucket {
-        var i = self.local_map_stack.size;
+        i := self.local_map_stack.size;
         while (i > 0) {
             i -= 1;
-            var name_to_decl = self.local_map_stack[i];
-            var bucket = name_to_decl->get_or_null(name);
+            name_to_decl := self.local_map_stack[i];
+            bucket := name_to_decl->get_or_null(name);
             if (bucket != null) {
                 return bucket;
             }
@@ -1521,10 +1540,10 @@ class HIRBuilder {
     }
 
     fn find_decl_bucket_scoped(self: HIRBuilder, name: str) => StrHashMap.Bucket {
-        var i = self.local_map_stack.size;
+        i := self.local_map_stack.size;
         i -= 1;
-        var name_to_decl = self.local_map_stack[i];
-        var bucket = name_to_decl->get_or_null(name);
+        name_to_decl := self.local_map_stack[i];
+        bucket := name_to_decl->get_or_null(name);
         if (bucket != null) {
             return bucket;
         }
@@ -1546,8 +1565,8 @@ class HIRBuilder {
     }
 
     fn push_node_var(self: HIRBuilder, namespace_node: Namespace.Node, src_info: HIR.SrcInfo) => HIR.VarId {
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarGlobal();
+        var_id := self.vars.size$cast(HIR.VarId);
+        varr := HIR.VarGlobal();
         self.vars ..= varr;
 
         varr.kind = HIR.Var.Kind.Global;
@@ -1559,7 +1578,7 @@ class HIRBuilder {
     }
 
     export fn declare_global_var(self: HIRBuilder, namespace: Namespace, key: str, name: str, type: Type, src_info: HIR.SrcInfo, exxport: bool) => HIR.VarId {
-        var bucket = self->find_decl_bucket(key);
+        bucket := self->find_decl_bucket(key);
 
         // if got not null, we found existing decl
         if (self->find_decl_bucket(key) != null) {
@@ -1568,7 +1587,7 @@ class HIRBuilder {
         }
 
         // TODO Namespace.declare_var still can crash
-        var namespace_node = namespace->declare_var(key, name, type, exxport);
+        namespace_node := namespace->declare_var(key, name, type, exxport);
         if (namespace_node == null) {
             self->error(src_info.source_offset, src_info.length, "Overriding existing variable.");
             return self->push_empty_error_var(src_info);
@@ -1578,7 +1597,7 @@ class HIRBuilder {
     }
 
     export fn declare_global_node(self: HIRBuilder, namespace: Namespace, key: str, name: str, type: Type, src_info: HIR.SrcInfo, exxport: bool) => Namespace.Node {
-        var bucket = self->find_decl_bucket(key);
+        bucket := self->find_decl_bucket(key);
 
         // if got not null, we found existing decl
         if (self->find_decl_bucket(key) != null) {
@@ -1589,8 +1608,8 @@ class HIRBuilder {
     }
 
     export fn push_literal_type(self: HIRBuilder, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarLiteralType();
+        var_id := self.vars.size$cast(HIR.VarId);
+        varr := HIR.VarLiteralType();
         self.vars ..= varr;
 
         varr.kind = HIR.Var.Kind.LiteralType;
@@ -1602,8 +1621,8 @@ class HIRBuilder {
     }
 
     export fn push_sequence(self: HIRBuilder, ids: HIR.VarId[], src_info: HIR.SrcInfo) => HIR.VarId {
-        var var_id = self.vars.size$cast(HIR.VarId);
-        var varr = HIR.VarSequence();
+        var_id := self.vars.size$cast(HIR.VarId);
+        varr := HIR.VarSequence();
         self.vars ..= varr;
 
         varr.kind = HIR.Var.Kind.Sequence;
@@ -1615,28 +1634,28 @@ class HIRBuilder {
     }
 
     export fn declare_local_var(self: HIRBuilder, name: str, type: Type, src_info: HIR.SrcInfo) => HIR.VarId {
-        var bucket = self->find_decl_bucket_scoped(name);
+        bucket := self->find_decl_bucket_scoped(name);
 
         // if got not null - redefinition
         if (bucket != null) {
-            var decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
-            var decl = self.decls[decl_id];
+            decl_id := bucket.value$cast(u64)$cast(HIR.DeclId);
+            decl := self.decls[decl_id];
             if (decl.kind != HIR.Decl.Kind.Error) {
-                var orig_src_info = decl->get_src_info();
+                orig_src_info := decl->get_src_info();
                 if (orig_src_info != null) {
                     self->error(src_info.source_offset, src_info.length, "Variable redefinition.");
                     self->error(orig_src_info.source_offset, orig_src_info.length, "Was defined first here.");
                 } else {
-                    self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown.");
+                    self->error(src_info.source_offset, src_info.length, "Variable redefinition. First definition is unknown (local error).");
                 }
                 return self->push_empty_error_var(src_info);
             }
             // TODO check if bucket actually at the correct level of stack
         }
 
-        var decl_id = self.decls.size$cast(HIR.DeclId);
+        decl_id := self.decls.size$cast(HIR.DeclId);
         bucket = self->last_local_map()->get_or_insert(name, decl_id$cast(u64)$cast(raw));
-        var decl = HIR.DeclCommon();
+        decl := HIR.DeclCommon();
         decl.kind = HIR.Decl.Kind.Common;
         decl.name = name;
 
@@ -1649,17 +1668,17 @@ class HIRBuilder {
     }
 
     export fn get_var(self: HIRBuilder, namespace: Namespace, name: str, fullname: str, src_info: HIR.SrcInfo) => HIR.VarId {
-        var bucket = self->find_decl_bucket(fullname);
-        var decl_id: HIR.DeclId;
-        var type: Type;
+        bucket := self->find_decl_bucket(fullname);
+        decl_id: HIR.DeclId;
+        type: Type;
 
         // if got not null, we found existing decl
         if (bucket != null) {
             decl_id = bucket.value$cast(u64)$cast(HIR.DeclId);
-            var decl = self.decls[decl_id];
+            decl := self.decls[decl_id];
             type = decl->get_type();
         } else {
-            var symbol_node = namespace->find(name);
+            symbol_node := namespace->find(name);
             
             if (symbol_node != null) {
                 return self->push_node_var(symbol_node, src_info);
@@ -1667,7 +1686,7 @@ class HIRBuilder {
             
             decl_id = self.decls.size$cast(HIR.DeclId);
 
-            var decl = HIR.DeclError();
+            decl := HIR.DeclError();
             decl.kind = HIR.Decl.Kind.Error;
             decl.name = name;
 
@@ -1684,7 +1703,7 @@ class HIRBuilder {
     }
 
     export fn get_namespace_var(self: HIRBuilder, namespace: Namespace, name: str, src_info: HIR.SrcInfo, forced: bool) => HIR.VarId {
-        var symbol_node = namespace->find(name);
+        symbol_node := namespace->find(name);
         
         if (symbol_node == null) {
             if (forced) {
@@ -1701,7 +1720,7 @@ class HIRBuilder {
         hir.instrs = HIR.Instr[0];
         hir.block_offsets = HIR.InstrOffset[0];
 
-        var offset: HIR.InstrOffset;
+        offset: HIR.InstrOffset;
         for (var instrs <- self.blocks) {
             hir.instrs ..= instrs;
             hir.block_offsets ..= offset;

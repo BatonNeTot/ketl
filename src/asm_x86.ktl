@@ -353,16 +353,16 @@ export class ASMX86 {
     }
 
     export class ModRM {
-        var indir: bool;
-        var label: bool;
-        var base: Reg;
-        var index: Reg;
-        var scale_power: u8;
-        var disp: i32;
-        var literal: str;
+        indir: bool;
+        label: bool;
+        base: Reg;
+        index: Reg;
+        scale_power: u8;
+        disp: i32;
+        literal: str;
 
         fn construct_empty() => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.base = Reg.None;
             self.index = Reg.None;
@@ -371,7 +371,7 @@ export class ASMX86 {
         }
 
         fn construct_literal(literal: str) => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.label = true;
             self.base = Reg.None;
@@ -382,7 +382,7 @@ export class ASMX86 {
         }
 
         fn construct_reg(reg: Reg) => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.base = reg;
             self.index = Reg.None;
@@ -391,7 +391,7 @@ export class ASMX86 {
         }
 
         fn construct_indir_base_disp(base: Reg, disp: i32) => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.indir = true;
             self.base = base;
@@ -402,7 +402,7 @@ export class ASMX86 {
         }
 
         fn construct_indir_base_label(base: Reg, label: str, disp: i32) => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.indir = true;
             self.label = true;
@@ -415,7 +415,7 @@ export class ASMX86 {
         }
 
         fn construct_indir_rip_label(label: str) => ModRM {
-            var self = ModRM();
+            self := ModRM();
 
             self.indir = true;
             self.label = true;
@@ -456,7 +456,7 @@ export class ASMX86 {
                 io.print(" + (");
                 modrm.index->print_reg(Size.Ptr);
                 io.print(" * ");
-                var scale = scale_powers[modrm.scale_power];
+                scale := scale_powers[modrm.scale_power];
                 io.print(scale$cast(str));
                 io.print(")");
             }
@@ -479,15 +479,15 @@ export class ASMX86 {
     mimic Offset = u32;
 
     export class Instr {
-        var tag: Tag;
-        var size: Size;
-        var arg_type: ArgType;
-        var opcode_size: u8;
-        var modrm: ModRM;
-        var reg: Reg;
-        var imm64: i64;
-        var goto_offset: Offset;
-        var opcode_offset: u64;
+        tag: Tag;
+        size: Size;
+        arg_type: ArgType;
+        opcode_size: u8;
+        modrm: ModRM;
+        reg: Reg;
+        imm64: i64;
+        goto_offset: Offset;
+        opcode_offset: u64;
 
         fn print(instr: Instr, instrs: Instr[]) {
             if (instr.tag == Tag.LABEL) {
@@ -584,7 +584,7 @@ export class ASMX86 {
                     Reg.CX->print_reg(Size.Bit8);
                 }
                 case ArgType.RM => {
-                    var rhs_size = instr.size;
+                    rhs_size := instr.size;
                     switch (instr.tag) {
                         case Tag.MOVSX8  => rhs_size = Size.Bit8;
                         case Tag.MOVSX16 => rhs_size = Size.Bit16;
@@ -622,7 +622,7 @@ export class ASMX86 {
                     }
                 }
                 case ArgType.MI_CHAR => {
-                    var symbol = instr.imm64$cast(char);
+                    symbol := instr.imm64$cast(char);
                     instr.modrm->print(instr.size);
                     io.print(", 0x");
                     io.print(uint_to_str(symbol$cast(u64), 16));
@@ -644,7 +644,7 @@ export class ASMX86 {
         }
     }
 
-    var instrs: Instr[];
+    instrs: Instr[];
 
     #shared parameters_regs := Reg[][ABI$count] {
         Reg[4]{
@@ -666,11 +666,11 @@ export class ASMX86 {
     export class Builder {
 
         class ArgInfo {
-            var stack_offset: u32;
-            var name: str;
+            stack_offset: u32;
+            name: str;
 
             export fn construct(stack_offset: u32, name: str) => ArgInfo {
-                var self = ArgInfo();
+                self := ArgInfo();
 
                 self.stack_offset = stack_offset;
                 self.name = name;
@@ -679,7 +679,7 @@ export class ASMX86 {
             }
 
             export fn error() => ArgInfo {
-                var self = ArgInfo();
+                self := ArgInfo();
 
                 self.stack_offset = (-1)$cast(u32);
                 self.name = "<undefined>";
@@ -689,20 +689,20 @@ export class ASMX86 {
 
         };
 
-        var log_info: ErrorsAccum.SourceInfo;
-        var hir: HIR;
-        var instrs: Instr[];
-        var hir_to_asm_offsets: IntHashMap;
-        var variables: IntHashMap;
-        var stack_reserved_size: u32;
-        var abi: ABI;
-        var emit_debug_info: bool;
-        var debug_is_stmt: bool;
-        var debug_begin_stmt: bool;
-        var debug_inserted_prolog: bool;
+        log_info: ErrorsAccum.SourceInfo;
+        hir: HIR;
+        instrs: Instr[];
+        hir_to_asm_offsets: IntHashMap;
+        variables: IntHashMap;
+        stack_reserved_size: u32;
+        abi: ABI;
+        emit_debug_info: bool;
+        debug_is_stmt: bool;
+        debug_begin_stmt: bool;
+        debug_inserted_prolog: bool;
         
         export fn construct(abi: ABI, emit_debug_info: bool, log_info: ErrorsAccum.SourceInfo) => Builder {
-            var self = Builder();
+            self := Builder();
 
             self.abi = abi;
             if (abi == ABI.DEFAULT) {
@@ -724,10 +724,10 @@ export class ASMX86 {
             }
 
             assert(self.log_info.filename == src_info.filename);
-            var line = self.log_info->find_line(src_info.source_offset);
-            var col = src_info.source_offset - self.log_info->get_line_offset(line);
+            line := self.log_info->find_line(src_info.source_offset);
+            col := src_info.source_offset - self.log_info->get_line_offset(line);
             
-            var directive = "loc    1 " .. (line + 1)$cast(str) .. " " .. (col + 1)$cast(str);
+            directive := "loc    1 " .. (line + 1)$cast(str) .. " " .. (col + 1)$cast(str);
             if (additional != null) {
                 directive ..= " " .. additional;
             }
@@ -752,7 +752,7 @@ export class ASMX86 {
         }
 
         fn label(self: Builder, directive: str) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = Tag.LABEL;
             instr.size = Size.None;
@@ -764,7 +764,7 @@ export class ASMX86 {
         }
 
         fn directive(self: Builder, directive: str) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = Tag.DIRECTIVE;
             instr.size = Size.None;
@@ -776,7 +776,7 @@ export class ASMX86 {
         }
 
         fn insert(self: Builder, tag: Tag) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = Size.None;
@@ -788,7 +788,7 @@ export class ASMX86 {
         }
 
         fn insert_rm(self: Builder, tag: Tag, size: Size, modrm: ModRM) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size;
@@ -800,7 +800,7 @@ export class ASMX86 {
         }
 
         fn insert_rm_cl(self: Builder, tag: Tag, size: Size, modrm: ModRM) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size;
@@ -812,7 +812,7 @@ export class ASMX86 {
         }
 
         fn insert_reg_rm(self: Builder, tag: Tag, size: Size, lhs: Reg, rhs: ModRM) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size;
@@ -824,7 +824,7 @@ export class ASMX86 {
         }
 
         fn insert_rm_reg(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: Reg) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size;
@@ -836,7 +836,7 @@ export class ASMX86 {
         }
 
         fn insert_rm_imm(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: u64) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size;
@@ -848,7 +848,7 @@ export class ASMX86 {
         }
 
         fn insert_rm_char(self: Builder, tag: Tag, size: Size, lhs: ModRM, rhs: char) {
-            var instr = Instr();
+            instr := Instr();
 
             assert(size == Size.Bit8);
 
@@ -862,7 +862,7 @@ export class ASMX86 {
         }
 
         fn insert_jimm(self: Builder, tag: Tag, size: Size, val: Offset) {
-            var instr = Instr();
+            instr := Instr();
 
             instr.tag = tag;
             instr.size = size; // TODO why size?
@@ -881,13 +881,13 @@ export class ASMX86 {
                 OnStack,
                 Ref,
             }
-            var kind: Kind;
-            var size: Size;
-            var type: Type;
-            var src_info: HIR.SrcInfo;
+            kind: Kind;
+            size: Size;
+            type: Type;
+            src_info: HIR.SrcInfo;
 
             fn construct_literal(type: Type, value: u64, src_info: HIR.SrcInfo) => AsmArg {
-                var arg = AsmArgLiteral();
+                arg := AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
                 arg.size = type->get_stack_size()$cast(Size);
                 arg.type = type;
@@ -899,7 +899,7 @@ export class ASMX86 {
             }
 
             fn construct_type(type: Type, src_info: HIR.SrcInfo) => AsmArg {
-                var arg = AsmArgGlobal();
+                arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
                 arg.size = Size.Ptr;
                 arg.src_info = src_info;
@@ -913,7 +913,7 @@ export class ASMX86 {
                 if (constant == null) {
                     return construct_literal(Types.instance.type_raw, 0,  src_info);
                 } else {
-                    var arg = AsmArgGlobal();
+                    arg := AsmArgGlobal();
                     arg.kind = AsmArg.Kind.GlobalAddress;
                     arg.size = Size.Ptr;
                     arg.type = Types.instance.type_raw;
@@ -936,25 +936,25 @@ export class ASMX86 {
 
         class AsmArgLiteral {
             extend AsmArg;
-            var value: u64;
+            value: u64;
         }
 
         class AsmArgGlobal {
             extend AsmArg;
-            var label: str;
+            label: str;
         }
 
         class AsmArgOnStack {
             extend AsmArg;
-            var name: str;
-            var stack: u64;
+            name: str;
+            stack: u64;
         }
 
         class AsmArgRef {
             extend AsmArg;
-            var parent: AsmArg;
-            var name: str;
-            var offset: i64;
+            parent: AsmArg;
+            name: str;
+            offset: i64;
         }
 
         fn get_arg_from_hir(self: Builder, var_id: HIR.VarId) => AsmArg {
@@ -962,24 +962,24 @@ export class ASMX86 {
                 return AsmArg.construct_literal(null, 0, null);
             }
 
-            var varr = self.hir.vars[var_id];
-            var target_type = varr->get_type_forced();
+            varr := self.hir.vars[var_id];
+            target_type := varr->get_type_forced();
 
             while (varr.kind == HIR.Var.Kind.Cast) {
                 var_id = varr$cast(HIR.VarCast).casted;
                 varr = self.hir.vars[var_id];
             }
 
-            var orig_type = varr->get_type_forced();
+            orig_type := varr->get_type_forced();
 
             assert(target_type != null && orig_type != null);
 
             if (varr.kind == HIR.Var.Kind.Literal) {
-                var value = varr$cast(HIR.VarLiteral).value;
+                value := varr$cast(HIR.VarLiteral).value;
                 assert(orig_type.kind == Type.Kind.Primitive || orig_type.kind == Type.Kind.Enum ||
                     (orig_type->is_pointer_kind() && value == 0));
 
-                var arg = AsmArgLiteral();
+                arg := AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
@@ -991,10 +991,10 @@ export class ASMX86 {
             }
 
             if (varr.kind == HIR.Var.Kind.Global) {
-                var namespace_node = varr$cast(HIR.VarGlobal).node;
-                var name = namespace_node.name;
+                namespace_node := varr$cast(HIR.VarGlobal).node;
+                name := namespace_node.name;
 
-                var arg = AsmArgGlobal();
+                arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.Global;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
@@ -1016,18 +1016,18 @@ export class ASMX86 {
             }
 
             if (varr.kind == HIR.Var.Kind.Common) {
-                var var_common = varr$cast(HIR.VarCommon);
-                var decl_id = var_common.decl;
-                var decl = self.hir.decls[decl_id];
+                var_common := varr$cast(HIR.VarCommon);
+                decl_id := var_common.decl;
+                decl := self.hir.decls[decl_id];
 
-                var bucket = self.variables->get_or_null(decl_id);
+                bucket := self.variables->get_or_null(decl_id);
                 // TODO create and return asm arg error
                 assert(bucket != null);
 
                 // TODO just create AsmArgOnStack directly into variables instead of ArgInfo
-                var arg_info = bucket.value$cast(ArgInfo);
+                arg_info := bucket.value$cast(ArgInfo);
 
-                var arg = AsmArgOnStack();
+                arg := AsmArgOnStack();
                 arg.kind = AsmArg.Kind.OnStack;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
@@ -1040,11 +1040,11 @@ export class ASMX86 {
             }
 
             if (varr.kind == HIR.Var.Kind.LiteralType) {
-                var var_builtin = varr$cast(HIR.VarLiteralType);
+                var_builtin := varr$cast(HIR.VarLiteralType);
 
-                var name = var_builtin.value->get_name();
+                name := var_builtin.value->get_name();
 
-                var arg = AsmArgGlobal();
+                arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
                 arg.size = Size.Ptr;
                 arg.src_info = varr.src_info;
@@ -1055,26 +1055,26 @@ export class ASMX86 {
             }
 
             if (varr.kind == HIR.Var.Kind.Field) {
-                var var_field = varr$cast(HIR.VarField);
+                var_field := varr$cast(HIR.VarField);
                 
-                var object_id = var_field.object;
-                var object = self.hir.vars[object_id];
+                object_id := var_field.object;
+                object := self.hir.vars[object_id];
 
-                var object_type = object->get_type_forced();
+                object_type := object->get_type_forced();
 
                 while (object.kind == HIR.Var.Kind.Cast) {
                     object_id = object$cast(HIR.VarCast).casted;
                     object = self.hir.vars[object_id];
                 }
-                var parent = self->get_arg_from_hir(object_id);
+                parent := self->get_arg_from_hir(object_id);
 
-                var field_name = var_field.field;
-                var field_offset = var_field.offset;
+                field_name := var_field.field;
+                field_offset := var_field.offset;
                 assert(field_offset >= 0);
                 
-                var class_name: str;
+                class_name: str;
                 if (object_type.kind == Type.Kind.Class) {
-                    var class_type = object_type$cast(TypeClass);
+                    class_type := object_type$cast(TypeClass);
                     class_name = class_type.namespace.fullname;
                 } else if (object_type.kind == Type.Kind.Array) {
                     class_name = "__ketl_rt.ArrayHeader";
@@ -1082,9 +1082,9 @@ export class ASMX86 {
                     assert(false);
                 }
 
-                var field_fullname = class_name .. "." .. field_name;
+                field_fullname := class_name .. "." .. field_name;
 
-                var arg = AsmArgRef();
+                arg := AsmArgRef();
                 arg.kind = AsmArg.Kind.Ref;
                 arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
@@ -1104,9 +1104,9 @@ export class ASMX86 {
 
         fn insert_mov_to_reg(self: Builder, size: Size, target_reg: Reg, arg: AsmArg) {
             if (arg.kind == AsmArg.Kind.Literal) {
-                var value = arg$cast(AsmArgLiteral).value;
+                value := arg$cast(AsmArgLiteral).value;
 
-                var type = arg.type;
+                type := arg.type;
 
                 self->push_line_debug_info(arg.src_info, null);
                 if (type == Types.instance.type_char$cast(Type)) {
@@ -1131,14 +1131,14 @@ export class ASMX86 {
             }
 
             if (arg.kind == AsmArg.Kind.OnStack) {
-                var arg_on_stack = arg$cast(AsmArgOnStack);
+                arg_on_stack := arg$cast(AsmArgOnStack);
                 self->push_line_debug_info(arg.src_info, null);
                 self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, arg_on_stack.stack, arg_on_stack.name));
                 return;
             }
 
             if (arg.kind == AsmArg.Kind.Ref) {
-                var arg_ref = arg$cast(AsmArgRef);
+                arg_ref := arg$cast(AsmArgRef);
                 self->insert_mov_to_reg(Size.Ptr, target_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
@@ -1164,15 +1164,15 @@ export class ASMX86 {
             }
 
             if (arg.kind == AsmArg.Kind.OnStack) {
-                var arg_on_stack = arg$cast(AsmArgOnStack);
+                arg_on_stack := arg$cast(AsmArgOnStack);
                 self->push_line_debug_info(arg.src_info, null);
                 self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(arg.size, arg_on_stack.stack, arg_on_stack.name), source_reg);
                 return;
             }
 
             if (arg.kind == AsmArg.Kind.Ref) {
-                var arg_ref = arg$cast(AsmArgRef);
-                var donor_reg = Reg.R10;
+                arg_ref := arg$cast(AsmArgRef);
+                donor_reg := Reg.R10;
                 self->insert_mov_to_reg(Size.Ptr, donor_reg, arg_ref.parent);
                 // self.inline_symbols
                 if (true) {
@@ -1213,7 +1213,7 @@ export class ASMX86 {
         }
 
         fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
-            var rhs_type_size = rhs_type->get_stack_size()$cast(Size);
+            rhs_type_size := rhs_type->get_stack_size()$cast(Size);
             if (!(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)))) {
                 self->insert_reg_rm(Tag.MOV, size, target_reg, rhs); 
                 return;
@@ -1223,7 +1223,7 @@ export class ASMX86 {
                 if (rhs_type.kind == Type.Kind.Enum) {
                     rhs_type = rhs_type$cast(TypeEnum).parent;
                 }
-                var rhs_primitive_type = rhs_type$cast(TypePrimitive);
+                rhs_primitive_type := rhs_type$cast(TypePrimitive);
                 if (rhs_primitive_type.signed) {
                     switch (rhs_type_size) {
                         case Size.Bit8 =>
@@ -1265,22 +1265,22 @@ export class ASMX86 {
                 return;
             }
 
-            var i: u64 = arguments.size - 1;
+            i: u64 = arguments.size - 1;
             while (true) {
-                var arg = arguments[i];
+                arg := arguments[i];
                 
-                var regs = parameters_regs[self.abi];
-                var reg_count = regs.size;
+                regs := parameters_regs[self.abi];
+                reg_count := regs.size;
                 if (i < reg_count) {
-                    var reg = regs[i];
+                    reg := regs[i];
                     self->insert_mov_to_reg(arg.size, reg, arg);
                 } else {
                     assert(self.abi == ABI.WINDOWS);
 
                     self->insert_mov_to_reg(arg.size, Reg.AX, arg);
-                    var reg_space_size = raw$size * reg_count;
+                    reg_space_size := raw$size * reg_count;
 
-                    var parameter = AsmArgOnStack();
+                    parameter := AsmArgOnStack();
                     parameter.kind = AsmArg.Kind.OnStack;
                     parameter.size = arg.size;
                     parameter.type = arg.type;
@@ -1299,11 +1299,11 @@ export class ASMX86 {
         }
 
         fn finalize_stask_size(self: Builder) {
-            var has_calls = self.hir.max_call_arg_count != (-1)$cast(u8);
+            has_calls := self.hir.max_call_arg_count != (-1)$cast(u8);
 
             switch (self.abi) {
                 case ABI.WINDOWS => {
-                    var WINDOWS_SHADOW_STACK_SPACE: u32 = 8; // I'm not sure about it, I came to this during msvc disasm study
+                    WINDOWS_SHADOW_STACK_SPACE: u32 = 8; // I'm not sure about it, I came to this during msvc disasm study
                     if (!has_calls && self.stack_reserved_size <= 0) {
                         self.stack_reserved_size = 0;
                         return;
@@ -1314,7 +1314,7 @@ export class ASMX86 {
                     return;
                 }
                 case ABI.SYSTEM_V => {
-                    var SYSTEM_V_SHADOW_STACK_SPACE: u32 = 128;
+                    SYSTEM_V_SHADOW_STACK_SPACE: u32 = 128;
                     if (!((has_calls && self.stack_reserved_size > 0) || (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE))) {
                         return;
                     }
@@ -1335,12 +1335,12 @@ export class ASMX86 {
             self.stack_reserved_size = 0;
             self.debug_is_stmt = true;
 
-            var abi_parameters_regs = parameters_regs[self.abi];
+            abi_parameters_regs := parameters_regs[self.abi];
 
             assert(self.abi == ABI.WINDOWS);
             {
                 if (self.hir.max_call_arg_count != (-1)$cast(u8) && self.hir.max_call_arg_count > 0) {
-                    var parameters_needed = abi_parameters_regs.size;
+                    parameters_needed := abi_parameters_regs.size;
                     if (parameters_needed < self.hir.max_call_arg_count) {
                         parameters_needed = self.hir.max_call_arg_count;
                     }
@@ -1348,15 +1348,15 @@ export class ASMX86 {
                 }
             }
 
-            var decl_id: HIR.DeclId = self.hir.parameters_count;
+            decl_id: HIR.DeclId = self.hir.parameters_count;
             while (decl_id < self.hir.decls.size) {
-                var decl = self.hir.decls[decl_id];
+                decl := self.hir.decls[decl_id];
 
                 // local or temporary variable
-                var arg_info = ArgInfo.construct(self.stack_reserved_size, decl.name);
+                arg_info := ArgInfo.construct(self.stack_reserved_size, decl.name);
 
 
-                var bucket = self.variables->get_or_insert(decl_id, arg_info);
+                bucket := self.variables->get_or_insert(decl_id, arg_info);
                 if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
                     // TODO FIX take into account type size and alignment
                     self.stack_reserved_size += i64$size;
@@ -1374,7 +1374,7 @@ export class ASMX86 {
                             self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
                     } else {
                             self->insert_rm_imm(Tag.MOV, Size.Ptr, ModRM.construct_reg(Reg.AX), self.stack_reserved_size);
-                            var func_name = "___chkstk_ms";
+                            func_name := "___chkstk_ms";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                             self->insert_rm_reg(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), Reg.AX);
                     }
@@ -1383,40 +1383,40 @@ export class ASMX86 {
                     self->directive("seh_endprologue");
                 }
 
-                var decl_id: HIR.DeclId = self.hir.parameters_count;
+                decl_id: HIR.DeclId = self.hir.parameters_count;
                 while (decl_id > 0) {
                     decl_id -= 1;
-                    var decl = self.hir.decls[decl_id];
+                    decl := self.hir.decls[decl_id];
 
                     assert(decl.kind == HIR.Decl.Kind.Parameter);
-                    var parameter = decl$cast(HIR.DeclParameter);
+                    parameter := decl$cast(HIR.DeclParameter);
 
-                    var arg_info = ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl.name);
+                    arg_info := ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl.name);
 
                     self.variables->get_or_insert(decl_id, arg_info);
 
                     if (decl_id < abi_parameters_regs.size) {
-                        var type = decl->get_type();
-                        var size = type->get_stack_size()$cast(Size);
-                        var reg = abi_parameters_regs[decl_id];
+                        type := decl->get_type();
+                        size := type->get_stack_size()$cast(Size);
+                        reg := abi_parameters_regs[decl_id];
                         self->insert_rm_reg(Tag.MOV, size, self->modrm_stack_from_arg_info(size, arg_info), reg);
                     }
                 }
             }
 
-            var first_instr_in_block: bool;
-            var met_jump_in_block: bool;
-            var block_counter = (-1)$cast(u16);
-            var first_in_next_block = self.hir.block_offsets[block_counter + 1];
+            first_instr_in_block: bool;
+            met_jump_in_block: bool;
+            block_counter := (-1)$cast(u16);
+            first_in_next_block := self.hir.block_offsets[block_counter + 1];
 
-            var i: u32;
+            i: u32;
             while (i < self.hir.instrs.size) {
                 while (first_in_next_block == i) {
                     self.hir_to_asm_offsets->get_or_insert(i, self.instrs.size$cast(raw));
 
                     block_counter += 1;
 
-                    var label = ".LBB";
+                    label := ".LBB";
                     if (func_index != (-1)$cast(u16)) {
                         label ..= func_index$cast(str);
                     }
@@ -1435,7 +1435,7 @@ export class ASMX86 {
                     met_jump_in_block = false;
                 }
 
-                var instr = self.hir.instrs[i];
+                instr := self.hir.instrs[i];
 
                 switch (instr.tag) {
                     default => {
@@ -1448,13 +1448,13 @@ export class ASMX86 {
                     case HIR.Tag.LOGICAL_NOT
                     case HIR.Tag.BITWISE_NOT
                     case HIR.Tag.UNARY_MINUS => {
-                        var hir_info = instr$cast(HIR.UnaryOp);
+                        hir_info := instr$cast(HIR.UnaryOp);
 
-                        var arg = self.hir.vars[hir_info.arg];
-                        var arg_size = arg->get_type_forced()->get_stack_size()$cast(Size);
+                        arg := self.hir.vars[hir_info.arg];
+                        arg_size := arg->get_type_forced()->get_stack_size()$cast(Size);
 
-                        var output = self.hir.vars[hir_info.output];
-                        var output_size = output->get_type_forced()->get_stack_size()$cast(Size);
+                        output := self.hir.vars[hir_info.output];
+                        output_size := output->get_type_forced()->get_stack_size()$cast(Size);
 
                         self->insert_mov_to_reg(arg_size, Reg.AX, self->get_arg_from_hir(hir_info.arg));
 
@@ -1489,14 +1489,14 @@ export class ASMX86 {
                     case HIR.Tag.LESS_OR_EQUAL
                     case HIR.Tag.GREATER
                     case HIR.Tag.GREATER_OR_EQUAL => {
-                        var hir_info = instr$cast(HIR.BinaryOp);
+                        hir_info := instr$cast(HIR.BinaryOp);
 
-                        var arg = self.hir.vars[hir_info.lhs];
-                        var type = arg->get_type_forced();
-                        var arg_size = type->get_stack_size()$cast(Size);
+                        arg := self.hir.vars[hir_info.lhs];
+                        type := arg->get_type_forced();
+                        arg_size := type->get_stack_size()$cast(Size);
 
-                        var output = self.hir.vars[hir_info.output];
-                        var output_size = output->get_type_forced()->get_stack_size()$cast(Size);
+                        output := self.hir.vars[hir_info.output];
+                        output_size := output->get_type_forced()->get_stack_size()$cast(Size);
                         
                         self->insert_mov_to_reg(arg_size, Reg.CX, self->get_arg_from_hir(hir_info.rhs));
                         self->insert_mov_to_reg(arg_size, Reg.AX, self->get_arg_from_hir(hir_info.lhs));
@@ -1569,10 +1569,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.ASSIGN => {
-                        var hir_info = instr$cast(HIR.Assign);
-                        var dst = self.hir.vars[hir_info.dst];
-                        var type = dst->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
+                        hir_info := instr$cast(HIR.Assign);
+                        dst := self.hir.vars[hir_info.dst];
+                        type := dst->get_type_forced();
+                        size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.src));
                         self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.dst), Reg.AX);
                     }
@@ -1586,10 +1586,10 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN_BITWISE_AND
                     case HIR.Tag.ASSIGN_BITWISE_OR
                     case HIR.Tag.ASSIGN_BITWISE_XOR => {
-                        var hir_info = instr$cast(HIR.Assign);
-                        var dst = self.hir.vars[hir_info.dst];
-                        var type = dst->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
+                        hir_info := instr$cast(HIR.Assign);
+                        dst := self.hir.vars[hir_info.dst];
+                        type := dst->get_type_forced();
+                        size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.CX, self->get_arg_from_hir(hir_info.src));
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.dst));
                         switch (instr.tag) {
@@ -1621,26 +1621,26 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.CALL => {
-                        var hir_info = instr$cast(HIR.Call);
+                        hir_info := instr$cast(HIR.Call);
 
-                        var callee = self.hir.vars[hir_info.callee];
-                        var callee_type = callee->get_type_forced();
+                        callee := self.hir.vars[hir_info.callee];
+                        callee_type := callee->get_type_forced();
                         assert(callee_type != null);
 
                         // TODO FIX allow other types to be called
                         assert(callee_type.kind == Type.Kind.Function || callee_type.kind == Type.Kind.CFunction);
 
-                        var func_type = callee_type$cast(TypeFunction); 
-                        var return_type = func_type.signature.parameters[0];
+                        func_type := callee_type$cast(TypeFunction); 
+                        return_type := func_type.signature.parameters[0];
 
-                        var args = AsmArg[0];
+                        args := AsmArg[0];
                         for (var var_id <- hir_info.args) {
                             args ..= self->get_arg_from_hir(var_id);
                         }
                         self->push_function_arguments(args);
 
                         // call
-                        var arg_callee = self->get_arg_from_hir(hir_info.callee);
+                        arg_callee := self->get_arg_from_hir(hir_info.callee);
 
                         // TODO self.inline_symbols
                         if (true && arg_callee.kind == AsmArg.Kind.GlobalAddress) {
@@ -1656,9 +1656,9 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.NEW_CLASS => {
-                        var hir_info = instr$cast(HIR.New);
+                        hir_info := instr$cast(HIR.New);
                         
-                        var callee_type = hir_info.type;
+                        callee_type := hir_info.type;
 
                         assert(callee_type.kind == Type.Kind.Class);
 
@@ -1670,7 +1670,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.new";
+                            func_name := "__ketl_rt.new";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1681,12 +1681,12 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.NEW_ARRAY => {
-                        var hir_info = instr$cast(HIR.NewArray);
+                        hir_info := instr$cast(HIR.NewArray);
                         
-                        var value_type = hir_info.type;
-                        var array_type = Types.instance->get_array_type(value_type);
+                        value_type := hir_info.type;
+                        array_type := Types.instance->get_array_type(value_type);
 
-                        var initial_constant = self.hir->get_constant(hir_info.initial_value);
+                        initial_constant := self.hir->get_constant(hir_info.initial_value);
 
                         self->push_function_arguments(AsmArg[4]{
                             AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
@@ -1699,7 +1699,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.new_array";
+                            func_name := "__ketl_rt.new_array";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1710,10 +1710,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.NEW_SLICE => {
-                        var hir_info = instr$cast(HIR.NewSlice);
+                        hir_info := instr$cast(HIR.NewSlice);
                         
-                        var output = self.hir.vars[hir_info.output];
-                        var array_type = output->get_type_forced();
+                        output := self.hir.vars[hir_info.output];
+                        array_type := output->get_type_forced();
 
                         self->push_function_arguments(AsmArg[3]{
                             self->get_arg_from_hir(hir_info.mirrored),
@@ -1725,7 +1725,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.new_slice";
+                            func_name := "__ketl_rt.new_slice";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1736,10 +1736,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.GET_ARRAY_VALUE => {
-                        var hir_info = instr$cast(HIR.GetArrayValue);
+                        hir_info := instr$cast(HIR.GetArrayValue);
                         
-                        var output = self.hir.vars[hir_info.output];
-                        var value_type = output->get_type_forced();
+                        output := self.hir.vars[hir_info.output];
+                        value_type := output->get_type_forced();
 
                         self->push_function_arguments(AsmArg[3]{
                             AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
@@ -1751,7 +1751,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.array_get_value";
+                            func_name := "__ketl_rt.array_get_value";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1762,10 +1762,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.SET_ARRAY_VALUE => {
-                        var hir_info = instr$cast(HIR.SetArrayValue);
+                        hir_info := instr$cast(HIR.SetArrayValue);
                         
-                        var output = self.hir.vars[hir_info.output];
-                        var value_type = output->get_type_forced();
+                        output := self.hir.vars[hir_info.output];
+                        value_type := output->get_type_forced();
 
                         self->push_function_arguments(AsmArg[4]{
                             AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
@@ -1778,7 +1778,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.array_set_value";
+                            func_name := "__ketl_rt.array_set_value";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1789,10 +1789,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.APPEND_VALUE => {
-                        var hir_info = instr$cast(HIR.Append);
+                        hir_info := instr$cast(HIR.Append);
                         
-                        var array = self.hir.vars[hir_info.array];
-                        var array_type = array->get_type_forced()$cast(TypeArray);
+                        array := self.hir.vars[hir_info.array];
+                        array_type := array->get_type_forced()$cast(TypeArray);
                         assert(array_type.kind == Type.Kind.Array);
 
                         self->push_function_arguments(AsmArg[3]{
@@ -1805,7 +1805,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.append_value";
+                            func_name := "__ketl_rt.append_value";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1814,10 +1814,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.APPEND_ARRAY => {
-                        var hir_info = instr$cast(HIR.Append);
+                        hir_info := instr$cast(HIR.Append);
                         
-                        var array = self.hir.vars[hir_info.array];
-                        var array_type = array->get_type_forced()$cast(TypeArray);
+                        array := self.hir.vars[hir_info.array];
+                        array_type := array->get_type_forced()$cast(TypeArray);
                         assert(array_type.kind == Type.Kind.Array);
 
                         self->push_function_arguments(AsmArg[3]{
@@ -1830,7 +1830,7 @@ export class ASMX86 {
 
                         // TODO self.inline_symbols
                         if (true) {
-                            var func_name = "__ketl_rt.append_array";
+                            func_name := "__ketl_rt.append_array";
                             self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
                         } else { /*
                             push_mov_from_stack_hir(KETL_ASM_X86_AX, p_hir_info->callee, KETL_ASM_X86_PTRSIZE, p_builder);
@@ -1839,9 +1839,9 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.JUMP => {
-                        var hir_info = instr$cast(HIR.Jump);
+                        hir_info := instr$cast(HIR.Jump);
 
-                        var dest = self.hir->get_first_non_empty_block(hir_info.dst);
+                        dest := self.hir->get_first_non_empty_block(hir_info.dst);
 
                         if (met_jump_in_block) {
                             io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
@@ -1864,10 +1864,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.JUMP_IF_TRUE => {
-                        var hir_info = instr$cast(HIR.JumpIf);
+                        hir_info := instr$cast(HIR.JumpIf);
 
-                        var true_dest = self.hir->get_first_non_empty_block(hir_info.true_dst);
-                        var false_dest = self.hir->get_first_non_empty_block(hir_info.false_dst);
+                        true_dest := self.hir->get_first_non_empty_block(hir_info.true_dst);
+                        false_dest := self.hir->get_first_non_empty_block(hir_info.false_dst);
 
                         if (met_jump_in_block) {
                             io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. true_dest$cast(str) .. " or block " .. false_dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
@@ -1875,9 +1875,9 @@ export class ASMX86 {
                         }
                         met_jump_in_block = true;
                         
-                        var expr = self.hir.vars[hir_info.expr];
-                        var type = expr->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
+                        expr := self.hir.vars[hir_info.expr];
+                        type := expr->get_type_forced();
+                        size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.expr));
 
                         switch (instr.tag) {
@@ -1903,10 +1903,10 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.RETURN_VALUE => {
-                        var hir_info = instr$cast(HIR.ReturnValue);
-                        var value = self.hir.vars[hir_info.value];
-                        var type = value->get_type_forced();
-                        var size = type->get_stack_size()$cast(Size);
+                        hir_info := instr$cast(HIR.ReturnValue);
+                        value := self.hir.vars[hir_info.value];
+                        type := value->get_type_forced();
+                        size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
                         if (self.stack_reserved_size > 0) {
                             self->directive("seh_startepilogue");
@@ -1927,14 +1927,14 @@ export class ASMX86 {
 
             i = 0;
             while (i < self.instrs.size) {
-                var instr = self.instrs[i];
+                instr := self.instrs[i];
 
                 switch (instr.tag) {
                     case Tag.JMP
                     case Tag.JNE => {
-                        var block = instr.goto_offset$cast(HIR.BlockId);
-                        var block_offset = self.hir.block_offsets[block];
-                        var bucket = self.hir_to_asm_offsets->get_or_null(block_offset);
+                        block := instr.goto_offset$cast(HIR.BlockId);
+                        block_offset := self.hir.block_offsets[block];
+                        bucket := self.hir_to_asm_offsets->get_or_null(block_offset);
                         if (bucket == null) {
                             io.errorln("Can't find block " .. block$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
                             assert(false);
@@ -1946,7 +1946,7 @@ export class ASMX86 {
                 i += 1;
             }
 
-            var asm_x86 = ASMX86();
+            asm_x86 := ASMX86();
             asm_x86.instrs = self.instrs;
             return asm_x86;
         }

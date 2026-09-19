@@ -8,9 +8,9 @@ from strings import to_str_padded
 export class ErrorsAccum {
 
     export class SourceInfo {
-        var lines_offsets: u32[];
-        var filename: str;
-        var source: str;
+        lines_offsets: u32[];
+        filename: str;
+        source: str;
 
         export fn get_line_offset(info: SourceInfo, line: u32) => u32 {
             if (line >= info.lines_offsets.size) {
@@ -20,13 +20,13 @@ export class ErrorsAccum {
         }
 
         export fn find_line(info: SourceInfo, offset: u32) => u32 {
-            var lhs: u32 = 0;
+            lhs: u32 = 0;
             // TODO make cast deduce type from the left side
-            var rhs: u32 = info.lines_offsets.size$cast(u32);
+            rhs: u32 = info.lines_offsets.size$cast(u32);
 
             while (lhs + 1 < rhs) {
-                var mid: u32 = (lhs + rhs) / 2;
-                var mid_offset: u32 = info.lines_offsets[mid];
+                mid: u32 = (lhs + rhs) / 2;
+                mid_offset: u32 = info.lines_offsets[mid];
                 if (mid_offset < offset) {
                     lhs = mid;
                 } else if (offset < mid_offset) {
@@ -41,19 +41,19 @@ export class ErrorsAccum {
 
     enum Error: u8 {
         Nonspecific,
-        UndefinedId,
-        UndefinedDeclaredId,
+        UndefinedId,            // undefined id
+        UndefinedDeclaredId,    // just declared, but no type yet
     }
 
     class ErrorInfo {
-        var id: u64;
-        var kind: Error;
-        var info: SourceInfo;
-        var pointer: FilePointer;
-        var message: str;
+        id: u64;
+        kind: Error;
+        info: SourceInfo;
+        pointer: FilePointer;
+        message: str;
 
         fn construct(id: u64, kind: Error, info: SourceInfo, pointer: FilePointer, message: str) => ErrorInfo {
-            var self = ErrorInfo();
+            self := ErrorInfo();
 
             self.id = id;
             self.kind = kind;
@@ -65,13 +65,13 @@ export class ErrorsAccum {
         }
     }
 
-    var errors: ErrorInfo[];
-    var free_id: u64;
+    errors: ErrorInfo[];
+    free_id: u64;
 
     #shared NON_ID: u64 = 0;
 
     export fn construct() => ErrorsAccum {
-        var obj = ErrorsAccum();
+        obj := ErrorsAccum();
         obj.errors = ErrorInfo[0];
         obj.free_id = 1;
         return obj;
@@ -79,7 +79,7 @@ export class ErrorsAccum {
 
     export fn check(self: ErrorsAccum) => bool {
         if (self.errors.size > 0) {
-            var buffer = StringBuffer.construct();
+            buffer := StringBuffer.construct();
 
             for (var error_info <- self.errors) {
                 buffer->report(error_info.info, error_info.pointer, error_info.message);
@@ -94,7 +94,7 @@ export class ErrorsAccum {
     }
 
     fn find_error_index(self: ErrorsAccum, error_id: u64) => u64 {
-        var i = self.errors.size;
+        i := self.errors.size;
         while (i > 0) {
             i -= 1;
             if (self.errors[i].id == error_id) {
@@ -106,7 +106,7 @@ export class ErrorsAccum {
     }
 
     export fn get_kind(self: ErrorsAccum, error_id: u64) => Error {
-        var index = self->find_error_index(error_id);
+        index := self->find_error_index(error_id);
         if (index >= self.errors.size) {
             return Error.Nonspecific;
         }
@@ -115,7 +115,7 @@ export class ErrorsAccum {
     }
 
     export fn remove(self: ErrorsAccum, error_id: u64) {
-        var index = self->find_error_index(error_id);
+        index := self->find_error_index(error_id);
         if (index >= self.errors.size) {
             return;
         }
@@ -129,19 +129,19 @@ export class ErrorsAccum {
 
     export fn update(self: ErrorsAccum, error_id: u64, kind: Error, message: str) {
         assert(self.errors != null);
-        var index = self->find_error_index(error_id);
+        index := self->find_error_index(error_id);
         if (index >= self.errors.size) {
             return;
         }
 
-        var error_info = self.errors[index];
+        error_info := self.errors[index];
         error_info.kind = kind;
         error_info.message = message;
     }
 
     fn report(buffer: StringBuffer, info: SourceInfo, pointer: FilePointer, message: str) {
-        var start_line = info->find_line(pointer.offset);
-        var start_col = pointer.offset - info->get_line_offset(start_line);
+        start_line := info->find_line(pointer.offset);
+        start_col := pointer.offset - info->get_line_offset(start_line);
 
         buffer
             ->write(info.filename)
@@ -149,13 +149,13 @@ export class ErrorsAccum {
             ->write(":")->write((start_col + 1)$cast(str))
             ->write(": error: ")->write(message);
             
-        var end_offset = pointer.offset + pointer.length + 1;
-        var end_line = info->find_line(end_offset - 1) + 1;
+        end_offset := pointer.offset + pointer.length + 1;
+        end_line := info->find_line(end_offset - 1) + 1;
 
-        var line = start_line;
+        line := start_line;
         while (line != end_line) {
-            var start_line_offset = info->get_line_offset(line);
-            var end_line_offset = info->get_line_offset(line + 1);
+            start_line_offset := info->get_line_offset(line);
+            end_line_offset := info->get_line_offset(line + 1);
 
             // TODO check for all new line configs
             if (end_line_offset > 0 && info.source[end_line_offset - 1] == '\n') {
@@ -171,8 +171,8 @@ export class ErrorsAccum {
             buffer
                 ->write("\n      |");
                 
-            var select_start = start_line_offset;
-            var select_end = end_offset;
+            select_start := start_line_offset;
+            select_end := end_offset;
 
             if (line == start_line) {
                 buffer
@@ -186,7 +186,7 @@ export class ErrorsAccum {
             }
 
             if (select_start < select_end) {
-                var i = select_start + 1;
+                i := select_start + 1;
                 while (i != select_end) {
                     buffer
                         ->write("~");
@@ -202,7 +202,7 @@ export class ErrorsAccum {
     }
 
     export fn error(accum: ErrorsAccum, kind: Error, info: SourceInfo, pointer: FilePointer, message: str) => u64 {
-        var id = accum.free_id;
+        id := accum.free_id;
         accum.free_id += 1;
 
         accum.errors ..= ErrorInfo.construct(id, kind, info, pointer, message);

@@ -8,13 +8,13 @@ from namespace import NamespaceContext
 
 export class TypePrimitive {
     extend Type;
-    var name: str;
-    var integer: bool;
-    var signed: bool;
-    var numeric: bool;
+    name: str;
+    integer: bool;
+    signed: bool;
+    numeric: bool;
 
     fn construct(size: u8, name: str, integer: bool, signed: bool, numeric: bool) => TypePrimitive {
-        var self = TypePrimitive();
+        self := TypePrimitive();
 
         self.kind = Kind.Primitive;
         self.align = find_align_enum(size);
@@ -46,17 +46,17 @@ export class TypePrimitive {
 export class TypeEnum {
 
     export class Pair {
-        var name: str;
-        var value: Value;
+        name: str;
+        value: Value;
     }
 
     extend Type;
-    var name: str;
-    var parent: TypePrimitive;
-    var constants: Pair[];
+    name: str;
+    parent: TypePrimitive;
+    constants: Pair[];
 
     export fn construct(name: str, parent: TypePrimitive, constants: Pair[]) => TypeEnum {
-        var type = TypeEnum();
+        type := TypeEnum();
 
         type.kind = Type.Kind.Enum;
         type.align = parent.align;
@@ -82,14 +82,14 @@ export class TypeEnum {
 
 export class TypeFunction {
     export class Signature {
-        var parameters: Type[];
+        parameters: Type[];
 
         fn is_equal(lhs: Signature, rhs: Signature) => bool {
             return lhs.parameters == rhs.parameters;
         }
 
         fn get_hash(self: Signature) => u64 {
-            var hash: u64;
+            hash: u64;
 
             for (var parameter <- self.parameters) {
                 hash = (parameter$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
@@ -100,33 +100,33 @@ export class TypeFunction {
     }
 
     extend Type;
-    var signature: Signature;
+    signature: Signature;
 }
 
 export class TypeArray {
 
     extend Type;
-    var value: Type;
+    value: Type;
 }
 
 export class TypeClass {
 
     class Field {
-        var type: Type;
-        var name: str;
-        var facaded: bool;
+        type: Type;
+        name: str;
+        facaded: bool;
     }
 
     extend Type;
-    var name: str;
-    var fullname: str;
-    var fields: Field[];
-    var namespace: Namespace;
-    var context_namespaces: Namespace[];
-    var context: NamespaceContext;
+    name: str;
+    fullname: str;
+    fields: Field[];
+    namespace: Namespace;
+    context_namespaces: Namespace[];
+    context: NamespaceContext;
 
     export fn construct(name: str, parent_namespace: Namespace, exxport: bool) => TypeClass {
-        var self = TypeClass();
+        self := TypeClass();
 
         self.kind = Type.Kind.Class;
 
@@ -152,7 +152,7 @@ export class TypeClass {
 
         for (var field <- fields) {
             if (field.name == null || field.name == "") {
-                var type = field.type$cast(TypeClass);
+                type := field.type$cast(TypeClass);
                 assert(type.kind == Type.Kind.Class);
 
                 self.namespace.parents ..= type.namespace;
@@ -162,8 +162,8 @@ export class TypeClass {
 
     export fn calc_size_and_align(self: TypeClass) {
         for (var field <- self.fields) {
-            var align = Align.Byte; // TODO delayed initialization
-            var size: u16;
+            align := Align.Byte; // TODO delayed initialization
+            size: u16;
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
 
@@ -196,7 +196,7 @@ export class TypeClass {
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
 
-                var type = field.type$cast(TypeClass)->get_field_type(name);
+                type := field.type$cast(TypeClass)->get_field_type(name);
                 if (type != null) {
                     return type;
                 }
@@ -216,17 +216,17 @@ export class TypeClass {
             return (-1)$cast(i32);
         }
         
-        var offset: u16;
+        offset: u16;
         for (var field <- self.fields) {
-            var align = Align.Byte; // TODO delayed initialization
-            var size: u16;
+            align := Align.Byte; // TODO delayed initialization
+            size: u16;
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
 
                 align = field.type->get_align();
                 offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
-                var extended_offset = field.type$cast(TypeClass)->get_field_offset(name);
+                extended_offset := field.type$cast(TypeClass)->get_field_offset(name);
                 if (extended_offset >= 0) {
                     return offset$cast(i32) + extended_offset;
                 }
@@ -255,10 +255,10 @@ export class TypeClass {
             return (-1)$cast(i32);
         }
         
-        var offset: u16;
+        offset: u16;
         for (var field <- self.fields) {
-            var align = Align.Byte; // TODO delayed initialization
-            var size: u16;
+            align := Align.Byte; // TODO delayed initialization
+            size: u16;
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
 
@@ -269,7 +269,7 @@ export class TypeClass {
                     return offset$cast(i32);
                 }
 
-                var extended_offset = field.type$cast(TypeClass)->find_extended_class_offset(type);
+                extended_offset := field.type$cast(TypeClass)->find_extended_class_offset(type);
                 if (extended_offset >= 0) {
                     return offset$cast(i32) + extended_offset;
                 }
@@ -293,7 +293,7 @@ export class TypeClass {
     }
 
     export fn find(self: TypeClass, key: str) => Namespace.Node {
-        var node = self.namespace->find(key);
+        node := self.namespace->find(key);
         if (node != null) {
             return node;
         }
@@ -317,7 +317,7 @@ export class TypeClass {
 export class TypeTuple {
 
     extend Type;
-    var values: Type[];
+    values: Type[];
     
     export fn finalize(self: TypeTuple, values: Type[]) {
         self.values = values;
@@ -329,8 +329,8 @@ export class TypeTuple {
 
     export fn calc_size_and_align(self: TypeTuple) {
         for (var value <- self.values) {
-            var align = value->get_stack_align();
-            var size = value->get_stack_size();
+            align := value->get_stack_align();
+            size := value->get_stack_size();
 
             if (align > self.align) {
                 self.align = align;
@@ -354,19 +354,19 @@ export class TypeTuple {
             }
         }
 
-        var offset: u16;
-        var i: i64;
+        offset: u16;
+        i: i64;
         while (i < self.values.size$cast(i64)) {
-            var value = self.values[i];
+            value := self.values[i];
 
-            var align = value->get_stack_align();
+            align := value->get_stack_align();
             offset = common.align_forward(offset, Type.from_align_enum(align))$cast(u16);
 
             if (i == index) {
                 return offset$cast(i32);
             }
 
-            var size = value->get_stack_size();
+            size := value->get_stack_size();
 
             offset += size;
 
@@ -379,31 +379,31 @@ export class TypeTuple {
 
 class Types {
 
-    var type_void: TypePrimitive;
-    var type_bool: TypePrimitive;
-    var type_char: TypePrimitive;
-    var type_raw: TypePrimitive;
+    type_void: TypePrimitive;
+    type_bool: TypePrimitive;
+    type_char: TypePrimitive;
+    type_raw: TypePrimitive;
 
-    var type_i8: TypePrimitive;
-    var type_i16: TypePrimitive;
-    var type_i32: TypePrimitive;
-    var type_i64: TypePrimitive;
+    type_i8: TypePrimitive;
+    type_i16: TypePrimitive;
+    type_i32: TypePrimitive;
+    type_i64: TypePrimitive;
     
-    var type_u8: TypePrimitive;
-    var type_u16: TypePrimitive;
-    var type_u32: TypePrimitive;
-    var type_u64: TypePrimitive;
+    type_u8: TypePrimitive;
+    type_u16: TypePrimitive;
+    type_u32: TypePrimitive;
+    type_u64: TypePrimitive;
 
-    var type_str: TypeArray;
-    var type_cstr: TypeArray;
+    type_str: TypeArray;
+    type_cstr: TypeArray;
 
-    var functions: common.HashMap;
-    var arrays: common.HashMap;
-    var carrays: common.HashMap;
-    var tuples: common.HashMap;
+    functions: common.HashMap;
+    arrays: common.HashMap;
+    carrays: common.HashMap;
+    tuples: common.HashMap;
 
     fn construct() => Types {
-        var self = Types();
+        self := Types();
 
         self.type_void = TypePrimitive.construct(0, "void", false, false, false);
         self.type_bool = TypePrimitive.construct(1, "bool", false, false, false);
@@ -454,7 +454,7 @@ class Types {
     }
 
     fn get_array_of_types_hash(types: raw) => u64 {
-        var hash: u64;
+        hash: u64;
 
         for (var type <- types$cast(Type[])) {
             hash = (type$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
@@ -489,8 +489,8 @@ class Types {
                 rhs = rhs$cast(TypeEnum).parent;
             }
 
-            var lhs_primitive = lhs$cast(TypePrimitive);
-            var rhs_primitive = rhs$cast(TypePrimitive);
+            lhs_primitive := lhs$cast(TypePrimitive);
+            rhs_primitive := rhs$cast(TypePrimitive);
 
             if (!lhs_primitive.integer || !rhs_primitive.integer) {
                 return null;
@@ -514,8 +514,8 @@ class Types {
         }
 
         if (lhs.kind == Type.Kind.Class && rhs.kind == Type.Kind.Class) {
-            var lhs_class = lhs$cast(TypeClass);
-            var rhs_class = rhs$cast(TypeClass);
+            lhs_class := lhs$cast(TypeClass);
+            rhs_class := rhs$cast(TypeClass);
 
             
         }
@@ -530,15 +530,15 @@ class Types {
     export fn get_function_type(self: Types, parameters: Type[]) => TypeFunction {
         self->init_functions_if_needed();
 
-        var signature = TypeFunction.Signature();
+        signature := TypeFunction.Signature();
         signature.parameters = parameters;
 
-        var bucket = self.functions->get_or_insert(signature, null);
+        bucket := self.functions->get_or_insert(signature, null);
         if (bucket.value != null) {
             return bucket.value;
         }
 
-        var type = TypeFunction();
+        type := TypeFunction();
         type.kind = Type.Kind.Function;
         // TODO replace with raw$size and raw$align
         type.align = Type.Align.Bytes8;
@@ -569,12 +569,12 @@ class Types {
     export fn get_array_type(self: Types, value_type: Type) => TypeArray {
         self->init_arrays_if_needed();
 
-        var bucket = self.arrays->get_or_insert(value_type, null);
+        bucket := self.arrays->get_or_insert(value_type, null);
         if (bucket.value != null) {
             return bucket.value;
         }
 
-        var type = TypeArray();
+        type := TypeArray();
         type.kind = Type.Kind.Array;
         type.align = value_type.align;
         type.size = value_type.size;
@@ -588,12 +588,12 @@ class Types {
     export fn get_carray_type(self: Types, value_type: Type) => TypeArray {
         self->init_carrays_if_needed();
 
-        var bucket = self.carrays->get_or_insert(value_type, null);
+        bucket := self.carrays->get_or_insert(value_type, null);
         if (bucket.value != null) {
             return bucket.value;
         }
 
-        var type = TypeArray();
+        type := TypeArray();
         type.kind = Type.Kind.CArray;
         type.align = value_type.align;
         type.size = value_type.size;
@@ -607,12 +607,12 @@ class Types {
     export fn get_tuple_type(self: Types, value_types: Type[]) => TypeTuple {
         self->init_tuples_if_needed();
 
-        var bucket = self.tuples->get_or_insert(value_types, null);
+        bucket := self.tuples->get_or_insert(value_types, null);
         if (bucket.value != null) {
             return bucket.value;
         }
 
-        var type = TypeTuple();
+        type := TypeTuple();
         type.kind = Type.Kind.Tuple;
         
         type->finalize(value_types);

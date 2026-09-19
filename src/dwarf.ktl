@@ -301,11 +301,11 @@ export enum Form: u8 {
 }
 
 class AttrHeader {
-    var attr: Attr;
-    var form: Form;
+    attr: Attr;
+    form: Form;
 
     fn construct(attr: Attr, form: Form) => AttrHeader {
-        var self = AttrHeader();
+        self := AttrHeader();
         self.attr = attr;
         self.form = form;
         return self;
@@ -313,12 +313,12 @@ class AttrHeader {
 }
 
 export class Abbreviation {
-    var tag: Tag;
-    var has_children: bool;
-    var attrs: AttrHeader[];
+    tag: Tag;
+    has_children: bool;
+    attrs: AttrHeader[];
 
     fn get_hash(self: Abbreviation) => u64 {
-        var hash = self.tag$cast(u64);
+        hash := self.tag$cast(u64);
         if (self.attrs != null) {
             for (var header <- self.attrs) {
                 hash = (hash << 2) ^ (header.attr << 1) ^ header.form;
@@ -332,8 +332,8 @@ export class Abbreviation {
             return false;
         }
 
-        var lhs_attrs_size: u64;
-        var rhs_attrs_size: u64;
+        lhs_attrs_size: u64;
+        rhs_attrs_size: u64;
         if (lhs.attrs != null) {
             lhs_attrs_size = lhs.attrs.size;
         }
@@ -347,7 +347,7 @@ export class Abbreviation {
             return true;
         }
 
-        var i: u64;
+        i: u64;
         while (i < lhs_attrs_size) {
             if (lhs.attrs[i].attr != rhs.attrs[i].attr) {
                 return false;
@@ -376,11 +376,11 @@ export class Abbreviation {
 }
 
 class AttrValue {
-    var print: (AttrValue) => u32;
-    var form: Form;
+    print: (AttrValue) => u32;
+    form: Form;
 
     fn construct_empty(form: Form) => AttrValue {
-        var self = AttrValue();
+        self := AttrValue();
         self.form = form;
         return self;
     }
@@ -388,11 +388,11 @@ class AttrValue {
 
 class AttrStr {
     extend AttrValue;
-    var value: str;
-    var index: u64;
+    value: str;
+    index: u64;
 
     fn construct(value: str) => AttrStr {
-        var self = AttrStr();
+        self := AttrStr();
         self.print = print;
         self.form = Form.string;
         self.value = value;
@@ -400,17 +400,17 @@ class AttrStr {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrStr);
+        self := attr$cast(AttrStr);
         return print_data_directive(ASMX86.DataDirective.Byte, self.index$cast(str) .. "                               #");
     }
 }
 
 class AttrSecOffset {
     extend AttrValue;
-    var value: str;
+    value: str;
 
     fn construct(value: str) => AttrSecOffset {
-        var self = AttrSecOffset();
+        self := AttrSecOffset();
         self.print = print;
         self.form = Form.sec_offset;
         self.value = value;
@@ -418,17 +418,17 @@ class AttrSecOffset {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrSecOffset);
+        self := attr$cast(AttrSecOffset);
         return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               #");
     }
 }
 
 class AttrAddr {
     extend AttrValue;
-    var value: str;
+    value: str;
 
     fn construct(value: str) => AttrAddr {
-        var self = AttrAddr();
+        self := AttrAddr();
         self.print = print;
         self.form = Form.addrx;
         self.value = value;
@@ -436,14 +436,14 @@ class AttrAddr {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrAddr);
+        self := attr$cast(AttrAddr);
         return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               #");
     }
 }
 
 fn print_data(value: str, form: Form) => u32 {
     import io
-    var size: u32;
+    size: u32;
     io.print("	.");
     switch (form) {
         case Form.data1 => {
@@ -489,10 +489,10 @@ fn print_data(value: str, form: Form) => u32 {
 
 class AttrAddrData {
     extend AttrValue;
-    var value: str;
+    value: str;
 
     fn construct(value: str, size: u64) => AttrAddrData {
-        var self = AttrAddrData();
+        self := AttrAddrData();
         self.print = print;
         switch (size) {
             case 1 => self.form = Form.data1;
@@ -507,17 +507,17 @@ class AttrAddrData {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrAddrData);
+        self := attr$cast(AttrAddrData);
         return print_data(self.value .. "                               #", self.form);
     }
 }
 
 class AttrData {
     extend AttrValue;
-    var value: u64;
+    value: u64;
 
     fn construct(value: u64, size: u64) => AttrData {
-        var self = AttrData();
+        self := AttrData();
         self.print = print;
         switch (size) {
             case 1 => self.form = Form.data1;
@@ -532,7 +532,7 @@ class AttrData {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrData);
+        self := attr$cast(AttrData);
         return print_data(self.value$cast(str) .. "                               #", self.form);
     }
 }
@@ -560,11 +560,11 @@ enum AttrEncoding: u8 {
 }
 
 class AttrPair {
-    var attr: Attr;
-    var value: AttrValue;
+    attr: Attr;
+    value: AttrValue;
 
     fn construct(attr: Attr, value: AttrValue) => AttrPair {
-        var self = AttrPair();
+        self := AttrPair();
         self.attr = attr;
         self.value = value;
         return self;
@@ -573,21 +573,21 @@ class AttrPair {
 
 export class DIE {
 
-    var tag: Tag;
-    var data_offset: u32;
-    var abbr_index: u64;
-    var attrs: AttrPair[];
-    var children: DIE[];
+    tag: Tag;
+    data_offset: u32;
+    abbr_index: u64;
+    attrs: AttrPair[];
+    children: DIE[];
 
     fn construct() => DIE {
-        var self = DIE();
+        self := DIE();
         self.attrs = AttrPair[0];
         self.children = DIE[0];
         return self;
     }
 
     fn get_abbreviation(self: DIE) => Abbreviation {
-        var abbr = Abbreviation();
+        abbr := Abbreviation();
 
         abbr.tag = self.tag;
         abbr.has_children = (self.children != null && self.children.size > 0);
@@ -602,18 +602,18 @@ export class DIE {
     }
 
     fn sort_attrs(self: DIE) {
-        var pairs = self.attrs;
-        var i: u64 = pairs.size;
+        pairs := self.attrs;
+        i: u64 = pairs.size;
         while (i > 0) {
             i -= 1;
 
-            var updated = false;
+            updated := false;
 
-            var j: u64;
+            j: u64;
             while (j < i) {
                 if (pairs[j].attr > pairs[j + 1].attr) {
                     // (pairs[j + 1], pairs[j]) = (pairs[j], pairs[j + 1]); // TODO
-                    var pair = pairs[j];
+                    pair := pairs[j];
                     pairs[j] = pairs[j + 1];
                     pairs[j + 1] = pair;
 
@@ -631,10 +631,10 @@ export class DIE {
 
 class AttrRef {
     extend AttrValue;
-    var die: DIE;
+    die: DIE;
 
     fn construct(die: DIE, size: u64) => AttrRef {
-        var self = AttrRef();
+        self := AttrRef();
         self.print = print;
         switch (size) {
             case 1 => self.form = Form.ref1;
@@ -648,30 +648,30 @@ class AttrRef {
     }
 
     fn print(attr: AttrValue) => u32 {
-        var self = attr$cast(AttrRef);
+        self := attr$cast(AttrRef);
         return print_data(self.die.data_offset$cast(str) .. "                               #", self.form);
     }
 }
 
 export class DebugInfo {
-    var version: u8;
-    var abbr_section_offset: str;
+    version: u8;
+    abbr_section_offset: str;
 
-    var dies: DIE[];
-    var dies_indices: IntHashMap;
-    var dies_by_name: StrHashMap;
+    dies: DIE[];
+    dies_indices: IntHashMap;
+    dies_by_name: StrHashMap;
 
-    var types_to_dies: IntHashMap;
+    types_to_dies: IntHashMap;
 
-    var abbrs: Abbreviation[];
-    var abbrs_indices: HashMap;
+    abbrs: Abbreviation[];
+    abbrs_indices: HashMap;
 
-    var strings: str[];
-    var strings_indices: StrHashMap;
+    strings: str[];
+    strings_indices: StrHashMap;
 
-    var func_addresses: str[];
+    func_addresses: str[];
 
-    var platform_reg_to_dwarf: (u64) => u64;
+    platform_reg_to_dwarf: (u64) => u64;
 
     fn get_abbr_hash(key: raw) => u64 {
         return key$cast(Abbreviation)->get_hash();
@@ -690,7 +690,7 @@ export class DebugInfo {
         compile_unit_size: str, 
         addr_base: str, 
         platform_reg_to_dwarf: (u64) => u64) => DebugInfo {
-        var self = DebugInfo();
+        self := DebugInfo();
 
         self.version = version;
         assert(version == 5);
@@ -711,7 +711,7 @@ export class DebugInfo {
 
         self.platform_reg_to_dwarf = platform_reg_to_dwarf;
 
-        var compile_unit_die = DIE();
+        compile_unit_die := DIE();
         compile_unit_die.tag = Tag.compile_unit;
         compile_unit_die.attrs = AttrPair[9] {
             AttrPair.construct(Attr.producer, AttrStr.construct("ketl 0.1.0")),
@@ -735,7 +735,7 @@ export class DebugInfo {
         io.println("	.p2align	2, 0x0");
         io.println("	.section	.debug_abbrev,\"dr\"");
         {
-            var i = 0;
+            i := 0;
             for (var abbr <- self.abbrs) {
                 i += 1;
                 print_data_directive(ASMX86.DataDirective.Byte, i$cast(str) .. "                               # Abbreviation Code");
@@ -746,7 +746,7 @@ export class DebugInfo {
         }
         print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(3)");
 
-        var data_size: u32;
+        data_size: u32;
 
         io.println("	.section	.debug_info,\"dr\"");
         io.println(".Lcu_begin0:");
@@ -777,7 +777,7 @@ export class DebugInfo {
         io.println("	.section	.debug_str,\"dr\"");
 
         {
-            var i: u64;
+            i: u64;
             while (i < self.strings.size) {
                 io.println(".Linfo_string" .. i$cast(str) .. ":");
                 io.println("	.asciz	\"" .. io.escaped_string(self.strings[i]) .. "\"");
@@ -815,16 +815,16 @@ export class DebugInfo {
         is_main: bool) { // DW_AT_main_subprogram 
         self.abbrs[0].has_children = true;
 
-        var return_type_die: DIE;
+        return_type_die: DIE;
         from type import Types
         if (return_type != null && return_type != Types.instance.type_void$cast(Type)) {
             //return_type_die = self->construct_type_die(return_type);
         }
 
-        var low_pc_index = self.func_addresses.size;
+        low_pc_index := self.func_addresses.size;
         self.func_addresses ..= ".Lfunc_begin" .. func_index$cast(str);
 
-        var die = DIE();
+        die := DIE();
 
         die.tag = DIE.Tag.subroutine_type;
         die.attrs = AttrPair[5]{
@@ -852,7 +852,7 @@ export class DebugInfo {
     }
 
     fn add_die(self: DebugInfo, die: DIE) => u64 {
-        var die_bucket = self.dies_indices->get_or_insert(die$cast(raw)$cast(u64), null);
+        die_bucket := self.dies_indices->get_or_insert(die$cast(raw)$cast(u64), null);
         if (die_bucket.value != null) {
             return die_bucket.value$cast(u64);
         }
@@ -862,10 +862,10 @@ export class DebugInfo {
         die_bucket.value = die_index$cast(u64)$cast(raw);
 
         for (var attr <- die.attrs) {
-            var value = attr.value;
+            value := attr.value;
             if (value.form == Form.string) {
-                var str_value = value$cast(AttrStr);
-                var string_index = self->register_string(str_value.value);
+                str_value := value$cast(AttrStr);
+                string_index := self->register_string(str_value.value);
                 assert(string_index < 255);
 
                 str_value.form = Form.strx1;
@@ -873,8 +873,8 @@ export class DebugInfo {
             }
         }
 
-        var abbr = die->get_abbreviation();
-        var abbr_bucket = self.abbrs_indices->get_or_insert(abbr$cast(raw)$cast(u64), null);
+        abbr := die->get_abbreviation();
+        abbr_bucket := self.abbrs_indices->get_or_insert(abbr$cast(raw)$cast(u64), null);
         if (abbr_bucket.value != null) {
             die.abbr_index = abbr_bucket.value$cast(u64);
         } else {
@@ -892,19 +892,19 @@ export class DebugInfo {
     }
 
     fn register_string(self: DebugInfo, string: str) => u64 {
-        var string_bucket = self.strings_indices->get_or_insert(string, self.strings.size$cast(u64)$cast(raw));
+        string_bucket := self.strings_indices->get_or_insert(string, self.strings.size$cast(u64)$cast(raw));
         if (string_bucket.value$cast(u64) != self.strings.size) {
             return string_bucket.value$cast(u64);
         }
 
         self.strings ..= string;
-        var string_index = string_bucket.value$cast(u64);
+        string_index := string_bucket.value$cast(u64);
     
         return string_index;
     }
 
     export fn construct_pointer_type_die(self: DebugInfo, wrapped_die: DIE, name: str) => DIE {
-        var die = DIE();
+        die := DIE();
 
         die.tag = DIE.Tag.pointer_type;
         die.attrs = AttrPair[0];
@@ -921,14 +921,14 @@ export class DebugInfo {
 
     export fn construct_type_die(self: DebugInfo, type: Type) => DIE {
         import io
-        var bucket = self.types_to_dies->get_or_insert(type$cast(raw)$cast(u64), null);
+        bucket := self.types_to_dies->get_or_insert(type$cast(raw)$cast(u64), null);
         if (bucket.value != null) {
             return bucket.value$cast(DIE);
         }
 
         if (type.kind == Type.Kind.Primitive) {
             from type import TypePrimitive
-            var type_primitive = type$cast(TypePrimitive);
+            type_primitive := type$cast(TypePrimitive);
 
             from type import Types
             if (type_primitive == Types.instance.type_raw) {
@@ -936,7 +936,7 @@ export class DebugInfo {
                 return bucket.value$cast(DIE);
             }
 
-            var die = DIE();
+            die := DIE();
             bucket.value = die;
 
             die.tag = DIE.Tag.base_type;
@@ -948,7 +948,7 @@ export class DebugInfo {
                 die.attrs ..= AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(type_primitive.size, 1));
             }
 
-            var encoding = AttrEncoding.none;
+            encoding := AttrEncoding.none;
             if (type_primitive.numeric) {
                 if (type_primitive.signed) {
                     encoding = AttrEncoding.signed;
@@ -973,11 +973,11 @@ export class DebugInfo {
 
         if (type.kind == Type.Kind.Enum) {
             from type import TypeEnum
-            var type_enum = type$cast(TypeEnum);
+            type_enum := type$cast(TypeEnum);
 
-            var parent_type_die = self->construct_type_die(type_enum.parent);
+            parent_type_die := self->construct_type_die(type_enum.parent);
 
-            var die = DIE();
+            die := DIE();
             bucket.value = die;
 
             die.tag = DIE.Tag.enumeration_type;
@@ -1008,9 +1008,9 @@ export class DebugInfo {
 
         if (type.kind == Type.Kind.Class) {
             from type import TypeClass
-            var type_class = type$cast(TypeClass);
+            type_class := type$cast(TypeClass);
 
-            var die = DIE();
+            die := DIE();
             bucket.value = self->construct_pointer_type_die(die, type_class.name);
 
             die.tag = DIE.Tag.structure_type;
@@ -1024,10 +1024,10 @@ export class DebugInfo {
                     continue;
                 }
 
-                var member_die = DIE();
+                member_die := DIE();
 
                 // TODO count in extended classes
-                var member_type_die = self->construct_type_die(field.type);
+                member_type_die := self->construct_type_die(field.type);
 
                 member_die.tag = DIE.Tag.member;
                 member_die.attrs = AttrPair[3]{

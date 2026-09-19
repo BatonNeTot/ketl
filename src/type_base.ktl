@@ -40,9 +40,9 @@ export class Type {
         return 1;
     }
  
-    var kind: Kind;
-    var align: Align;
-    var size: u16;
+    kind: Kind;
+    align: Align;
+    size: u16;
 
     export fn is_pointer_kind(type: Type) => bool {
         if (type == null) {
@@ -136,16 +136,16 @@ export class Type {
 
         if (type.kind == Type.Kind.Function) {
             from type import TypeFunction;
-            var func_type = type$cast(TypeFunction);
-            var signature = func_type.signature;
+            func_type := type$cast(TypeFunction);
+            signature := func_type.signature;
 
-            var result_str = "(";
+            result_str := "(";
             for (var parameter <- signature.parameters[1:]) {
                 result_str ..= parameter->get_name();
                 result_str ..= ", ";
             }
 
-            var return_type = signature.parameters[0];
+            return_type := signature.parameters[0];
             result_str ..= ") => ";
             result_str ..= return_type->get_name();
 
@@ -169,10 +169,10 @@ export class Type {
 
         if (type.kind == Type.Kind.Tuple) {
             from type import TypeTuple;
-            var tuple_type = type$cast(TypeTuple);
-            var values = tuple_type.values;
+            tuple_type := type$cast(TypeTuple);
+            values := tuple_type.values;
 
-            var result_str = "(";
+            result_str := "(";
             for (var value <- values) {
                 result_str ..= value->get_name();
                 result_str ..= ", ";

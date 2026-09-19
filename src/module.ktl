@@ -22,25 +22,25 @@ from asm_x86 import ASMX86
 class Module {
 
     class ConstBlock {
-        var consts_infos: HIR.Const[];
-        var consts_literals: u8[];
+        consts_infos: HIR.Const[];
+        consts_literals: u8[];
     }
 
-    var name: str;
-    var path: str;
-    var namespace: Namespace;
-    var lexer: Lexer;
-    var compile_function_declarations: CompileFunctionDeclaration[];
-    var init_asm_x86: ASMX86;
-    var entry_asm_x86: ASMX86;
-    var const_blocks: ConstBlock[];
-    var has_errors: bool;
-    var header_loaded: bool; // after preload
-    var body_loaded: bool; // after load
-    var emit_debug_info: bool;
+    name: str;
+    path: str;
+    namespace: Namespace;
+    lexer: Lexer;
+    compile_function_declarations: CompileFunctionDeclaration[];
+    init_asm_x86: ASMX86;
+    entry_asm_x86: ASMX86;
+    const_blocks: ConstBlock[];
+    has_errors: bool;
+    header_loaded: bool; // after preload
+    body_loaded: bool; // after load
+    emit_debug_info: bool;
 
     fn construct(name: str, global_namespace: Namespace, emit_debug_info: bool) => Module {
-        var self = Module();
+        self := Module();
 
         self.name = name;
 
@@ -54,7 +54,7 @@ class Module {
     }
 
     fn get_func_index_offset(module: Module) => u16 {
-        var offset: u16;
+        offset: u16;
         if (module.init_asm_x86 != null) {
             offset += 1;
         }
@@ -62,9 +62,9 @@ class Module {
     }
 
     export fn print_asm(module: Module) {
-        var fullpath =  io.resolve_path(module.path .. module.name .. ".ktl");
-        var filename =  io.get_filename(fullpath);
-        var dir = io.get_dir(fullpath);
+        fullpath :=  io.resolve_path(module.path .. module.name .. ".ktl");
+        filename :=  io.get_filename(fullpath);
+        dir := io.get_dir(fullpath);
 
         io.println("    .def    @feat.00;");
         io.println("    .scl    3;");
@@ -88,10 +88,10 @@ class Module {
             module.init_asm_x86->print(module.name .. "..init", 0, module.emit_debug_info);
         }
 
-        var i: u16;
-        var has_functions = false;
+        i: u16;
+        has_functions := false;
         for (var compile_func_decl <- module.compile_function_declarations) {
-            var func_index = i + module->get_func_index_offset();
+            func_index := i + module->get_func_index_offset();
             if (compile_func_decl.asm_x86 != null) {
                 compile_func_decl.asm_x86->print(compile_func_decl.node.name, func_index, module.emit_debug_info);
                 has_functions = true;
@@ -112,13 +112,13 @@ class Module {
 
             for (var const_block <- module.const_blocks) {
                 for (var const_info <- const_block.consts_infos) {
-                    var variable_name = const_info.name;
+                    variable_name := const_info.name;
 
                     io.println(variable_name .. ":");
 
                     assert(const_info.is_string);
                     io.print("    .asciz    \"");
-                    var literal = "";
+                    literal := "";
                     for (var symbol <- const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
                         literal ..= symbol$cast(char);
                     }
@@ -136,11 +136,11 @@ class Module {
             io.println("    .quad " .. module.name .. "..init");
         }
 
-        var debug_line_section_label = ".Lline_table_start0";
+        debug_line_section_label := ".Lline_table_start0";
 
         if (module.emit_debug_info) {
             import dwarf
-            var debug_info = dwarf.DebugInfo.construct(5,
+            debug_info := dwarf.DebugInfo.construct(5,
                 has_functions,
                 filename,
                 ".Lstr_offsets_base0",
@@ -159,14 +159,14 @@ class Module {
             
             i = 0;
             for (var compile_func_decl <- module.compile_function_declarations) {
-                var func_index = i + module->get_func_index_offset();
+                func_index := i + module->get_func_index_offset();
                 if (compile_func_decl.asm_x86 != null) {
-                    var is_pub = true;
+                    is_pub := true;
                     if (compile_func_decl.node.name[0] == '.') {
                         is_pub = false;
                     }
                     from type import TypeFunction
-                    var func_type = compile_func_decl.node.value.type$cast(TypeFunction);
+                    func_type := compile_func_decl.node.value.type$cast(TypeFunction);
                     debug_info->add_function(compile_func_decl.node.name, func_type.signature.parameters[0], func_index, 0 /* TODO line */, is_pub, false);
                 }
                 i += 1;
@@ -203,10 +203,10 @@ class Module {
     }
 
     fn print_asm_zero_initialized_variable(node: Namespace.Node) {
-        var value = node.value;
+        value := node.value;
         if (value->is_type()) {
             from type import TypeClass
-            var type = value.value$cast(raw)$cast(Type);
+            type := value.value$cast(raw)$cast(Type);
             if (type.kind == Type.Kind.Class) {
                 print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace);
             }
@@ -217,7 +217,7 @@ class Module {
             return;
         }
         
-        var variable_name = node.name;
+        variable_name := node.name;
 
         io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
         io.println("    .p2align  " .. value.type.align$cast(str) .. ", 0x0");
@@ -230,7 +230,7 @@ class Module {
     fn print_asm_zero_initialized_variables_namespace(namespace: Namespace) {
         for (var bucket <- namespace.nodes.buckets) {
             while (bucket != null) {
-                var node = bucket.value$cast(Namespace.Node);
+                node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
                     print_asm_zero_initialized_variable(node);
                 }
@@ -241,20 +241,20 @@ class Module {
     }
 
     fn print_asm_read_only_data_variable(node: Namespace.Node) {
-        var value = node.value;
+        value := node.value;
         if (!value->is_type()) {
             return;
 
         }
 
         from type import TypeClass
-        var type = value.value$cast(raw)$cast(Type);
+        type := value.value$cast(raw)$cast(Type);
         if (type.kind != Type.Kind.Class) {
             return;
         }
-        var type_class = type$cast(TypeClass);
+        type_class := type$cast(TypeClass);
         
-        var variable_name = node.name;
+        variable_name := node.name;
 
         io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
         io.println("    .p2align  " .. Types.instance.type_raw.align$cast(str) .. ", 0x0");
@@ -307,7 +307,7 @@ class Module {
     fn print_asm_read_only_data_namespace(namespace: Namespace) {
         for (var bucket <- namespace.nodes.buckets) {
             while (bucket != null) {
-                var node = bucket.value$cast(Namespace.Node);
+                node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
                     print_asm_read_only_data_variable(node);
                 }
@@ -323,10 +323,10 @@ class Module {
         }
 
         module.header_loaded = true;
-        var stashed_module = Modules.instance.active_module;
+        stashed_module := Modules.instance.active_module;
         Modules.instance.active_module = module; 
 
-        var fullpath = "";
+        fullpath := "";
         {
             if (stashed_module != null) { 
                 fullpath ..= stashed_module.path;
@@ -339,8 +339,8 @@ class Module {
             module.path = fullpath;
         }
 
-        var fullpath_filename = fullpath .. module_filename;
-        var source = File.read(fullpath_filename);
+        fullpath_filename := fullpath .. module_filename;
+        source := File.read(fullpath_filename);
         
         if (source == null) {
             module.has_errors = true;
@@ -348,8 +348,8 @@ class Module {
             return false;
         }
 
-        var errors_accum = ErrorsAccum.construct();
-        var lexer = Lexer();
+        errors_accum := ErrorsAccum.construct();
+        lexer := Lexer();
         module.lexer = lexer;
         lexer->init();
         lexer->build_tokens(module_filename, source, errors_accum);
@@ -358,10 +358,10 @@ class Module {
         //    io.errorln("from " .. token.offset$cast(str) .. " to " .. (token.offset + token.length)$cast(str) .. " " .. source[token.offset:token.offset + token.length]);
         //}
 
-        var func_index: u16 = 0;
+        func_index: u16 = 0;
 
         from parser import Parser
-        var hir = Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
+        hir := Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
             func_index, true, module.emit_debug_info, errors_accum);
 
         //hir->print();
@@ -373,7 +373,7 @@ class Module {
         }
 
         if (hir.consts_infos.size > 0) {
-            var const_block = ConstBlock();
+            const_block := ConstBlock();
 
             const_block.consts_infos = hir.consts_infos;
             const_block.consts_literals = hir.consts_literals;
@@ -385,27 +385,27 @@ class Module {
             ->build(hir, func_index);
 
         if (hir.entry != null) {
-            var entry_source = 
+            entry_source := 
                 "   from __ketl_rt import cstr2str" ..
                 "   from __ketl_rt import U64Wrapper" ..
 
-                "    var args = str[argc];" ..
-                "    var i: i64;" ..
+                "    args := str[argc];" ..
+                "    i: i64;" ..
                 "    while (i < argc) {" ..
-                "        var arg = (argv + i$cast(u64) * raw$size)$cast(U64Wrapper).value$cast(raw);" ..
+                "        arg := (argv + i$cast(u64) * raw$size)$cast(U64Wrapper).value$cast(raw);" ..
                 "        args[i] = cstr2str(arg);" ..
                 "        i += 1;" ..
                 "    }" ..
                 "    return " .. hir.entry .. "(args);";
 
-            var entry_lexer = Lexer();
+            entry_lexer := Lexer();
             entry_lexer->init();
             entry_lexer->build_tokens(module_filename, entry_source, errors_accum);
 
-            var entry_index = (-1)$cast(u16);
-            var parameters = VariableDecl[2];
+            entry_index := (-1)$cast(u16);
+            parameters := VariableDecl[2];
             {
-                var parameter = VariableDecl();
+                parameter := VariableDecl();
 
                 parameter.type = Types.instance.type_i64;
                 parameter.name = "argc";
@@ -414,7 +414,7 @@ class Module {
                 parameters[0] = parameter;
             }
             {
-                var parameter = VariableDecl();
+                parameter := VariableDecl();
 
                 parameter.type = Types.instance.type_raw;
                 parameter.name = "argv";
@@ -423,7 +423,7 @@ class Module {
                 parameters[1] = parameter;
             }
 
-            var entry_hir = Parser.build_hir(entry_lexer, 0, entry_lexer.tokens.size$cast(TokenIterator.Index), 
+            entry_hir := Parser.build_hir(entry_lexer, 0, entry_lexer.tokens.size$cast(TokenIterator.Index), 
                 module.namespace, parameters, Types.instance.type_i64, 
                 entry_index, false, false, errors_accum);
 
@@ -443,32 +443,32 @@ class Module {
     }
 
     fn load(module: Module) {
-        var stashed_module = Modules.instance.active_module;
+        stashed_module := Modules.instance.active_module;
         Modules.instance.active_module = module; 
 
         {
-        var i: u64;
+        i: u64;
         while (i < module.compile_function_declarations.size) {
-            var compile_function_declaration = module.compile_function_declarations[i];
+            compile_function_declaration := module.compile_function_declarations[i];
 
-            var node = compile_function_declaration.node;
-            var local_namespace = Namespace.construct(node.name, compile_function_declaration.parent_namespace);
+            node := compile_function_declaration.node;
+            local_namespace := Namespace.construct(node.name, compile_function_declaration.parent_namespace);
             
-            var signature = node.value.type$cast(TypeFunction).signature;
-            var return_type = signature.parameters[0];
+            signature := node.value.type$cast(TypeFunction).signature;
+            return_type := signature.parameters[0];
 
-            var parameters_names = compile_function_declaration.parameters_names;
-            var parameters_infos = compile_function_declaration.parameters_infos;
+            parameters_names := compile_function_declaration.parameters_names;
+            parameters_infos := compile_function_declaration.parameters_infos;
             if (parameters_names.size != signature.parameters.size - 1) {
                 i += 1;
                 continue;
             }
 
-            var parameters = VariableDecl[0];
+            parameters := VariableDecl[0];
             {
-                var j: u64;
+                j: u64;
                 while (j < parameters_names.size) {
-                    var parameter = VariableDecl();
+                    parameter := VariableDecl();
 
                     parameter.type = signature.parameters[j + 1];
                     parameter.name = parameters_names[j];
@@ -481,11 +481,11 @@ class Module {
             }
 
             {
-                var errors_accum = ErrorsAccum.construct();
-                var func_index = i$cast(u16) + module->get_func_index_offset();
+                errors_accum := ErrorsAccum.construct();
+                func_index := i$cast(u16) + module->get_func_index_offset();
 
                 from parser import Parser
-                var hir = Parser.build_hir(module.lexer, 
+                hir := Parser.build_hir(module.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
                     local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, errors_accum);
                 
@@ -499,7 +499,7 @@ class Module {
                 //hir->print();
 
                 if (hir.consts_infos.size > 0) {
-                    var const_block = ConstBlock();
+                    const_block := ConstBlock();
 
                     const_block.consts_infos = hir.consts_infos;
                     const_block.consts_literals = hir.consts_literals;
@@ -523,14 +523,14 @@ class Module {
 
 class Modules {
 
-    var global_namespace: Namespace;
-    var modules: StrHashMap;
-    var load_queue: Module[];
-    var active_module: Module;
-    var loading_modules: bool;
+    global_namespace: Namespace;
+    modules: StrHashMap;
+    load_queue: Module[];
+    active_module: Module;
+    loading_modules: bool;
 
     fn construct() => Modules {
-        var self = Modules();
+        self := Modules();
         return self;
     }
 
@@ -546,7 +546,7 @@ class Modules {
             self.global_namespace = Namespace.construct("", null);
 
             from type_base import Type
-            var node = self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
+            node := self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
                 Type[2] {
                     Types.instance.type_void,
                     Types.instance.type_bool
@@ -562,21 +562,21 @@ class Modules {
         self->init_modules_if_needed();
         self->init_global_namespace();
 
-        var module_filename = module_name .. ".ktl";
+        module_filename := module_name .. ".ktl";
 
-        var modules_size = self.modules.size;
-        var module_bucket = self.modules->get_or_insert(module_name, null);
+        modules_size := self.modules.size;
+        module_bucket := self.modules->get_or_insert(module_name, null);
         // old insert
         if (modules_size == self.modules.size) {
-            var module = module_bucket.value$cast(Module);
+            module := module_bucket.value$cast(Module);
             module->preload(module_filename, folder_path);
             return module;
         }
 
-        var top_loading = !self.loading_modules;
+        top_loading := !self.loading_modules;
         self.loading_modules = true;
 
-        var module = Module.construct(module_name, self.global_namespace, emit_debug_info);
+        module := Module.construct(module_name, self.global_namespace, emit_debug_info);
         module_bucket.value = module;
 
         // preloading
@@ -592,7 +592,7 @@ class Modules {
 
         // postloading everything
         while (self.load_queue.size > 0) {
-            var tmp_module = self.load_queue[self.load_queue.size - 1];
+            tmp_module := self.load_queue[self.load_queue.size - 1];
             self.load_queue->pop();
 
             if (tmp_module.header_loaded && !tmp_module.body_loaded) {

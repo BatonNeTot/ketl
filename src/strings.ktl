@@ -1,10 +1,10 @@
 //🫖ketl
 
 export class StringBuffer {
-    var array: str;
+    array: str;
 
     export fn construct() => StringBuffer {
-        var obj = StringBuffer();
+        obj := StringBuffer();
         obj.array = "";
         return obj;
     }
@@ -16,7 +16,7 @@ export class StringBuffer {
 } 
 
 export fn str_padding(size: u32) => str {
-    var result = char[size];
+    result := char[size];
     while (size > 0) {
         size -= 1;
         result[size] = ' ';
@@ -25,7 +25,7 @@ export fn str_padding(size: u32) => str {
 } 
 
 fn to_str_padded(value: u32, padding: u32) => str {
-    var result = value$cast(str);
+    result := value$cast(str);
     if (padding <= result.size) {
         return result;
     }
@@ -40,13 +40,13 @@ export fn uint_to_str(value: u64, radix: u8) => str {
         return "0";
     }
 
-    var symbols = "0123456789abcdefghijklmnopqrstuvwxyz";
+    symbols := "0123456789abcdefghijklmnopqrstuvwxyz";
     assert(radix < symbols.size);
 
-    var buffer = "";
+    buffer := "";
 
     while (value > 0) {
-        var number = value % radix;
+        number := value % radix;
         value /= radix;
 
         buffer = symbols[number] .. buffer;

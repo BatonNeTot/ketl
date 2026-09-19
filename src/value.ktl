@@ -15,12 +15,12 @@ export class Value {
         UInt,
     }
     
-    var value: u64;
-    var type: Type;
-    var kind: Kind;
+    value: u64;
+    type: Type;
+    kind: Kind;
 
     export fn copy(self: Value) => Value {
-        var value = Value();
+        value := Value();
 
         value.value = self.value;
         value.type = self.type;
@@ -48,7 +48,7 @@ export class Value {
             }
             
             from type import TypePrimitive 
-            var primitive_type = type$cast(TypePrimitive);
+            primitive_type := type$cast(TypePrimitive);
             if (primitive_type.signed) {
                 self.kind = Kind.Int;
             } else {

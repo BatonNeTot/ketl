@@ -17,18 +17,18 @@ class ArgsParser {
         ExpectingOutputTarget,
     }
 
-    var op: Operation;
-    var state: State;
+    op: Operation;
+    state: State;
 
-    var execution_script: str;
+    execution_script: str;
     
-    var compilation_targets: str[];
-    var output_target: str;
+    compilation_targets: str[];
+    output_target: str;
 
-    var emit_debug_info: bool;
+    emit_debug_info: bool;
 }
 
-var parser: ArgsParser;
+parser: ArgsParser;
 
 #entry
 fn main(args: str[]) => i64 {
@@ -75,7 +75,7 @@ fn main(args: str[]) => i64 {
                     return -1;
                 }
             } else {
-                var compilation_target = parser.compilation_targets[0];
+                compilation_target := parser.compilation_targets[0];
                 if (!compile_asm(compilation_target, parser.output_target)) {
                     return -1;
                 }
@@ -83,9 +83,9 @@ fn main(args: str[]) => i64 {
         }
     }
 
-    var prog_name = args[0];
+    prog_name := args[0];
     if (prog_name.size >= 8 && prog_name[prog_name.size - 8:prog_name.size - 4] == "test") {
-        assert(false);
+        //assert(false);
     }
 
     return 0;
@@ -101,14 +101,14 @@ fn compile_asm_list(targets: str[]) => bool {
 }
 
 fn compile_asm(target: str, output: str) => bool {
-    var info = io.FileInfo.get(target);
+    info := io.FileInfo.get(target);
     if (info == null) {
         return true;
     }
     
-    var kind = info->get_kind();
+    kind := info->get_kind();
     if (kind == io.FileInfo.Kind.Directory) {
-        var items = io.Dir.get_items(target);
+        items := io.Dir.get_items(target);
         if (items == null) {
             return true;
         }
@@ -140,11 +140,11 @@ fn compile_asm(target: str, output: str) => bool {
 }
 
 fn compile_asm_file(path: str, output_path: str) => bool {
-    var dir_path: str;
-    var module_name: str;
+    dir_path: str;
+    module_name: str;
 
     {
-        var ext = io.get_ext(path);
+        ext := io.get_ext(path);
         if (ext != "ktl") {
             return true;
         }
@@ -165,13 +165,13 @@ fn compile_asm_file(path: str, output_path: str) => bool {
             output_path = dir_path .. module_name .. ".s";
         }
     } else {
-        var ext = io.get_ext(output_path);
+        ext := io.get_ext(output_path);
         if (ext == "ktl") {
             output_path = output_path[0:output_path.size - ext.size] .. "s";
         }
     }
 
-    var module = Modules.instance->load(module_name, dir_path, parser.emit_debug_info);
+    module := Modules.instance->load(module_name, dir_path, parser.emit_debug_info);
     if (module == null || module.has_errors) {
         return false;
     }

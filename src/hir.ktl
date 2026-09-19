@@ -106,12 +106,12 @@ export class HIR {
     export class SrcInfo {
         export mimic Length = u32;
 
-        var filename: str;
-        var source_offset: Token.Offset;
-        var length: Length;
+        filename: str;
+        source_offset: Token.Offset;
+        length: Length;
 
         export fn construct(filename: str, source_offset: Token.Offset, length: Length) => SrcInfo {
-            var self = SrcInfo();
+            self := SrcInfo();
             self.filename = filename;
             self.source_offset = source_offset;
             self.length = length;
@@ -119,7 +119,7 @@ export class HIR {
         }
 
         export fn from_token(filename: str, token: Token) => SrcInfo {
-            var self = SrcInfo();
+            self := SrcInfo();
             self.filename = filename;
             self.source_offset = token.offset;
             self.length = token.length;
@@ -127,7 +127,7 @@ export class HIR {
         }
 
         export fn merge(lhs: SrcInfo, rhs: SrcInfo) => SrcInfo {
-            var self = SrcInfo();
+            self := SrcInfo();
             assert(lhs.filename == rhs.filename);
             self.filename = lhs.filename;
             self.source_offset = lhs.source_offset;
@@ -141,92 +141,92 @@ export class HIR {
     }
 
     export class Instr {
-        var tag: Tag;
-        var src_info: SrcInfo;
+        tag: Tag;
+        src_info: SrcInfo;
     }
 
     export class InstrWithOutput {
         extend Instr;
-        var output: VarId;
+        output: VarId;
     }
 
     export class UnaryOp {
         extend InstrWithOutput;
-        var arg: VarId;
+        arg: VarId;
     }
 
     export class BinaryOp {
         extend InstrWithOutput;
-        var lhs: VarId;
-        var rhs: VarId;
+        lhs: VarId;
+        rhs: VarId;
     }
 
     export class Call {
         extend InstrWithOutput;
-        var callee: VarId;
-        var args: VarId[];
+        callee: VarId;
+        args: VarId[];
     }
 
     export class New {
         extend InstrWithOutput;
-        var type: Type;
-        var args: VarId[];
+        type: Type;
+        args: VarId[];
     }
 
     export class NewArray {
         extend InstrWithOutput;
-        var type: Type;
-        var size: VarId;
-        var initial_value: ConstId;
+        type: Type;
+        size: VarId;
+        initial_value: ConstId;
     }
 
     export class NewSlice {
         extend InstrWithOutput;
-        var mirrored: VarId;
-        var start: VarId;
-        var end: VarId;
+        mirrored: VarId;
+        start: VarId;
+        end: VarId;
     }
 
     export class GetArrayValue {
         extend InstrWithOutput;
-        var array: VarId;
-        var index: VarId;
+        array: VarId;
+        index: VarId;
     }
 
     export class SetArrayValue {
         extend InstrWithOutput;
-        var array: VarId;
-        var index: VarId;
-        var value: VarId;
+        array: VarId;
+        index: VarId;
+        value: VarId;
     }
 
     export class Append {
         extend Instr;
-        var array: VarId;
-        var appendee: VarId;
+        array: VarId;
+        appendee: VarId;
     }
 
     export class Assign {
         extend Instr;
-        var dst: VarId;
-        var src: VarId;
+        dst: VarId;
+        src: VarId;
     }
 
     export class Jump {
         extend Instr;
-        var dst: BlockId;
+        dst: BlockId;
     }
 
     export class JumpIf {
         extend Instr;
-        var expr: VarId;
-        var true_dst: BlockId;
-        var false_dst: BlockId;
+        expr: VarId;
+        true_dst: BlockId;
+        false_dst: BlockId;
     }
 
     export class ReturnValue {
         extend Instr;
-        var value: VarId;
+        value: VarId;
     }
 
 ////////////////////////
@@ -239,8 +239,8 @@ export class HIR {
             InstrResult,
         }
 
-        var kind: Kind;
-        var name: str;
+        kind: Kind;
+        name: str;
 
         export fn get_type(decl: Decl) => Type {
             switch (decl.kind) {
@@ -265,17 +265,17 @@ export class HIR {
 
     export class DeclError {
         extend Decl;
-        var error_id: u64;
+        error_id: u64;
     }
 
     export class DeclWithType {
         extend Decl;
-        var type: Type;
+        type: Type;
     }
 
     export class DeclWithScrInfo {
         extend DeclWithType;
-        var src_info: SrcInfo;
+        src_info: SrcInfo;
     }
 
     export class DeclCommon {
@@ -288,7 +288,7 @@ export class HIR {
 
     export class DeclInstrResult {
         extend DeclWithType;
-        var instr: HIR.Instr;
+        instr: HIR.Instr;
     }
 
 
@@ -304,8 +304,8 @@ export class HIR {
             Field,
         } 
 
-        var kind: Kind;
-        var src_info: SrcInfo;
+        kind: Kind;
+        src_info: SrcInfo;
 
         export fn get_type(varr: Var) => Type {
             switch (varr.kind) {
@@ -320,7 +320,7 @@ export class HIR {
 
         export fn get_type_forced(varr: Var) => Type {
             if (varr.kind == HIR.Var.Kind.Literal) {
-                var type = varr$cast(HIR.VarWithType).type;
+                type := varr$cast(HIR.VarWithType).type;
                 if (type != null) {
                     return type;
                 }
@@ -334,78 +334,78 @@ export class HIR {
 
     export class VarError {
         extend Var;
-        var error_id: u64;
+        error_id: u64;
     }
 
     export class VarWithType {
         extend Var;
-        var type: Type;
+        type: Type;
     }
 
     export class VarCommon {
         extend VarWithType;
-        var decl: DeclId;
+        decl: DeclId;
     }
 
     export class VarGlobal {
         extend Var;
-        var node: Namespace.Node;
+        node: Namespace.Node;
     }
 
     export class VarLiteral {
         extend VarWithType;
-        var value: u64;
+        value: u64;
     }
 
     export class VarLiteralType {
         extend Var;
-        var value: Type;
+        value: Type;
     }
 
     export class VarSequence {
         extend Var;
-        var values: HIR.VarId[];
+        values: HIR.VarId[];
     }
 
     export class VarCast {
         extend VarWithType;
-        var casted: VarId;
+        casted: VarId;
     }
 
     export class VarField {
         extend VarWithType;
-        var object: VarId;
-        var field: str;
-        var offset: u16;
+        object: VarId;
+        field: str;
+        offset: u16;
     }
 
     export class Const {
-        var offset: u32;
-        var mem_size: u32;
-        var literal_size: u32;
-        var name: str;
-        var is_string: bool;
+        offset: u32;
+        mem_size: u32;
+        literal_size: u32;
+        name: str;
+        is_string: bool;
     }
 
-    var instrs: Instr[];
-    var vars: Var[];
-    var decls: Decl[];
-    var block_offsets: InstrOffset[];
-    var consts_infos: Const[];
-    var consts_literals: u8[];
+    instrs: Instr[];
+    vars: Var[];
+    decls: Decl[];
+    block_offsets: InstrOffset[];
+    consts_infos: Const[];
+    consts_literals: u8[];
 
-    var return_type: Type;
-    var parameters_count: u8;
-    var max_call_arg_count: u8;
-    var entry: str;
-    var entry_info: SrcInfo;
+    return_type: Type;
+    parameters_count: u8;
+    max_call_arg_count: u8;
+    entry: str;
+    entry_info: SrcInfo;
 
     export fn get_first_non_empty_block(hir: HIR, block: BlockId) => BlockId {
         while (true) {
             assert(block < hir.block_offsets.size);
-            var instr_offset = hir.block_offsets[block];
+            instr_offset := hir.block_offsets[block];
             assert(instr_offset < hir.instrs.size);
-            var instr = hir.instrs[instr_offset];
+            instr := hir.instrs[instr_offset];
             while ((instr.tag == Tag.NONE_STMT || instr.tag == Tag.BEGIN_STMT) &&
                 (instr_offset += 1) < hir.instrs.size) {
                 instr = hir.instrs[instr_offset];
@@ -413,7 +413,7 @@ export class HIR {
             if (instr.tag != Tag.JUMP) {
                 return block;
             }
-            var jump = instr$cast(HIR.Jump);
+            jump := instr$cast(HIR.Jump);
             block = jump.dst;
         }
 
@@ -430,23 +430,23 @@ export class HIR {
     }
 
     fn print_var(hir: HIR, var_id: HIR.VarId) {
-        var varr = hir.vars[var_id];
+        varr := hir.vars[var_id];
         switch (varr.kind) {
             default => io.error("<unknown " .. varr.kind$cast(str) .. ">");
             case HIR.Var.Kind.Common => {
-                var decl_id = varr$cast(HIR.VarCommon).decl;
-                var decl = hir.decls[decl_id];
+                decl_id := varr$cast(HIR.VarCommon).decl;
+                decl := hir.decls[decl_id];
                 io.error(decl.name);
             }
             case HIR.Var.Kind.Global => io.error(varr$cast(HIR.VarGlobal).node.name$cast(str));
             case HIR.Var.Kind.Literal => io.error(varr$cast(HIR.VarLiteral).value$cast(str));
             case HIR.Var.Kind.Cast => {
-                var var_cast = varr$cast(HIR.VarCast);
+                var_cast := varr$cast(HIR.VarCast);
                 hir->print_var(var_cast.casted);
                 // TODO show that it casted?
             }
             case HIR.Var.Kind.Field => {
-                var var_field = varr$cast(HIR.VarField);
+                var_field := varr$cast(HIR.VarField);
                 hir->print_var(var_field.object);
                 io.error("." .. var_field.field);
             }
@@ -510,7 +510,7 @@ export class HIR {
 
             case HIR.Tag.UNARY_PLUS
             case HIR.Tag.UNARY_MINUS => {
-                var hir_info = instr$cast(HIR.UnaryOp);
+                hir_info := instr$cast(HIR.UnaryOp);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 io.error(get_str_representation(instr.tag));
@@ -544,7 +544,7 @@ export class HIR {
             case HIR.Tag.IGREATER
             case HIR.Tag.GREATER_OR_EQUAL
             case HIR.Tag.IGREATER_OR_EQUAL => {
-                var hir_info = instr$cast(HIR.BinaryOp);
+                hir_info := instr$cast(HIR.BinaryOp);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 hir->print_var(hir_info.lhs);
@@ -566,7 +566,7 @@ export class HIR {
             case HIR.Tag.ASSIGN_BITWISE_AND
             case HIR.Tag.ASSIGN_BITWISE_OR
             case HIR.Tag.ASSIGN_BITWISE_XOR  => {
-                var hir_info = instr$cast(HIR.Assign);
+                hir_info := instr$cast(HIR.Assign);
                 hir->print_var(hir_info.dst);
                 io.error(" ");
                 io.error(get_str_representation(instr.tag));
@@ -575,7 +575,7 @@ export class HIR {
             }
 
             case HIR.Tag.CALL => {
-                var hir_info = instr$cast(HIR.Call);
+                hir_info := instr$cast(HIR.Call);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 hir->print_var(hir_info.callee);
@@ -588,7 +588,7 @@ export class HIR {
             }
 
             case HIR.Tag.NEW_CLASS => {
-                var hir_info = instr$cast(HIR.New);
+                hir_info := instr$cast(HIR.New);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 io.error(hir_info.type->get_full_name());
@@ -600,7 +600,7 @@ export class HIR {
                 io.error(")");
             }
             case HIR.Tag.NEW_ARRAY => {
-                var hir_info = instr$cast(HIR.NewArray);
+                hir_info := instr$cast(HIR.NewArray);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 io.error(hir_info.type->get_full_name());
@@ -609,7 +609,7 @@ export class HIR {
                 io.error("]");
 
                 if (hir_info.initial_value != (-1)$cast(HIR.ConstId)) {
-                    var constant = hir->get_constant(hir_info.initial_value);
+                    constant := hir->get_constant(hir_info.initial_value);
                     assert(constant.is_string);
 
                     io.error("\"");
@@ -620,7 +620,7 @@ export class HIR {
                 }
             }
             case HIR.Tag.NEW_SLICE => {
-                var hir_info = instr$cast(HIR.NewSlice);
+                hir_info := instr$cast(HIR.NewSlice);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 hir->print_var(hir_info.mirrored);
@@ -632,7 +632,7 @@ export class HIR {
             }
 
             case HIR.Tag.GET_ARRAY_VALUE => {
-                var hir_info = instr$cast(HIR.GetArrayValue);
+                hir_info := instr$cast(HIR.GetArrayValue);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 hir->print_var(hir_info.array);
@@ -641,7 +641,7 @@ export class HIR {
                 io.error("]");
             }
             case HIR.Tag.SET_ARRAY_VALUE => {
-                var hir_info = instr$cast(HIR.SetArrayValue);
+                hir_info := instr$cast(HIR.SetArrayValue);
                 hir->print_var(hir_info.output);
                 io.error(" = ");
                 hir->print_var(hir_info.array);
@@ -656,13 +656,13 @@ export class HIR {
             */
 
             case HIR.Tag.JUMP => {
-                var hir_info = instr$cast(HIR.Jump);
+                hir_info := instr$cast(HIR.Jump);
                 io.error("jump BB");
                 io.error(hir_info.dst$cast(str));
             }
 
             case HIR.Tag.JUMP_IF_TRUE => {
-                var hir_info = instr$cast(HIR.JumpIf);
+                hir_info := instr$cast(HIR.JumpIf);
                 io.error("jump if ");
                 hir->print_var(hir_info.expr);
                 io.error(" to BB");
@@ -671,7 +671,7 @@ export class HIR {
                 io.error(hir_info.false_dst$cast(str));
             }
             case HIR.Tag.JUMP_IF_FALSE => {
-                var hir_info = instr$cast(HIR.JumpIf);
+                hir_info := instr$cast(HIR.JumpIf);
                 io.error("jump if not ");
                 hir->print_var(hir_info.expr);
                 io.error(" to BB");
@@ -696,7 +696,7 @@ export class HIR {
 
             case HIR.Tag.RETURN => io.error("return");
             case HIR.Tag.RETURN_VALUE => {
-                var hir_info = instr$cast(HIR.ReturnValue);
+                hir_info := instr$cast(HIR.ReturnValue);
                 io.error("return ");
                 hir->print_var(hir_info.value);
             }
@@ -704,34 +704,34 @@ export class HIR {
     }
 
     export fn print(hir: HIR) {
-        var tab_size: u32 = 4;
-        var tab = "";
+        tab_size: u32 = 4;
+        tab := "";
         while (tab_size > 0) {
             tab ..= " ";
             tab_size -= 1;
         }
 
-        var block: BlockId;
+        block: BlockId;
 
         while (block < hir.block_offsets.size) {
             io.error("BB");
             io.error(block$cast(str));
             io.errorln(":");
 
-            var end_offset: HIR.InstrOffset;
+            end_offset: HIR.InstrOffset;
             if (block + 1 < hir.block_offsets.size) {
                 end_offset = hir.block_offsets[block + 1];
             } else {
                 end_offset = hir.instrs.size$cast(HIR.InstrOffset);
             }
 
-            var i = hir.block_offsets[block];
+            i := hir.block_offsets[block];
             while (i < end_offset) {
                 io.error(tab);
                 io.error(i$cast(str));
                 io.error(": ");
 
-                var instr = hir.instrs[i];
+                instr := hir.instrs[i];
 
                 hir->print_instr(instr);
                 io.errorln("");

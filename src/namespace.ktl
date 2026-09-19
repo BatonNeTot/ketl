@@ -7,12 +7,12 @@ from value import Value
 class Namespace {
     class Info {
         // TODO currently 'export' keyword does not affect accessibility of the symbol, absence only adds dot in the name at the beginning
-        var exxport: bool;
-        var imported: bool;
-        var const: bool;
+        exxport: bool;
+        imported: bool;
+        const: bool;
 
         export fn construct(exxport: bool, imported: bool) => Info {
-            var self = Info();
+            self := Info();
             self.exxport = exxport;
             self.imported = imported;
             return self;
@@ -20,19 +20,19 @@ class Namespace {
     }
 
     class Node {
-        var value: Value;
-        var name: str;
-        var key: str;
-        var info: Info;
+        value: Value;
+        key: str;
+        name: str;
+        info: Info;
     }
 
-    var nodes: StrHashMap;
-    var parents: Namespace[];
-    var name: str;
-    var fullname: str;
+    nodes: StrHashMap;
+    parents: Namespace[];
+    name: str;
+    fullname: str;
 
     export fn construct(name: str, parent: Namespace) => Namespace {
-        var self = Namespace();
+        self := Namespace();
         
         self.nodes = StrHashMap.construct();
         self.parents = Namespace[0];
@@ -57,13 +57,13 @@ class Namespace {
     }
 
     export fn declare_var(self: Namespace, key: str, name: str, type: Type, exxport: bool) => Node {
-        var value = Value();
+        value := Value();
         value->set_type(type);
         return self->put(key, name, value, Info.construct(exxport, false), false);
     }
 
     export fn import_namespace(self: Namespace, key: str, name: str, namespace: Namespace, exxport: bool) => Node {
-        var value = Value();
+        value := Value();
         value.value = namespace$cast(raw)$cast(u64);
         value.kind = Value.Kind.Namespace;
         return self->put(key, name, value, Info.construct(exxport, false), false);
@@ -84,13 +84,13 @@ class Namespace {
             }
         }
 
-        var new_node = Node();
+        new_node := Node();
         new_node.value = value;
         new_node.name = name;
         new_node.key = key;
         new_node.info = info;
 
-        var bucket = self.nodes->get_or_insert(key, new_node);
+        bucket := self.nodes->get_or_insert(key, new_node);
         if (bucket.value != new_node) {
             if (!force) {
                 // TODO check const stuff
@@ -106,13 +106,13 @@ class Namespace {
     }
 
     export fn find(self: Namespace, key: str) => Node {
-        var bucket = self.nodes->get_or_null(key);
+        bucket := self.nodes->get_or_null(key);
         if (bucket != null) {
             return bucket.value;
         }
 
         for (var parent <- self.parents) {
-            var node = parent->find(key);
+            node := parent->find(key);
             if (node != null) {
                 return node;
             }
@@ -124,12 +124,12 @@ class Namespace {
     export fn has_vars(self: Namespace) => bool {
         for (var bucket <- self.nodes.buckets) {
             while (bucket != null) {
-                var node = bucket.value$cast(Namespace.Node);
+                node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
-                    var value = node.value;
+                    value := node.value;
                     if (value->is_type()) {
                         from type import TypeClass
-                        var type = value.value$cast(raw)$cast(Type);
+                        type := value.value$cast(raw)$cast(Type);
                         if (type.kind == Type.Kind.Class && type$cast(TypeClass).namespace->has_vars()) {
                             return true;
                         }
@@ -147,12 +147,12 @@ class Namespace {
     export fn has_classes(self: Namespace) => bool {
         for (var bucket <- self.nodes.buckets) {
             while (bucket != null) {
-                var node = bucket.value$cast(Namespace.Node);
+                node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
-                    var value = node.value;
+                    value := node.value;
                     if (value->is_type()) {
                         from type import TypeClass
-                        var type = value.value$cast(raw)$cast(Type);
+                        type := value.value$cast(raw)$cast(Type);
                         if (type.kind == Type.Kind.Class) {
                             return true;
                         }
@@ -167,11 +167,11 @@ class Namespace {
 }
 
 class NamespaceContext {
-    var namespaces: Namespace[];
+    namespaces: Namespace[];
 
     export fn find(self: NamespaceContext, key: str) => Namespace.Node {
         for (var namespace <- self.namespaces) {
-            var node = namespace->find(key);
+            node := namespace->find(key);
             if (node != null) {
                 return node;
             }

@@ -3,23 +3,23 @@
 from type_base import Type
 
 export class ArrayHeader {
-    var data: raw;
-    var capacity: u64;
-    var size: u64;
-    var is_slice: bool;
+    data: raw;
+    capacity: u64;
+    size: u64;
+    is_slice: bool;
 }
 
 export class U8Wrapper {
-    var value: u8;
+    value: u8;
 }
 export class U16Wrapper {
-    var value: u16;
+    value: u16;
 }
 export class U32Wrapper {
-    var value: u32;
+    value: u32;
 }
 export class U64Wrapper {
-    var value: u64;
+    value: u64;
 }
 
 /////////////////////////////////////////////
@@ -36,13 +36,13 @@ export fn calloc(size: u64) => raw {
     if (size == 0) {
         return null;
     }
-    var pointer = malloc(size);
+    pointer := malloc(size);
     memset(pointer, 0, size);
     return pointer;
 }
 
 export fn recalloc(old_pointer: raw, old_size: u64, new_size: u64) => raw {
-    var pointer = old_pointer->realloc(new_size);
+    pointer := old_pointer->realloc(new_size);
     memset(pointer + old_size, 0, new_size - old_size);
     return pointer;
 }
@@ -61,9 +61,9 @@ class GC {
     }
 
     export fn new_array(gc: GC, stack_size: u64, size: u64, initial_data: raw, initial_data_mem_size: u64, flags: u64) => raw {
-        var array_header = ArrayHeader();
-        var type_size = stack_size;
-        var mem_size = type_size * size;
+        array_header := ArrayHeader();
+        type_size := stack_size;
+        mem_size := type_size * size;
         array_header.data = calloc(mem_size);
         array_header.capacity = size;
         array_header.size = size;
@@ -76,12 +76,12 @@ class GC {
     }
 
     export fn new_slice(gc: GC, mirrored_array: ArrayHeader, start: u64, end: u64, flags: u64) => raw {
-        var array_header = ArrayHeader();
-        var mirrored_offset = start;
+        array_header := ArrayHeader();
+        mirrored_offset := start;
         if (start > end) {
             end = start;
         }
-        var size = end - start;
+        size := end - start;
         while (mirrored_array != null && mirrored_array.is_slice) {
             mirrored_offset += mirrored_array.capacity; // capacity is mirrored_offset when is_slice == true
             mirrored_array = mirrored_array.data; // data is mirrored_array when is_slice == true
@@ -96,10 +96,10 @@ class GC {
 
     export fn append_value(gc: GC, stack_size: u64, array_header: ArrayHeader, value: u64) {
         assert(array_header != null);
-        var value_size = stack_size;
+        value_size := stack_size;
         if (array_header.is_slice) {
-            var capacity = array_header.size + 1; // plus appended one
-            var data = calloc(value_size * capacity);
+            capacity := array_header.size + 1; // plus appended one
+            data := calloc(value_size * capacity);
             // capacity is mirrored_offset when is_slice == true
             // data is mirrored_array when is_slice == true
             memcpy(data, array_header.data$cast(ArrayHeader).data + array_header.capacity * value_size, array_header.size * value_size);
@@ -112,7 +112,7 @@ class GC {
             array_header.data = calloc(value_size * array_header.capacity);
         } else if (array_header.size >= array_header.capacity) {
             assert(array_header.data != null);
-            var old_capacity = array_header.capacity;
+            old_capacity := array_header.capacity;
             array_header.capacity += (array_header.capacity + 1) / 2;
             array_header.data = array_header.data->recalloc(value_size * old_capacity, value_size * array_header.capacity);
         }
@@ -130,10 +130,10 @@ class GC {
     export fn append_array(gc: GC, stack_size: u64, array_header: ArrayHeader, other_array_header: ArrayHeader) {
         assert(array_header != null);
         assert(other_array_header != null);
-        var value_size = stack_size;
+        value_size := stack_size;
         if (array_header.is_slice) {
-            var capacity = array_header.size + other_array_header.size;
-            var data = calloc(value_size * capacity);
+            capacity := array_header.size + other_array_header.size;
+            data := calloc(value_size * capacity);
             // capacity is mirrored_offset when is_slice == true
             // data is mirrored_array when is_slice == true
             memcpy(data, array_header.data$cast(ArrayHeader).data + value_size * array_header.capacity, value_size * array_header.size);
@@ -146,12 +146,12 @@ class GC {
             array_header.data = calloc(value_size * array_header.capacity);
         } else if (array_header.size + other_array_header.size > array_header.capacity) {
             assert(array_header.data != null);
-            var old_capacity = array_header.capacity;
+            old_capacity := array_header.capacity;
             array_header.capacity = array_header.size + other_array_header.size;
             array_header.data = array_header.data->recalloc(value_size * old_capacity, value_size * array_header.capacity);
         }
-        var offset: u64 = 0;
-        var array_2cpy = other_array_header;
+        offset: u64 = 0;
+        array_2cpy := other_array_header;
         while (array_2cpy.is_slice) {
             offset += array_2cpy.capacity; // capacity is mirrored_offset when is_slice == true
             array_2cpy = array_2cpy.data; // data is mirrored_array when is_slice == true
@@ -162,9 +162,9 @@ class GC {
 
 }
 
-var gc: GC = calloc(GC$size);
+gc: GC = calloc(GC$size);
 
-var atomic_strings: AtomicStrings = calloc(AtomicStrings$size);
+atomic_strings: AtomicStrings = calloc(AtomicStrings$size);
 
 export fn new(type: Type) => raw {
     return gc->new(type, 0);
@@ -205,13 +205,13 @@ export fn str2cstr(string: ArrayHeader) => cstr {
         return null;
     }
 
-    var size = string.size;
-    var data = string.data;
+    size := string.size;
+    data := string.data;
     if (string.is_slice) {
         data = data$cast(ArrayHeader).data + string.capacity;
     }
 
-    var cstring = malloc(size + 1);
+    cstring := malloc(size + 1);
     memcpy(cstring, data, size);
     (cstring + size)$cast(U8Wrapper).value = '\0';
     return cstring;
@@ -221,10 +221,10 @@ export fn uint2str(value: u64) => str {
         return "0";
     }
 
-    var buffer = "";
+    buffer := "";
 
     while (value > 0) {
-        var number = value % 10;
+        number := value % 10;
         value /= 10;
 
         buffer = '0' + number$cast(char) .. buffer;
@@ -237,13 +237,13 @@ export fn int2str(value: i64) => str {
         return "0";
     }
 
-    var buffer = "";
+    buffer := "";
 
     if (value < 0) {
         value = -value; 
 
         while (value > 0) {
-            var number = value % 10;
+            number := value % 10;
             value /= 10;
 
             buffer = '0' + number$cast(char) .. buffer;
@@ -252,7 +252,7 @@ export fn int2str(value: i64) => str {
         return "-" .. buffer;
     } else {
         while (value > 0) {
-            var number = value % 10;
+            number := value % 10;
             value /= 10;
 
             buffer = '0' + number$cast(char) .. buffer;
@@ -262,11 +262,11 @@ export fn int2str(value: i64) => str {
     }
 }
 export fn str2uint(string: str) => u64 {
-    var value: u64;
+    value: u64;
 
-    var index: u64;
+    index: u64;
     while (index < string.size) {
-        var num = string[index];
+        num := string[index];
         if (num < '0' || num > '9') {
             break;
         }
@@ -280,7 +280,7 @@ export fn str2uint(string: str) => u64 {
 }
 
 export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64) => u64 {
-    var pointer: raw;
+    pointer: raw;
     if (array_header.is_slice) {
         pointer = array_header.data$cast(ArrayHeader).data;
         assert(pointer != null);
@@ -300,7 +300,7 @@ export fn array_get_value(stack_size: u64, array_header: ArrayHeader, index: u64
  }
 
 export fn array_set_value(stack_size: u64, array_header: ArrayHeader, index: u64, value: u64) => u64 {
-    var pointer: raw;
+    pointer: raw;
     if (array_header.is_slice) {
         pointer = (array_header.data$cast(ArrayHeader).data + stack_size * (array_header.capacity + index));
     } else {
@@ -322,15 +322,15 @@ export fn cstr2str(string: cstr) => str {
     cimport malloc(size: u64) => raw
     cimport memcpy(dest: raw, src: raw, size: u64) => raw
 
-    var string_length = strlen(string);
-    var buffer = malloc(string_length);
+    string_length := strlen(string);
+    buffer := malloc(string_length);
     memcpy(buffer, string, string_length);
 
     return buffer_as_str(buffer, string_length, string_length);
 }
 
 export fn buffer_as_str(buffer: raw, size: u64, capacity: u64) => str {
-    var string = ArrayHeader();
+    string := ArrayHeader();
 
     string.data = buffer;
     string.capacity = size;
