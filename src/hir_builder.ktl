@@ -1263,6 +1263,22 @@ class HIRBuilder {
             return self->push_class_namespace_access(type_class, field_name, src_info, forced);
         }
 
+        if (object_type.kind == Type.Kind.Enum) {
+            type_enum := object_type$cast(TypeEnum);
+
+            constant := type_enum->find_constant(field_name);
+            
+            if (constant != null) {
+                return self->push_literal_number_of_type(constant.value, type_enum, src_info);
+            }
+
+            var_id := self->get_namespace_var(type_enum.namespace, field_name, src_info, forced);
+            if (self->is_undef(var_id) && forced) {
+                self->error(src_info.source_offset, src_info.length, "Undeclared property '" .. field_name .. "' from enum '" .. type_enum.name .. "'.");
+            }
+            return var_id;
+        }
+
         if (object_type.kind == Type.Kind.Array) {
             type_array := object_type$cast(TypeArray);
 

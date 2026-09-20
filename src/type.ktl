@@ -54,8 +54,9 @@ export class TypeEnum {
     name: str;
     parent: TypePrimitive;
     constants: Pair[];
+    namespace: Namespace;
 
-    export fn construct(name: str, parent: TypePrimitive, constants: Pair[]) => TypeEnum {
+    export fn construct(name: str, parent_namespace: Namespace, parent: TypePrimitive, constants: Pair[]) => TypeEnum {
         type := TypeEnum();
 
         type.kind = Type.Kind.Enum;
@@ -65,6 +66,10 @@ export class TypeEnum {
         type.name = name;
         type.parent = parent;
         type.constants = constants;
+
+        type.namespace = Namespace.construct(name, parent_namespace);
+
+        
         
         return type;
     }

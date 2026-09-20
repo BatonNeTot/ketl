@@ -13,6 +13,7 @@ export class CompileFunctionDeclaration {
     node: Namespace.Node;
     parameters_names: str[];
     parameters_infos: HIR.SrcInfo[];
+    hir: HIR;
     asm_x86: ASMX86;
     start_pos: TokenIterator.Index;
     end_pos: TokenIterator.Index;

@@ -53,14 +53,6 @@ class Module {
         return self;
     }
 
-    fn get_func_index_offset(module: Module) => u16 {
-        offset: u16;
-        if (module.init_asm_x86 != null) {
-            offset += 1;
-        }
-        return offset;
-    }
-
     export fn print_asm(module: Module) {
         fullpath :=  io.resolve_path(module.path .. module.name .. ".ktl");
         filename :=  io.get_filename(fullpath);
@@ -91,7 +83,7 @@ class Module {
         i: u16;
         has_functions := false;
         for (compile_func_decl := module.compile_function_declarations) {
-            func_index := i + module->get_func_index_offset();
+            func_index := i + 1;
             if (compile_func_decl.asm_x86 != null) {
                 compile_func_decl.asm_x86->print(compile_func_decl.node.name, func_index, module.emit_debug_info);
                 has_functions = true;
@@ -146,7 +138,7 @@ class Module {
                 ".Lstr_offsets_base0",
                 debug_line_section_label,
                 dir,
-                ".Lfunc_end" .. (module.compile_function_declarations.size - 1 + module->get_func_index_offset())$cast(str) .. "-.Lfunc_begin0",
+                ".Lfunc_end" .. (module.compile_function_declarations.size)$cast(str) .. "-.Lfunc_begin0",
                 ".Laddr_table_base0",
                 ASMX86.reg_to_dwarf
                 );
@@ -159,7 +151,7 @@ class Module {
             
             i = 0;
             for (compile_func_decl := module.compile_function_declarations) {
-                func_index := i + module->get_func_index_offset();
+                func_index := i + 1;
                 if (compile_func_decl.asm_x86 != null) {
                     is_pub := true;
                     if (compile_func_decl.node.name[0] == '.') {
@@ -450,42 +442,45 @@ class Module {
         i: u64;
         while (i < module.compile_function_declarations.size) {
             compile_function_declaration := module.compile_function_declarations[i];
+            func_index := i$cast(u16) + 1;
 
-            node := compile_function_declaration.node;
-            local_namespace := Namespace.construct(node.name, compile_function_declaration.parent_namespace);
-            
-            signature := node.value.type$cast(TypeFunction).signature;
-            return_type := signature.parameters[0];
+            hir: HIR;
+            if (compile_function_declaration.hir != null) {
+                hir = compile_function_declaration.hir;
+            } else {
+                node := compile_function_declaration.node;
+                local_namespace := Namespace.construct(node.name, compile_function_declaration.parent_namespace);
+                
+                signature := node.value.type$cast(TypeFunction).signature;
+                return_type := signature.parameters[0];
 
-            parameters_names := compile_function_declaration.parameters_names;
-            parameters_infos := compile_function_declaration.parameters_infos;
-            if (parameters_names.size != signature.parameters.size - 1) {
-                i += 1;
-                continue;
-            }
-
-            parameters := VariableDecl[0];
-            {
-                j: u64;
-                while (j < parameters_names.size) {
-                    parameter := VariableDecl();
-
-                    parameter.type = signature.parameters[j + 1];
-                    parameter.name = parameters_names[j];
-                    parameter.src_info = parameters_infos[j];
-
-                    parameters ..= parameter;
-                    
-                    j += 1;
+                parameters_names := compile_function_declaration.parameters_names;
+                parameters_infos := compile_function_declaration.parameters_infos;
+                if (parameters_names.size != signature.parameters.size - 1) {
+                    i += 1;
+                    continue;
                 }
-            }
 
-            {
+                parameters := VariableDecl[0];
+                {
+                    j: u64;
+                    while (j < parameters_names.size) {
+                        parameter := VariableDecl();
+
+                        parameter.type = signature.parameters[j + 1];
+                        parameter.name = parameters_names[j];
+                        parameter.src_info = parameters_infos[j];
+
+                        parameters ..= parameter;
+                        
+                        j += 1;
+                    }
+                }
+
                 errors_accum := ErrorsAccum.construct();
-                func_index := i$cast(u16) + module->get_func_index_offset();
 
                 from parser import Parser
-                hir := Parser.build_hir(module.lexer, 
+                hir = Parser.build_hir(module.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
                     local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, errors_accum);
                 
@@ -495,21 +490,21 @@ class Module {
                     i += 1;
                     continue;
                 }
-
-                //hir->print();
-
-                if (hir.consts_infos.size > 0) {
-                    const_block := ConstBlock();
-
-                    const_block.consts_infos = hir.consts_infos;
-                    const_block.consts_literals = hir.consts_literals;
-
-                    module.const_blocks ..= const_block;
-                }
-
-                compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, module.emit_debug_info, module.lexer->construct_log_info())
-                    ->build(hir, func_index);
             }
+
+            //hir->print();
+
+            if (hir.consts_infos.size > 0) {
+                const_block := ConstBlock();
+
+                const_block.consts_infos = hir.consts_infos;
+                const_block.consts_literals = hir.consts_literals;
+
+                module.const_blocks ..= const_block;
+            }
+
+            compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, module.emit_debug_info, module.lexer->construct_log_info())
+                ->build(hir, func_index);
 
             i += 1;
         }

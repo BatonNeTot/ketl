@@ -699,14 +699,18 @@ class Parser {
             }
 
             if (type.kind == Type.Kind.Enum) {
-                constant := type$cast(TypeEnum)->find_constant(id);
+                type_enum := type$cast(TypeEnum);
+                constant := type_enum->find_constant(id);
                 
-                if (constant == null) {
-                    context->error(src_info.source_offset, src_info.length, "Undeclared constant '" .. id .. "' of enum '" .. type->get_name() .. "'.");
-                    return context.hir_builder->push_empty_error_var(src_info);
+                if (constant != null) {
+                    return context.hir_builder->push_literal_number_of_type(constant.value, type, src_info);
                 }
 
-                return context.hir_builder->push_literal_number_of_type(constant.value, type, src_info);
+                var_id := context.hir_builder->get_namespace_var(type_enum.namespace, id, src_info, false);
+                if (context.hir_builder->is_undef(var_id)) {
+                    context->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' from enum '" .. type_enum.name .. "'.");
+                }
+                return var_id;
             }
 
             context->error(src_info.source_offset, src_info.length, "Undeclared property '" .. id .. "' of type '" .. type->get_name() .. "'.");
@@ -725,8 +729,11 @@ class Parser {
 
         object_type := object->get_type();
 
-        if (!is_arrow_op && object_type != null && object_type.kind != Type.Kind.Class && object_type.kind != Type.Kind.Array) {
-            context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class and array objects.");
+        if (!is_arrow_op && object_type != null 
+            && object_type.kind != Type.Kind.Class
+            && object_type.kind != Type.Kind.Array
+            && object_type.kind != Type.Kind.Enum) {
+            context->error(src_info.source_offset, src_info.length, "Fields and properties through access parameter only allowed for class, array and enum objects.");
             return context.hir_builder->push_empty_error_var(src_info);
         }
 
@@ -1607,13 +1614,14 @@ class Parser {
         
         context->token_advance(); // enum
         id_token := context->current_token(0);
+        src_info := HIR.SrcInfo.from_token(context.log_info.filename, id_token);
         context->token_advance(); // id
 
         parent_primitive := Types.instance.type_u8;
         if (context->token_match(Token.Type.COLON)) {
             type := context->parse_type();
             if (type == null || type.kind != Type.Kind.Primitive) {
-                context->error(id_token.offset, id_token.length, "Only numeric primitive types are supported as backend for the enum, got '" .. type->get_name() .. "' instead.");
+                context->error(src_info.source_offset, src_info.length, "Only numeric primitive types are supported as backend for the enum, got '" .. type->get_name() .. "' instead.");
             } else {
                 parent_primitive = type$cast(TypePrimitive);
             }
@@ -1684,11 +1692,72 @@ class Parser {
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of an enum declaration.");
 
         name := context->token_str(id_token);
-        enum_type := TypeEnum.construct(name, parent_primitive, enum_constants);
-        namespace_node := context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.log_info.filename, id_token), context.hir_builder.exxport);
+        enum_type := TypeEnum.construct(name, context.hir_builder.namespace, parent_primitive, enum_constants);
+        namespace_node := context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, src_info, context.hir_builder.exxport);
         if (namespace_node != null) {
             namespace_node.value.kind = Value.Kind.Type;
             namespace_node.value.value = enum_type$cast(raw)$cast(u64);
+        }
+
+        {
+            value := Value();
+            value->set_type(
+                Types.instance->get_function_type(Type[2]{
+                    Types.instance->get_str_type(),
+                    enum_type,
+                }));
+            to_str_node := enum_type.namespace->put("to_str", null, value, Namespace.Info.construct(true, false), false);
+            to_str_node.info.const = true;
+
+            function_decl := CompileFunctionDeclaration();
+            Modules.instance.active_module.compile_function_declarations ..= function_decl;
+            func_index := Modules.instance.active_module.compile_function_declarations.size$cast(u16);
+
+            function_decl.parent_namespace = enum_type.namespace;
+            function_decl.node = to_str_node;
+            function_decl.parameters_names = str[1]{ "enum_value" };
+            function_decl.parameters_infos = HIR.SrcInfo[1];
+            
+            hir_builder := HIRBuilder.construct(Types.instance->get_str_type(), func_index, context.errors_accum, context.log_info, false);
+
+            {
+                parameter_name := "enum_value";
+                hir_builder->add_parameter(parameter_name, enum_type, src_info);
+                enum_value_id := hir_builder->get_var(null, parameter_name, parameter_name, src_info);
+
+                total_blocks := (enum_constants.size * 2)$cast(u16);
+                first_block := hir_builder->reserve_blocks(total_blocks);
+
+                for (constant := enum_constants) {
+                    is_equal_expr := hir_builder->push_binary_op(HIR.Tag.EQUAL, enum_value_id, 
+                        hir_builder->push_literal_number_of_type(constant.value.value, enum_type, src_info), src_info);
+
+                    hir_builder->push_jump_if(is_equal_expr, first_block, first_block + 1, src_info);  
+
+                    hir_builder->set_block(first_block);
+                    first_block += 1;      
+
+                    hir_builder->push_return_value(hir_builder->push_new_string_literal(constant.name, src_info), src_info);
+
+                    hir_builder->set_block(first_block);
+                    first_block += 1;     
+                }
+
+                default_str := hir_builder->push_temp_var_of_type(Types.instance->get_str_type(), src_info);
+                hir_builder->push_assign(HIR.Tag.ASSIGN, default_str, 
+                    hir_builder->push_new_string_literal("<" .. name .. " ", src_info), 
+                    src_info);
+                hir_builder->push_append(default_str, 
+                    hir_builder->cast_to_type_forced(enum_value_id, Types.instance->get_str_type(), src_info, true), 
+                    src_info);
+                hir_builder->push_append(default_str, 
+                    hir_builder->push_new_string_literal(">", src_info), 
+                    src_info);
+                hir_builder->push_return_value(default_str, src_info);
+            }
+
+            function_decl.hir = HIR();
+            hir_builder->flush(function_decl.hir);
         }
 
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);

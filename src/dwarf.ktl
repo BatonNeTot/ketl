@@ -362,15 +362,15 @@ export class Abbreviation {
     }
 
     fn print(self: Abbreviation) {
-        print_data_directive(ASMX86.DataDirective.Byte, self.tag$cast(str) .. "                               #");
+        print_data_directive(ASMX86.DataDirective.Byte, self.tag$cast(str) .. "                               # DW_TAG_" .. self.tag->to_str());
         if (self.has_children) {
             print_data_directive(ASMX86.DataDirective.Byte, Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
         } else {
             print_data_directive(ASMX86.DataDirective.Byte, Children.no$cast(str) .. "                               # DW_CHILDREN_no");
         }
         for (header := self.attrs) {
-            print_data_directive(ASMX86.DataDirective.Byte, header.attr$cast(str) .. "                               #");
-            print_data_directive(ASMX86.DataDirective.Byte, header.form$cast(str) .. "                               #");
+            print_data_directive(ASMX86.DataDirective.Byte, header.attr$cast(str) .. "                               # DW_AT_" .. header.attr->to_str());
+            print_data_directive(ASMX86.DataDirective.Byte, header.form$cast(str) .. "                               # DW_FORM_" .. header.form->to_str());
         }
     }
 }
@@ -401,7 +401,7 @@ class AttrStr {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrStr);
-        return print_data_directive(ASMX86.DataDirective.Byte, self.index$cast(str) .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Byte, self.index$cast(str) .. "                               # DW_FORM_" .. self.form->to_str());
     }
 }
 
@@ -419,7 +419,7 @@ class AttrSecOffset {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrSecOffset);
-        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               # DW_FORM_" .. self.form->to_str());
     }
 }
 
@@ -437,7 +437,7 @@ class AttrAddr {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrAddr);
-        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               #");
+        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               # DW_FORM_" .. self.form->to_str());
     }
 }
 
@@ -508,7 +508,7 @@ class AttrAddrData {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrAddrData);
-        return print_data(self.value .. "                               #", self.form);
+        return print_data(self.value .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
     }
 }
 
@@ -533,7 +533,7 @@ class AttrData {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrData);
-        return print_data(self.value$cast(str) .. "                               #", self.form);
+        return print_data(self.value$cast(str) .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
     }
 }
 
@@ -649,7 +649,7 @@ class AttrRef {
 
     fn print(attr: AttrValue) => u32 {
         self := attr$cast(AttrRef);
-        return print_data(self.die.data_offset$cast(str) .. "                               #", self.form);
+        return print_data(self.die.data_offset$cast(str) .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
     }
 }
 
