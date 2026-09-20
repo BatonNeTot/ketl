@@ -81,7 +81,7 @@ export class ErrorsAccum {
         if (self.errors.size > 0) {
             buffer := StringBuffer.construct();
 
-            for (var error_info <- self.errors) {
+            for (error_info := self.errors) {
                 buffer->report(error_info.info, error_info.pointer, error_info.message);
             }
 

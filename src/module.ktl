@@ -90,7 +90,7 @@ class Module {
 
         i: u16;
         has_functions := false;
-        for (var compile_func_decl <- module.compile_function_declarations) {
+        for (compile_func_decl := module.compile_function_declarations) {
             func_index := i + module->get_func_index_offset();
             if (compile_func_decl.asm_x86 != null) {
                 compile_func_decl.asm_x86->print(compile_func_decl.node.name, func_index, module.emit_debug_info);
@@ -110,8 +110,8 @@ class Module {
         if (module.namespace->has_classes() || module.const_blocks.size > 0) {
             io.println("    .section   .rdata,\"dr\"                    # -- Read-only Variables");
 
-            for (var const_block <- module.const_blocks) {
-                for (var const_info <- const_block.consts_infos) {
+            for (const_block := module.const_blocks) {
+                for (const_info := const_block.consts_infos) {
                     variable_name := const_info.name;
 
                     io.println(variable_name .. ":");
@@ -119,7 +119,7 @@ class Module {
                     assert(const_info.is_string);
                     io.print("    .asciz    \"");
                     literal := "";
-                    for (var symbol <- const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
+                    for (symbol := const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
                         literal ..= symbol$cast(char);
                     }
                     io.print(literal);
@@ -158,7 +158,7 @@ class Module {
             // we do not produce debug info for the entry code
             
             i = 0;
-            for (var compile_func_decl <- module.compile_function_declarations) {
+            for (compile_func_decl := module.compile_function_declarations) {
                 func_index := i + module->get_func_index_offset();
                 if (compile_func_decl.asm_x86 != null) {
                     is_pub := true;
@@ -185,7 +185,7 @@ class Module {
                 print_asm_addrsig(module.name .. "..init");
             }
             
-            for (var compile_func_decl <- module.compile_function_declarations) {
+            for (compile_func_decl := module.compile_function_declarations) {
                 if (compile_func_decl.asm_x86 != null) {
                     print_asm_addrsig(compile_func_decl.node.name);
                 }
@@ -228,7 +228,7 @@ class Module {
     }
 
     fn print_asm_zero_initialized_variables_namespace(namespace: Namespace) {
-        for (var bucket <- namespace.nodes.buckets) {
+        for (bucket := namespace.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
@@ -305,7 +305,7 @@ class Module {
     }
 
     fn print_asm_read_only_data_namespace(namespace: Namespace) {
-        for (var bucket <- namespace.nodes.buckets) {
+        for (bucket := namespace.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
@@ -354,7 +354,7 @@ class Module {
         lexer->init();
         lexer->build_tokens(module_filename, source, errors_accum);
 
-        //for (var token <- lexer.tokens) {
+        //for (token := lexer.tokens) {
         //    io.errorln("from " .. token.offset$cast(str) .. " to " .. (token.offset + token.length)$cast(str) .. " " .. source[token.offset:token.offset + token.length]);
         //}
 

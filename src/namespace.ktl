@@ -111,7 +111,7 @@ class Namespace {
             return bucket.value;
         }
 
-        for (var parent <- self.parents) {
+        for (parent := self.parents) {
             node := parent->find(key);
             if (node != null) {
                 return node;
@@ -122,7 +122,7 @@ class Namespace {
     }
 
     export fn has_vars(self: Namespace) => bool {
-        for (var bucket <- self.nodes.buckets) {
+        for (bucket := self.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
@@ -145,7 +145,7 @@ class Namespace {
     }
 
     export fn has_classes(self: Namespace) => bool {
-        for (var bucket <- self.nodes.buckets) {
+        for (bucket := self.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
@@ -170,7 +170,7 @@ class NamespaceContext {
     namespaces: Namespace[];
 
     export fn find(self: NamespaceContext, key: str) => Namespace.Node {
-        for (var namespace <- self.namespaces) {
+        for (namespace := self.namespaces) {
             node := namespace->find(key);
             if (node != null) {
                 return node;

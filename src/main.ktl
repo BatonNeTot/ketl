@@ -34,9 +34,9 @@ parser: ArgsParser;
 fn main(args: str[]) => i64 {
     parser = ArgsParser();
 
-    for (var arg <- args[1:]) {
+    for (arg := args[1:]) {
         if (arg[0] == '-') {
-            for (var symbol <- arg[1:]) {
+            for (symbol := arg[1:]) {
                 switch (symbol) {
                     case 'S' => {
                         parser.op = ArgsParser.Operation.CompileToAsm;
@@ -92,7 +92,7 @@ fn main(args: str[]) => i64 {
 }
 
 fn compile_asm_list(targets: str[]) => bool {
-    for (var target <- targets) {
+    for (target := targets) {
         if (!compile_asm(target, null)) {
             return false;
         }
@@ -114,7 +114,7 @@ fn compile_asm(target: str, output: str) => bool {
         }
 
         if (output != null) {
-            for (var item <- items) {
+            for (item := items) {
                 if (item != "." && item != "..") {
                     if (!compile_asm(target .. "/" .. item, output .. "/" .. item)) {
                         return false;
@@ -122,7 +122,7 @@ fn compile_asm(target: str, output: str) => bool {
                 }
             }
         } else {
-            for (var item <- items) {
+            for (item := items) {
                 if (item != "." && item != "..") {
                     if (!compile_asm(target .. "/" .. item, null)) {
                         return false;

@@ -140,7 +140,7 @@ export class Type {
             signature := func_type.signature;
 
             result_str := "(";
-            for (var parameter <- signature.parameters[1:]) {
+            for (parameter := signature.parameters[1:]) {
                 result_str ..= parameter->get_name();
                 result_str ..= ", ";
             }
@@ -173,7 +173,7 @@ export class Type {
             values := tuple_type.values;
 
             result_str := "(";
-            for (var value <- values) {
+            for (value := values) {
                 result_str ..= value->get_name();
                 result_str ..= ", ";
             }

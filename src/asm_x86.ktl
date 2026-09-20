@@ -1634,7 +1634,7 @@ export class ASMX86 {
                         return_type := func_type.signature.parameters[0];
 
                         args := AsmArg[0];
-                        for (var var_id <- hir_info.args) {
+                        for (var_id := hir_info.args) {
                             args ..= self->get_arg_from_hir(var_id);
                         }
                         self->push_function_arguments(args);
@@ -1965,7 +1965,7 @@ export class ASMX86 {
         }
         io.println(".seh_proc " .. func_name);
 
-        for (var instr <- self.instrs) {
+        for (instr := self.instrs) {
             instr->print(self.instrs);
             io.print("\n");
         }

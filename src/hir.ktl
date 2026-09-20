@@ -580,7 +580,7 @@ export class HIR {
                 io.error(" = ");
                 hir->print_var(hir_info.callee);
                 io.error("(");
-                for (var arg <- hir_info.args) {
+                for (arg := hir_info.args) {
                     hir->print_var(arg);
                     io.error(", ");
                 }
@@ -593,7 +593,7 @@ export class HIR {
                 io.error(" = ");
                 io.error(hir_info.type->get_full_name());
                 io.error("(");
-                for (var arg <- hir_info.args) {
+                for (arg := hir_info.args) {
                     hir->print_var(arg);
                     io.error(", ");
                 }
@@ -613,7 +613,7 @@ export class HIR {
                     assert(constant.is_string);
 
                     io.error("\"");
-                    for (var symbol <- hir.consts_literals[constant.offset:constant.offset + constant.literal_size]) {
+                    for (symbol := hir.consts_literals[constant.offset:constant.offset + constant.literal_size]) {
                         io.error("" .. symbol);
                     }
                     io.error("\"");

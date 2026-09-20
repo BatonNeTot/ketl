@@ -320,7 +320,7 @@ export class Abbreviation {
     fn get_hash(self: Abbreviation) => u64 {
         hash := self.tag$cast(u64);
         if (self.attrs != null) {
-            for (var header <- self.attrs) {
+            for (header := self.attrs) {
                 hash = (hash << 2) ^ (header.attr << 1) ^ header.form;
             }
         }
@@ -368,7 +368,7 @@ export class Abbreviation {
         } else {
             print_data_directive(ASMX86.DataDirective.Byte, Children.no$cast(str) .. "                               # DW_CHILDREN_no");
         }
-        for (var header <- self.attrs) {
+        for (header := self.attrs) {
             print_data_directive(ASMX86.DataDirective.Byte, header.attr$cast(str) .. "                               #");
             print_data_directive(ASMX86.DataDirective.Byte, header.form$cast(str) .. "                               #");
         }
@@ -594,7 +594,7 @@ export class DIE {
 
         abbr.attrs = AttrHeader[0];
 
-        for (var attr <- self.attrs) {
+        for (attr := self.attrs) {
             abbr.attrs ..= AttrHeader.construct(attr.attr, attr.value.form);
         }
 
@@ -736,7 +736,7 @@ export class DebugInfo {
         io.println("	.section	.debug_abbrev,\"dr\"");
         {
             i := 0;
-            for (var abbr <- self.abbrs) {
+            for (abbr := self.abbrs) {
                 i += 1;
                 print_data_directive(ASMX86.DataDirective.Byte, i$cast(str) .. "                               # Abbreviation Code");
                 abbr->print();
@@ -757,11 +757,11 @@ export class DebugInfo {
         data_size += print_data_directive(ASMX86.DataDirective.Byte, raw$size$cast(str) .. "                               # Address Size (in bytes)");
         data_size += print_data_directive(ASMX86.DataDirective.Secrel32, ".debug_abbrev           # Offset Into Abbrev. Section");
         
-        for (var die <- self.dies) {
+        for (die := self.dies) {
             die.data_offset = data_size;
             data_size += print_data_directive(ASMX86.DataDirective.Byte, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "]");
 
-            for (var attr <- die.attrs) {
+            for (attr := die.attrs) {
                 if (attr.value.print != null) {
                     data_size += attr.value->print();
                 }
@@ -799,7 +799,7 @@ export class DebugInfo {
         io.println("	.byte	8                               # Address size");
         io.println("	.byte	0                               # Segment selector size");
         io.println(".Laddr_table_base0:");
-        for (var func_address <- self.func_addresses) {
+        for (func_address := self.func_addresses) {
             io.println("	.quad	" .. func_address);
         }
         io.println(".Ldebug_addr_end0:");
@@ -858,10 +858,10 @@ export class DebugInfo {
         }
 
         self.dies ..= die;
-        var die_index  = self.dies.size;
+        die_index := self.dies.size;
         die_bucket.value = die_index$cast(u64)$cast(raw);
 
-        for (var attr <- die.attrs) {
+        for (attr := die.attrs) {
             value := attr.value;
             if (value.form == Form.string) {
                 str_value := value$cast(AttrStr);
@@ -884,7 +884,7 @@ export class DebugInfo {
         }
 
         if (die.children != null) {
-            for (var child <- die.children) {
+            for (child := die.children) {
                 self->add_die(child);
             }
         }
@@ -1019,7 +1019,7 @@ export class DebugInfo {
             };
 
             die.children = DIE[0];
-            for (var field <- type_class.fields) {
+            for (field := type_class.fields) {
                 if (field.name == null || field.name == "") {
                     continue;
                 }

@@ -1721,7 +1721,7 @@ class HIRBuilder {
         hir.block_offsets = HIR.InstrOffset[0];
 
         offset: HIR.InstrOffset;
-        for (var instrs <- self.blocks) {
+        for (instrs := self.blocks) {
             hir.instrs ..= instrs;
             hir.block_offsets ..= offset;
             offset += instrs.size$cast(HIR.InstrOffset);

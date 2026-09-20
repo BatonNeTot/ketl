@@ -70,7 +70,7 @@ export class TypeEnum {
     }
 
     export fn find_constant(self: TypeEnum, name: str) => Value {
-        for (var constant <- self.constants) {
+        for (constant := self.constants) {
             if (constant.name == name) {
                 return constant.value->copy();
             }
@@ -91,7 +91,7 @@ export class TypeFunction {
         fn get_hash(self: Signature) => u64 {
             hash: u64;
 
-            for (var parameter <- self.parameters) {
+            for (parameter := self.parameters) {
                 hash = (parameter$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
             }
 
@@ -150,7 +150,7 @@ export class TypeClass {
         self->calc_size_and_align();
         self.size = common.align_forward(self.size, Type.from_align_enum(self.align))$cast(u16);
 
-        for (var field <- fields) {
+        for (field := fields) {
             if (field.name == null || field.name == "") {
                 type := field.type$cast(TypeClass);
                 assert(type.kind == Type.Kind.Class);
@@ -161,7 +161,7 @@ export class TypeClass {
     }
 
     export fn calc_size_and_align(self: TypeClass) {
-        for (var field <- self.fields) {
+        for (field := self.fields) {
             align := Align.Byte; // TODO delayed initialization
             size: u16;
             if (field.name == null || field.name == "") {
@@ -192,7 +192,7 @@ export class TypeClass {
             return null;
         }
 
-        for (var field <- self.fields) {
+        for (field := self.fields) {
             if (field.name == null || field.name == "") {
                 assert(field.type.kind == Type.Kind.Class);
 
@@ -217,7 +217,7 @@ export class TypeClass {
         }
         
         offset: u16;
-        for (var field <- self.fields) {
+        for (field := self.fields) {
             align := Align.Byte; // TODO delayed initialization
             size: u16;
             if (field.name == null || field.name == "") {
@@ -256,7 +256,7 @@ export class TypeClass {
         }
         
         offset: u16;
-        for (var field <- self.fields) {
+        for (field := self.fields) {
             align := Align.Byte; // TODO delayed initialization
             size: u16;
             if (field.name == null || field.name == "") {
@@ -298,7 +298,7 @@ export class TypeClass {
             return node;
         }
 
-        for (var namespace <- self.context_namespaces) {
+        for (namespace := self.context_namespaces) {
             node = namespace->find(key);
             if (node != null) {
                 return node;
@@ -328,7 +328,7 @@ export class TypeTuple {
     }
 
     export fn calc_size_and_align(self: TypeTuple) {
-        for (var value <- self.values) {
+        for (value := self.values) {
             align := value->get_stack_align();
             size := value->get_stack_size();
 
@@ -456,7 +456,7 @@ class Types {
     fn get_array_of_types_hash(types: raw) => u64 {
         hash: u64;
 
-        for (var type <- types$cast(Type[])) {
+        for (type := types$cast(Type[])) {
             hash = (type$cast(raw)$cast(u64) >> 3) ^ (hash << 1);
         }
 

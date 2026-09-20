@@ -344,7 +344,7 @@ class Parser {
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
-                    for (var stack_bracket <- brackets) {
+                    for (stack_bracket := brackets) {
                         io.errorln(stack_bracket->get_opening_bracket_str());
                     }
                     assert(false);
@@ -361,7 +361,7 @@ class Parser {
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
-                    for (var stack_bracket <- brackets) {
+                    for (stack_bracket := brackets) {
                         io.errorln(stack_bracket->get_opening_bracket_str());
                     }
                     assert(false);
@@ -378,7 +378,7 @@ class Parser {
                 if (bracket.type != closing_bracket.type) {
                     io.errorln("Got " .. closing_bracket->get_closing_bracket_str() .. " to close " .. bracket->get_opening_bracket_str());
                     io.errorln("Full stack:");
-                    for (var stack_bracket <- brackets) {
+                    for (stack_bracket := brackets) {
                         io.errorln(stack_bracket->get_opening_bracket_str());
                     }
                     assert(false);
@@ -493,7 +493,7 @@ class Parser {
         } else if (expr.kind == HIR.Var.Kind.Sequence) {
             values := expr$cast(HIR.VarSequence).values;
             seq_as_types := Type[0];
-            for (var value_id <- values) {
+            for (value_id := values) {
                 value_as_type := context->get_var_as_type(value_id);
                 if (value_as_type == null) {
                     break;
@@ -1364,84 +1364,6 @@ class Parser {
         context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
     }
-    
-    // TODO move this to hir_builder
-    fn declare_var(context: Context, key: str, type: Type, init_value_id: HIR.VarId, src_info: HIR.SrcInfo) => HIR.VarId {
-        var_id: HIR.VarId;
-        // TODO can't do local scope vars in global this way
-        if (context.is_global_scope) {
-            name: str;
-            if (context.hir_builder.cexxport) {
-                name = key;
-            }
-            var_id = context.hir_builder->declare_global_var(context.hir_builder.namespace, key, name, type, src_info, context.hir_builder.exxport);
-        } else {
-            var_id = context.hir_builder->declare_local_var(key, type, src_info);
-        }
-
-        if (context.hir_builder->is_undef(var_id)) {
-            return var_id;
-        }
-
-        // TODO if const zero and global omit assign
-        if (!context.hir_builder->is_undef(init_value_id)) {
-            context.hir_builder->push_assign(HIR.Tag.ASSIGN, var_id, init_value_id, src_info);
-        }
-        return var_id;
-    }
-
-    fn parse_var_declaration(context: Context) => StatementInfo {
-        src_info := HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(0));
-
-        context->token_advance(); // var
-        id_token := context->current_token(0);
-        name := context->token_str(id_token);
-        context->token_advance(); // id
-
-        type: Type = null;
-        initial_value := (-1)$cast(HIR.VarId);
-        if (context->token_match(Token.Type.COLON)) {
-            type = context->parse_type();
-        }
-        if (context->token_match(Token.Type.ASSIGN)) {
-            initial_value = context->parse_expression();
-
-            if (!context.hir_builder->is_undef(initial_value)) {
-                src_info = HIR.SrcInfo.merge(src_info, context->get_var(initial_value).src_info);
-                if (type == null) {
-                    type = context->get_var(initial_value)->get_type_forced();
-                } else {
-                    initial_value_src_info := context->get_var(initial_value).src_info;
-                    initial_value = context.hir_builder->cast_to_type_forced(initial_value, type, initial_value_src_info, false);
-                }
-            }
-        } else {
-            if (type == null) {
-                src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
-                context->error(src_info.source_offset, src_info.length, "Variable declaration without a type expects an initial expression.");
-
-                initial_value = context.hir_builder->push_empty_error_var(src_info);
-            } else {
-                if (!context.omit_var_init) {
-                    initial_value = context.hir_builder->get_default_initial_value(type, src_info);
-                } else {
-                    context.omit_var_init = false;
-                }
-            }
-        }
-        if (type == null) {
-            context->error(src_info.source_offset, src_info.length, "Can't deduce var type.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-        if (type == Types.instance.type_void$cast(Type)) {
-            context->error(src_info.source_offset, src_info.length, "Can't declare var of type 'void'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-
-        context->declare_var(name, type, initial_value, src_info);
-        context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after variable declaration.");
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-    }
 
     class FunctionHeader {
         namespace_node: Namespace.Node;
@@ -1591,22 +1513,6 @@ class Parser {
             case Token.Type.SHARP   => { context->parse_sharp_modifier(); return; }
             case Token.Type.IMPORT  => { context->parse_import        (); return; }
             case Token.Type.FROM    => { context->parse_from_import   (); return; }
-            case Token.Type.VAR => {
-                context->token_advance(); // var
-
-                field_token := context->current_token(0);
-                field_name := context->token_str(field_token);
-                context->token_advance(); // id
-
-                context->token_consume(Token.Type.COLON, "Expected ':' after field name.");
-
-                field_type := context->parse_type();
-
-                context->token_consume(Token.Type.TERMINATION_CHARACTER, "Expected ';' after field declaration.");
-
-                context->add_class_field(field_name, field_type);
-                return;
-            }
             case Token.Type.EXTEND => {
                 context->token_advance(); // extend
 
@@ -1741,7 +1647,7 @@ class Parser {
                     other_constant_name := context->token_str(constant_token);
 
                     found := false;
-                    for (var enum_constant <- enum_constants) {
+                    for (enum_constant := enum_constants) {
                         if (enum_constant.name == other_constant_name) {
                             current_value.value = enum_constant.value.value;
 
@@ -1811,7 +1717,6 @@ class Parser {
             case Token.Type.SHARP   => return context->parse_sharp_modifier();
             case Token.Type.IMPORT  => return context->parse_import();
             case Token.Type.FROM    => return context->parse_from_import();
-            case Token.Type.VAR     => return context->parse_var_declaration();
             case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
             case Token.Type.CLASS   => return context->parse_class_declaration();
@@ -2007,36 +1912,44 @@ class Parser {
         src_info := HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1));
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'for' keyword.");
-        context->token_consume(Token.Type.VAR, "Expected 'var' keyword in the beggining of 'for' statement expression.");
-        id_token := context->current_token(0);
-        context->token_consume(Token.Type.ID, "Expected id after 'var' keyword.");
 
-        var_type: Type;
-        if (context->token_match(Token.Type.COLON)) {
-            var_type = context->parse_type();
-        }
+        context.hir_builder->push_symbol_map();
 
-        context->token_consume(Token.Type.ARROW_LEFT, "Expected '<-' after 'var' declaration.");
+        iterator_var := context->parse_precedence(Precedence.Assigment + 1); // TODO check if correct lvalue
+        key: str;
+        if (context.hir_builder->is_undef(iterator_var)) {
+            if (iterator_var >= context.hir_builder.vars.size) {
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+            }
+
+            if (!context.hir_builder->check_error_var(iterator_var, ErrorsAccum.Error.UndefinedDeclaredId)) {
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+            }
+        } 
+
+        context->token_consume(Token.Type.ASSIGN, "Expected '=' after iterator variable.");
+
         array_id := context->parse_expression();
 
         if (context.hir_builder->is_undef(array_id)) {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
-        array_var := context->get_var(array_id);
-        array_type := array_var->get_type_forced()$cast(TypeArray);
-        assert(array_type.kind == Type.Kind.Array);
+        if (context.hir_builder->is_undef(iterator_var)) {
+            array_var := context->get_var(array_id);
+            array_type := array_var->get_type_forced()$cast(TypeArray);
+            assert(array_type.kind == Type.Kind.Array); // TODO check if iterable
 
-        if (var_type == null) {
-            var_type = array_type.value; 
+            var_type := array_type.value; 
+
+            if (!context.hir_builder->declare_var_from_var_id(iterator_var, var_type, src_info)) {
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+            }
         }
 
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after 'for' statement expression.");
         src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.log_info.filename, context->current_token(1)));
 
-        context.hir_builder->push_symbol_map();
-
-        iterator_var := context.hir_builder->declare_local_var(context->token_str(id_token), var_type, src_info);
         index_var := context.hir_builder->push_temp_var_of_type(Types.instance.type_u64, src_info);
         context.hir_builder->push_assign(HIR.Tag.ASSIGN, index_var, 
             context.hir_builder->push_literal_number(0, src_info), 
@@ -2172,7 +2085,7 @@ class Parser {
 
                         body_block := context.hir_builder->reserve_blocks(1);
 
-                        for (var case_jump_if <- case_info.case_jump_ifs) {
+                        for (case_jump_if := case_info.case_jump_ifs) {
                             case_jump_if.true_dst = body_block;
                         }
 
@@ -2252,7 +2165,7 @@ class Parser {
                 last_case_jump_if.false_dst = after_block;
             }
 
-            for (var case_info <- case_infos) {
+            for (case_info := case_infos) {
                 if (case_info.body_end_jump != null) {
                     case_info.body_end_jump.dst = after_block;
                 }
@@ -2371,7 +2284,7 @@ class Parser {
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.errors_accum, context.log_info, is_global_scope);
         context.hir_builder.namespace = namespace;
 
-        for (var parameter <- parameters) {
+        for (parameter := parameters) {
             context.hir_builder->add_parameter(parameter.name, parameter.type, parameter.src_info);
         }
 
