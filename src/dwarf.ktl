@@ -376,13 +376,20 @@ export class Abbreviation {
 }
 
 class AttrValue {
-    print: (AttrValue) => u32;
+    print: (AttrValue, Attr) => u32;
     form: Form;
 
     fn construct_empty(form: Form) => AttrValue {
         self := AttrValue();
+        self.print = print_empty;
         self.form = form;
         return self;
+    }
+
+    fn print_empty(attr: AttrValue, tag: Attr) => u32 {
+        import io
+        io.println("                                        # DW_AT_" .. tag->to_str());
+        return 0;
     }
 }
 
@@ -399,9 +406,9 @@ class AttrStr {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrStr);
-        return print_data_directive(ASMX86.DataDirective.Byte, self.index$cast(str) .. "                               # DW_FORM_" .. self.form->to_str());
+        return print_data(self.index$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
     }
 }
 
@@ -417,9 +424,9 @@ class AttrSecOffset {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrSecOffset);
-        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               # DW_FORM_" .. self.form->to_str());
+        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               # DW_AT_" .. tag->to_str());
     }
 }
 
@@ -435,9 +442,9 @@ class AttrAddr {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrAddr);
-        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               # DW_FORM_" .. self.form->to_str());
+        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               # DW_AT_" .. tag->to_str());
     }
 }
 
@@ -480,6 +487,14 @@ fn print_data(value: str, form: Form) => u32 {
             ASMX86.print_directive_size(ASMX86.Size.Bit64);
             size += 8;
         }
+        case Form.strx1 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit8);
+            size += 1;
+        }
+        case Form.strx2 => {
+            ASMX86.print_directive_size(ASMX86.Size.Bit16);
+            size += 2;
+        }
         case Form.ref_udata => assert(false);
         default => assert(false);
     }
@@ -506,9 +521,9 @@ class AttrAddrData {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrAddrData);
-        return print_data(self.value .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
+        return print_data(self.value .. "                               # DW_AT_" .. tag->to_str(), self.form);
     }
 }
 
@@ -531,9 +546,203 @@ class AttrData {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrData);
-        return print_data(self.value$cast(str) .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
+        return print_data(self.value$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
+    }
+}
+
+enum Op: u8 {
+    __reserved__, // 0x01, Operands -, 
+    __reserved__, // 0x02, Operands -, 
+    addr, // 0x03, Operands 1, constant address
+    __reserved__, // 0x04, Operands -, 
+    __reserved__, // 0x05, Operands -, 
+    deref, // 0x06, Operands 0, 
+    __reserved__, // 0x07, Operands -, 
+    const1u, // 0x08, Operands 1, 1-byte constant
+    const1s, // 0x09, Operands 1, 1-byte constant
+    const2u, // 0x0a, Operands 1, 2-byte constant
+    const2s, // 0x0b, Operands 1, 2-byte constant
+    const4u, // 0x0c, Operands 1, 4-byte constant
+    const4s, // 0x0d, Operands 1, 4-byte constant
+    const8u, // 0x0e, Operands 1, 8-byte constant
+    const8s, // 0x0f, Operands 1, 8-byte constant
+    constu, // 0x10, Operands 1, ULEB128 constant
+    consts, // 0x11, Operands 1, SLEB128 constant
+    dup, // 0x12, Operands 0, 
+    drop, // 0x13, Operands 0, 
+    over, // 0x14, Operands 0, 
+    pick, // 0x15, Operands 1, 1-byte stack index
+    swap, // 0x16, Operands 0, 
+    rot, // 0x17, Operands 0, 
+    xderef, // 0x18, Operands 0, 
+    abs, // 0x19, Operands 0, 
+    and, // 0x1a, Operands 0, 
+    div, // 0x1b, Operands 0, 
+    minus, // 0x1c, Operands 0, 
+    mod, // 0x1d, Operands 0, 
+    mul, // 0x1e, Operands 0, 
+    neg, // 0x1f, Operands 0, 
+    not, // 0x20, Operands 0, 
+    or, // 0x21, Operands 0, 
+    plus, // 0x22, Operands 0, 
+    plus_uconst, // 0x23, Operands 1, ULEB128 addend
+    shl, // 0x24, Operands 0, 
+    shr, // 0x25, Operands 0, 
+    shra, // 0x26, Operands 0, 
+    xor, // 0x27, Operands 0, 
+    bra, // 0x28, Operands 1, signed 2-byte constant
+    eq, // 0x29, Operands 0, 
+    ge, // 0x2a, Operands 0, 
+    gt, // 0x2b, Operands 0, 
+    le, // 0x2c, Operands 0, 
+    lt, // 0x2d, Operands 0, 
+    ne, // 0x2e, Operands 0, 
+    skip, // 0x2f, Operands 1, signed 2-byte constant
+    lit0, // 0x30, Operands 0, 
+    lit1, // 0x31, Operands 0, 
+    lit2, // 0x32, Operands 0, 
+    lit3, // 0x33, Operands 0, 
+    lit4, // 0x34, Operands 0, 
+    lit5, // 0x35, Operands 0, 
+    lit6, // 0x36, Operands 0, 
+    lit7, // 0x37, Operands 0, 
+    lit8, // 0x38, Operands 0, 
+    lit9, // 0x39, Operands 0, 
+    lit10, // 0x3a, Operands 0, 
+    lit11, // 0x3b, Operands 0, 
+    lit12, // 0x3c, Operands 0, 
+    lit13, // 0x3d, Operands 0, 
+    lit14, // 0x3e, Operands 0, 
+    lit15, // 0x3f, Operands 0, 
+    lit16, // 0x40, Operands 0, 
+    lit17, // 0x41, Operands 0, 
+    lit18, // 0x42, Operands 0, 
+    lit19, // 0x43, Operands 0, 
+    lit20, // 0x44, Operands 0, 
+    lit21, // 0x45, Operands 0, 
+    lit22, // 0x46, Operands 0, 
+    lit23, // 0x47, Operands 0, 
+    lit24, // 0x48, Operands 0, 
+    lit25, // 0x49, Operands 0, 
+    lit26, // 0x4a, Operands 0, 
+    lit27, // 0x4b, Operands 0, 
+    lit28, // 0x4c, Operands 0, 
+    lit29, // 0x4d, Operands 0, 
+    lit30, // 0x4e, Operands 0, 
+    lit31, // 0x4f, Operands 0, 
+    reg0, // 0x50, Operands 0, 
+    reg1, // 0x51, Operands 0, 
+    reg2, // 0x52, Operands 0, 
+    reg3, // 0x53, Operands 0, 
+    reg4, // 0x54, Operands 0, 
+    reg5, // 0x55, Operands 0, 
+    reg6, // 0x56, Operands 0, 
+    reg7, // 0x57, Operands 0, 
+    reg8, // 0x58, Operands 0, 
+    reg9, // 0x59, Operands 0, 
+    reg10, // 0x5a, Operands 0, 
+    reg11, // 0x5b, Operands 0, 
+    reg12, // 0x5c, Operands 0, 
+    reg13, // 0x5d, Operands 0, 
+    reg14, // 0x5e, Operands 0, 
+    reg15, // 0x5f, Operands 0, 
+    reg16, // 0x60, Operands 0, 
+    reg17, // 0x61, Operands 0, 
+    reg18, // 0x62, Operands 0, 
+    reg19, // 0x63, Operands 0, 
+    reg20, // 0x64, Operands 0, 
+    reg21, // 0x65, Operands 0, 
+    reg22, // 0x66, Operands 0, 
+    reg23, // 0x67, Operands 0, 
+    reg24, // 0x68, Operands 0, 
+    reg25, // 0x69, Operands 0, 
+    reg26, // 0x6a, Operands 0, 
+    reg27, // 0x6b, Operands 0, 
+    reg28, // 0x6c, Operands 0, 
+    reg29, // 0x6d, Operands 0, 
+    reg30, // 0x6e, Operands 0, 
+    reg31, // 0x6f, Operands 0, 
+    breg0, // 0x70, Operands 1, SLEB128 offset
+    breg1, // 0x71, Operands 1, 
+    breg2, // 0x72, Operands 1, 
+    breg3, // 0x73, Operands 1, 
+    breg4, // 0x74, Operands 1, 
+    breg5, // 0x75, Operands 1, 
+    breg6, // 0x76, Operands 1, 
+    breg7, // 0x77, Operands 1, 
+    breg8, // 0x78, Operands 1, 
+    breg9, // 0x79, Operands 1, 
+    breg10, // 0x7a, Operands 1, 
+    breg11, // 0x7b, Operands 1, 
+    breg12, // 0x7c, Operands 1, 
+    breg13, // 0x7d, Operands 1, 
+    breg14, // 0x7e, Operands 1, 
+    breg15, // 0x7f, Operands 1, 
+    breg16, // 0x80, Operands 1, 
+    breg17, // 0x81, Operands 1, 
+    breg18, // 0x82, Operands 1, 
+    breg19, // 0x83, Operands 1, 
+    breg20, // 0x84, Operands 1, 
+    breg21, // 0x85, Operands 1, 
+    breg22, // 0x86, Operands 1, 
+    breg23, // 0x87, Operands 1, 
+    breg24, // 0x88, Operands 1, 
+    breg25, // 0x89, Operands 1, 
+    breg26, // 0x8a, Operands 1, 
+    breg27, // 0x8b, Operands 1, 
+    breg28, // 0x8c, Operands 1, 
+    breg29, // 0x8d, Operands 1, 
+    breg30, // 0x8e, Operands 1, 
+    breg31, // 0x8f, Operands 1, 
+    regx, // 0x90, Operands 1, ULEB128 register
+    fbreg, // 0x91, Operands 1, SLEB128 offset
+    bregx, // 0x92, Operands 2, ULEB128 register, SLEB128 offset
+    piece, // 0x93, Operands 1, ULEB128 size of piece
+    deref_size, // 0x94, Operands 1, 1-byte size of data retrieved
+    xderef_size, // 0x95, Operands 1, 1-byte size of data retrieved
+    nop, // 0x96, Operands 0, 
+    push_object_address, // 0x97, Operands 0, 
+    call2, // 0x98, Operands 1, 2-byte offset of DIE
+    call4, // 0x99, Operands 1, 4-byte offset of DIE
+    call_ref, // 0x9a, Operands 1, 4- or 8-byte offset of DIE
+    form_tls_address, // 0x9b, Operands 0, 
+    call_frame_cfa, // 0x9c, Operands 0, 
+    bit_piece, // 0x9d, Operands 2, ULEB128 size, ULEB128 offset
+    implicit_value, // 0x9e, Operands 2, ULEB128 size, block of that size
+    stack_value, // 0x9f, Operands 0, 
+    implicit_pointer, // 0xa0, Operands 2, 4- or 8-byte offset of DIE, SLEB128 constant offset
+    addrx, // 0xa1, Operands 1, ULEB128 indirect address
+    constx, // 0xa2, Operands 1, ULEB128 indirect constant
+    entry_value, // 0xa3, Operands 2, ULEB128 size, block of that size
+    const_type, // 0xa4, Operands 3, ULEB128 type entry offset, 1-byte size, constant value
+    regval_type, // 0xa5, Operands 2, ULEB128 register number, ULEB128 constant offset
+    deref_type, // 0xa6, Operands 2, 1-byte size, ULEB128 type entry offset
+    xderef_type, // 0xa7, Operands 2, 1-byte size, ULEB128 type entry offset
+    convert, // 0xa8, Operands 1, ULEB128 type entry offset
+    reinterpret, // 0xa9, Operands 1, ULEB128 type entry offset
+}
+
+class AttrExpr {
+    extend AttrValue;
+    ops: Op[];
+
+    fn construct(ops: Op[]) => AttrExpr {
+        self := AttrExpr();
+        self.print = print;
+        self.form = Form.exprloc;
+        self.ops = ops;
+        return self;
+    }
+
+    fn print(attr: AttrValue, tag: Attr) => u32 {
+        self := attr$cast(AttrExpr);
+        data := print_data_directive(ASMX86.DataDirective.Byte, self.ops.size$cast(str) .. "                               # DW_AT_" .. tag->to_str());
+        for (op := self.ops) {
+            data += print_data_directive(ASMX86.DataDirective.Byte, op$cast(str) .. "                               # DW_OP_" .. op->to_str());
+        }
+        return data;
     }
 }
 
@@ -647,11 +856,18 @@ class AttrRef {
         return self;
     }
 
-    fn print(attr: AttrValue) => u32 {
+    fn print(attr: AttrValue, tag: Attr) => u32 {
         self := attr$cast(AttrRef);
-        return print_data(self.die.data_offset$cast(str) .. "                               # DW_FORM_" .. self.form->to_str(), self.form);
+        return print_data(self.die.data_offset$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
     }
 }
+
+/*
+export class Variable {
+    name: str;
+    stack_offset: u32;
+} 
+*/
 
 export class DebugInfo {
     version: u8;
@@ -759,11 +975,11 @@ export class DebugInfo {
         
         for (die := self.dies) {
             die.data_offset = data_size;
-            data_size += print_data_directive(ASMX86.DataDirective.Byte, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "]");
+            data_size += print_data_directive(ASMX86.DataDirective.Byte, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "], DW_TAG_" .. die.tag->to_str() .. " " .. data_size$cast(str) .. " byte(s) offset");
 
             for (attr := die.attrs) {
                 if (attr.value.print != null) {
-                    data_size += attr.value->print();
+                    data_size += attr.value->print(attr.attr);
                 }
             }
         }
@@ -808,9 +1024,10 @@ export class DebugInfo {
     from type_base import Type
     export fn add_function(self: DebugInfo, 
         func_name: str,
-        return_type: Type,
         func_index: u16,
+        return_type: Type,
         decl_line: u64,
+        variables: ASMX86.Variable[],
         is_pub: bool, // DW_AT_external
         is_main: bool) { // DW_AT_main_subprogram 
         self.abbrs[0].has_children = true;
@@ -818,7 +1035,7 @@ export class DebugInfo {
         return_type_die: DIE;
         from type import Types
         if (return_type != null && return_type != Types.instance.type_void$cast(Type)) {
-            //return_type_die = self->construct_type_die(return_type);
+            return_type_die = self->construct_type_die(return_type);
         }
 
         low_pc_index := self.func_addresses.size;
@@ -827,13 +1044,15 @@ export class DebugInfo {
         die := DIE();
 
         die.tag = DIE.Tag.subroutine_type;
-        die.attrs = AttrPair[5]{
+        die.attrs = AttrPair[6]{
             AttrPair.construct(Attr.low_pc, AttrAddr.construct(low_pc_index$cast(str))),
             AttrPair.construct(Attr.high_pc, AttrAddrData.construct(".Lfunc_end" .. func_index$cast(str) .. "-.Lfunc_begin" .. func_index$cast(str), 4)),
-            // frame base
+            AttrPair.construct(Attr.frame_base, AttrExpr.construct(Op[1]{
+                Op.reg8,
+            })),
             AttrPair.construct(Attr.name, AttrStr.construct(func_name)),
             AttrPair.construct(Attr.decl_file, AttrData.construct(0, 1)),
-            AttrPair.construct(Attr.decl_file, AttrData.construct(decl_line, 1)),
+            AttrPair.construct(Attr.decl_line, AttrData.construct(decl_line, 1)),
         };
 
         if (return_type_die != null) {
@@ -846,6 +1065,31 @@ export class DebugInfo {
 
         if (is_main) {
             die.attrs ..= AttrPair.construct(Attr.main_subprogram, AttrValue.construct_empty(Form.flag_present));
+        }
+
+        if (variables != null) {
+            die.children = DIE[variables.size];
+
+            i: u64;
+            for (variable := variables) {
+                type_die := self->construct_type_die(variable.type);
+
+                variable_die := DIE();
+
+                variable_die.tag = DIE.Tag.variable;
+                variable_die.attrs = AttrPair[3]{
+                    AttrPair.construct(Attr.location, AttrExpr.construct(Op[1]{
+                        Op.reg8,
+                    })),
+                    AttrPair.construct(Attr.name, AttrStr.construct(variable.name)),
+                    AttrPair.construct(Attr.type, AttrRef.construct(type_die, 4)),
+                    //AttrPair.construct(Attr.decl_file, AttrData.construct(0, 1)),
+                    //AttrPair.construct(Attr.decl_line, AttrData.construct(decl_line, 1)),
+                };
+
+                die.children[i] = variable_die;
+                i += 1;
+            }
         }
 
         self->add_die(die);
@@ -866,9 +1110,14 @@ export class DebugInfo {
             if (value.form == Form.string) {
                 str_value := value$cast(AttrStr);
                 string_index := self->register_string(str_value.value);
-                assert(string_index < 255);
 
-                str_value.form = Form.strx1;
+                if (string_index <= 255) {
+                    str_value.form = Form.strx1;
+                } else if (string_index <= 65535) {
+                    str_value.form = Form.strx2;
+                } else {
+                    assert(false);
+                }
                 str_value.index = string_index;
             }
         }

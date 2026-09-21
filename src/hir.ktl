@@ -12,6 +12,9 @@ export class HIR {
         NONE_STMT,
         BEGIN_STMT,
 
+        ADD_LOCAL_VARIABLE,
+        REMOVE_LOCAL_VARIABLE,
+
         LOGICAL_NOT,
         BITWISE_NOT,
 
@@ -91,6 +94,10 @@ export class HIR {
         RETURN_VALUE,
     }
 
+    export fn is_technical(tag: Tag) => bool {
+        return tag <= Tag.REMOVE_LOCAL_VARIABLE;
+    }
+
     export fn is_terminator(tag: Tag) => bool {
         return tag >= Tag.JUMP;
     }
@@ -143,6 +150,11 @@ export class HIR {
     export class Instr {
         tag: Tag;
         src_info: SrcInfo;
+    }
+
+    export class VariableOp {
+        extend Instr;
+        name: str;
     }
 
     export class InstrWithOutput {
@@ -406,7 +418,7 @@ export class HIR {
             instr_offset := hir.block_offsets[block];
             assert(instr_offset < hir.instrs.size);
             instr := hir.instrs[instr_offset];
-            while ((instr.tag == Tag.NONE_STMT || instr.tag == Tag.BEGIN_STMT) &&
+            while (HIR.is_technical(instr.tag) &&
                 (instr_offset += 1) < hir.instrs.size) {
                 instr = hir.instrs[instr_offset];
             }

@@ -144,7 +144,7 @@ class Module {
                 );
 
             if (module.init_asm_x86 != null) {
-                debug_info->add_function(module.name .. "..init", Types.instance.type_void, 0, 0 /* TODO line */, false, true);
+                debug_info->add_function(module.name .. "..init", 0, Types.instance.type_void, 0 /* TODO line */, null, false, true);
             }
 
             // we do not produce debug info for the entry code
@@ -159,7 +159,7 @@ class Module {
                     }
                     from type import TypeFunction
                     func_type := compile_func_decl.node.value.type$cast(TypeFunction);
-                    debug_info->add_function(compile_func_decl.node.name, func_type.signature.parameters[0], func_index, 0 /* TODO line */, is_pub, false);
+                    debug_info->add_function(compile_func_decl.node.name, func_index, func_type.signature.parameters[0], 0 /* TODO line */, compile_func_decl.asm_x86.variables, is_pub, false);
                 }
                 i += 1;
             }

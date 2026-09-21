@@ -85,7 +85,7 @@ fn main(args: str[]) => i64 {
 
     prog_name := args[0];
     if (prog_name.size >= 8 && prog_name[prog_name.size - 8:prog_name.size - 4] == "test") {
-        //assert(false);
+        assert(false);
     }
 
     return 0;

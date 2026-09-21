@@ -19,6 +19,8 @@ from lexer import Lexer
 
 from namespace import Namespace
 
+//from dwarf import Variable
+
 export class ASMX86 {
 
     enum ABI: u8 {
@@ -644,7 +646,14 @@ export class ASMX86 {
         }
     }
 
+    export class Variable {
+        name: str;
+        type: Type;
+        stack_offset: u32;
+    } 
+
     instrs: Instr[];
+    variables: Variable[];
 
     #shared parameters_regs := Reg[][ABI$count] {
         Reg[4]{
@@ -666,14 +675,16 @@ export class ASMX86 {
     export class Builder {
 
         class ArgInfo {
-            stack_offset: u32;
             name: str;
+            type: Type;
+            stack_offset: u32;
 
-            export fn construct(stack_offset: u32, name: str) => ArgInfo {
+            export fn construct(stack_offset: u32, type: Type, name: str) => ArgInfo {
                 self := ArgInfo();
 
-                self.stack_offset = stack_offset;
                 self.name = name;
+                self.type = type;
+                self.stack_offset = stack_offset;
 
                 return self;
             }
@@ -689,7 +700,7 @@ export class ASMX86 {
 
         };
 
-        log_info: ErrorsAccum.SourceInfo;
+        source_info: ErrorsAccum.SourceInfo;
         hir: HIR;
         instrs: Instr[];
         hir_to_asm_offsets: IntHashMap;
@@ -701,7 +712,7 @@ export class ASMX86 {
         debug_begin_stmt: bool;
         debug_inserted_prolog: bool;
         
-        export fn construct(abi: ABI, emit_debug_info: bool, log_info: ErrorsAccum.SourceInfo) => Builder {
+        export fn construct(abi: ABI, emit_debug_info: bool, source_info: ErrorsAccum.SourceInfo) => Builder {
             self := Builder();
 
             self.abi = abi;
@@ -710,7 +721,7 @@ export class ASMX86 {
                 self.abi = ABI.WINDOWS;
             }
             self.emit_debug_info = emit_debug_info;
-            self.log_info = log_info;
+            self.source_info = source_info;
 
             self.hir_to_asm_offsets = IntHashMap.construct();
             self.variables = IntHashMap.construct();
@@ -723,9 +734,9 @@ export class ASMX86 {
                 return;
             }
 
-            assert(self.log_info.filename == src_info.filename);
-            line := self.log_info->find_line(src_info.source_offset);
-            col := src_info.source_offset - self.log_info->get_line_offset(line);
+            assert(self.source_info.filename == src_info.filename);
+            line := self.source_info->find_line(src_info.source_offset);
+            col := src_info.source_offset - self.source_info->get_line_offset(line);
             
             directive := "loc    1 " .. (line + 1)$cast(str) .. " " .. (col + 1)$cast(str);
             if (additional != null) {
@@ -1353,7 +1364,7 @@ export class ASMX86 {
                 decl := self.hir.decls[decl_id];
 
                 // local or temporary variable
-                arg_info := ArgInfo.construct(self.stack_reserved_size, decl.name);
+                arg_info := ArgInfo.construct(self.stack_reserved_size, decl->get_type(), decl.name);
 
 
                 bucket := self.variables->get_or_insert(decl_id, arg_info);
@@ -1391,7 +1402,7 @@ export class ASMX86 {
                     assert(decl.kind == HIR.Decl.Kind.Parameter);
                     parameter := decl$cast(HIR.DeclParameter);
 
-                    arg_info := ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl.name);
+                    arg_info := ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl->get_type(), decl.name);
 
                     self.variables->get_or_insert(decl_id, arg_info);
 
@@ -1444,6 +1455,12 @@ export class ASMX86 {
                         assert(false);
                     }
                     case HIR.Tag.BEGIN_STMT => self.debug_begin_stmt = true;
+
+                    case HIR.Tag.ADD_LOCAL_VARIABLE => {
+
+                    }
+                    case HIR.Tag.REMOVE_LOCAL_VARIABLE => {}
+
                     case HIR.Tag.UNARY_PLUS => {}
                     case HIR.Tag.LOGICAL_NOT
                     case HIR.Tag.BITWISE_NOT
@@ -1844,7 +1861,7 @@ export class ASMX86 {
                         dest := self.hir->get_first_non_empty_block(hir_info.dst);
 
                         if (met_jump_in_block) {
-                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.source_info.filename);
                             assert(false);
                         }
                         met_jump_in_block = true;
@@ -1870,7 +1887,7 @@ export class ASMX86 {
                         false_dest := self.hir->get_first_non_empty_block(hir_info.false_dst);
 
                         if (met_jump_in_block) {
-                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. true_dest$cast(str) .. " or block " .. false_dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            io.errorln("Second jump in block " .. block_counter$cast(str) .. " to block " .. true_dest$cast(str) .. " or block " .. false_dest$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.source_info.filename);
                             assert(false);
                         }
                         met_jump_in_block = true;
@@ -1918,7 +1935,7 @@ export class ASMX86 {
                     }
                 }
                 
-                if (instr.tag != HIR.Tag.NONE_STMT && instr.tag != HIR.Tag.BEGIN_STMT) {
+                if (!HIR.is_technical(instr.tag)) {
                     first_instr_in_block = false;
                 }
 
@@ -1936,7 +1953,7 @@ export class ASMX86 {
                         block_offset := self.hir.block_offsets[block];
                         bucket := self.hir_to_asm_offsets->get_or_null(block_offset);
                         if (bucket == null) {
-                            io.errorln("Can't find block " .. block$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.log_info.filename);
+                            io.errorln("Can't find block " .. block$cast(str) .. " in function " .. func_index$cast(str) .. " of file " .. self.source_info.filename);
                             assert(false);
                         }
                         instr.goto_offset = bucket.value$cast(u64)$cast(u32);
@@ -1948,6 +1965,25 @@ export class ASMX86 {
 
             asm_x86 := ASMX86();
             asm_x86.instrs = self.instrs;
+            asm_x86.variables = Variable[0];
+            {
+                for (bucket := self.variables.buckets) {
+                    while (bucket != null) {
+                        arg_info := bucket.value$cast(ArgInfo);
+
+                        if (arg_info.name[0] != '~' 
+                            && arg_info.type != null && arg_info.type != Types.instance.type_void$cast(Type)) {
+                            variable := Variable();
+                            variable.name = arg_info.name;
+                            variable.type = arg_info.type;
+                            variable.stack_offset = arg_info.stack_offset;
+                            asm_x86.variables ..= variable;
+                        }
+                        
+                        bucket = bucket.next;
+                    }
+                }
+            }
             return asm_x86;
         }
     }
