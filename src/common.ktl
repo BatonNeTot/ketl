@@ -136,6 +136,8 @@ export class HashMap {
 
     export fn clear(self: HashMap) {
         self.size = 0;
+        initial_capacity := prime_capacities[self.capacity_index];
+        self.buckets = Bucket[initial_capacity];
     }
 }
 

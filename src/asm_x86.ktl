@@ -19,15 +19,15 @@ from lexer import Lexer
 
 from namespace import Namespace
 
-//from dwarf import Variable
+from assembly import Target
+from assembly import Assembly
+
+import dwarf
 
 export class ASMX86 {
 
-    enum ABI: u8 {
-        WINDOWS,
-        SYSTEM_V,
-        DEFAULT,
-    }
+
+    // Declarations //////////////////////
 
     export enum Tag: u8 {
         LABEL,
@@ -102,6 +102,7 @@ export class ASMX86 {
     }
 
     export enum DataDirective: u8 {
+        None,
         Byte,
         Word,
         Short,
@@ -196,28 +197,6 @@ export class ASMX86 {
         R14,
         R15,
         None,
-    }
-
-    export fn reg_to_dwarf(reg: u64) => u64 {
-        switch (reg$cast(Reg)) {
-            case Reg.AX => return 0;
-            case Reg.CX => return 2;
-            case Reg.DX => return 1;
-            case Reg.BX => return 3;
-            case Reg.SP => return 7;
-            case Reg.BP => return 6;
-            case Reg.SI => return 4;
-            case Reg.DI => return 5;
-            case Reg.R8 => return 8;
-            case Reg.R9 => return 9;
-            case Reg.R10 => return 10;
-            case Reg.R11 => return 11;
-            case Reg.R12 => return 12;
-            case Reg.R13 => return 13;
-            case Reg.R14 => return 14;
-            case Reg.R15 => return 15;
-        }
-        return (-1)$cast(u64);
     }
 
     export fn print_reg(reg: Reg, size: Size) {
@@ -646,23 +625,20 @@ export class ASMX86 {
         }
     }
 
-    export class Variable {
-        name: str;
-        type: Type;
-        stack_offset: u32;
-    } 
+    // Fields //////////////////////
 
+    extend Assembly;
     instrs: Instr[];
-    variables: Variable[];
+    variables: dwarf.Variable[];
 
-    #shared parameters_regs := Reg[][ABI$count] {
-        Reg[4]{
+    #shared parameters_regs := Reg[][Target$count] {
+        Target.X86_64_WINDOWS_CLANG => Reg[4]{
             Reg.CX,
             Reg.DX,
             Reg.R8,
             Reg.R9,
         },
-        Reg[6]{
+        Target.X86_64_SYSTEM_V_CLANG => Reg[6]{
             Reg.DI,
             Reg.SI,
             Reg.DX,
@@ -672,14 +648,16 @@ export class ASMX86 {
         },
     };
 
+    // Declarations //////////////////////
+
     export class Builder {
 
         class ArgInfo {
             name: str;
             type: Type;
-            stack_offset: u32;
+            stack_offset: i32;
 
-            export fn construct(stack_offset: u32, type: Type, name: str) => ArgInfo {
+            export fn construct(stack_offset: i32, type: Type, name: str) => ArgInfo {
                 self := ArgInfo();
 
                 self.name = name;
@@ -692,7 +670,7 @@ export class ASMX86 {
             export fn error() => ArgInfo {
                 self := ArgInfo();
 
-                self.stack_offset = (-1)$cast(u32);
+                self.stack_offset = 0;
                 self.name = "<undefined>";
 
                 return self;
@@ -700,27 +678,29 @@ export class ASMX86 {
 
         };
 
+        extend Assembly.Builder;
         source_info: ErrorsAccum.SourceInfo;
         hir: HIR;
         instrs: Instr[];
         hir_to_asm_offsets: IntHashMap;
         variables: IntHashMap;
         stack_reserved_size: u32;
-        abi: ABI;
+        target: Target;
         emit_debug_info: bool;
         debug_is_stmt: bool;
         debug_begin_stmt: bool;
         debug_inserted_prolog: bool;
         
-        export fn construct(abi: ABI, emit_debug_info: bool, source_info: ErrorsAccum.SourceInfo) => Builder {
+        export fn construct(target: Target, source_info: ErrorsAccum.SourceInfo) => Builder {
             self := Builder();
 
-            self.abi = abi;
-            if (abi == ABI.DEFAULT) {
+            self.build = build;
+
+            self.target = target;
+            if (target == Target.DEFAULT) {
                 // TODO actually deduce from the system
-                self.abi = ABI.WINDOWS;
+                self.target = Target.X86_64_WINDOWS_CLANG;
             }
-            self.emit_debug_info = emit_debug_info;
             self.source_info = source_info;
 
             self.hir_to_asm_offsets = IntHashMap.construct();
@@ -958,7 +938,7 @@ export class ASMX86 {
         class AsmArgOnStack {
             extend AsmArg;
             name: str;
-            stack: u64;
+            stack: i64;
         }
 
         class AsmArgRef {
@@ -1201,18 +1181,18 @@ export class ASMX86 {
             assert(false);
         }
 
-        fn modrm_stack(self: Builder, size: Size, stack: u64, name: str) => ModRM {
-            switch (self.abi) {
-                case ABI.WINDOWS =>
+        fn modrm_stack(self: Builder, size: Size, stack: i64, name: str) => ModRM {
+            switch (self.target) {
+                case Target.X86_64_WINDOWS_CLANG =>
                     // TODO self.inline_symbols
                     if (true) {
                         return ModRM.construct_indir_base_label(Reg.SP, name, stack$cast(i32));
                     } else {
                         return ModRM.construct_indir_base_disp(Reg.SP, stack$cast(i32));
                     }
-                case ABI.SYSTEM_V =>
+                case Target.X86_64_SYSTEM_V_CLANG =>
                     // TODO 4294967296 => 0x100000000
-                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(u64) - stack - size)$cast(i32));
+                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(i64) - stack - size$cast(i64))$cast(i32));
             }
 
             assert(false);
@@ -1280,13 +1260,13 @@ export class ASMX86 {
             while (true) {
                 arg := arguments[i];
                 
-                regs := parameters_regs[self.abi];
-                reg_count := regs.size;
+                abi_parameters_regs := parameters_regs[self.target];
+                reg_count := abi_parameters_regs.size;
                 if (i < reg_count) {
-                    reg := regs[i];
+                    reg := abi_parameters_regs[i];
                     self->insert_mov_to_reg(arg.size, reg, arg);
                 } else {
-                    assert(self.abi == ABI.WINDOWS);
+                    //assert(self.target == Target.X86_64_WINDOWS_CLANG);
 
                     self->insert_mov_to_reg(arg.size, Reg.AX, arg);
                     reg_space_size := raw$size * reg_count;
@@ -1297,7 +1277,7 @@ export class ASMX86 {
                     parameter.type = arg.type;
 
                     parameter.name = null;
-                    parameter.stack = reg_space_size + (i - reg_count) * raw$size;
+                    parameter.stack = (reg_space_size + (i - reg_count) * raw$size)$cast(i64);
 
                     self->insert_mov_from_reg(arg.size, parameter, Reg.AX);
                 }
@@ -1312,8 +1292,8 @@ export class ASMX86 {
         fn finalize_stask_size(self: Builder) {
             has_calls := self.hir.max_call_arg_count != (-1)$cast(u8);
 
-            switch (self.abi) {
-                case ABI.WINDOWS => {
+            switch (self.target) {
+                case Target.X86_64_WINDOWS_CLANG => {
                     WINDOWS_SHADOW_STACK_SPACE: u32 = 8; // I'm not sure about it, I came to this during msvc disasm study
                     if (!has_calls && self.stack_reserved_size <= 0) {
                         self.stack_reserved_size = 0;
@@ -1324,33 +1304,35 @@ export class ASMX86 {
                     self.stack_reserved_size += WINDOWS_SHADOW_STACK_SPACE; // add shadow space AFTER alignment
                     return;
                 }
-                case ABI.SYSTEM_V => {
-                    SYSTEM_V_SHADOW_STACK_SPACE: u32 = 128;
-                    if (!((has_calls && self.stack_reserved_size > 0) || (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE))) {
+                case Target.X86_64_SYSTEM_V_CLANG => {
+                    if (!(has_calls && self.stack_reserved_size > 0)) {
                         return;
-                    }
-
-                    if (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE) {
-                        self.stack_reserved_size -= SYSTEM_V_SHADOW_STACK_SPACE;
                     }
                     self.stack_reserved_size = align_forward(self.stack_reserved_size, 16)$cast(u32); // 16-bites aligned
                 }
             };
         }
 
-        export fn build(self: Builder, hir: HIR, func_index: u16) => ASMX86 {
+        export fn build(builder: Assembly.Builder, hir: HIR, func_name: str, func_index: u16, emit_debug_info: bool, return_type: Type) => Assembly {
+            self := builder$cast(Builder);
+
+            self.emit_debug_info = emit_debug_info;
+
+            assert(self.instrs == null);
             self.instrs = Instr[0];
             self.hir = hir;
+            self.hir_to_asm_offsets->clear();
             self.variables->clear();
 
             self.stack_reserved_size = 0;
             self.debug_is_stmt = true;
 
-            abi_parameters_regs := parameters_regs[self.abi];
+            abi_parameters_regs := parameters_regs[self.target];
+            has_calls := self.hir.max_call_arg_count != (-1)$cast(u8);
 
-            assert(self.abi == ABI.WINDOWS);
-            {
-                if (self.hir.max_call_arg_count != (-1)$cast(u8) && self.hir.max_call_arg_count > 0) {
+            if (self.target == Target.X86_64_WINDOWS_CLANG) {
+                if (has_calls && self.hir.max_call_arg_count > 0) {
+                    // TODO wtf?? what it's supposed to be
                     parameters_needed := abi_parameters_regs.size;
                     if (parameters_needed < self.hir.max_call_arg_count) {
                         parameters_needed = self.hir.max_call_arg_count;
@@ -1359,41 +1341,56 @@ export class ASMX86 {
                 }
             }
 
-            decl_id: HIR.DeclId = self.hir.parameters_count;
-            while (decl_id < self.hir.decls.size) {
-                decl := self.hir.decls[decl_id];
+            {
+                decl_id: HIR.DeclId = self.hir.parameters_count;
+                while (decl_id < self.hir.decls.size) {
+                    decl := self.hir.decls[decl_id];
 
-                // local or temporary variable
-                arg_info := ArgInfo.construct(self.stack_reserved_size, decl->get_type(), decl.name);
+                    // local or temporary variable
+                    arg_info := ArgInfo.construct(self.stack_reserved_size$cast(i32), decl->get_type(), decl.name);
 
+                    bucket := self.variables->get_or_insert(decl_id, arg_info);
+                    if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
+                        // TODO FIX take into account type size and alignment
+                        self.stack_reserved_size += i64$size;
+                    }
 
-                bucket := self.variables->get_or_insert(decl_id, arg_info);
-                if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
-                    // TODO FIX take into account type size and alignment
-                    self.stack_reserved_size += i64$size;
+                    decl_id += 1;
                 }
-
-                decl_id += 1;
             }
 
             self->finalize_stask_size();
 
-            assert(self.abi == ABI.WINDOWS);
-            {
-                if (self.stack_reserved_size > 0) {
-                    if (self.stack_reserved_size < 4096) {
-                            self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
-                    } else {
-                            self->insert_rm_imm(Tag.MOV, Size.Ptr, ModRM.construct_reg(Reg.AX), self.stack_reserved_size);
-                            func_name := "___chkstk_ms";
-                            self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
-                            self->insert_rm_reg(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), Reg.AX);
+            switch (self.target) {
+                case Target.X86_64_WINDOWS_CLANG => {
+                    if (self.stack_reserved_size > 0) {
+                        if (self.stack_reserved_size < 4096) {
+                                self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                        } else {
+                                self->insert_rm_imm(Tag.MOV, Size.Ptr, ModRM.construct_reg(Reg.AX), self.stack_reserved_size);
+                                func_name := "___chkstk_ms";
+                                self->insert_rm(Tag.CALL, Size.Ptr, ModRM.construct_literal(func_name));
+                                self->insert_rm_reg(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), Reg.AX);
+                        }
+
+                        self->directive("seh_stackalloc " .. self.stack_reserved_size$cast(str));
+                        self->directive("seh_endprologue");
                     }
-
-                    self->directive(("seh_stackalloc " .. self.stack_reserved_size$cast(str)));
-                    self->directive("seh_endprologue");
                 }
+                case Target.X86_64_SYSTEM_V_CLANG => {
+                    self->insert_rm(Tag.PUSH, Size.Ptr, ModRM.construct_reg(Reg.BP));
+                    self->directive("cfi_def_cfa_offset 16");
+                    self->directive("cfi_offset rbp, -16");
+                    self->insert_rm_reg(Tag.MOV, Size.Ptr, ModRM.construct_reg(Reg.BP), Reg.SP);
+                    self->directive("cfi_def_cfa_register rbp");
+                    if (self.stack_reserved_size > 0) {
+                        self->insert_rm_imm(Tag.SUB, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                    }
+                }
+                default => assert(false);
+            }
 
+            {
                 decl_id: HIR.DeclId = self.hir.parameters_count;
                 while (decl_id > 0) {
                     decl_id -= 1;
@@ -1402,7 +1399,7 @@ export class ASMX86 {
                     assert(decl.kind == HIR.Decl.Kind.Parameter);
                     parameter := decl$cast(HIR.DeclParameter);
 
-                    arg_info := ArgInfo.construct((decl_id + 1) * raw$size + self.stack_reserved_size, decl->get_type(), decl.name);
+                    arg_info := ArgInfo.construct(((decl_id + 1) * raw$size + self.stack_reserved_size)$cast(i32), decl->get_type(), decl.name);
 
                     self.variables->get_or_insert(decl_id, arg_info);
 
@@ -1600,6 +1597,9 @@ export class ASMX86 {
                     case HIR.Tag.ASSIGN_DIVIDE
                     case HIR.Tag.ASSIGN_MOD
 
+                    case HIR.Tag.ASSIGN_BITWISE_SHIFT_LEFT
+                    case HIR.Tag.ASSIGN_BITWISE_SHIFT_RIGHT
+
                     case HIR.Tag.ASSIGN_BITWISE_AND
                     case HIR.Tag.ASSIGN_BITWISE_OR
                     case HIR.Tag.ASSIGN_BITWISE_XOR => {
@@ -1633,6 +1633,13 @@ export class ASMX86 {
                             case HIR.Tag.ASSIGN_BITWISE_AND => self->insert_reg_rm(Tag.AND, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_BITWISE_OR => self->insert_reg_rm(Tag.OR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
                             case HIR.Tag.ASSIGN_BITWISE_XOR => self->insert_reg_rm(Tag.XOR, size, Reg.AX, ModRM.construct_reg(Reg.CX));
+
+                            case HIR.Tag.ASSIGN_BITWISE_SHIFT_LEFT =>
+                                if (type->is_signed()) self->insert_rm_cl(Tag.SAL, size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm_cl(Tag.SHL, size, ModRM.construct_reg(Reg.AX));
+                            case HIR.Tag.ASSIGN_BITWISE_SHIFT_RIGHT =>
+                                if (type->is_signed()) self->insert_rm_cl(Tag.SAR, size, ModRM.construct_reg(Reg.AX));
+                                else                   self->insert_rm_cl(Tag.SHR, size, ModRM.construct_reg(Reg.AX));
                         }
                         self->insert_mov_from_reg(size, self->get_arg_from_hir(hir_info.dst), Reg.AX);
                     }
@@ -1910,11 +1917,26 @@ export class ASMX86 {
                     }
 
                     case HIR.Tag.RETURN => {
-                        if (self.stack_reserved_size > 0) {
-                            self->directive("seh_startepilogue");
-                            self->push_line_debug_info(instr.src_info, "epilogue_begin");
-                            self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
-                            self->directive("seh_endepilogue");
+                        assert(return_type == Types.instance.type_void$cast(Type));
+
+                        switch (self.target) {
+                            case Target.X86_64_WINDOWS_CLANG => {
+                                if (self.stack_reserved_size > 0) {
+                                    self->directive("seh_startepilogue");
+                                    self->push_line_debug_info(instr.src_info, "epilogue_begin");
+                                    self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                                    self->directive("seh_endepilogue");
+                                }
+                            }
+                            case Target.X86_64_SYSTEM_V_CLANG => {
+                                self->push_line_debug_info(instr.src_info, "epilogue_begin");	
+                                if (self.stack_reserved_size > 0) {
+                                    self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                                }
+                                self->insert_rm(Tag.POP, Size.Ptr, ModRM.construct_reg(Reg.BP));
+                                self->directive("cfi_def_cfa rsp, 8");
+                            }
+                            default => assert(false);
                         }
                         self->insert(Tag.RET);
                     }
@@ -1923,13 +1945,28 @@ export class ASMX86 {
                         hir_info := instr$cast(HIR.ReturnValue);
                         value := self.hir.vars[hir_info.value];
                         type := value->get_type_forced();
+                        assert(return_type == type);
                         size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
-                        if (self.stack_reserved_size > 0) {
-                            self->directive("seh_startepilogue");
-                            self->push_line_debug_info(instr.src_info, "epilogue_begin");
-                            self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
-                            self->directive("seh_endepilogue");
+
+                        switch (self.target) {
+                            case Target.X86_64_WINDOWS_CLANG => {
+                                if (self.stack_reserved_size > 0) {
+                                    self->directive("seh_startepilogue");
+                                    self->push_line_debug_info(instr.src_info, "epilogue_begin");
+                                    self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                                    self->directive("seh_endepilogue");
+                                }
+                            }
+                            case Target.X86_64_SYSTEM_V_CLANG => {
+                                self->push_line_debug_info(instr.src_info, "epilogue_begin");	
+                                if (self.stack_reserved_size > 0) {
+                                    self->insert_rm_imm(Tag.ADD, Size.Ptr, ModRM.construct_reg(Reg.SP), self.stack_reserved_size);
+                                }
+                                self->insert_rm(Tag.POP, Size.Ptr, ModRM.construct_reg(Reg.BP));
+                                self->directive("cfi_def_cfa rsp, 8");
+                            }
+                            default => assert(false);
                         }
                         self->insert(Tag.RET);
                     }
@@ -1964,8 +2001,17 @@ export class ASMX86 {
             }
 
             asm_x86 := ASMX86();
+
+            asm_x86.print = print;
+            asm_x86.func_name = func_name;
+            asm_x86.func_index = func_index;
+            asm_x86.target = self.target;
+            asm_x86.emit_debug_info = emit_debug_info;
+            asm_x86.return_type = return_type;
+
             asm_x86.instrs = self.instrs;
-            asm_x86.variables = Variable[0];
+            self.instrs = null;
+            asm_x86.variables = dwarf.Variable[0];
             {
                 for (bucket := self.variables.buckets) {
                     while (bucket != null) {
@@ -1973,10 +2019,15 @@ export class ASMX86 {
 
                         if (arg_info.name[0] != '~' 
                             && arg_info.type != null && arg_info.type != Types.instance.type_void$cast(Type)) {
-                            variable := Variable();
+                            variable := dwarf.Variable();
                             variable.name = arg_info.name;
                             variable.type = arg_info.type;
-                            variable.stack_offset = arg_info.stack_offset;
+                            variable.ops = dwarf.Op[1] {
+                                dwarf.Op.fbreg,
+                            };
+                            for (value := dwarf.split_value_to_sleb128(arg_info.stack_offset)) {
+                                variable.ops ..= value$cast(dwarf.Op);
+                            }
                             asm_x86.variables ..= variable;
                         }
                         
@@ -1988,27 +2039,401 @@ export class ASMX86 {
         }
     }
 
-    export fn print(self: ASMX86, func_name: str, func_index: u16, emit_debug_info: bool) {
-        io.println("    .def    " .. func_name .. ";                    # @" .. func_name);
-        io.println("    .scl    2;");
-        io.println("    .type   32;");
-        io.println("    .endef");
-        io.println("    .globl	" .. func_name);
-        io.println("    .p2align	4");
-        io.println(func_name .. ":");
-        if (emit_debug_info) {
-            io.println(".Lfunc_begin" .. func_index$cast(str) .. ":");
+    export fn print(assembly: Assembly) {
+        self := assembly$cast(ASMX86);
+
+        if (assembly.target == Target.X86_64_WINDOWS_CLANG) {
+            io.println("    .def    " .. assembly.func_name .. ";");
+            io.println("    .scl    2;");
+            io.println("    .type   32;");
+            io.println("    .endef");
         }
-        io.println(".seh_proc " .. func_name);
+        io.println("    .globl	" .. assembly.func_name);
+        io.println("    .p2align	4");
+        
+        if (assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+            io.println("    .type    " .. assembly.func_name .. ",@function");
+        }
+
+        io.println(assembly.func_name .. ":                    # @" .. assembly.func_name);
+        if (assembly.emit_debug_info) {
+            io.println(".Lfunc_begin" .. assembly.func_index$cast(str) .. ":");
+        }
+        switch (assembly.target) {
+            case Target.X86_64_WINDOWS_CLANG => io.println(".seh_proc " .. assembly.func_name);
+            case Target.X86_64_SYSTEM_V_CLANG => io.println("    .cfi_startproc");
+            default => assert(false);
+        }
 
         for (instr := self.instrs) {
             instr->print(self.instrs);
             io.print("\n");
         }
 
-        io.println("    .seh_endproc");
-        if (emit_debug_info) {
-            io.println(".Lfunc_end" .. func_index$cast(str) .. ":");
+        if (assembly.emit_debug_info || assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+            io.println(".Lfunc_end" .. assembly.func_index$cast(str) .. ":");
+        }
+        if (assembly.target == Target.X86_64_WINDOWS_CLANG) {
+            io.println("    .seh_endproc");
+        } else if (assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+            io.println("    .size   " .. assembly.func_name .. ", .Lfunc_end" .. assembly.func_index$cast(str) .. "-" .. assembly.func_name);
+            io.println("    .cfi_endproc");
         }
     } 
+
+    export fn print_compilation_unit(fullpath: str, target: Target, 
+        entry_assembly: Assembly, init_assembly: Assembly, assemblies: Assembly[], 
+        namespace: Namespace, const_blocks: HIR.ConstBlock[], 
+        emit_debug_info: bool) {
+        filename :=  io.get_filename(fullpath);
+        dir := io.get_dir(fullpath);
+
+        if (target == Target.X86_64_WINDOWS_CLANG) {
+            io.println("    .def    @feat.00;");
+            io.println("    .scl    3;");
+            io.println("    .type   0;");
+            io.println("    .endef");
+            io.println("    .globl  @feat.00");
+            io.println("@feat.00 = 0");
+        }
+        io.println("    .intel_syntax noprefix");
+        io.println("    .file   \"" .. filename .. "\"");
+        if (emit_debug_info) {
+            io.println("    .file   1 \"" .. io.escaped_string(dir) .. "\" \"" .. filename .. "\"");
+        }
+
+        io.println("    .text                    # -- Functions");
+
+        if (entry_assembly != null) {
+            entry_assembly->print();
+        }
+
+        has_functions := false;
+        if (init_assembly != null) {
+            init_assembly->print();
+            has_functions = true;
+        }
+
+        for (assembly := assemblies) {
+            assembly->print();
+            if (assembly.func_name != "main") {
+                has_functions = true;
+            }
+        }
+
+        // insert vars
+        if (namespace->has_vars()) {
+            io.println("    .bss                    # -- Zero-initialized Variables");
+
+            print_asm_zero_initialized_variables_namespace(namespace, target);
+        }
+
+        // insert classes and consts
+        if (namespace->has_classes() || const_blocks.size > 0) {
+            switch (target) {
+                case Target.X86_64_WINDOWS_CLANG => {
+                    io.println("    .section   .rdata,\"dr\"                    # -- Read-only");
+                }
+                case Target.X86_64_SYSTEM_V_CLANG => {
+                    io.println("    .section   .rodata.str1.1,\"aMS\",@progbits,1                    # -- Read-only");
+                }
+                default => assert(false);
+            }
+
+            for (const_block := const_blocks) {
+                for (const_info := const_block.consts_infos) {
+                    constant_name := const_info.name;
+
+                    if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                        io.println("    .type	" .. constant_name .. ",@object                  # @.str");
+                    }
+                    io.println(constant_name .. ":");
+
+                    assert(const_info.is_string);
+                    io.print("    .asciz    \"");
+                    literal := "";
+                    for (symbol := const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
+                        literal ..= symbol$cast(char);
+                    }
+                    io.print(literal);
+                    io.println("\"");
+
+                    if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                        io.println("    .size    " .. constant_name .. ",	" .. const_info.mem_size$cast(str));
+                    }
+                }
+            }
+
+            print_asm_read_only_data_namespace(namespace);
+        }
+
+        if (init_assembly != null) {
+            switch (target) {
+                case Target.X86_64_WINDOWS_CLANG => {
+                    io.println("    .section .ctors,\"dw\",unique,0");
+                }
+                case Target.X86_64_SYSTEM_V_CLANG => {
+                    io.println("    .section .init_array,\"aw\",@init_array");
+                }
+                default => assert(false);
+            }
+            io.println("    .p2align    3, 0x0");
+            io.println("    .quad " .. init_assembly.func_name);
+        }
+
+        debug_line_section_label := ".Lline_table_start0";
+
+        if (emit_debug_info) {
+            import dwarf
+            debug_info := dwarf.DebugInfo.construct(5,
+                filename,
+                ".Lstr_offsets_base0",
+                debug_line_section_label,
+                dir,
+                ".Lfunc_end" .. (assemblies.size)$cast(str) .. "-.Lfunc_begin0",
+                ".Laddr_table_base0",
+                print_data_directive_dwarf
+                );
+
+            function_frame_base: dwarf.Op[];
+            switch (target) {
+                case Target.X86_64_WINDOWS_CLANG => function_frame_base = dwarf.Op[1]{
+                    get_dwarf_op_reg(Reg.SP),
+                };
+                case Target.X86_64_SYSTEM_V_CLANG => function_frame_base = dwarf.Op[1]{
+                    get_dwarf_op_reg(Reg.BP),
+                };
+                default => assert(false);
+            }
+
+            if (init_assembly != null) {
+                debug_info->add_function(
+                    init_assembly.func_name, 
+                    init_assembly.func_index, 
+                    Types.instance.type_void, 
+                    0 /* TODO line */, 
+                    function_frame_base,
+                    null, 
+                    false, 
+                    false);
+            }
+
+            // we do not produce debug info for the entry code
+            
+            for (assembly := assemblies) {
+                if (assembly == null) {
+                    continue;
+                }
+
+                is_pub := true;
+                if (assembly.func_name[0] == '.') {
+                    is_pub = false;
+                }
+                debug_info->add_function(
+                    assembly.func_name, 
+                    assembly.func_index, 
+                    assembly.return_type, 
+                    0 /* TODO line */, 
+                    function_frame_base,
+                    assembly$cast(ASMX86).variables, 
+                    is_pub, 
+                    false);
+            }
+
+            debug_info->print();
+        }
+
+        // insert addrsigs
+        if (has_functions) {
+            io.println("    .p2align    2, 0x0");
+            io.println("    .addrsig");
+
+            if (init_assembly != null) {
+                print_asm_addrsig(init_assembly.func_name);
+            }
+            
+            for (assembly := assemblies) {
+                if (assembly != null) {
+                    print_asm_addrsig(assembly.func_name);
+                }
+            }
+        }
+
+        if (emit_debug_info) {
+            io.println("    .section	.debug_line,\"dr\"");
+            io.println(debug_line_section_label .. ":");
+        }
+    }
+
+    fn print_asm_addrsig(func_name: str) {
+        io.println("    .addrsig_sym " .. func_name);
+    }
+
+    fn print_asm_zero_initialized_variable(node: Namespace.Node, target: Target) {
+        value := node.value;
+        if (value->is_type()) {
+            from type import TypeClass
+            type := value.value$cast(raw)$cast(Type);
+            if (type.kind == Type.Kind.Class) {
+                print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace, target);
+            }
+            return;
+        }
+        
+        if (!value->is_common_var()) {
+            return;
+        }
+        
+        variable_name := node.name;
+
+        if (target == Target.X86_64_SYSTEM_V_CLANG) {
+            io.println("    .type    " .. variable_name .. ",@object                    # @" .. variable_name);
+        }
+        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
+        io.println("    .p2align  " .. value.type.align$cast(str) .. ", 0x0");
+        io.println(variable_name .. ":");
+        io.print("    .");
+        print_directive_size(value.type->get_stack_size()$cast(Size));
+        io.println("   0");
+    }
+
+    fn print_asm_zero_initialized_variables_namespace(namespace: Namespace, target: Target) {
+        for (bucket := namespace.nodes.buckets) {
+            while (bucket != null) {
+                node := bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    print_asm_zero_initialized_variable(node, target);
+                }
+
+                bucket = bucket.next;
+            }
+        }
+    }
+
+    fn print_asm_read_only_data_variable(node: Namespace.Node) {
+        value := node.value;
+        if (!value->is_type()) {
+            return;
+
+        }
+
+        from type import TypeClass
+        type := value.value$cast(raw)$cast(Type);
+        if (type.kind != Type.Kind.Class) {
+            return;
+        }
+        type_class := type$cast(TypeClass);
+        
+        variable_name := node.name;
+
+        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
+        io.println("    .p2align  " .. Types.instance.type_raw.align$cast(str) .. ", 0x0");
+        io.println(variable_name .. ":");
+
+        // TODO get types directly from fields with smth like 'typeof'
+        // TODO good place for reflection
+        io.print("    .");
+        print_directive_size(Types.instance.type_u8->get_stack_size()$cast(Size));
+        io.println("   " .. type_class.kind$cast(str) .. "    # kind");
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_u8->get_stack_size()$cast(Size));
+        io.println("   " .. type_class.align$cast(str) .. "    # align");
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_u16->get_stack_size()$cast(Size));
+        io.println("   " .. type_class.size$cast(str) .. "    # size");
+
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_raw->get_stack_size()$cast(Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # name, TODO");
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_raw->get_stack_size()$cast(Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fullname, TODO");
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_u64->get_stack_size()$cast(Size));
+        io.println("   " .. type_class.fields.size$cast(str) .. "    # fields_count");
+
+        io.print("    .");
+        print_directive_size(Types.instance.type_raw->get_stack_size()$cast(Size));
+        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fields, TODO");
+
+        /* TODO
+        // using .set directive as macro for field offset
+        // cool idea, but must dublicate in files where class is used - hard to track
+        for (uint32_t field_index = 0; field_index < p_class_type->fields_count; ++field_index) {
+            io.println("    .set %s.%s, %"PRIu16"\n", p_variable_name, 
+                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_class_type->p_fields[field_index].s_name),
+                ketl_type_get_field_offset((ketl_type*)p_class_type, p_class_type->p_fields[field_index].s_name, p_state));
+        }
+        */
+
+        print_asm_read_only_data_namespace(type_class.namespace);
+    }
+
+    fn print_asm_read_only_data_namespace(namespace: Namespace) {
+        for (bucket := namespace.nodes.buckets) {
+            while (bucket != null) {
+                node := bucket.value$cast(Namespace.Node);
+                if (!node.info.imported) {
+                    print_asm_read_only_data_variable(node);
+                }
+
+                bucket = bucket.next;
+            }
+        }
+    }
+
+    fn print_data_directive_dwarf(dwarf_data_directive: dwarf.DataDirective, value: str) => u32 {
+        data_directive := DataDirective.None;
+
+        switch (dwarf_data_directive) {
+            case dwarf.DataDirective.Bit8 =>    data_directive = DataDirective.Byte;
+            case dwarf.DataDirective.Bit16 =>   data_directive = DataDirective.Short;
+            case dwarf.DataDirective.Bit32 =>   data_directive = DataDirective.Long;
+            case dwarf.DataDirective.Bit64 =>   data_directive = DataDirective.Quad;
+            case dwarf.DataDirective.Address => data_directive = DataDirective.Secrel32;
+            default => assert(false);
+        }
+
+        io.print("	.");
+        print_data_directive(data_directive);
+        io.print("	");
+        io.println(value);
+        return get_data_directive_size(data_directive);
+    }
+
+    fn reg_to_dwarf(reg: Reg) => u64 {
+        switch (reg) {
+            case Reg.AX => return 0;
+            case Reg.CX => return 2;
+            case Reg.DX => return 1;
+            case Reg.BX => return 3;
+            case Reg.SP => return 7;
+            case Reg.BP => return 6;
+            case Reg.SI => return 4;
+            case Reg.DI => return 5;
+            case Reg.R8 => return 8;
+            case Reg.R9 => return 9;
+            case Reg.R10 => return 10;
+            case Reg.R11 => return 11;
+            case Reg.R12 => return 12;
+            case Reg.R13 => return 13;
+            case Reg.R14 => return 14;
+            case Reg.R15 => return 15;
+        }
+        return (-1)$cast(u64);
+    }
+
+    fn get_dwarf_op_reg(reg: Reg) => dwarf.Op {
+        return dwarf.Op.reg0 + reg_to_dwarf(reg)$cast(dwarf.Op);
+    }
+
+    fn get_dwarf_op_breg(reg: Reg) => dwarf.Op {
+        return dwarf.Op.breg0 + reg_to_dwarf(reg)$cast(dwarf.Op);
+    }
+
 }

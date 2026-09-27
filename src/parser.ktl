@@ -43,7 +43,6 @@ class Parser {
         break_available: bool;
         continue_available: bool;
         
-        is_global_scope: bool;
         emit_debug_info: bool;
 
         // sharp modifiers
@@ -1049,19 +1048,22 @@ class Parser {
         src_info := HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, context->get_var(rhs_id).src_info);
 
         switch (token_type) {
-            case Token.Type.ASSIGN             => return context.hir_builder->push_assign(HIR.Tag.ASSIGN,             lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN                     => return context.hir_builder->push_assign(HIR.Tag.ASSIGN,                     lhs_id, rhs_id, src_info);
 
-            case Token.Type.ASSIGN_PLUS        => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS,        lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_MINUS       => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MINUS,       lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_MULTIPLY    => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MULTY,       lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_DIVIDE      => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_DIVIDE,      lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_REMAINDER   => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MOD,         lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_PLUS                => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_PLUS,                lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_MINUS               => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MINUS,               lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_MULTIPLY            => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MULTY,               lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_DIVIDE              => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_DIVIDE,              lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_REMAINDER           => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_MOD,                 lhs_id, rhs_id, src_info);
 
-            case Token.Type.ASSIGN_CONCAT      => return context.hir_builder->push_append(                            lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_CONCAT              => return context.hir_builder->push_append(                                    lhs_id, rhs_id, src_info);
 
-            case Token.Type.ASSIGN_BITWISE_AND => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_AND, lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_BITWISE_OR  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR,  lhs_id, rhs_id, src_info);
-            case Token.Type.ASSIGN_BITWISE_XOR => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR, lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_BITWISE_AND         => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_AND,         lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_BITWISE_OR          => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_OR,          lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_BITWISE_XOR         => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_XOR,         lhs_id, rhs_id, src_info);
+
+            case Token.Type.ASSIGN_BITWISE_SHIFT_LEFT  => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_SHIFT_LEFT,  lhs_id, rhs_id, src_info);
+            case Token.Type.ASSIGN_BITWISE_SHIFT_RIGHT => return context.hir_builder->push_assign(HIR.Tag.ASSIGN_BITWISE_SHIFT_RIGHT, lhs_id, rhs_id, src_info);
         }
 
         return error_var();
@@ -1207,70 +1209,72 @@ class Parser {
     }
 
     #shared parse_rules := ParseRule[Token.Type$count]{
-        Token.Type.ID                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.LITERAL_INTEGER     => ParseRule.construct(parse_number,        null,                        null,             null,                        Precedence.Primary), 
-        Token.Type.LITERAL_STRING      => ParseRule.construct(parse_string,        null,                        null,             null,                        Precedence.Primary), 
-        Token.Type.LITERAL_CHAR        => ParseRule.construct(parse_char,          null,                        null,             null,                        Precedence.Primary), 
-        Token.Type.PARENTHESIS_LEFT    => ParseRule.construct(parse_grouping,      parse_call,                  null,             null,                        Precedence.Call),
-        Token.Type.SQUARE_LEFT         => ParseRule.construct(null,                parse_indexing,              null,             null,                        Precedence.Call),
-        Token.Type.DOT                 => ParseRule.construct(null,                parse_dot_operator,          null,             null,                        Precedence.Call),
-        Token.Type.COMMA               => ParseRule.construct(null,                parse_sequence,              null,             null,                        Precedence.Sequence),
-        Token.Type.DOLLAR              => ParseRule.construct(null,                parse_dollar_operator,       null,             null,                        Precedence.Call),
-        Token.Type.COLON               => ParseRule.construct(null,                parse_var_decl_expr,         null,             parse_var_decl_expr_postfix, Precedence.Colon),
-        Token.Type.LOGICAL_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
-        Token.Type.LOGICAL_AND         => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalAnd),
-        Token.Type.LOGICAL_OR          => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalOr),
-        Token.Type.ARROW_RIGHT         => ParseRule.construct(null,                parse_arrow_operator,        null,             null,                        Precedence.Call),
-        Token.Type.DOUBLE_ARROW_RIGHT  => ParseRule.construct(null,                parse_double_arrow_operator, null,             null,                        Precedence.Pair),
-        Token.Type.LESS                => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
-        Token.Type.LESS_OR_EQUAL       => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
-        Token.Type.GREATER             => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
-        Token.Type.GREATER_OR_EQUAL    => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
-        Token.Type.EQUAL               => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
-        Token.Type.NOT_EQUAL           => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
-        Token.Type.BITWISE_NOT         => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
-        Token.Type.BITWISE_AND         => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseAnd),
-        Token.Type.BITWISE_OR          => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseOr),
-        Token.Type.BITWISE_XOR         => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseXor),
-        Token.Type.BITWISE_SHIFT_LEFT  => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
-        Token.Type.BITWISE_SHIFT_RIGHT => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
-        Token.Type.INCREMENT           => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
-        Token.Type.DECREMENT           => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
-        Token.Type.PLUS                => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
-        Token.Type.MINUS               => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
-        Token.Type.MULTIPLY            => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
-        Token.Type.DIVIDE              => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
-        Token.Type.REMAINDER           => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
-        Token.Type.CONCAT              => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Concat),
-        Token.Type.ASSIGN              => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_PLUS         => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_MINUS        => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_MULTIPLY     => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_DIVIDE       => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_REMAINDER    => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_CONCAT       => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_AND  => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_OR   => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.ASSIGN_BITWISE_XOR  => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
-        Token.Type.I8                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.I16                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.I32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.I64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.U8                  => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.U16                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.U32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.U64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.F32                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.F64                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.BOOL                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.CHAR                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.CSTR                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.FALSE               => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.NULL                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.RAW                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.STR                 => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.TRUE                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
-        Token.Type.VOID                => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.ID                         => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.LITERAL_INTEGER            => ParseRule.construct(parse_number,        null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.LITERAL_STRING             => ParseRule.construct(parse_string,        null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.LITERAL_CHAR               => ParseRule.construct(parse_char,          null,                        null,             null,                        Precedence.Primary), 
+        Token.Type.PARENTHESIS_LEFT           => ParseRule.construct(parse_grouping,      parse_call,                  null,             null,                        Precedence.Call),
+        Token.Type.SQUARE_LEFT                => ParseRule.construct(null,                parse_indexing,              null,             null,                        Precedence.Call),
+        Token.Type.DOT                        => ParseRule.construct(null,                parse_dot_operator,          null,             null,                        Precedence.Call),
+        Token.Type.COMMA                      => ParseRule.construct(null,                parse_sequence,              null,             null,                        Precedence.Sequence),
+        Token.Type.DOLLAR                     => ParseRule.construct(null,                parse_dollar_operator,       null,             null,                        Precedence.Call),
+        Token.Type.COLON                      => ParseRule.construct(null,                parse_var_decl_expr,         null,             parse_var_decl_expr_postfix, Precedence.Colon),
+        Token.Type.LOGICAL_NOT                => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
+        Token.Type.LOGICAL_AND                => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalAnd),
+        Token.Type.LOGICAL_OR                 => ParseRule.construct(null,                parse_short_circuit,         null,             null,                        Precedence.LogicalOr),
+        Token.Type.ARROW_RIGHT                => ParseRule.construct(null,                parse_arrow_operator,        null,             null,                        Precedence.Call),
+        Token.Type.DOUBLE_ARROW_RIGHT         => ParseRule.construct(null,                parse_double_arrow_operator, null,             null,                        Precedence.Pair),
+        Token.Type.LESS                       => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.LESS_OR_EQUAL              => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.GREATER                    => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.GREATER_OR_EQUAL           => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Comparison),
+        Token.Type.EQUAL                      => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
+        Token.Type.NOT_EQUAL                  => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Equality),
+        Token.Type.BITWISE_NOT                => ParseRule.construct(parse_unary_rtl,     null,                        null,             null,                        Precedence.None),
+        Token.Type.BITWISE_AND                => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseAnd),
+        Token.Type.BITWISE_OR                 => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseOr),
+        Token.Type.BITWISE_XOR                => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.BitwiseXor),
+        Token.Type.BITWISE_SHIFT_LEFT         => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
+        Token.Type.BITWISE_SHIFT_RIGHT        => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Shift),
+        Token.Type.INCREMENT                  => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
+        Token.Type.DECREMENT                  => ParseRule.construct(null,                null,                        null,             null,                        Precedence.None),
+        Token.Type.PLUS                       => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
+        Token.Type.MINUS                      => ParseRule.construct(parse_unary_rtl,     parse_binary_ltr,            null,             null,                        Precedence.Term),
+        Token.Type.MULTIPLY                   => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.DIVIDE                     => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.REMAINDER                  => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Factor),
+        Token.Type.CONCAT                     => ParseRule.construct(null,                parse_binary_ltr,            null,             null,                        Precedence.Concat),
+        Token.Type.ASSIGN                     => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_PLUS                => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_MINUS               => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_MULTIPLY            => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_DIVIDE              => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_REMAINDER           => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_CONCAT              => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_AND         => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_OR          => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_XOR         => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_SHIFT_LEFT  => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.ASSIGN_BITWISE_SHIFT_RIGHT => ParseRule.construct(null,                null,                        parse_binary_rtl, null,                        Precedence.Assigment),
+        Token.Type.I8                         => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I16                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I32                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.I64                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U8                         => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U16                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U32                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.U64                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.F32                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.F64                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.BOOL                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.CHAR                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.CSTR                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.FALSE                      => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.NULL                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.RAW                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.STR                        => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.TRUE                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
+        Token.Type.VOID                       => ParseRule.construct(parse_identificator, null,                        null,             null,                        Precedence.Primary),
     };
 
     fn parse_import(context: Context) => StatementInfo {
@@ -1294,7 +1298,7 @@ class Parser {
         module_name := context->token_str(module_token);
 
         from module import Modules
-        module := Modules.instance->load(module_name, path, context.emit_debug_info);
+        module := Modules.instance->load(module_name, path, Modules.instance.active_module.target, Modules.instance.active_module.emit_debug_info);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
@@ -1330,7 +1334,7 @@ class Parser {
         module_name := context->token_str(module_token);
 
         from module import Modules
-        module := Modules.instance->load(module_name, path, context.emit_debug_info);
+        module := Modules.instance->load(module_name, path, Modules.instance.active_module.target, Modules.instance.active_module.emit_debug_info);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
@@ -2318,10 +2322,16 @@ class Parser {
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1));
 
         if (context->token_match(Token.Type.TERMINATION_CHARACTER)) {
+            if (context.hir_builder.return_type != null && context.hir_builder.return_type != Types.instance.type_void$cast(Type)) {
+                context->error(src_info.source_offset, src_info.length, "Trying to return without value.");
+            }
             context.hir_builder->push_tagonly_instr(HIR.Tag.RETURN, src_info);
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
         } else {
             expr_id := context->parse_expression();
+            if (context.hir_builder.return_type != null && context.hir_builder.return_type == Types.instance.type_void$cast(Type)) {
+                context->error(src_info.source_offset, src_info.length, "Trying to return value as void.");
+            }
             /*
             if (context.hir_builder->is_undef(expr_id)) {
                 context->error(src_info.source_offset, src_info.length, "Trying to return undefined expression.");
@@ -2370,7 +2380,7 @@ class Parser {
 
         context.unprocessed_breaks = HIR.Jump[0];
         context.unprocessed_continues = HIR.Jump[0];
-        context.is_global_scope = is_global_scope;
+        
         context.emit_debug_info = emit_debug_info;
 
         context.hir_builder = HIRBuilder.construct(return_type, func_index, context.errors_accum, context.source_info, is_global_scope);

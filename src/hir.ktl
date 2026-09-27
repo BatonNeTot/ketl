@@ -28,12 +28,12 @@ export class HIR {
         DIVIDE,
         MOD,
 
+        BITWISE_SHIFT_LEFT,
+        BITWISE_SHIFT_RIGHT,
+
         BITWISE_AND,
         BITWISE_OR,
         BITWISE_XOR,
-
-        BITWISE_SHIFT_LEFT,
-        BITWISE_SHIFT_RIGHT,
 
         COMPARE,
         TEST,
@@ -57,6 +57,9 @@ export class HIR {
         ASSIGN_MULTY,
         ASSIGN_DIVIDE,
         ASSIGN_MOD,
+
+        ASSIGN_BITWISE_SHIFT_LEFT,
+        ASSIGN_BITWISE_SHIFT_RIGHT,
 
         ASSIGN_BITWISE_AND,
         ASSIGN_BITWISE_OR,
@@ -397,6 +400,11 @@ export class HIR {
         literal_size: u32;
         name: str;
         is_string: bool;
+    }
+
+    export class ConstBlock {
+        consts_infos: Const[];
+        consts_literals: u8[];
     }
 
     instrs: Instr[];

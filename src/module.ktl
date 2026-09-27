@@ -17,296 +17,57 @@ from lexer import Lexer
 from lexer import TokenIterator
 from hir import HIR
 from variable import VariableDecl
-from asm_x86 import ASMX86
+from assembly import Target
+from assembly import Assembly
 
 class Module {
-
-    class ConstBlock {
-        consts_infos: HIR.Const[];
-        consts_literals: u8[];
-    }
 
     name: str;
     path: str;
     namespace: Namespace;
     lexer: Lexer;
     compile_function_declarations: CompileFunctionDeclaration[];
-    init_asm_x86: ASMX86;
-    entry_asm_x86: ASMX86;
-    const_blocks: ConstBlock[];
+    assembly_builder: Assembly.Builder;
+    entry_assembly: Assembly;
+    init_assembly: Assembly;
+    const_blocks: HIR.ConstBlock[];
     has_errors: bool;
     header_loaded: bool; // after preload
     body_loaded: bool; // after load
+    target: Target;
     emit_debug_info: bool;
 
-    fn construct(name: str, global_namespace: Namespace, emit_debug_info: bool) => Module {
+    fn construct(name: str, global_namespace: Namespace, target: Target, emit_debug_info: bool) => Module {
         self := Module();
 
         self.name = name;
 
         self.namespace = Namespace.construct(name, global_namespace);
         self.compile_function_declarations = CompileFunctionDeclaration[0];
-        self.const_blocks = ConstBlock[0];
+        self.const_blocks = HIR.ConstBlock[0];
 
+        self.target = target;
         self.emit_debug_info = emit_debug_info;
 
         return self;
     }
 
     export fn print_asm(module: Module) {
-        fullpath :=  io.resolve_path(module.path .. module.name .. ".ktl");
-        filename :=  io.get_filename(fullpath);
-        dir := io.get_dir(fullpath);
+        assemblies := Assembly[module.compile_function_declarations.size];
 
-        io.println("    .def    @feat.00;");
-        io.println("    .scl    3;");
-        io.println("    .type   0;");
-        io.println("    .endef");
-        io.println("    .globl  @feat.00");
-        io.println("@feat.00 = 0");
-        io.println("    .intel_syntax noprefix");
-        io.println("    .file   \"" .. filename .. "\"");
-        if (module.emit_debug_info) {
-            io.println("    .file   1 \"" .. io.escaped_string(dir) .. "\" \"" .. filename .. "\"");
-        }
-
-        io.println("    .text                    # -- Functions");
-
-        if (module.entry_asm_x86 != null) {
-            module.entry_asm_x86->print("main", (-1)$cast(u16), false);
-        }
-
-        if (module.init_asm_x86 != null) {
-            module.init_asm_x86->print(module.name .. "..init", 0, module.emit_debug_info);
-        }
-
-        i: u16;
-        has_functions := false;
+        i: u64;
         for (compile_func_decl := module.compile_function_declarations) {
-            func_index := i + 1;
-            if (compile_func_decl.asm_x86 != null) {
-                compile_func_decl.asm_x86->print(compile_func_decl.node.name, func_index, module.emit_debug_info);
-                has_functions = true;
+            if (compile_func_decl.assembly != null) {
+                assemblies[i] = compile_func_decl.assembly;
             }
+
             i += 1;
         }
 
-        // insert vars
-        if (module.namespace->has_vars()) {
-            io.println("    .bss                    # -- Zero-initialized Variables");
-
-            print_asm_zero_initialized_variables_namespace(module.namespace);
-        }
-
-        // insert classes and consts
-        if (module.namespace->has_classes() || module.const_blocks.size > 0) {
-            io.println("    .section   .rdata,\"dr\"                    # -- Read-only Variables");
-
-            for (const_block := module.const_blocks) {
-                for (const_info := const_block.consts_infos) {
-                    variable_name := const_info.name;
-
-                    io.println(variable_name .. ":");
-
-                    assert(const_info.is_string);
-                    io.print("    .asciz    \"");
-                    literal := "";
-                    for (symbol := const_block.consts_literals[const_info.offset:const_info.offset + const_info.literal_size]) {
-                        literal ..= symbol$cast(char);
-                    }
-                    io.print(literal);
-                    io.println("\"");
-                }
-            }
-
-            print_asm_read_only_data_namespace(module.namespace);
-        }
-
-        if (module.init_asm_x86 != null) {
-            io.println("    .section .ctors,\"dw\",unique,0");
-            io.println("    .p2align    3, 0x0");
-            io.println("    .quad " .. module.name .. "..init");
-        }
-
-        debug_line_section_label := ".Lline_table_start0";
-
-        if (module.emit_debug_info) {
-            import dwarf
-            debug_info := dwarf.DebugInfo.construct(5,
-                has_functions,
-                filename,
-                ".Lstr_offsets_base0",
-                debug_line_section_label,
-                dir,
-                ".Lfunc_end" .. (module.compile_function_declarations.size)$cast(str) .. "-.Lfunc_begin0",
-                ".Laddr_table_base0",
-                ASMX86.reg_to_dwarf
-                );
-
-            if (module.init_asm_x86 != null) {
-                debug_info->add_function(module.name .. "..init", 0, Types.instance.type_void, 0 /* TODO line */, null, false, true);
-            }
-
-            // we do not produce debug info for the entry code
-            
-            i = 0;
-            for (compile_func_decl := module.compile_function_declarations) {
-                func_index := i + 1;
-                if (compile_func_decl.asm_x86 != null) {
-                    is_pub := true;
-                    if (compile_func_decl.node.name[0] == '.') {
-                        is_pub = false;
-                    }
-                    from type import TypeFunction
-                    func_type := compile_func_decl.node.value.type$cast(TypeFunction);
-                    debug_info->add_function(compile_func_decl.node.name, func_index, func_type.signature.parameters[0], 0 /* TODO line */, compile_func_decl.asm_x86.variables, is_pub, false);
-                }
-                i += 1;
-            }
-
-            debug_info->print();
-        }
-
-        // insert addrsigs
-        if (module.init_asm_x86 != null ||
-            has_functions) {
-            io.println("    .p2align    2, 0x0");
-            io.println("    .addrsig");
-
-            if (module.init_asm_x86 != null) {
-                print_asm_addrsig(module.name .. "..init");
-            }
-            
-            for (compile_func_decl := module.compile_function_declarations) {
-                if (compile_func_decl.asm_x86 != null) {
-                    print_asm_addrsig(compile_func_decl.node.name);
-                }
-            }
-        }
-
-        if (module.emit_debug_info) {
-            io.println("    .section	.debug_line,\"dr\"");
-            io.println(debug_line_section_label .. ":");
-        }
-    }
-
-    fn print_asm_addrsig(func_name: str) {
-        io.println("    .addrsig_sym " .. func_name);
-    }
-
-    fn print_asm_zero_initialized_variable(node: Namespace.Node) {
-        value := node.value;
-        if (value->is_type()) {
-            from type import TypeClass
-            type := value.value$cast(raw)$cast(Type);
-            if (type.kind == Type.Kind.Class) {
-                print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace);
-            }
-            return;
-        }
-        
-        if (!value->is_common_var()) {
-            return;
-        }
-        
-        variable_name := node.name;
-
-        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
-        io.println("    .p2align  " .. value.type.align$cast(str) .. ", 0x0");
-        io.println(variable_name .. ":");
-        io.print("    .");
-        ASMX86.print_directive_size(value.type->get_stack_size()$cast(ASMX86.Size));
-        io.println("   0");
-    }
-
-    fn print_asm_zero_initialized_variables_namespace(namespace: Namespace) {
-        for (bucket := namespace.nodes.buckets) {
-            while (bucket != null) {
-                node := bucket.value$cast(Namespace.Node);
-                if (!node.info.imported) {
-                    print_asm_zero_initialized_variable(node);
-                }
-
-                bucket = bucket.next;
-            }
-        }
-    }
-
-    fn print_asm_read_only_data_variable(node: Namespace.Node) {
-        value := node.value;
-        if (!value->is_type()) {
-            return;
-
-        }
-
-        from type import TypeClass
-        type := value.value$cast(raw)$cast(Type);
-        if (type.kind != Type.Kind.Class) {
-            return;
-        }
-        type_class := type$cast(TypeClass);
-        
-        variable_name := node.name;
-
-        io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
-        io.println("    .p2align  " .. Types.instance.type_raw.align$cast(str) .. ", 0x0");
-        io.println(variable_name .. ":");
-
-        // TODO get types directly from fields with smth like 'typeof'
-        // TODO good place for reflection
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_u8->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. type_class.kind$cast(str) .. "    # kind");
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_u8->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. type_class.align$cast(str) .. "    # align");
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_u16->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. type_class.size$cast(str) .. "    # size");
-
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. 0$cast(u64)$cast(str) .. "    # name, TODO");
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fullname, TODO");
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_u64->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. type_class.fields.size$cast(str) .. "    # fields_count");
-
-        io.print("    .");
-        ASMX86.print_directive_size(Types.instance.type_raw->get_stack_size()$cast(ASMX86.Size));
-        io.println("   " .. 0$cast(u64)$cast(str) .. "    # fields, TODO");
-
-        /* TODO
-        // using .set directive as macro for field offset
-        // cool idea, but must dublicate in files where class is used - hard to track
-        for (uint32_t field_index = 0; field_index < p_class_type->fields_count; ++field_index) {
-            io.println("    .set %s.%s, %"PRIu16"\n", p_variable_name, 
-                ketl_atomic_strings_get_pointer(&p_state->atomic_strings, p_class_type->p_fields[field_index].s_name),
-                ketl_type_get_field_offset((ketl_type*)p_class_type, p_class_type->p_fields[field_index].s_name, p_state));
-        }
-        */
-
-        print_asm_read_only_data_namespace(type_class.namespace);
-    }
-
-    fn print_asm_read_only_data_namespace(namespace: Namespace) {
-        for (bucket := namespace.nodes.buckets) {
-            while (bucket != null) {
-                node := bucket.value$cast(Namespace.Node);
-                if (!node.info.imported) {
-                    print_asm_read_only_data_variable(node);
-                }
-
-                bucket = bucket.next;
-            }
-        }
+        Assembly.print_compilation_unit(
+            io.resolve_path(module.path .. module.name .. ".ktl"), module.target,
+            module.entry_assembly, module.init_assembly, assemblies,
+            module.namespace, module.const_blocks, module.emit_debug_info);
     }
 
     fn preload(module: Module, module_filename: str, folder_path: str) => bool {
@@ -365,7 +126,7 @@ class Module {
         }
 
         if (hir.consts_infos.size > 0) {
-            const_block := ConstBlock();
+            const_block := HIR.ConstBlock();
 
             const_block.consts_infos = hir.consts_infos;
             const_block.consts_literals = hir.consts_literals;
@@ -373,8 +134,9 @@ class Module {
             module.const_blocks ..= const_block;
         }
 
-        module.init_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, module.emit_debug_info, lexer->construct_log_info())
-            ->build(hir, func_index);
+        module.assembly_builder = Assembly.get_builder(module.target, lexer->construct_log_info());
+
+        module.init_assembly = module.assembly_builder->build(hir, module.name .. "..init", func_index, module.emit_debug_info, Types.instance.type_void);
 
         if (hir.entry != null) {
             entry_source := 
@@ -415,16 +177,17 @@ class Module {
                 parameters[1] = parameter;
             }
 
+            return_type := Types.instance.type_i64;
+
             entry_hir := Parser.build_hir(entry_lexer, 0, entry_lexer.tokens.size$cast(TokenIterator.Index), 
-                module.namespace, parameters, Types.instance.type_i64, 
+                module.namespace, parameters, return_type, 
                 entry_index, false, false, errors_accum);
 
             //entry_hir->print();
 
             assert(errors_accum->check());
 
-            module.entry_asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, false, lexer->construct_log_info())
-                ->build(entry_hir, entry_index);
+            module.entry_assembly = module.assembly_builder->build(entry_hir, "main", entry_index, false, return_type);
         }
 
         Modules.instance.active_module = stashed_module;
@@ -495,7 +258,7 @@ class Module {
             //hir->print();
 
             if (hir.consts_infos.size > 0) {
-                const_block := ConstBlock();
+                const_block := HIR.ConstBlock();
 
                 const_block.consts_infos = hir.consts_infos;
                 const_block.consts_literals = hir.consts_literals;
@@ -503,8 +266,8 @@ class Module {
                 module.const_blocks ..= const_block;
             }
 
-            compile_function_declaration.asm_x86 = ASMX86.Builder.construct(ASMX86.ABI.DEFAULT, module.emit_debug_info, module.lexer->construct_log_info())
-                ->build(hir, func_index);
+            compile_function_declaration.assembly = module.assembly_builder->build(hir, compile_function_declaration.node.name, func_index, module.emit_debug_info,
+                compile_function_declaration.node.value.type$cast(TypeFunction).signature.parameters[0]);
 
             i += 1;
         }
@@ -553,7 +316,7 @@ class Modules {
 
     #shared instance := construct();
 
-    export fn load(self: Modules, module_name: str, folder_path: str, emit_debug_info: bool) => Module {        
+    export fn load(self: Modules, module_name: str, folder_path: str, target: Target, emit_debug_info: bool) => Module {        
         self->init_modules_if_needed();
         self->init_global_namespace();
 
@@ -571,7 +334,7 @@ class Modules {
         top_loading := !self.loading_modules;
         self.loading_modules = true;
 
-        module := Module.construct(module_name, self.global_namespace, emit_debug_info);
+        module := Module.construct(module_name, self.global_namespace, target, emit_debug_info);
         module_bucket.value = module;
 
         // preloading

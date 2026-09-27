@@ -1,0 +1,69 @@
+//🫖ketl
+
+from errors import ErrorsAccum
+from type_base import Type
+from hir import HIR
+from namespace import Namespace
+
+export enum Target: u8 {
+    DEFAULT,
+    X86_64_WINDOWS_CLANG,
+    X86_64_SYSTEM_V_CLANG,
+}
+
+export class Assembly {
+
+    export class Builder {
+        build: (Assembly.Builder, HIR, str, u16, bool, Type) => Assembly;
+
+    }
+
+    print: (Assembly) => void;
+    func_name: str;
+    func_index: u16;
+    target: Target;
+    emit_debug_info: bool;
+    return_type: Type;
+
+    fn detect_current_platform() => Target {
+        // TODO actually detect platform
+        return Target.X86_64_WINDOWS_CLANG;
+    }
+
+    export fn get_builder(target: Target, source_info: ErrorsAccum.SourceInfo) => Builder {
+        if (target == Target.DEFAULT) {
+            target = detect_current_platform();
+        }
+
+        switch (target) {
+            case Target.X86_64_WINDOWS_CLANG
+            case Target.X86_64_SYSTEM_V_CLANG => {
+                import asm_x86
+                return asm_x86.ASMX86.Builder.construct(target, source_info);
+            }
+            default => assert(false);
+        }
+
+        return null;
+    }
+
+    export fn print_compilation_unit(fullpath: str, target: Target, 
+        entry_assembly: Assembly, init_assembly: Assembly, assemblies: Assembly[], 
+        namespace: Namespace, const_blocks: HIR.ConstBlock[], emit_debug_info: bool) {
+        if (target == Target.DEFAULT) {
+            target = detect_current_platform();
+        }
+        
+        switch (target) {
+            case Target.X86_64_WINDOWS_CLANG
+            case Target.X86_64_SYSTEM_V_CLANG => {
+                import asm_x86
+                asm_x86.ASMX86.print_compilation_unit(fullpath, target, 
+                    entry_assembly, init_assembly, assemblies, 
+                    namespace, const_blocks, emit_debug_info);
+            }
+            default => assert(false);
+        }
+    }
+
+}

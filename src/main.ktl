@@ -1,6 +1,7 @@
 //🫖ketl
 
 from module import Modules
+from assembly import Target
 import io
 
 class ArgsParser {
@@ -19,6 +20,7 @@ class ArgsParser {
 
     op: Operation;
     state: State;
+    target_os: Target;
 
     execution_script: str;
     
@@ -33,9 +35,33 @@ parser: ArgsParser;
 #entry
 fn main(args: str[]) => i64 {
     parser = ArgsParser();
+    parser.target_os = Target.DEFAULT;
 
     for (arg := args[1:]) {
         if (arg[0] == '-') {
+            if (arg[1] == '-') {
+                flag := arg[2:];
+                if (flag.size >= 3 && flag[:6] == "target") {
+                    if (flag[6] != '=') {
+                        io.errorln("Unknown flag '" .. flag .. "'");
+                        return -1;
+                    }
+                    option := flag[7:];
+                    switch (option) {
+                        case "default" => parser.target_os = Target.DEFAULT;
+                        case "x86_64_windows_clang" => parser.target_os = Target.X86_64_WINDOWS_CLANG;
+                        case "x86_64_system_v" => parser.target_os = Target.X86_64_SYSTEM_V_CLANG;
+                        default => {
+                            io.errorln("Unknown option '" .. option .. "' for flag 'tos'");
+                            return -1;
+                        }
+                    }
+                    continue;
+                }
+                io.errorln("Unknown flag '" .. flag .. "'");
+                return -1;
+            }
+
             for (symbol := arg[1:]) {
                 switch (symbol) {
                     case 'S' => {
@@ -171,7 +197,7 @@ fn compile_asm_file(path: str, output_path: str) => bool {
         }
     }
 
-    module := Modules.instance->load(module_name, dir_path, parser.emit_debug_info);
+    module := Modules.instance->load(module_name, dir_path, parser.target_os, parser.emit_debug_info);
     if (module == null || module.has_errors) {
         return false;
     }

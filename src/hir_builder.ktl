@@ -820,7 +820,10 @@ class HIRBuilder {
 
         array := self.vars[array_id];
         array_type := array->get_type_forced()$cast(TypeArray);
-        assert(array_type.kind == Type.Kind.Array);
+        if (array_type.kind != Type.Kind.Array) {
+            self->error(src_info.source_offset, src_info.length, "Can't index entity of type '" .. array_type->get_name() .. "'.");
+            return self->push_empty_error_var(src_info);
+        }
         value_type := array_type.value;
 
         index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
@@ -844,7 +847,10 @@ class HIRBuilder {
 
         array := self.vars[array_id];
         array_type := array->get_type_forced()$cast(TypeArray);
-        assert(array_type.kind == Type.Kind.Array);
+        if (array_type.kind != Type.Kind.Array) {
+            self->error(src_info.source_offset, src_info.length, "Can't index entity of type '" .. array_type->get_name() .. "'.");
+            return self->push_empty_error_var(src_info);
+        }
         value_type := array_type.value;
 
         index_id = self->cast_to_type_forced(index_id, Types.instance.type_u64, src_info, true);
@@ -1530,7 +1536,12 @@ class HIRBuilder {
             decl.name = key;
             bucket := self->last_local_map()->get_or_insert(
                     key, decl_id$cast(u64)$cast(raw));
-            assert(bucket.value$cast(u64)$cast(HIR.DeclId) == decl_id);
+            if (bucket.value$cast(u64)$cast(HIR.DeclId) != decl_id) {
+                io.errorln("somehow decl was not registered, there is already one");
+                bastard_decl := self.decls[bucket.value$cast(u64)$cast(HIR.DeclId)];
+                io.errorln("located somewhere in file " .. self.source_info.filename .. " at line " .. (self.source_info->find_line(bastard_decl->get_src_info().source_offset) + 1)$cast(str));
+                assert(false);
+            }
 
             self->push_variable_op(HIR.Tag.ADD_LOCAL_VARIABLE, key, decl->get_src_info());
             

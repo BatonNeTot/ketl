@@ -4,15 +4,53 @@ from common import HashMap
 from common import IntHashMap
 from common import StrHashMap
 
-from asm_x86 import ASMX86
-fn print_data_directive(directive: ASMX86.DataDirective, value: str) => u8 {
-    import io
-    io.print("	.");
-    ASMX86.print_data_directive(directive);
-    io.print("	");
-    io.println(value);
-    return ASMX86.get_data_directive_size(directive);
+from type_base import Type
+
+export enum DataDirective: u8 {
+    Bit8,
+    Bit16,
+    Bit32,
+    Bit64,
+    Address,
 }
+
+export fn split_value_to_uleb128(value: u64) => u8[] {
+    result := u8[0];
+
+    while (value != 0) {
+        byte := (value & 127)$cast(u8); // 0xf7
+        value = value >> 7; // TODO replace with shift_assign
+        if (value != 0) {
+            byte |= 128; // 0x80 to show that there are more
+        }
+        result ..= byte;
+    }
+
+    return result;
+}
+
+export fn split_value_to_sleb128(value: i64) => u8[] {
+    result := u8[0];
+
+    while (true) {
+        byte := (value & 127)$cast(u8); // 0xf7
+        value = value >> 7; // TODO replace with shift_assign
+        
+        sign_bit := byte & 64; // 0x40, sign bit of byte is second high-order bit
+        // https://en.wikipedia.org/wiki/LEB128#Encode_signed_integer
+        if ((value == 0 && sign_bit == 0) || (value == -1 && sign_bit != 0)) {
+            result ..= byte;
+            break;
+        } else {
+            byte |= 128; // 0x80 to show that there are more
+        }
+        result ..= byte;
+    }
+
+    return result;
+}
+
+// Constants /////////////
 
 export enum UnitType: u8 {
     none,
@@ -361,22 +399,24 @@ export class Abbreviation {
         return true;
     }
 
-    fn print(self: Abbreviation) {
-        print_data_directive(ASMX86.DataDirective.Byte, self.tag$cast(str) .. "                               # DW_TAG_" .. self.tag->to_str());
+    fn print(self: Abbreviation, print_data_directive: (DataDirective, str) => u32) {
+        print_data_directive(DataDirective.Bit8, self.tag$cast(str) .. "                               # DW_TAG_" .. self.tag->to_str());
         if (self.has_children) {
-            print_data_directive(ASMX86.DataDirective.Byte, Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
+            print_data_directive(DataDirective.Bit8, Children.yes$cast(str) .. "                               # DW_CHILDREN_yes");
         } else {
-            print_data_directive(ASMX86.DataDirective.Byte, Children.no$cast(str) .. "                               # DW_CHILDREN_no");
+            print_data_directive(DataDirective.Bit8, Children.no$cast(str) .. "                               # DW_CHILDREN_no");
         }
         for (header := self.attrs) {
-            print_data_directive(ASMX86.DataDirective.Byte, header.attr$cast(str) .. "                               # DW_AT_" .. header.attr->to_str());
-            print_data_directive(ASMX86.DataDirective.Byte, header.form$cast(str) .. "                               # DW_FORM_" .. header.form->to_str());
+            print_data_directive(DataDirective.Bit8, header.attr$cast(str) .. "                               # DW_AT_" .. header.attr->to_str());
+            print_data_directive(DataDirective.Bit8, header.form$cast(str) .. "                               # DW_FORM_" .. header.form->to_str());
         }
     }
 }
 
+// Attributes //////////////////////////
+
 class AttrValue {
-    print: (AttrValue, Attr) => u32;
+    print: (AttrValue, Attr, (DataDirective, str) => u32) => u32;
     form: Form;
 
     fn construct_empty(form: Form) => AttrValue {
@@ -386,7 +426,7 @@ class AttrValue {
         return self;
     }
 
-    fn print_empty(attr: AttrValue, tag: Attr) => u32 {
+    fn print_empty(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         import io
         io.println("                                        # DW_AT_" .. tag->to_str());
         return 0;
@@ -406,9 +446,9 @@ class AttrStr {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrStr);
-        return print_data(self.index$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
+        return print_data(self.index$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form, print_data_directive);
     }
 }
 
@@ -424,9 +464,9 @@ class AttrSecOffset {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrSecOffset);
-        return print_data_directive(ASMX86.DataDirective.Secrel32, self.value .. "                               # DW_AT_" .. tag->to_str());
+        return print_data_directive(DataDirective.Address, self.value .. "                               # DW_AT_" .. tag->to_str());
     }
 }
 
@@ -442,63 +482,30 @@ class AttrAddr {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrAddr);
-        return print_data_directive(ASMX86.DataDirective.Byte, self.value .. "                               # DW_AT_" .. tag->to_str());
+        return print_data_directive(DataDirective.Bit8, self.value .. "                               # DW_AT_" .. tag->to_str());
     }
 }
 
-fn print_data(value: str, form: Form) => u32 {
-    import io
+fn print_data(value: str, form: Form, print_data_directive: (DataDirective, str) => u32) => u32 {
     size: u32;
-    io.print("	.");
     switch (form) {
-        case Form.data1 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit8);
-            size += 1;
-        }
-        case Form.data2 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit16);
-            size += 2;
-        }
-        case Form.data4 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit32);
-            size += 4;
-        }
-        case Form.data8 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit64);
-            size += 8;
-        }
+        case Form.data1 => size += print_data_directive(DataDirective.Bit8, value);
+        case Form.data2 => size += print_data_directive(DataDirective.Bit16, value);
+        case Form.data4 => size += print_data_directive(DataDirective.Bit32, value);
+        case Form.data8 => size += print_data_directive(DataDirective.Bit64, value);
         case Form.data16 => assert(false);
         case Form.udata => assert(false);
-        case Form.ref1 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit8);
-            size += 1;
-        }
-        case Form.ref2 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit16);
-            size += 2;
-        }
-        case Form.ref4 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit32);
-            size += 4;
-        }
-        case Form.ref8 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit64);
-            size += 8;
-        }
-        case Form.strx1 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit8);
-            size += 1;
-        }
-        case Form.strx2 => {
-            ASMX86.print_directive_size(ASMX86.Size.Bit16);
-            size += 2;
-        }
+        case Form.ref1 => size += print_data_directive(DataDirective.Bit8, value);
+        case Form.ref2 => size += print_data_directive(DataDirective.Bit16, value);
+        case Form.ref4 => size += print_data_directive(DataDirective.Bit32, value);
+        case Form.ref8 => size += print_data_directive(DataDirective.Bit64, value);
+        case Form.strx1 => size += print_data_directive(DataDirective.Bit8, value);
+        case Form.strx2 => size += print_data_directive(DataDirective.Bit16, value);
         case Form.ref_udata => assert(false);
         default => assert(false);
     }
-    io.println("	" .. value);
     return size;
 }
 
@@ -521,9 +528,9 @@ class AttrAddrData {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrAddrData);
-        return print_data(self.value .. "                               # DW_AT_" .. tag->to_str(), self.form);
+        return print_data(self.value .. "                               # DW_AT_" .. tag->to_str(), self.form, print_data_directive);
     }
 }
 
@@ -546,9 +553,9 @@ class AttrData {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrData);
-        return print_data(self.value$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
+        return print_data(self.value$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form, print_data_directive);
     }
 }
 
@@ -736,11 +743,11 @@ class AttrExpr {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrExpr);
-        data := print_data_directive(ASMX86.DataDirective.Byte, self.ops.size$cast(str) .. "                               # DW_AT_" .. tag->to_str());
+        data := print_data_directive(DataDirective.Bit8, self.ops.size$cast(str) .. "                               # DW_AT_" .. tag->to_str());
         for (op := self.ops) {
-            data += print_data_directive(ASMX86.DataDirective.Byte, op$cast(str) .. "                               # DW_OP_" .. op->to_str());
+            data += print_data_directive(DataDirective.Bit8, op$cast(str) .. "                               # DW_OP_" .. op->to_str());
         }
         return data;
     }
@@ -779,6 +786,8 @@ class AttrPair {
         return self;
     }
 }
+
+// DIE ////////////////////////
 
 export class DIE {
 
@@ -856,18 +865,17 @@ class AttrRef {
         return self;
     }
 
-    fn print(attr: AttrValue, tag: Attr) => u32 {
+    fn print(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
         self := attr$cast(AttrRef);
-        return print_data(self.die.data_offset$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form);
+        return print_data(self.die.data_offset$cast(str) .. "                               # DW_AT_" .. tag->to_str(), self.form, print_data_directive);
     }
 }
 
-/*
 export class Variable {
     name: str;
-    stack_offset: u32;
-} 
-*/
+    type: Type;
+    ops: Op[];
+}
 
 export class DebugInfo {
     version: u8;
@@ -887,7 +895,7 @@ export class DebugInfo {
 
     func_addresses: str[];
 
-    platform_reg_to_dwarf: (u64) => u64;
+    print_data_directive: (DataDirective, str) => u32;
 
     fn get_abbr_hash(key: raw) => u64 {
         return key$cast(Abbreviation)->get_hash();
@@ -898,14 +906,13 @@ export class DebugInfo {
     }
 
     fn construct(version: u8,
-        has_functions: bool,
         compile_unit_name: str, 
         str_offsets_base: str, 
         stmt_list: str, 
         comp_dir: str, 
         compile_unit_size: str, 
-        addr_base: str, 
-        platform_reg_to_dwarf: (u64) => u64) => DebugInfo {
+        addr_base: str,
+        print_data_directive: (DataDirective, str) => u32) => DebugInfo {
         self := DebugInfo();
 
         self.version = version;
@@ -925,7 +932,7 @@ export class DebugInfo {
 
         self.func_addresses = str[0];
 
-        self.platform_reg_to_dwarf = platform_reg_to_dwarf;
+        self.print_data_directive = print_data_directive;
 
         compile_unit_die := DIE();
         compile_unit_die.tag = Tag.compile_unit;
@@ -954,41 +961,41 @@ export class DebugInfo {
             i := 0;
             for (abbr := self.abbrs) {
                 i += 1;
-                print_data_directive(ASMX86.DataDirective.Byte, i$cast(str) .. "                               # Abbreviation Code");
-                abbr->print();
-                print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(1)");
-                print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(2)");
+                self.print_data_directive(DataDirective.Bit8, i$cast(str) .. "                               # Abbreviation Code");
+                abbr->print(self.print_data_directive);
+                self.print_data_directive(DataDirective.Bit8, "0                               # EOM(1)");
+                self.print_data_directive(DataDirective.Bit8, "0                               # EOM(2)");
             }
         }
-        print_data_directive(ASMX86.DataDirective.Byte, "0                               # EOM(3)");
+        self.print_data_directive(DataDirective.Bit8, "0                               # EOM(3)");
 
-        data_size: u32;
+        info_offset: u32;
 
         io.println("	.section	.debug_info,\"dr\"");
         io.println(".Lcu_begin0:");
-        data_size += print_data_directive(ASMX86.DataDirective.Long, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
+        info_offset += self.print_data_directive(DataDirective.Bit32, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
         io.println(".Ldebug_info_start0:");
-        data_size += print_data_directive(ASMX86.DataDirective.Short, self.version$cast(str) .. "                               # DWARF version number");
-        data_size += print_data_directive(ASMX86.DataDirective.Byte, UnitType.compile$cast(str) .. "                               # DWARF Unit Type");
-        data_size += print_data_directive(ASMX86.DataDirective.Byte, raw$size$cast(str) .. "                               # Address Size (in bytes)");
-        data_size += print_data_directive(ASMX86.DataDirective.Secrel32, ".debug_abbrev           # Offset Into Abbrev. Section");
+        info_offset += self.print_data_directive(DataDirective.Bit16, self.version$cast(str) .. "                               # DWARF version number");
+        info_offset += self.print_data_directive(DataDirective.Bit8, UnitType.compile$cast(str) .. "                               # DWARF Unit Type");
+        info_offset += self.print_data_directive(DataDirective.Bit8, raw$size$cast(str) .. "                               # Address Size (in bytes)");
+        info_offset += self.print_data_directive(DataDirective.Address, ".debug_abbrev           # Offset Into Abbrev. Section");
         
         for (die := self.dies) {
-            die.data_offset = data_size;
-            data_size += print_data_directive(ASMX86.DataDirective.Byte, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "], DW_TAG_" .. die.tag->to_str() .. " " .. data_size$cast(str) .. " byte(s) offset");
+            die.data_offset = info_offset;
+            info_offset += self.print_data_directive(DataDirective.Bit8, die.abbr_index$cast(str) .. "                               # Abbrev [" .. die.abbr_index$cast(str) .. "], DW_TAG_" .. die.tag->to_str() .. " " .. info_offset$cast(str) .. " byte(s) offset");
 
             for (attr := die.attrs) {
                 if (attr.value.print != null) {
-                    data_size += attr.value->print(attr.attr);
+                    info_offset += attr.value->print(attr.attr, self.print_data_directive);
                 }
             }
         }
 
         io.println(".Ldebug_info_end0:");
         io.println("	.section	.debug_str_offsets,\"dr\"");
-        io.println("	.long	" .. (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
-        io.println("	.short	" .. self.version$cast(str));
-        io.println("	.short	0"); // Reserved
+        self.print_data_directive(DataDirective.Bit32, (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
+        self.print_data_directive(DataDirective.Bit16, self.version$cast(str));
+        self.print_data_directive(DataDirective.Bit16, "0"); // Reserved
         io.println(".Lstr_offsets_base0:");
         io.println("	.section	.debug_str,\"dr\"");
 
@@ -1003,20 +1010,20 @@ export class DebugInfo {
 
             i = 0;
             while (i < self.strings.size) {
-                io.println("	.secrel32	.Linfo_string" .. i$cast(str));
+                self.print_data_directive(DataDirective.Address, ".Linfo_string" .. i$cast(str));
                 i += 1;
             }
         }
 
         io.println("	.section	.debug_addr,\"dr\"");
-        io.println("	.long	.Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
+        self.print_data_directive(DataDirective.Bit32, ".Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
         io.println(".Ldebug_addr_start0:");
-        io.println("	.short	" .. self.version$cast(str) .. "                               # DWARF version number");
-        io.println("	.byte	8                               # Address size");
-        io.println("	.byte	0                               # Segment selector size");
+        self.print_data_directive(DataDirective.Bit16, self.version$cast(str) .. "                               # DWARF version number");
+        self.print_data_directive(DataDirective.Bit8, "8                               # Address size");
+        self.print_data_directive(DataDirective.Bit8, "0                               # Segment selector size");
         io.println(".Laddr_table_base0:");
         for (func_address := self.func_addresses) {
-            io.println("	.quad	" .. func_address);
+            self.print_data_directive(DataDirective.Bit64, func_address);
         }
         io.println(".Ldebug_addr_end0:");
     }
@@ -1027,7 +1034,8 @@ export class DebugInfo {
         func_index: u16,
         return_type: Type,
         decl_line: u64,
-        variables: ASMX86.Variable[],
+        frame_base: Op[],
+        variables: Variable[],
         is_pub: bool, // DW_AT_external
         is_main: bool) { // DW_AT_main_subprogram 
         self.abbrs[0].has_children = true;
@@ -1047,9 +1055,7 @@ export class DebugInfo {
         die.attrs = AttrPair[6]{
             AttrPair.construct(Attr.low_pc, AttrAddr.construct(low_pc_index$cast(str))),
             AttrPair.construct(Attr.high_pc, AttrAddrData.construct(".Lfunc_end" .. func_index$cast(str) .. "-.Lfunc_begin" .. func_index$cast(str), 4)),
-            AttrPair.construct(Attr.frame_base, AttrExpr.construct(Op[1]{
-                Op.reg8,
-            })),
+            AttrPair.construct(Attr.frame_base, AttrExpr.construct(frame_base)),
             AttrPair.construct(Attr.name, AttrStr.construct(func_name)),
             AttrPair.construct(Attr.decl_file, AttrData.construct(0, 1)),
             AttrPair.construct(Attr.decl_line, AttrData.construct(decl_line, 1)),
