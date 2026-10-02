@@ -24,6 +24,7 @@ from func import CompileFunctionDeclaration
 from module import Modules
 
 from hir_builder import HIRBuilder
+from assembly import Target
 
 class Parser {
 
@@ -391,6 +392,10 @@ class Parser {
     }
 
     fn parse_identificator(context: Context) => HIR.VarId {
+        if (context.hir_builder == null) {
+            return (-1)$cast(HIR.VarId);
+        }
+
         token := context->current_token(1);
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, token);
 
@@ -461,6 +466,7 @@ class Parser {
 
     fn parse_sequence(context: Context, lhs_id: HIR.VarId) => HIR.VarId {
         rhs_id := context->parse_precedence(Precedence.Sequence + 1);
+        if (context.hir_builder == null) return (-1)$cast(HIR.VarId);
         src_info := HIR.SrcInfo.merge(context->get_var(lhs_id).src_info, context->get_var(rhs_id).src_info);
 
         lhs := context->get_var(lhs_id);
@@ -480,6 +486,7 @@ class Parser {
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1));
         expr_id := context->parse_precedence(Precedence.None + 1);
         context->token_consume(Token.Type.PARENTHESIS_RIGHT, "Expected ')' after expression.");
+        if (context.hir_builder == null) return (-1)$cast(HIR.VarId);
         src_info = HIR.SrcInfo.merge(src_info, HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1)));
 
         expr := context->get_var(expr_id);
@@ -512,6 +519,7 @@ class Parser {
 
     fn parse_indexing(context: Context, var_id: HIR.VarId) => HIR.VarId {
         if (context->token_match(Token.Type.SQUARE_RIGHT)) {
+            if (context.hir_builder == null) return (-1)$cast(HIR.VarId);
             src_info := HIR.SrcInfo.merge(context->get_var(var_id).src_info, HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1)));
             var_as_type := context->get_var_as_type(var_id);
             if (var_as_type == null) {
@@ -666,10 +674,11 @@ class Parser {
     }
 
     fn parse_dot_operator(context: Context, object_id: HIR.VarId) => HIR.VarId {
-        object := context->get_var(object_id);
         is_arrow_op := false;
         switch (context->current_token(1).type) {
-            case Token.Type.DOT => context->token_consume(Token.Type.ID, "Expected id after access operator.");
+            case Token.Type.DOT => {
+                context->token_consume(Token.Type.ID, "Expected id after access operator.");
+            }
             case Token.Type.ARROW_RIGHT => {
                 is_arrow_op = true;
                 context->token_consume(Token.Type.ID, "Expected id after arrow operator.");
@@ -679,10 +688,13 @@ class Parser {
                 assert(false);
             }
         }
+
+        if (context.hir_builder == null) return (-1)$cast(HIR.VarId);
         
         id_token := context->current_token(1);
         id := context->token_str(id_token);
 
+        object := context->get_var(object_id);
         src_info := HIR.SrcInfo.merge(object.src_info, HIR.SrcInfo.from_token(context.source_info.filename, id_token));
 
         if (context.hir_builder->is_undef(object_id)) {
@@ -1036,6 +1048,7 @@ class Parser {
     }
 
     fn parse_binary_rtl(context: Context, lhs_id: HIR.VarId, rhs_id: HIR.VarId) => HIR.VarId {
+        if (context.hir_builder == null) return (-1)$cast(HIR.VarId);
         token_type := context->current_token(1).type;
         if (lhs_id >= context.hir_builder.vars.size) {
             io.errorln(context.source_info.filename .. " at " .. (context.source_info->find_line(context->current_token(0).offset) + 1)$cast(str));
@@ -1190,7 +1203,7 @@ class Parser {
     }
 
     fn parse_expression_with_precedence(context: Context, precedence: Precedence, is_static: bool) => HIR.VarId {
-        if (context.emit_debug_info && !is_static) {
+        if (context.hir_builder != null && context.emit_debug_info && !is_static) {
             context.hir_builder->push_tagonly_instr(HIR.Tag.BEGIN_STMT, HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0)));
         }
         return context->parse_precedence(precedence);
@@ -1364,7 +1377,7 @@ class Parser {
 
     fn parse_sharp_modifier(context: Context) => StatementInfo {
         context->token_advance(); // #
-        context->token_advance(); // id // TODO replace with regular consume(ID); tmp fix for shared
+        context->token_advance(); // id // TODO replace with regular consume(ID); tmp fix for 'if'
         //context->token_consume(Token.Type.ID, "Expected id after '#' operator.");
         id_token := context->current_token(1);
 
@@ -1390,6 +1403,70 @@ class Parser {
         if (id == "shared") {
             context.hir_builder.shhared = true;
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+        }
+
+        if (id == "if") {
+            statement_info := StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+            has_true_condition := false;
+
+            while (true) {
+                // TODO replace with const eval
+                context->token_consume(Token.Type.SHARP, "Only sharp const is available for now.");
+                context->token_consume(Token.Type.ID, "Expected id after '#' operator.");
+
+                id_token := context->current_token(1);
+                src_info := HIR.SrcInfo.merge(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(2)), HIR.SrcInfo.from_token(context.source_info.filename, id_token));
+
+                id := context->token_str(id_token);
+
+                assert(id == "target");
+
+                context->token_consume(Token.Type.EQUAL, "You must put '==' after sharp const for now.");
+                
+                expr_id := context->parse_precedence(Precedence.Equality + 1);
+                expr_var := context->get_var(expr_id);
+
+                assert(expr_var.kind == HIR.Var.Kind.Literal);
+                expr_type := expr_var->get_type_forced();
+                assert(expr_type.kind == Type.Kind.Enum);
+                assert(expr_type$cast(TypeEnum).namespace.fullname == ".assembly.Target");
+
+                if (!has_true_condition && (has_true_condition = expr_var$cast(HIR.VarLiteral).value$cast(Target) == Modules.instance.active_module.target)) {
+                    statement_info = context->parse_statement();
+                } else {
+                    current_builder := context.hir_builder;
+                    context.hir_builder = null;
+
+                    context->parse_statement();
+
+                    context.hir_builder = current_builder;
+                }
+                
+                mark := context.iterator->mark();
+                if (context->token_match(Token.Type.SHARP)) {
+                    context->token_advance(); // id
+                    id = context->token_str(context->current_token(1));
+                    if (id == "else") {
+                        if (!has_true_condition) {
+                            statement_info = context->parse_statement();
+                        } else {
+                            current_builder := context.hir_builder;
+                            context.hir_builder = null;
+
+                            context->parse_statement();
+
+                            context.hir_builder = current_builder;
+                        }
+                    } else if (id == "elif") {
+                        continue;
+                    } else {
+                        context.iterator->rewind(mark);
+                    }
+                }
+                break;
+            }
+
+            return statement_info;
         }
 
         context->error(src_info.source_offset, src_info.length, "Unknown '#' command '" .. id .. "'.");
@@ -1612,7 +1689,7 @@ class Parser {
         old_export := context.hir_builder.exxport;
         context.hir_builder.exxport = false;
 
-        context.hir_builder->push_symbol_map();
+        if (context.hir_builder != null) context.hir_builder->push_symbol_map();
 
         old_class_fields := context.class_fields;
         context.class_fields = TypeClass.Field[0];
@@ -1621,7 +1698,7 @@ class Parser {
             context->parse_class_declaration_inner();
         }
 
-        context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0)));
+        if (context.hir_builder != null) context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0)));
         
         context.hir_builder.exxport = old_export;
         context.hir_builder.namespace = old_namespace;
@@ -1850,7 +1927,7 @@ class Parser {
         statement_info := StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
 
         while (!context->token_check(Token.Type.CURLY_RIGHT) && !context->token_check(Token.Type.EOF)) {
-            if ((statement_info.block_status & StatementInfo.BlockStatus.Finished) == StatementInfo.BlockStatus.Finished) {
+            if (context.hir_builder != null && (statement_info.block_status & StatementInfo.BlockStatus.Finished) == StatementInfo.BlockStatus.Finished) {
                 statement_start := context->current_token(0).offset;
 
                 decl_statement_info := context->parse_declaration();
@@ -1876,9 +1953,9 @@ class Parser {
     fn parse_block_statement(context: Context) => StatementInfo {
         context->token_advance(); // {
 
-        context.hir_builder->push_symbol_map();
+        if (context.hir_builder != null) context.hir_builder->push_symbol_map();
         statement_info := context->parse_block_statement_inner();
-        context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0)));
+        if (context.hir_builder != null) context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0)));
 
         context->token_consume(Token.Type.CURLY_RIGHT, "Expected '}' at the end of the block.");
         return statement_info;
@@ -2006,7 +2083,7 @@ class Parser {
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after 'for' keyword.");
 
-        context.hir_builder->push_symbol_map();
+        if (context.hir_builder != null) context.hir_builder->push_symbol_map();
 
         iterator_var := context->parse_precedence(Precedence.Assigment + 1); // TODO check if correct lvalue
         key: str;
@@ -2105,7 +2182,7 @@ class Parser {
 
         context.hir_builder->push_jump(expr_block, src_info);
 
-        context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1)));
+        if (context.hir_builder != null) context.hir_builder->pop_symbol_map(HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1)));
 
         // TODO check if iterable is const and adapt return Always info and set_block
         return_info := body_statement_info.return_info & StatementInfo.ReturnInfo.TypeUndef;
@@ -2322,6 +2399,7 @@ class Parser {
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1));
 
         if (context->token_match(Token.Type.TERMINATION_CHARACTER)) {
+            if (context.hir_builder == null) return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
             if (context.hir_builder.return_type != null && context.hir_builder.return_type != Types.instance.type_void$cast(Type)) {
                 context->error(src_info.source_offset, src_info.length, "Trying to return without value.");
             }
@@ -2329,6 +2407,7 @@ class Parser {
             return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
         } else {
             expr_id := context->parse_expression();
+            if (context.hir_builder == null) return StatementInfo.construct(StatementInfo.ReturnInfo.AlwaysVoid, StatementInfo.BlockStatus.Finished);
             if (context.hir_builder.return_type != null && context.hir_builder.return_type == Types.instance.type_void$cast(Type)) {
                 context->error(src_info.source_offset, src_info.length, "Trying to return value as void.");
             }

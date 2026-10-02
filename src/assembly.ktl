@@ -11,6 +11,25 @@ export enum Target: u8 {
     X86_64_SYSTEM_V_CLANG,
 }
 
+fn detect_current_platform() => Target {
+    // TODO make #value or smth and just return #target;
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        return Target.X86_64_WINDOWS_CLANG;
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        return Target.X86_64_SYSTEM_V_CLANG;
+    } #else {
+        assert(false);
+        return Target.DEFAULT;
+    }
+}
+
+export fn resolve_target_if_needed(target: Target) => Target {
+    if (target == Target.DEFAULT) {
+        return detect_current_platform();
+    }
+    return target;
+}
+
 export class Assembly {
 
     export class Builder {
@@ -25,15 +44,8 @@ export class Assembly {
     emit_debug_info: bool;
     return_type: Type;
 
-    fn detect_current_platform() => Target {
-        // TODO actually detect platform
-        return Target.X86_64_WINDOWS_CLANG;
-    }
-
     export fn get_builder(target: Target, source_info: ErrorsAccum.SourceInfo) => Builder {
-        if (target == Target.DEFAULT) {
-            target = detect_current_platform();
-        }
+        target = resolve_target_if_needed(target);
 
         switch (target) {
             case Target.X86_64_WINDOWS_CLANG
@@ -50,9 +62,7 @@ export class Assembly {
     export fn print_compilation_unit(fullpath: str, target: Target, 
         entry_assembly: Assembly, init_assembly: Assembly, assemblies: Assembly[], 
         namespace: Namespace, const_blocks: HIR.ConstBlock[], emit_debug_info: bool) {
-        if (target == Target.DEFAULT) {
-            target = detect_current_platform();
-        }
+        target = resolve_target_if_needed(target);
         
         switch (target) {
             case Target.X86_64_WINDOWS_CLANG

@@ -2,6 +2,7 @@
 
 from module import Modules
 from assembly import Target
+from assembly import resolve_target_if_needed
 import io
 
 class ArgsParser {
@@ -93,6 +94,8 @@ fn main(args: str[]) => i64 {
             case ArgsParser.State.ExpectingOutputTarget => parser.output_target = arg;
         }
     }
+
+    parser.target_os = resolve_target_if_needed(parser.target_os);
 
     switch (parser.op) {
         case ArgsParser.Operation.CompileToAsm => {

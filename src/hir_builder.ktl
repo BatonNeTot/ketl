@@ -1575,6 +1575,10 @@ class HIRBuilder {
         self.global_map_stack->pop();
     }
 
+    export fn is_global_scope(self: HIRBuilder) => bool {
+        return self.local_map_stack.size == 0;
+    }
+
     fn find_decl_bucket(self: HIRBuilder, name: str) => StrHashMap.Bucket {
         i := self.local_map_stack.size;
         while (i > 0) {
