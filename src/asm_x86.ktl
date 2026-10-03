@@ -19,7 +19,7 @@ from lexer import Lexer
 
 from namespace import Namespace
 
-from assembly import Target
+from platform import Target
 from assembly import Assembly
 
 import dwarf
@@ -2245,7 +2245,11 @@ export class ASMX86 {
 
         // insert addrsigs
         if (has_functions) {
-            io.println("    .p2align    2, 0x0");
+            if (target == Target.X86_64_WINDOWS_CLANG) {
+                io.println("    .p2align    2, 0x0");
+            } else if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                io.println("	.section	\".note.GNU-stack\",\"\",@progbits");
+            }
             io.println("    .addrsig");
 
             if (init_assembly != null) {

@@ -32,7 +32,14 @@ export class File {
 } 
 
 export fn get_last_error() => i32 {
-    return _errno().value;
+    from platform import Target
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        cimport _errno() => IntPointer
+        return _errno().value;
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        cimport __errno_location() => i32
+        return __errno_location();
+    }
 }
 
 cimport fopen(path: cstr, mode: cstr) => File
@@ -50,16 +57,21 @@ cimport free(pointer: raw)
 class IntPointer {
     value: i32;
 }
-cimport _errno() => IntPointer
 
 mimic FileHandle = i64;
 
 stdout_handle: FileHandle = 1;
 stderr_handle: FileHandle = 2;
 
-cimport __acrt_iob_func(handle: FileHandle) => File
-stdout := __acrt_iob_func(stdout_handle);
-stderr := __acrt_iob_func(stderr_handle);
+from platform import Target
+#if #target == Target.X86_64_WINDOWS_CLANG {
+    cimport __acrt_iob_func(handle: FileHandle) => File
+    stdout := __acrt_iob_func(stdout_handle);
+    stderr := __acrt_iob_func(stderr_handle);
+} #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+    #extern #uninitialized cexport stdout: File;
+    #extern #uninitialized cexport stderr: File;
+}
 
 
 export fn print(message: str) {
@@ -80,12 +92,21 @@ export fn errorln(message: str) {
     fputs("\n"$cast(cstr), stderr);
 }
 
-cimport _fileno(file: File) => FileHandle
-cimport _dup(handle: FileHandle) => FileHandle
-cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
+#if #target == Target.X86_64_WINDOWS_CLANG {
+    cimport _fileno(file: File) => FileHandle
+    cimport _dup(handle: FileHandle) => FileHandle
+    cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
 
-stdout_backup := _dup(stdout_handle);
-stderr_backup := _dup(stderr_handle);
+    stdout_backup := _dup(stdout_handle);
+    stderr_backup := _dup(stderr_handle);
+} #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+    cimport fileno(file: File) => FileHandle
+    cimport dup(handle: FileHandle) => FileHandle
+    cimport dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
+
+    stdout_backup := dup(stdout_handle);
+    stderr_backup := dup(stderr_handle);
+}
 stdout_redirect_file: File;
 stderr_redirect_file: File;
 
@@ -94,14 +115,22 @@ export fn stdout_redirect_restore() {
     if (stdout_redirect_file != null) {
         fclose(stdout_redirect_file);
     }
-    _dup2(stdout_backup, stdout_handle);
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        _dup2(stdout_backup, stdout_handle);
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        dup2(stdout_backup, stdout_handle);
+    }
 }
 export fn stderr_redirect_restore() {
     fflush(stderr);
     if (stderr_redirect_file != null) {
         fclose(stderr_redirect_file);
     }
-    _dup2(stderr_backup, stderr_handle);
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        _dup2(stderr_backup, stderr_handle);
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        dup2(stderr_backup, stderr_handle);
+    }
 }
 
 export fn stdout_redirect(target_filename: str) => bool {
@@ -114,9 +143,16 @@ export fn stdout_redirect(target_filename: str) => bool {
     }
 
     // stdout now refers to file p_target_filename
-    if (-1 == _dup2(_fileno(stdout_redirect_file), stdout_handle)) {
-        errorln("Can't _dup2 stdout");
-        return false;
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        if (-1 == _dup2(_fileno(stdout_redirect_file), stdout_handle)) {
+            errorln("Can't dup2 stdout");
+            return false;
+        }
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        if (-1 == dup2(fileno(stdout_redirect_file), stdout_handle)) {
+            errorln("Can't dup2 stdout");
+            return false;
+        }
     }
 
     return true;
@@ -131,9 +167,16 @@ export fn stderr_redirect(target_filename: str) => bool {
     }
 
     // stderr now refers to file p_target_filename
-    if (-1 == _dup2(_fileno(stderr_redirect_file), stderr_handle)) {
-        errorln("Can't _dup2 stderr");
-        return false;
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        if (-1 == _dup2(_fileno(stderr_redirect_file), stderr_handle)) {
+            errorln("Can't dup2 stderr");
+            return false;
+        }
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        if (-1 == dup2(fileno(stderr_redirect_file), stderr_handle)) {
+            errorln("Can't dup2 stderr");
+            return false;
+        }
     }
 
     return true;
@@ -353,25 +396,38 @@ export fn create_dirs_if_needed(path: str) => bool {
     return create_dirs_if_needed_resolved(resolve_path(path));
 }
 
-#uninitialized
-cexport __imp_GetFullPathNameA: (cstr, u32, raw, raw) => u32;
+#if #target == Target.X86_64_WINDOWS_CLANG {
+    #uninitialized
+    cexport __imp_GetFullPathNameA: (cstr, u32, raw, raw) => u32;
+}
 
 export fn resolve_path(path: str) => str {
     if (path == null || path.size == 0) {
         path = ".";
     }
 
-    capacity: u64 = 64;
-    buffer := malloc(capacity);
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        capacity: u64 = 64;
+        buffer := malloc(capacity);
 
-    size := __imp_GetFullPathNameA(path$cast(cstr), capacity$cast(u32), buffer, null);
-    if (size == 0) {
-        free(buffer);
-        return null;
+        size := __imp_GetFullPathNameA(path$cast(cstr), capacity$cast(u32), buffer, null);
+        if (size == 0) {
+            free(buffer);
+            return null;
+        }
+
+        from __ketl_rt import buffer_as_str
+        return buffer_as_str(buffer, size, capacity);
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        cimport realpath(path: cstr, resolved_path: cstr) => cstr
+        buffer := realpath(path$cast(cstr), null);
+        if (buffer == null) {
+            return null;
+        }
+
+        from __ketl_rt import cstr2str
+        return cstr2str(buffer);
     }
-
-    from __ketl_rt import buffer_as_str
-    return buffer_as_str(buffer, size, capacity);
 }
 
 export fn escaped_string(string: str) => str {

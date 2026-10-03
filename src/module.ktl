@@ -17,7 +17,7 @@ from lexer import Lexer
 from lexer import TokenIterator
 from hir import HIR
 from variable import VariableDecl
-from assembly import Target
+from platform import Target
 from assembly import Assembly
 
 class Module {
@@ -309,7 +309,7 @@ class Modules {
                     Types.instance.type_void,
                     Types.instance.type_bool
                 }
-            ), true);
+            ), true, true);
             node.info.const = true;
         }
     }
