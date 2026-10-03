@@ -19,7 +19,7 @@ from lexer import Lexer
 
 from namespace import Namespace
 
-from assembly import Target
+from platform import Target
 from assembly import Assembly
 
 import dwarf
@@ -30,6 +30,7 @@ export class ASMX86 {
     // Declarations //////////////////////
 
     export enum Tag: u8 {
+        COMMENT,
         LABEL,
         DIRECTIVE,
 
@@ -471,7 +472,11 @@ export class ASMX86 {
         opcode_offset: u64;
 
         fn print(instr: Instr, instrs: Instr[]) {
-            if (instr.tag == Tag.LABEL) {
+            if (instr.tag == Tag.COMMENT) {
+                io.print("# ");
+                io.print(instr.modrm.literal);
+                return;
+            } else if (instr.tag == Tag.LABEL) {
                 io.print(instr.modrm.literal);
                 io.print(":");
                 return;
@@ -652,32 +657,6 @@ export class ASMX86 {
 
     export class Builder {
 
-        class ArgInfo {
-            name: str;
-            type: Type;
-            stack_offset: i32;
-
-            export fn construct(stack_offset: i32, type: Type, name: str) => ArgInfo {
-                self := ArgInfo();
-
-                self.name = name;
-                self.type = type;
-                self.stack_offset = stack_offset;
-
-                return self;
-            }
-
-            export fn error() => ArgInfo {
-                self := ArgInfo();
-
-                self.stack_offset = 0;
-                self.name = "<undefined>";
-
-                return self;
-            }
-
-        };
-
         extend Assembly.Builder;
         source_info: ErrorsAccum.SourceInfo;
         hir: HIR;
@@ -740,6 +719,18 @@ export class ASMX86 {
 
             directive ..= "     # " .. src_info.filename .. ":" .. (line + 1)$cast(str) .. ":" .. (col + 1)$cast(str);
             self->directive(directive);
+        }
+
+        fn comment(self: Builder, comment: str) {
+            instr := Instr();
+
+            instr.tag = Tag.COMMENT;
+            instr.size = Size.None;
+            instr.arg_type = ArgType.EMPTY;
+            instr.modrm = ModRM.construct_literal(comment);
+            instr.reg = Reg.None;
+
+            self.instrs ..= instr;
         }
 
         fn label(self: Builder, directive: str) {
@@ -873,14 +864,12 @@ export class ASMX86 {
                 Ref,
             }
             kind: Kind;
-            size: Size;
             type: Type;
             src_info: HIR.SrcInfo;
 
             fn construct_literal(type: Type, value: u64, src_info: HIR.SrcInfo) => AsmArg {
                 arg := AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
-                arg.size = type->get_stack_size()$cast(Size);
                 arg.type = type;
                 arg.src_info = src_info;
 
@@ -892,7 +881,7 @@ export class ASMX86 {
             fn construct_type(type: Type, src_info: HIR.SrcInfo) => AsmArg {
                 arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
-                arg.size = Size.Ptr;
+                arg.type = Types.instance.type_raw;
                 arg.src_info = src_info;
 
                 arg.label = type->get_full_name();
@@ -906,7 +895,6 @@ export class ASMX86 {
                 } else {
                     arg := AsmArgGlobal();
                     arg.kind = AsmArg.Kind.GlobalAddress;
-                    arg.size = Size.Ptr;
                     arg.type = Types.instance.type_raw;
                     arg.src_info = src_info;
 
@@ -939,6 +927,7 @@ export class ASMX86 {
             extend AsmArg;
             name: str;
             stack: i64;
+            stack_reg: Reg;
         }
 
         class AsmArgRef {
@@ -972,8 +961,7 @@ export class ASMX86 {
 
                 arg := AsmArgLiteral();
                 arg.kind = AsmArg.Kind.Literal;
-                arg.size = target_type->get_stack_size()$cast(Size);
-                arg.type = orig_type;
+                arg.type = target_type;
                 arg.src_info = varr.src_info;
 
                 arg.value = value;
@@ -987,7 +975,6 @@ export class ASMX86 {
 
                 arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.Global;
-                arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
                 arg.src_info = varr.src_info;
 
@@ -995,11 +982,9 @@ export class ASMX86 {
 
                 if (namespace_node.value.kind == Value.Kind.Type) {
                     arg.kind = AsmArg.Kind.GlobalAddress;
-                    arg.size = Size.Ptr;
                 } else {
-                    if (namespace_node.info.const && (target_type.kind == Type.Kind.Function || target_type.kind == Type.Kind.CFunction)) {
+                    if (namespace_node.info.const && (orig_type.kind == Type.Kind.Function || orig_type.kind == Type.Kind.CFunction)) {
                         arg.kind = AsmArg.Kind.GlobalAddress;
-                        arg.size = Size.Ptr;
                     }
                 }
 
@@ -1015,19 +1000,7 @@ export class ASMX86 {
                 // TODO create and return asm arg error
                 assert(bucket != null);
 
-                // TODO just create AsmArgOnStack directly into variables instead of ArgInfo
-                arg_info := bucket.value$cast(ArgInfo);
-
-                arg := AsmArgOnStack();
-                arg.kind = AsmArg.Kind.OnStack;
-                arg.size = target_type->get_stack_size()$cast(Size);
-                arg.type = orig_type;
-                arg.src_info = varr.src_info;
-
-                arg.name = arg_info.name;
-                arg.stack = arg_info.stack_offset;
-
-                return arg;
+                return bucket.value$cast(AsmArgOnStack);
             }
 
             if (varr.kind == HIR.Var.Kind.LiteralType) {
@@ -1037,7 +1010,7 @@ export class ASMX86 {
 
                 arg := AsmArgGlobal();
                 arg.kind = AsmArg.Kind.GlobalAddress;
-                arg.size = Size.Ptr;
+                arg.type = Types.instance.type_raw;
                 arg.src_info = varr.src_info;
 
                 arg.label = name;
@@ -1077,7 +1050,6 @@ export class ASMX86 {
 
                 arg := AsmArgRef();
                 arg.kind = AsmArg.Kind.Ref;
-                arg.size = target_type->get_stack_size()$cast(Size);
                 arg.type = orig_type;
                 arg.src_info = varr.src_info;
 
@@ -1124,7 +1096,13 @@ export class ASMX86 {
             if (arg.kind == AsmArg.Kind.OnStack) {
                 arg_on_stack := arg$cast(AsmArgOnStack);
                 self->push_line_debug_info(arg.src_info, null);
-                self->push_cast_aware_mov(arg.type, size, target_reg, self->modrm_stack(size, arg_on_stack.stack, arg_on_stack.name));
+                if (arg_on_stack.name != null) {
+                    self->comment("name: '" .. arg_on_stack.name .. "'; stack: " .. arg_on_stack.stack$cast(str) .. "; size : " .. size$cast(str));
+                } else {
+                    self->comment("stack: " .. arg_on_stack.stack$cast(str) .. "; size : " .. size$cast(str));
+                }
+                type_size := arg.type->get_stack_size()$cast(Size);
+                self->push_cast_aware_mov(arg.type, size, target_reg, ModRM.construct_indir_base_label(arg_on_stack.stack_reg, arg_on_stack.name, arg_on_stack.stack$cast(i32)));
                 return;
             }
 
@@ -1157,7 +1135,12 @@ export class ASMX86 {
             if (arg.kind == AsmArg.Kind.OnStack) {
                 arg_on_stack := arg$cast(AsmArgOnStack);
                 self->push_line_debug_info(arg.src_info, null);
-                self->insert_rm_reg(Tag.MOV, size, self->modrm_stack(arg.size, arg_on_stack.stack, arg_on_stack.name), source_reg);
+                if (arg_on_stack.name != null) {
+                    self->comment("name: '" .. arg_on_stack.name .. "'; stack: " .. arg_on_stack.stack$cast(str) .. "; size : " .. size$cast(str));
+                } else {
+                    self->comment("stack: " .. arg_on_stack.stack$cast(str) .. "; size : " .. size$cast(str));
+                }
+                self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(arg_on_stack.stack_reg, arg_on_stack.name, arg_on_stack.stack$cast(i32)), source_reg);
                 return;
             }
 
@@ -1181,31 +1164,9 @@ export class ASMX86 {
             assert(false);
         }
 
-        fn modrm_stack(self: Builder, size: Size, stack: i64, name: str) => ModRM {
-            switch (self.target) {
-                case Target.X86_64_WINDOWS_CLANG =>
-                    // TODO self.inline_symbols
-                    if (true) {
-                        return ModRM.construct_indir_base_label(Reg.SP, name, stack$cast(i32));
-                    } else {
-                        return ModRM.construct_indir_base_disp(Reg.SP, stack$cast(i32));
-                    }
-                case Target.X86_64_SYSTEM_V_CLANG =>
-                    // TODO 4294967296 => 0x100000000
-                    return ModRM.construct_indir_base_disp(Reg.BP, (4294967296$cast(i64) - stack - size$cast(i64))$cast(i32));
-            }
-
-            assert(false);
-            return ModRM.construct_empty();
-        }
-
-        fn modrm_stack_from_arg_info(self: Builder, size: Size, arg_info: ArgInfo) => ModRM {
-            return self->modrm_stack(size, arg_info.stack_offset, arg_info.name);
-        }
-
         fn push_cast_aware_mov(self: Builder, rhs_type: Type, size: Size, target_reg: Reg, rhs: ModRM) {
             rhs_type_size := rhs_type->get_stack_size()$cast(Size);
-            if (!(size == rhs_type_size || (rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum)))) {
+            if (size == rhs_type_size || !(rhs_type != null && (rhs_type.kind == Type.Kind.Primitive || rhs_type.kind == Type.Kind.Enum))) {
                 self->insert_reg_rm(Tag.MOV, size, target_reg, rhs); 
                 return;
             }
@@ -1251,7 +1212,7 @@ export class ASMX86 {
             }
         }
 
-        fn push_function_arguments(self: Builder, arguments: AsmArg[]) {
+        fn push_function_arguments(self: Builder, sizes: Size[], arguments: AsmArg[]) {
             if (arguments.size == 0) {
                 return;
             }
@@ -1264,22 +1225,26 @@ export class ASMX86 {
                 reg_count := abi_parameters_regs.size;
                 if (i < reg_count) {
                     reg := abi_parameters_regs[i];
-                    self->insert_mov_to_reg(arg.size, reg, arg);
+                    self->insert_mov_to_reg(sizes[i], reg, arg);
                 } else {
                     //assert(self.target == Target.X86_64_WINDOWS_CLANG);
 
-                    self->insert_mov_to_reg(arg.size, Reg.AX, arg);
-                    reg_space_size := raw$size * reg_count;
+                    self->insert_mov_to_reg(sizes[i], Reg.AX, arg);
+                    reg_space_size := Size.Ptr$cast(i64) * reg_count$cast(i64);
 
                     parameter := AsmArgOnStack();
                     parameter.kind = AsmArg.Kind.OnStack;
-                    parameter.size = arg.size;
                     parameter.type = arg.type;
 
                     parameter.name = null;
-                    parameter.stack = (reg_space_size + (i - reg_count) * raw$size)$cast(i64);
+                    switch (self.target) {
+                        case Target.X86_64_WINDOWS_CLANG => parameter.stack = reg_space_size + (i - reg_count)$cast(i64) * Size.Ptr$cast(i64);
+                        case Target.X86_64_SYSTEM_V_CLANG => parameter.stack = (i - reg_count)$cast(i64) * Size.Ptr$cast(i64);
+                        default => assert(false);
+                    }
+                    parameter.stack_reg = Reg.SP;
 
-                    self->insert_mov_from_reg(arg.size, parameter, Reg.AX);
+                    self->insert_mov_from_reg(Size.Ptr, parameter, Reg.AX);
                 }
 
                 if (i == 0) {
@@ -1305,8 +1270,17 @@ export class ASMX86 {
                     return;
                 }
                 case Target.X86_64_SYSTEM_V_CLANG => {
-                    if (!(has_calls && self.stack_reserved_size > 0)) {
+                    SYSTEM_V_SHADOW_STACK_SPACE: u32 = 128;
+                    if (!((has_calls && self.stack_reserved_size > 0) || (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE))) {
                         return;
+                    }
+
+                    if (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE) {
+                        self.stack_reserved_size -= SYSTEM_V_SHADOW_STACK_SPACE;
+                    }
+                    abi_parameters_regs := parameters_regs[self.target];
+                    if (self.hir.max_call_arg_count >= abi_parameters_regs.size) {
+                        self.stack_reserved_size += (Types.instance.type_raw->get_stack_size() * (self.hir.max_call_arg_count - abi_parameters_regs.size))$cast(u32);
                     }
                     self.stack_reserved_size = align_forward(self.stack_reserved_size, 16)$cast(u32); // 16-bites aligned
                 }
@@ -1337,22 +1311,76 @@ export class ASMX86 {
                     if (parameters_needed < self.hir.max_call_arg_count) {
                         parameters_needed = self.hir.max_call_arg_count;
                     }
-                    self.stack_reserved_size = self.hir.max_call_arg_count * raw$size; // size of reg parameters, has to be preallocated
+                    self.stack_reserved_size += self.hir.max_call_arg_count * raw$size; // size of reg parameters, has to be preallocated
                 }
             }
 
             {
-                decl_id: HIR.DeclId = self.hir.parameters_count;
+                decl_id: HIR.DeclId;
+                switch (self.target) {
+                    case Target.X86_64_WINDOWS_CLANG => decl_id = self.hir.parameters_count;
+                }
+
+                nonregister_parameters_stack := 16$cast(i32);
                 while (decl_id < self.hir.decls.size) {
                     decl := self.hir.decls[decl_id];
+                    type := decl->get_type();
 
-                    // local or temporary variable
-                    arg_info := ArgInfo.construct(self.stack_reserved_size$cast(i32), decl->get_type(), decl.name);
+                    switch (self.target) {
+                        case Target.X86_64_WINDOWS_CLANG => {
+                            aligned_stack_reserved_size := align_forward(self.stack_reserved_size, Type.from_align_enum(type->get_stack_align()))$cast(u32);
 
-                    bucket := self.variables->get_or_insert(decl_id, arg_info);
-                    if (bucket.value$cast(ArgInfo).stack_offset == arg_info.stack_offset) {
-                        // TODO FIX take into account type size and alignment
-                        self.stack_reserved_size += i64$size;
+                            // local or temporary variable
+                            arg := AsmArgOnStack();
+                            arg.kind = AsmArg.Kind.OnStack;
+                            arg.type = type;
+                            arg.src_info = decl->get_src_info();
+
+                            arg.name = decl.name;
+                            arg.stack = aligned_stack_reserved_size$cast(i32);
+                            arg.stack_reg = Reg.SP;
+
+                            bucket := self.variables->get_or_insert(decl_id, arg);
+                            if (bucket.value$cast(AsmArgOnStack).stack == arg.stack) {
+                                self.stack_reserved_size = aligned_stack_reserved_size + type->get_stack_size();
+                            }
+                        }
+                        case Target.X86_64_SYSTEM_V_CLANG => {
+                            if (decl_id >= abi_parameters_regs.size && decl_id < self.hir.parameters_count) {
+                                // non-register parameter
+                                arg := AsmArgOnStack();
+                                arg.kind = AsmArg.Kind.OnStack;
+                                arg.type = type;
+                                arg.src_info = decl->get_src_info();
+
+                                arg.name = decl.name;
+                                arg.stack = nonregister_parameters_stack;
+                                arg.stack_reg = Reg.BP;
+
+                                bucket := self.variables->get_or_insert(decl_id, arg);
+                                if (bucket.value$cast(AsmArgOnStack).stack == arg.stack) {
+                                    nonregister_parameters_stack += Size.Ptr$cast(i32);
+                                }
+                            } else {
+                                aligned_stack_reserved_size := align_forward(self.stack_reserved_size, Type.from_align_enum(type->get_stack_align()))$cast(u32);
+
+                                // local or temporary variable
+                                arg := AsmArgOnStack();
+                                arg.kind = AsmArg.Kind.OnStack;
+                                arg.type = type;
+                                arg.src_info = decl->get_src_info();
+
+                                arg.name = decl.name;
+                                arg.stack = -(aligned_stack_reserved_size + type->get_stack_size());
+                                arg.stack_reg = Reg.BP;
+
+                                bucket := self.variables->get_or_insert(decl_id, arg);
+                                if (bucket.value$cast(AsmArgOnStack).stack == arg.stack) {
+                                    self.stack_reserved_size = aligned_stack_reserved_size + type->get_stack_size();
+                                }
+                            }
+                        }
+                        default => assert(false);
                     }
 
                     decl_id += 1;
@@ -1390,7 +1418,7 @@ export class ASMX86 {
                 default => assert(false);
             }
 
-            {
+            { 
                 decl_id: HIR.DeclId = self.hir.parameters_count;
                 while (decl_id > 0) {
                     decl_id -= 1;
@@ -1399,15 +1427,31 @@ export class ASMX86 {
                     assert(decl.kind == HIR.Decl.Kind.Parameter);
                     parameter := decl$cast(HIR.DeclParameter);
 
-                    arg_info := ArgInfo.construct(((decl_id + 1) * raw$size + self.stack_reserved_size)$cast(i32), decl->get_type(), decl.name);
+                    arg: AsmArgOnStack;
+                    switch (self.target) {
+                        case Target.X86_64_WINDOWS_CLANG => {
+                            arg = AsmArgOnStack();
+                            arg.kind = AsmArg.Kind.OnStack;
+                            arg.type = decl->get_type();
+                            arg.src_info = decl->get_src_info();
 
-                    self.variables->get_or_insert(decl_id, arg_info);
+                            arg.name = decl.name;
+                            arg.stack = ((decl_id + 1) * raw$size + self.stack_reserved_size)$cast(i64);
+                            arg.stack_reg = Reg.SP;
+
+                            self.variables->get_or_insert(decl_id, arg);
+                        }
+                        case Target.X86_64_SYSTEM_V_CLANG => {
+                            arg = self.variables->get_or_null(decl_id).value;
+                        }
+                        default => assert(false);
+                    }
 
                     if (decl_id < abi_parameters_regs.size) {
                         type := decl->get_type();
                         size := type->get_stack_size()$cast(Size);
                         reg := abi_parameters_regs[decl_id];
-                        self->insert_rm_reg(Tag.MOV, size, self->modrm_stack_from_arg_info(size, arg_info), reg);
+                        self->insert_rm_reg(Tag.MOV, size, ModRM.construct_indir_base_label(arg.stack_reg, arg.name, arg.stack$cast(i32)), reg);
                     }
                 }
             }
@@ -1657,11 +1701,13 @@ export class ASMX86 {
                         func_type := callee_type$cast(TypeFunction); 
                         return_type := func_type.signature.parameters[0];
 
+                        sizes := Size[0];
                         args := AsmArg[0];
                         for (var_id := hir_info.args) {
+                            sizes ..= self.hir.vars[var_id]->get_type_forced()->get_stack_size()$cast(Size);
                             args ..= self->get_arg_from_hir(var_id);
                         }
-                        self->push_function_arguments(args);
+                        self->push_function_arguments(sizes, args);
 
                         // call
                         arg_callee := self->get_arg_from_hir(hir_info.callee);
@@ -1686,9 +1732,13 @@ export class ASMX86 {
 
                         assert(callee_type.kind == Type.Kind.Class);
 
-                        self->push_function_arguments(AsmArg[1]{
-                            AsmArg.construct_type(callee_type, hir_info.src_info)
-                        });
+                        self->push_function_arguments(
+                            Size[1]{
+                                Size.Ptr,
+                            },
+                            AsmArg[1]{
+                                AsmArg.construct_type(callee_type, hir_info.src_info),
+                            });
 
                         // call
 
@@ -1712,12 +1762,19 @@ export class ASMX86 {
 
                         initial_constant := self.hir->get_constant(hir_info.initial_value);
 
-                        self->push_function_arguments(AsmArg[4]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
-                            self->get_arg_from_hir(hir_info.size),
-                            AsmArg.construct_constant(initial_constant, hir_info.src_info),
-                            AsmArg.construct_constant_size(initial_constant, hir_info.src_info),
-                        });
+                        self->push_function_arguments(
+                            Size[4]{
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[4]{
+                                AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
+                                self->get_arg_from_hir(hir_info.size),
+                                AsmArg.construct_constant(initial_constant, hir_info.src_info),
+                                AsmArg.construct_constant_size(initial_constant, hir_info.src_info),
+                            });
 
                         // call
 
@@ -1739,11 +1796,17 @@ export class ASMX86 {
                         output := self.hir.vars[hir_info.output];
                         array_type := output->get_type_forced();
 
-                        self->push_function_arguments(AsmArg[3]{
-                            self->get_arg_from_hir(hir_info.mirrored),
-                            self->get_arg_from_hir(hir_info.start),
-                            self->get_arg_from_hir(hir_info.end),
-                        });
+                        self->push_function_arguments(
+                            Size[3]{
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[3]{
+                                self->get_arg_from_hir(hir_info.mirrored),
+                                self->get_arg_from_hir(hir_info.start),
+                                self->get_arg_from_hir(hir_info.end),
+                            });
 
                         // call
 
@@ -1765,11 +1828,17 @@ export class ASMX86 {
                         output := self.hir.vars[hir_info.output];
                         value_type := output->get_type_forced();
 
-                        self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
-                            self->get_arg_from_hir(hir_info.array),
-                            self->get_arg_from_hir(hir_info.index),
-                        });
+                        self->push_function_arguments(
+                            Size[3]{
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[3]{
+                                AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
+                                self->get_arg_from_hir(hir_info.array),
+                                self->get_arg_from_hir(hir_info.index),
+                            });
 
                         // call
 
@@ -1791,12 +1860,19 @@ export class ASMX86 {
                         output := self.hir.vars[hir_info.output];
                         value_type := output->get_type_forced();
 
-                        self->push_function_arguments(AsmArg[4]{
-                            AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
-                            self->get_arg_from_hir(hir_info.array),
-                            self->get_arg_from_hir(hir_info.index),
-                            self->get_arg_from_hir(hir_info.value),
-                        });
+                        self->push_function_arguments(
+                            Size[4]{
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[4]{
+                                AsmArg.construct_literal(Types.instance.type_u64, value_type->get_stack_size(), hir_info.src_info),
+                                self->get_arg_from_hir(hir_info.array),
+                                self->get_arg_from_hir(hir_info.index),
+                                self->get_arg_from_hir(hir_info.value),
+                            });
 
                         // call
 
@@ -1819,11 +1895,17 @@ export class ASMX86 {
                         array_type := array->get_type_forced()$cast(TypeArray);
                         assert(array_type.kind == Type.Kind.Array);
 
-                        self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
-                            self->get_arg_from_hir(hir_info.array),
-                            self->get_arg_from_hir(hir_info.appendee),
-                        });
+                        self->push_function_arguments(
+                            Size[3]{
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[3]{
+                                AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
+                                self->get_arg_from_hir(hir_info.array),
+                                self->get_arg_from_hir(hir_info.appendee),
+                            });
 
                         // call
 
@@ -1844,11 +1926,17 @@ export class ASMX86 {
                         array_type := array->get_type_forced()$cast(TypeArray);
                         assert(array_type.kind == Type.Kind.Array);
 
-                        self->push_function_arguments(AsmArg[3]{
-                            AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
-                            self->get_arg_from_hir(hir_info.array),
-                            self->get_arg_from_hir(hir_info.appendee),
-                        });
+                        self->push_function_arguments(
+                            Size[4]{
+                                Types.instance.type_u64->get_stack_size()$cast(Size),
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                                Types.instance.type_raw->get_stack_size()$cast(Size),
+                            },
+                            AsmArg[3]{
+                                AsmArg.construct_literal(Types.instance.type_u64, array_type.value->get_stack_size(), hir_info.src_info),
+                                self->get_arg_from_hir(hir_info.array),
+                                self->get_arg_from_hir(hir_info.appendee),
+                            });
 
                         // call
 
@@ -2015,17 +2103,17 @@ export class ASMX86 {
             {
                 for (bucket := self.variables.buckets) {
                     while (bucket != null) {
-                        arg_info := bucket.value$cast(ArgInfo);
+                        arg := bucket.value$cast(AsmArgOnStack);
 
-                        if (arg_info.name[0] != '~' 
-                            && arg_info.type != null && arg_info.type != Types.instance.type_void$cast(Type)) {
+                        if (arg.name[0] != '~' 
+                            && arg.type != null && arg.type != Types.instance.type_void$cast(Type)) {
                             variable := dwarf.Variable();
-                            variable.name = arg_info.name;
-                            variable.type = arg_info.type;
+                            variable.name = arg.name;
+                            variable.type = arg.type;
                             variable.ops = dwarf.Op[1] {
                                 dwarf.Op.fbreg,
                             };
-                            for (value := dwarf.split_value_to_sleb128(arg_info.stack_offset)) {
+                            for (value := dwarf.split_value_to_sleb128(arg.stack)) {
                                 variable.ops ..= value$cast(dwarf.Op);
                             }
                             asm_x86.variables ..= variable;
@@ -2123,21 +2211,17 @@ export class ASMX86 {
 
         // insert vars
         if (namespace->has_vars()) {
-            io.println("    .bss                    # -- Zero-initialized Variables");
+            if (target == Target.X86_64_WINDOWS_CLANG) {
+                io.println("    .bss                    # -- Zero-initialized Variables");
+            }
 
             print_asm_zero_initialized_variables_namespace(namespace, target);
         }
 
         // insert classes and consts
         if (namespace->has_classes() || const_blocks.size > 0) {
-            switch (target) {
-                case Target.X86_64_WINDOWS_CLANG => {
-                    io.println("    .section   .rdata,\"dr\"                    # -- Read-only");
-                }
-                case Target.X86_64_SYSTEM_V_CLANG => {
-                    io.println("    .section   .rodata.str1.1,\"aMS\",@progbits,1                    # -- Read-only");
-                }
-                default => assert(false);
+            if (target == Target.X86_64_WINDOWS_CLANG) {
+                io.println("    .section   .rdata,\"dr\"                    # -- Read-only");
             }
 
             for (const_block := const_blocks) {
@@ -2145,7 +2229,8 @@ export class ASMX86 {
                     constant_name := const_info.name;
 
                     if (target == Target.X86_64_SYSTEM_V_CLANG) {
-                        io.println("    .type	" .. constant_name .. ",@object                  # @.str");
+                        io.println("    .type	" .. constant_name .. ",@object                  # @" .. constant_name);
+                        io.println("    .section   .rodata." .. constant_name .. ",\"aG\",@progbits," .. constant_name);
                     }
                     io.println(constant_name .. ":");
 
@@ -2164,7 +2249,7 @@ export class ASMX86 {
                 }
             }
 
-            print_asm_read_only_data_namespace(namespace);
+            print_asm_read_only_data_namespace(namespace, target);
         }
 
         if (init_assembly != null) {
@@ -2245,7 +2330,11 @@ export class ASMX86 {
 
         // insert addrsigs
         if (has_functions) {
-            io.println("    .p2align    2, 0x0");
+            if (target == Target.X86_64_WINDOWS_CLANG) {
+                io.println("    .p2align    2, 0x0");
+            } else if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                io.println("	.section	\".note.GNU-stack\",\"\",@progbits");
+            }
             io.println("    .addrsig");
 
             if (init_assembly != null) {
@@ -2288,6 +2377,7 @@ export class ASMX86 {
 
         if (target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println("    .type    " .. variable_name .. ",@object                    # @" .. variable_name);
+            io.println("    .section   .bss." .. variable_name .. ",\"awG\",@nobits," .. variable_name);
         }
         io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
         io.println("    .p2align  " .. value.type.align$cast(str) .. ", 0x0");
@@ -2310,7 +2400,7 @@ export class ASMX86 {
         }
     }
 
-    fn print_asm_read_only_data_variable(node: Namespace.Node) {
+    fn print_asm_read_only_data_variable(node: Namespace.Node, target: Target) {
         value := node.value;
         if (!value->is_type()) {
             return;
@@ -2326,6 +2416,10 @@ export class ASMX86 {
         
         variable_name := node.name;
 
+        if (target == Target.X86_64_SYSTEM_V_CLANG) {
+            io.println("    .type	" .. variable_name .. ",@object                  # @" .. variable_name);
+            io.println("    .section   .rodata." .. variable_name .. ",\"aG\",@progbits," .. variable_name);
+        }
         io.println("    .globl    " .. variable_name .. "                    # @" .. variable_name);
         io.println("    .p2align  " .. Types.instance.type_raw.align$cast(str) .. ", 0x0");
         io.println(variable_name .. ":");
@@ -2371,15 +2465,15 @@ export class ASMX86 {
         }
         */
 
-        print_asm_read_only_data_namespace(type_class.namespace);
+        print_asm_read_only_data_namespace(type_class.namespace, target);
     }
 
-    fn print_asm_read_only_data_namespace(namespace: Namespace) {
+    fn print_asm_read_only_data_namespace(namespace: Namespace, target: Target) {
         for (bucket := namespace.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
-                    print_asm_read_only_data_variable(node);
+                    print_asm_read_only_data_variable(node, target);
                 }
 
                 bucket = bucket.next;

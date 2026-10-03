@@ -1,34 +1,11 @@
 //🫖ketl
 
+from platform import Target
+from platform import resolve_target_if_needed
 from errors import ErrorsAccum
 from type_base import Type
 from hir import HIR
 from namespace import Namespace
-
-export enum Target: u8 {
-    DEFAULT,
-    X86_64_WINDOWS_CLANG,
-    X86_64_SYSTEM_V_CLANG,
-}
-
-fn detect_current_platform() => Target {
-    // TODO make #value or smth and just return #target;
-    #if #target == Target.X86_64_WINDOWS_CLANG {
-        return Target.X86_64_WINDOWS_CLANG;
-    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
-        return Target.X86_64_SYSTEM_V_CLANG;
-    } #else {
-        assert(false);
-        return Target.DEFAULT;
-    }
-}
-
-export fn resolve_target_if_needed(target: Target) => Target {
-    if (target == Target.DEFAULT) {
-        return detect_current_platform();
-    }
-    return target;
-}
 
 export class Assembly {
 

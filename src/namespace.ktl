@@ -56,10 +56,10 @@ class Namespace {
         return self.nodes.size == 0;
     }
 
-    export fn declare_var(self: Namespace, key: str, name: str, type: Type, exxport: bool) => Node {
+    export fn declare_var(self: Namespace, key: str, name: str, type: Type, exxport: bool, extern: bool) => Node {
         value := Value();
         value->set_type(type);
-        return self->put(key, name, value, Info.construct(exxport, false), false);
+        return self->put(key, name, value, Info.construct(exxport, extern), false);
     }
 
     export fn import_namespace(self: Namespace, key: str, name: str, namespace: Namespace, exxport: bool) => Node {

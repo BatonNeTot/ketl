@@ -1,8 +1,8 @@
 //🫖ketl
 
 from module import Modules
-from assembly import Target
-from assembly import resolve_target_if_needed
+from platform import Target
+from platform import resolve_target_if_needed
 import io
 
 class ArgsParser {
