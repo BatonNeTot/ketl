@@ -31,14 +31,21 @@ export class File {
     }
 } 
 
-export fn get_last_error() => i32 {
+class IntPointer {
+    value: i32;
+}
+class Int64Pointer {
+    value: i64;
+}
+
+export fn get_last_error() => i64 {
     from platform import Target
     #if #target == Target.X86_64_WINDOWS_CLANG {
         cimport _errno() => IntPointer
         return _errno().value;
     } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
-        cimport __errno_location() => i32
-        return __errno_location();
+        cimport __errno_location() => Int64Pointer
+        return __errno_location().value;
     }
 }
 
@@ -53,10 +60,6 @@ cimport fclose(file: File)
 
 cimport malloc(size: u64) => raw
 cimport free(pointer: raw)
-
-class IntPointer {
-    value: i32;
-}
 
 mimic FileHandle = i64;
 
@@ -220,7 +223,12 @@ export class Dir {
             return null;
         }
 
-        dirent_name_offset := (i32$size + i16$size + i16$size)$cast(u64);
+        dirent_name_offset: u64;
+#if #target == Target.X86_64_WINDOWS_CLANG {
+        dirent_name_offset = (i32$size + i16$size + i16$size)$cast(u64);
+} #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        dirent_name_offset = (u64$size + i64$size + i16$size + u8$size)$cast(u64);
+}
         cstr_name := dirent + dirent_name_offset;
 
         from __ketl_rt import cstr2str

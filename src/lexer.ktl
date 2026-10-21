@@ -110,7 +110,7 @@ export class Lexer {
         }
 
         if (next_symbol == '\n') {
-            lexer.offset += 2;
+            lexer.offset += 1;
             lexer->increment_line();
             return true;
         }

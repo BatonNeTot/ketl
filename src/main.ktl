@@ -200,6 +200,7 @@ fn compile_asm_file(path: str, output_path: str) => bool {
         }
     }
 
+    io.println("compiling " .. module_name .. "...");
     module := Modules.instance->load(module_name, dir_path, parser.target_os, parser.emit_debug_info);
     if (module == null || module.has_errors) {
         return false;
