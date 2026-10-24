@@ -78,25 +78,36 @@ from platform import Target
 
 
 export fn print(message: str) {
+    if (message == null) {
+        fputs("<null>"$cast(cstr), stdout);
+        return;
+    }
+
     fputs(message$cast(cstr), stdout);
 }
 
 export fn println(message: str) {
-    fputs(message$cast(cstr), stdout);
+    print(message);
     fputs("\n"$cast(cstr), stdout);
 }
 
 export fn error(message: str) {
+    if (message == null) {
+        fputs("<null>"$cast(cstr), stderr);
+        return;
+    }
+
     fputs(message$cast(cstr), stderr);
 }
 
 export fn errorln(message: str) {
-    fputs(message$cast(cstr), stderr);
+    error(message);
     fputs("\n"$cast(cstr), stderr);
 }
 
 #if #target == Target.X86_64_WINDOWS_CLANG {
     cimport _fileno(file: File) => FileHandle
+    cimport _close(handle: FileHandle) => i64
     cimport _dup(handle: FileHandle) => FileHandle
     cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
 
@@ -104,34 +115,31 @@ export fn errorln(message: str) {
     stderr_backup := _dup(stderr_handle);
 } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
     cimport fileno(file: File) => FileHandle
+    cimport close(handle: FileHandle) => i64
     cimport dup(handle: FileHandle) => FileHandle
     cimport dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
 
     stdout_backup := dup(stdout_handle);
     stderr_backup := dup(stderr_handle);
 }
-stdout_redirect_file: File;
-stderr_redirect_file: File;
 
 export fn stdout_redirect_restore() {
     fflush(stdout);
-    if (stdout_redirect_file != null) {
-        fclose(stdout_redirect_file);
-    }
     #if #target == Target.X86_64_WINDOWS_CLANG {
+        _close(stdout_handle);
         _dup2(stdout_backup, stdout_handle);
     } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        close(stdout_handle);
         dup2(stdout_backup, stdout_handle);
     }
 }
 export fn stderr_redirect_restore() {
     fflush(stderr);
-    if (stderr_redirect_file != null) {
-        fclose(stderr_redirect_file);
-    }
     #if #target == Target.X86_64_WINDOWS_CLANG {
+        _close(stderr_handle);
         _dup2(stderr_backup, stderr_handle);
     } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        close(stderr_handle);
         dup2(stderr_backup, stderr_handle);
     }
 }
@@ -139,7 +147,7 @@ export fn stderr_redirect_restore() {
 export fn stdout_redirect(target_filename: str) => bool {
     stdout_redirect_restore();
     
-    stdout_redirect_file = fopen(target_filename$cast(cstr), "w"$cast(cstr));
+    stdout_redirect_file := fopen(target_filename$cast(cstr), "w"$cast(cstr));
     if (stdout_redirect_file == null) {
         errorln("Can't open file '" .. target_filename .. "'");
         return false;
@@ -158,12 +166,13 @@ export fn stdout_redirect(target_filename: str) => bool {
         }
     }
 
+    fclose(stdout_redirect_file);
     return true;
 }
 export fn stderr_redirect(target_filename: str) => bool {
     stderr_redirect_restore();
     
-    stderr_redirect_file = fopen(target_filename$cast(cstr), "a"$cast(cstr));
+    stderr_redirect_file := fopen(target_filename$cast(cstr), "a"$cast(cstr));
     if (stderr_redirect_file == null) {
         errorln("Can't open file '" .. target_filename .. "'");
         return false;
@@ -182,6 +191,7 @@ export fn stderr_redirect(target_filename: str) => bool {
         }
     }
 
+    fclose(stderr_redirect_file);
     return true;
 }
 

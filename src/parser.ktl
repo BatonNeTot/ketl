@@ -920,7 +920,6 @@ class Parser {
         
         lhs_var := context->get_var(lhs_id);
         decl_id := lhs_var$cast(HIR.VarCommon).decl;
-        error_decl := context.hir_builder.decls[decl_id];
 
         if (!context.hir_builder->declare_var_from_var_id(lhs_id, null, src_info)) {
             return context.hir_builder->push_empty_error_var(src_info);
