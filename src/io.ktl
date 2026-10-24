@@ -7,7 +7,7 @@ export class File {
         if (file == null) {
             error("error opening file '");
             error(path);
-            error("':");
+            error("': ");
             errorln(get_last_error()$cast(str));
             return null;
         }
@@ -311,6 +311,10 @@ export class FileInfo {
 
         info := FileInfo();
         if (stat(path$cast(cstr), info) != 0) {
+            error("error getting path info '");
+            error(path);
+            error("': ");
+            errorln(get_last_error()$cast(str));
             return null;
         }
 

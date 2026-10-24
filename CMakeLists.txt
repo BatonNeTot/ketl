@@ -32,9 +32,11 @@ enable_language(ASM)
 add_subdirectory ("src")
 string(REPLACE ".ktl" ".s" PROJECT_KETL_SOURCES_ASM "${PROJECT_KETL_SOURCES}")
 
-set(PROJECT_INSTALLED_PATH "${CMAKE_INSTALL_PREFIX}/bin/ketl")
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(PROJECT_INSTALLED_PATH "${PROJECT_INSTALLED_PATH}.exe")
+    set(PROJECT_INSTALLED_PATH "${CMAKE_INSTALL_PREFIX}/bin/ketl.exe")
+else()
+    execute_process(COMMAND "which" "ketl"
+                    OUTPUT_VARIABLE PROJECT_INSTALLED_PATH)
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
