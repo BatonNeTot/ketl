@@ -79,8 +79,7 @@ from platform import Target
 
 export fn print(message: str) {
     if (message == null) {
-        fputs("<null>"$cast(cstr), stdout);
-        return;
+        message = "<null>";
     }
 
     fputs(message$cast(cstr), stdout);
@@ -93,8 +92,7 @@ export fn println(message: str) {
 
 export fn error(message: str) {
     if (message == null) {
-        fputs("<null>"$cast(cstr), stderr);
-        return;
+        message = "<null>";
     }
 
     fputs(message$cast(cstr), stderr);

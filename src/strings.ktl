@@ -10,6 +10,9 @@ export class StringBuffer {
     }
 
     export fn write(buffer: StringBuffer, message: str) => StringBuffer {
+        if (message == null) {
+            message = "<null>";
+        }
         buffer.array ..= message;
         return buffer;
     }

@@ -2268,16 +2268,27 @@ export class ASMX86 {
 
         debug_line_section_label := ".Lline_table_start0";
 
+        import dwarf
+        debug_info: dwarf.DebugInfo;
         if (emit_debug_info) {
-            import dwarf
-            debug_info := dwarf.DebugInfo.construct(5,
+
+            print_data_directive: (dwarf.DataDirective, str) => u32;
+            switch (target) {
+                case Target.X86_64_WINDOWS_CLANG => print_data_directive = print_data_directive_dwarf_windows;
+                case Target.X86_64_SYSTEM_V_CLANG => print_data_directive = print_data_directive_dwarf_system_v;
+                default => assert(false);
+            }
+
+            debug_info = dwarf.DebugInfo.construct(
+                target,
+                5,
                 filename,
                 ".Lstr_offsets_base0",
                 debug_line_section_label,
                 dir,
                 ".Lfunc_end" .. (assemblies.size)$cast(str) .. "-.Lfunc_begin0",
                 ".Laddr_table_base0",
-                print_data_directive_dwarf
+                print_data_directive
                 );
 
             function_frame_base: dwarf.Op[];
@@ -2349,7 +2360,7 @@ export class ASMX86 {
         }
 
         if (emit_debug_info) {
-            io.println("    .section	.debug_line,\"dr\"");
+            debug_info->print_section("debug_line");
             io.println(debug_line_section_label .. ":");
         }
     }
@@ -2481,7 +2492,7 @@ export class ASMX86 {
         }
     }
 
-    fn print_data_directive_dwarf(dwarf_data_directive: dwarf.DataDirective, value: str) => u32 {
+    fn print_data_directive_dwarf_windows(dwarf_data_directive: dwarf.DataDirective, value: str) => u32 {
         data_directive := DataDirective.None;
 
         switch (dwarf_data_directive) {
@@ -2490,6 +2501,25 @@ export class ASMX86 {
             case dwarf.DataDirective.Bit32 =>   data_directive = DataDirective.Long;
             case dwarf.DataDirective.Bit64 =>   data_directive = DataDirective.Quad;
             case dwarf.DataDirective.Address => data_directive = DataDirective.Secrel32;
+            default => assert(false);
+        }
+
+        io.print("	.");
+        print_data_directive(data_directive);
+        io.print("	");
+        io.println(value);
+        return get_data_directive_size(data_directive);
+    }
+
+    fn print_data_directive_dwarf_system_v(dwarf_data_directive: dwarf.DataDirective, value: str) => u32 {
+        data_directive := DataDirective.None;
+
+        switch (dwarf_data_directive) {
+            case dwarf.DataDirective.Bit8 =>    data_directive = DataDirective.Byte;
+            case dwarf.DataDirective.Bit16 =>   data_directive = DataDirective.Short;
+            case dwarf.DataDirective.Bit32 =>   data_directive = DataDirective.Long;
+            case dwarf.DataDirective.Bit64 =>   data_directive = DataDirective.Quad;
+            case dwarf.DataDirective.Address => data_directive = DataDirective.Long;
             default => assert(false);
         }
 

@@ -4,6 +4,7 @@ from common import HashMap
 from common import IntHashMap
 from common import StrHashMap
 
+from platform import Target
 from type_base import Type
 
 export enum DataDirective: u8 {
@@ -878,6 +879,7 @@ export class Variable {
 }
 
 export class DebugInfo {
+    target: Target;
     version: u8;
     abbr_section_offset: str;
 
@@ -905,7 +907,8 @@ export class DebugInfo {
         return Abbreviation.is_equal(lhs, rhs);
     }
 
-    fn construct(version: u8,
+    fn construct(target: Target,
+        version: u8,
         compile_unit_name: str, 
         str_offsets_base: str, 
         stmt_list: str, 
@@ -915,6 +918,7 @@ export class DebugInfo {
         print_data_directive: (DataDirective, str) => u32) => DebugInfo {
         self := DebugInfo();
 
+        self.target = target;
         self.version = version;
         assert(version == 5);
 
@@ -953,10 +957,33 @@ export class DebugInfo {
         return self;
     }
 
+    export fn print_section(self: DebugInfo, section: str) {
+        import io
+        switch (self.target) {
+            case Target.X86_64_WINDOWS_CLANG => {
+                io.println("	.section	." .. section .. ",\"dr\"");
+            }
+            case Target.X86_64_SYSTEM_V_CLANG => {
+                io.println("	.section	." .. section .. ",\"\",@progbits");
+            }
+        }
+    }
+    fn print_section_read(self: DebugInfo, section: str) {
+        import io
+        switch (self.target) {
+            case Target.X86_64_WINDOWS_CLANG => {
+                io.println("	.section	." .. section .. ",\"dr\"");
+            }
+            case Target.X86_64_SYSTEM_V_CLANG => {
+                io.println("	.section	." .. section .. ",\"MS\",@progbits,1");
+            }
+        }
+    }
+
     export fn print(self: DebugInfo) {
         import io
         io.println("	.p2align	2, 0x0");
-        io.println("	.section	.debug_abbrev,\"dr\"");
+        self->print_section("debug_abbrev");
         {
             i := 0;
             for (abbr := self.abbrs) {
@@ -971,7 +998,7 @@ export class DebugInfo {
 
         info_offset: u32;
 
-        io.println("	.section	.debug_info,\"dr\"");
+        self->print_section("debug_info");
         io.println(".Lcu_begin0:");
         info_offset += self.print_data_directive(DataDirective.Bit32, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
         io.println(".Ldebug_info_start0:");
@@ -992,12 +1019,12 @@ export class DebugInfo {
         }
 
         io.println(".Ldebug_info_end0:");
-        io.println("	.section	.debug_str_offsets,\"dr\"");
+        self->print_section("debug_str_offsets");
         self.print_data_directive(DataDirective.Bit32, (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str));
         self.print_data_directive(DataDirective.Bit16, "0"); // Reserved
         io.println(".Lstr_offsets_base0:");
-        io.println("	.section	.debug_str,\"dr\"");
+        self->print_section_read("debug_str");
 
         {
             i: u64;
@@ -1006,7 +1033,7 @@ export class DebugInfo {
                 io.println("	.asciz	\"" .. io.escaped_string(self.strings[i]) .. "\"");
                 i += 1;
             }
-            io.println("	.section	.debug_str,\"dr\"");
+            self->print_section("debug_str_offsets");
 
             i = 0;
             while (i < self.strings.size) {
@@ -1015,7 +1042,7 @@ export class DebugInfo {
             }
         }
 
-        io.println("	.section	.debug_addr,\"dr\"");
+        self->print_section("debug_addr");
         self.print_data_directive(DataDirective.Bit32, ".Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
         io.println(".Ldebug_addr_start0:");
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str) .. "                               # DWARF version number");

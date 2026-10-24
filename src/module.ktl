@@ -92,7 +92,7 @@ class Module {
             module.path = fullpath;
         }
 
-        fullpath_filename := fullpath .. module_filename;
+        fullpath_filename := io.resolve_path(fullpath .. module_filename);
         source := File.read(fullpath_filename);
         
         if (source == null) {
@@ -105,7 +105,7 @@ class Module {
         lexer := Lexer();
         module.lexer = lexer;
         lexer->init();
-        lexer->build_tokens(module_filename, source, errors_accum);
+        lexer->build_tokens(fullpath_filename, source, errors_accum);
 
         //for (token := lexer.tokens) {
         //    io.errorln("from " .. token.offset$cast(str) .. " to " .. (token.offset + token.length)$cast(str) .. " " .. source[token.offset:token.offset + token.length]);
