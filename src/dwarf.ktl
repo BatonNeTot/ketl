@@ -561,6 +561,7 @@ class AttrData {
 }
 
 enum Op: u8 {
+    none,
     __reserved__, // 0x01, Operands -, 
     __reserved__, // 0x02, Operands -, 
     addr, // 0x03, Operands 1, constant address
@@ -732,6 +733,14 @@ enum Op: u8 {
     reinterpret, // 0xa9, Operands 1, ULEB128 type entry offset
 }
 
+export fn split_value_to_uleb128_as_ops(value: u64) => Op[] {
+    return split_value_to_uleb128(value)$cast(raw)$cast(Op[]);
+}
+
+export fn split_value_to_sleb128_as_ops(value: i64) => Op[] {
+    return split_value_to_sleb128(value)$cast(raw)$cast(Op[]);
+}
+
 class AttrExpr {
     extend AttrValue;
     ops: Op[];
@@ -793,6 +802,7 @@ class AttrPair {
 export class DIE {
 
     tag: Tag;
+    last_child: bool;
     data_offset: u32;
     abbr_index: u64;
     attrs: AttrPair[];
@@ -875,6 +885,7 @@ class AttrRef {
 export class Variable {
     name: str;
     type: Type;
+    line: u64;
     ops: Op[];
 }
 
@@ -888,6 +899,7 @@ export class DebugInfo {
     dies_by_name: StrHashMap;
 
     types_to_dies: IntHashMap;
+    array_base_die: DIE;
 
     abbrs: Abbreviation[];
     abbrs_indices: HashMap;
@@ -898,6 +910,7 @@ export class DebugInfo {
     func_addresses: str[];
 
     print_data_directive: (DataDirective, str) => u32;
+    print_section: (Target, str, bool) => void;
 
     fn get_abbr_hash(key: raw) => u64 {
         return key$cast(Abbreviation)->get_hash();
@@ -915,7 +928,8 @@ export class DebugInfo {
         comp_dir: str, 
         compile_unit_size: str, 
         addr_base: str,
-        print_data_directive: (DataDirective, str) => u32) => DebugInfo {
+        print_data_directive: (DataDirective, str) => u32,
+        print_section: (Target, str, bool) => void) => DebugInfo {
         self := DebugInfo();
 
         self.target = target;
@@ -927,6 +941,7 @@ export class DebugInfo {
         self.dies_by_name = StrHashMap.construct();
 
         self.types_to_dies = IntHashMap.construct();
+        self.array_base_die;
 
         self.abbrs = Abbreviation[0];
         self.abbrs_indices = HashMap.construct(is_abbrs_equal, get_abbr_hash);
@@ -937,6 +952,7 @@ export class DebugInfo {
         self.func_addresses = str[0];
 
         self.print_data_directive = print_data_directive;
+        self.print_section = print_section;
 
         compile_unit_die := DIE();
         compile_unit_die.tag = Tag.compile_unit;
@@ -957,33 +973,10 @@ export class DebugInfo {
         return self;
     }
 
-    export fn print_section(self: DebugInfo, section: str) {
-        import io
-        switch (self.target) {
-            case Target.X86_64_WINDOWS_CLANG => {
-                io.println("	.section	." .. section .. ",\"dr\"");
-            }
-            case Target.X86_64_SYSTEM_V_CLANG => {
-                io.println("	.section	." .. section .. ",\"\",@progbits");
-            }
-        }
-    }
-    fn print_section_read(self: DebugInfo, section: str) {
-        import io
-        switch (self.target) {
-            case Target.X86_64_WINDOWS_CLANG => {
-                io.println("	.section	." .. section .. ",\"dr\"");
-            }
-            case Target.X86_64_SYSTEM_V_CLANG => {
-                io.println("	.section	." .. section .. ",\"MS\",@progbits,1");
-            }
-        }
-    }
-
     export fn print(self: DebugInfo) {
         import io
         io.println("	.p2align	2, 0x0");
-        self->print_section("debug_abbrev");
+        self.print_section(self.target, "debug_abbrev", false);
         {
             i := 0;
             for (abbr := self.abbrs) {
@@ -998,7 +991,7 @@ export class DebugInfo {
 
         info_offset: u32;
 
-        self->print_section("debug_info");
+        self.print_section(self.target, "debug_info", false);
         io.println(".Lcu_begin0:");
         info_offset += self.print_data_directive(DataDirective.Bit32, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
         io.println(".Ldebug_info_start0:");
@@ -1016,15 +1009,22 @@ export class DebugInfo {
                     info_offset += attr.value->print(attr.attr, self.print_data_directive);
                 }
             }
+
+            if (die.last_child) {
+                info_offset += self.print_data_directive(DataDirective.Bit8, "0                               # End Of Children Mark");
+            }
+        }
+        if (self.abbrs[0].has_children) {
+            info_offset += self.print_data_directive(DataDirective.Bit8, "0                               # End Of Children Mark");
         }
 
         io.println(".Ldebug_info_end0:");
-        self->print_section("debug_str_offsets");
+        self.print_section(self.target, "debug_str_offsets", false);
         self.print_data_directive(DataDirective.Bit32, (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str));
         self.print_data_directive(DataDirective.Bit16, "0"); // Reserved
         io.println(".Lstr_offsets_base0:");
-        self->print_section_read("debug_str");
+        self.print_section(self.target, "debug_str", true);
 
         {
             i: u64;
@@ -1033,7 +1033,7 @@ export class DebugInfo {
                 io.println("	.asciz	\"" .. io.escaped_string(self.strings[i]) .. "\"");
                 i += 1;
             }
-            self->print_section("debug_str_offsets");
+            self.print_section(self.target, "debug_str_offsets", false);
 
             i = 0;
             while (i < self.strings.size) {
@@ -1042,7 +1042,7 @@ export class DebugInfo {
             }
         }
 
-        self->print_section("debug_addr");
+        self.print_section(self.target, "debug_addr", false);
         self.print_data_directive(DataDirective.Bit32, ".Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
         io.println(".Ldebug_addr_start0:");
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str) .. "                               # DWARF version number");
@@ -1078,7 +1078,7 @@ export class DebugInfo {
 
         die := DIE();
 
-        die.tag = DIE.Tag.subroutine_type;
+        die.tag = DIE.Tag.subprogram;
         die.attrs = AttrPair[6]{
             AttrPair.construct(Attr.low_pc, AttrAddr.construct(low_pc_index$cast(str))),
             AttrPair.construct(Attr.high_pc, AttrAddrData.construct(".Lfunc_end" .. func_index$cast(str) .. "-.Lfunc_begin" .. func_index$cast(str), 4)),
@@ -1110,14 +1110,12 @@ export class DebugInfo {
                 variable_die := DIE();
 
                 variable_die.tag = DIE.Tag.variable;
-                variable_die.attrs = AttrPair[3]{
-                    AttrPair.construct(Attr.location, AttrExpr.construct(Op[1]{
-                        Op.reg8,
-                    })),
+                variable_die.attrs = AttrPair[5]{
+                    AttrPair.construct(Attr.location, AttrExpr.construct(variable.ops)),
                     AttrPair.construct(Attr.name, AttrStr.construct(variable.name)),
                     AttrPair.construct(Attr.type, AttrRef.construct(type_die, 4)),
-                    //AttrPair.construct(Attr.decl_file, AttrData.construct(0, 1)),
-                    //AttrPair.construct(Attr.decl_line, AttrData.construct(decl_line, 1)),
+                    AttrPair.construct(Attr.decl_file, AttrData.construct(1, 1)),
+                    AttrPair.construct(Attr.decl_line, AttrData.construct(variable.line, 2)),
                 };
 
                 die.children[i] = variable_die;
@@ -1169,6 +1167,9 @@ export class DebugInfo {
             for (child := die.children) {
                 self->add_die(child);
             }
+            if (die.children.size != 0) {
+                die.children[die.children.size - 1].last_child = true;  
+            }
         }
         return die_index;
     }
@@ -1185,7 +1186,25 @@ export class DebugInfo {
         return string_index;
     }
 
-    export fn construct_pointer_type_die(self: DebugInfo, wrapped_die: DIE, name: str) => DIE {
+    fn get_array_base_die(self: DebugInfo) => DIE {
+        if (self.array_base_die == null) {
+            die := DIE();
+
+            die.tag = DIE.Tag.base_type;
+            die.attrs = AttrPair[3]{
+                AttrPair.construct(Attr.name, AttrStr.construct("__ARRAY_SIZE_TYPE__")),
+                AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(8, 1)),
+                AttrPair.construct(DIE.Attr.encoding, AttrData.construct(AttrEncoding.unsigned$cast(u64), 1)),
+            };
+
+            self.array_base_die = die;
+            self->add_die(die);
+        }
+
+        return self.array_base_die;
+    }
+
+    export fn construct_pointer_type_die_dont_add(self: DebugInfo, wrapped_die: DIE, name: str) => DIE {
         die := DIE();
 
         die.tag = DIE.Tag.pointer_type;
@@ -1197,7 +1216,6 @@ export class DebugInfo {
             die.attrs ..= AttrPair.construct(Attr.type, AttrRef.construct(wrapped_die, 4));
         }
 
-        self->add_die(die);
         return die;
     }
 
@@ -1214,7 +1232,8 @@ export class DebugInfo {
 
             from type import Types
             if (type_primitive == Types.instance.type_raw) {
-                bucket.value = self->construct_pointer_type_die(null, type_primitive.name);
+                bucket.value = self->construct_pointer_type_die_dont_add(null, type_primitive.name);
+                self->add_die(bucket.value$cast(DIE));
                 return bucket.value$cast(DIE);
             }
 
@@ -1279,8 +1298,43 @@ export class DebugInfo {
         }
 
         if (type.kind == Type.Kind.Array) {
-            // TODO
-            return self->construct_type_die(Types.instance.type_raw);
+            from type import TypeArray
+            type_array := type$cast(TypeArray);
+
+            value_type_die := self->construct_type_die(type_array.value);
+
+            subrange_die := DIE();
+
+            subrange_die.tag = DIE.Tag.subrange_type;
+            subrange_die.attrs = AttrPair[2]{
+                AttrPair.construct(Attr.type, AttrRef.construct(self->get_array_base_die(), 4)),
+                AttrPair.construct(Attr.count, AttrExpr.construct(Op[2]{
+                    Op.push_object_address,
+                    Op.plus_uconst,
+                } .. split_value_to_uleb128_as_ops(16) .. Op[1]{
+                    Op.deref,
+                })),
+            };
+
+            die := DIE();
+            bucket.value = self->construct_pointer_type_die_dont_add(die, null);
+
+            die.tag = DIE.Tag.array_type;
+            die.attrs = AttrPair[3]{
+                AttrPair.construct(Attr.type, AttrRef.construct(value_type_die, 4)),
+                AttrPair.construct(Attr.byte_size, AttrData.construct(32, 1)), // ArrayHeader$size
+                AttrPair.construct(Attr.data_location, AttrExpr.construct(Op[2]{
+                    Op.push_object_address,
+                    Op.deref,
+                })),
+            };
+            die.children = DIE[1] {
+                subrange_die,
+            };
+
+            self->add_die(die);
+            self->add_die(bucket.value$cast(DIE));
+            return bucket.value$cast(DIE);
         }
 
         if (type.kind == Type.Kind.CArray) {
@@ -1293,7 +1347,7 @@ export class DebugInfo {
             type_class := type$cast(TypeClass);
 
             die := DIE();
-            bucket.value = self->construct_pointer_type_die(die, type_class.name);
+            bucket.value = self->construct_pointer_type_die_dont_add(die, type_class.name);
 
             die.tag = DIE.Tag.structure_type;
             die.attrs = AttrPair[1]{
@@ -1302,26 +1356,27 @@ export class DebugInfo {
 
             die.children = DIE[0];
             for (field := type_class.fields) {
+                // TODO count in extended classes
                 if (field.name == null || field.name == "") {
                     continue;
                 }
 
                 member_die := DIE();
 
-                // TODO count in extended classes
                 member_type_die := self->construct_type_die(field.type);
 
                 member_die.tag = DIE.Tag.member;
                 member_die.attrs = AttrPair[3]{
                     AttrPair.construct(Attr.name, AttrStr.construct(field.name)),
                     AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
-                    AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(type_class.size, 1))
+                    AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(type_class->get_field_offset(field.name)$cast(u64), 1))
                 };
 
                 die.children ..= member_die;
             } 
 
             self->add_die(die);
+            self->add_die(bucket.value$cast(DIE));
             return bucket.value$cast(DIE);
         }
         
