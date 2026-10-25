@@ -1303,34 +1303,105 @@ export class DebugInfo {
 
             value_type_die := self->construct_type_die(type_array.value);
 
-            subrange_die := DIE();
-
-            subrange_die.tag = DIE.Tag.subrange_type;
-            subrange_die.attrs = AttrPair[2]{
-                AttrPair.construct(Attr.type, AttrRef.construct(self->get_array_base_die(), 4)),
-                AttrPair.construct(Attr.count, AttrExpr.construct(Op[2]{
-                    Op.push_object_address,
-                    Op.plus_uconst,
-                } .. split_value_to_uleb128_as_ops(16) .. Op[1]{
-                    Op.deref,
-                })),
-            };
-
             die := DIE();
             bucket.value = self->construct_pointer_type_die_dont_add(die, null);
 
-            die.tag = DIE.Tag.array_type;
-            die.attrs = AttrPair[3]{
-                AttrPair.construct(Attr.type, AttrRef.construct(value_type_die, 4)),
-                AttrPair.construct(Attr.byte_size, AttrData.construct(32, 1)), // ArrayHeader$size
-                AttrPair.construct(Attr.data_location, AttrExpr.construct(Op[2]{
-                    Op.push_object_address,
-                    Op.deref,
-                })),
-            };
-            die.children = DIE[1] {
-                subrange_die,
-            };
+            switch (self.target) {
+                case Target.X86_64_WINDOWS_CLANG
+                case Target.X86_64_SYSTEM_V_CLANG => {
+                    die.tag = DIE.Tag.structure_type;
+                    die.attrs = AttrPair[2]{
+                        AttrPair.construct(DIE.Attr.name, AttrStr.construct(type_array->get_name())),
+                        AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(32, 1)),  // ArrayHeader$size
+                    };
+
+                    die.children = DIE[0];
+                    {
+                        member_die := DIE();
+
+                        member_type_die := self->construct_pointer_type_die_dont_add(value_type_die, null); //type
+                        self->add_die(member_type_die);
+
+                        member_die.tag = DIE.Tag.member;
+                        member_die.attrs = AttrPair[3]{
+                            AttrPair.construct(Attr.name, AttrStr.construct("data")), // name
+                            AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
+                            AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(0, 1)) // offset
+                        };
+
+                        die.children ..= member_die;
+                    }
+                    {
+                        member_die := DIE();
+
+                        member_type_die := self->construct_type_die(Types.instance.type_u64); //type
+
+                        member_die.tag = DIE.Tag.member;
+                        member_die.attrs = AttrPair[3]{
+                            AttrPair.construct(Attr.name, AttrStr.construct("capacity")), // name
+                            AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
+                            AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(8, 1)) // offset
+                        };
+
+                        die.children ..= member_die;
+                    }
+                    {
+                        member_die := DIE();
+
+                        member_type_die := self->construct_type_die(Types.instance.type_u64); //type
+
+                        member_die.tag = DIE.Tag.member;
+                        member_die.attrs = AttrPair[3]{
+                            AttrPair.construct(Attr.name, AttrStr.construct("size")), // name
+                            AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
+                            AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(16, 1)) // offset
+                        };
+
+                        die.children ..= member_die;
+                    }
+                    {
+                        member_die := DIE();
+
+                        member_type_die := self->construct_type_die(Types.instance.type_bool); //type
+
+                        member_die.tag = DIE.Tag.member;
+                        member_die.attrs = AttrPair[3]{
+                            AttrPair.construct(Attr.name, AttrStr.construct("is_slice")), // name
+                            AttrPair.construct(Attr.type, AttrRef.construct(member_type_die, 4)),
+                            AttrPair.construct(DIE.Attr.data_member_location, AttrData.construct(24, 1)) // offset
+                        };
+
+                        die.children ..= member_die;
+                    }
+                }
+                default => {
+                    subrange_die := DIE();
+
+                    subrange_die.tag = DIE.Tag.subrange_type;
+                    subrange_die.attrs = AttrPair[2]{
+                        AttrPair.construct(Attr.type, AttrRef.construct(self->get_array_base_die(), 4)),
+                        AttrPair.construct(Attr.count, AttrExpr.construct(Op[2]{
+                            Op.push_object_address,
+                            Op.plus_uconst,
+                        } .. split_value_to_uleb128_as_ops(16) .. Op[1]{
+                            Op.deref,
+                        })),
+                    };
+
+                    die.tag = DIE.Tag.array_type;
+                    die.attrs = AttrPair[3]{
+                        AttrPair.construct(Attr.type, AttrRef.construct(value_type_die, 4)),
+                        AttrPair.construct(Attr.byte_size, AttrData.construct(32, 1)), // ArrayHeader$size
+                        AttrPair.construct(Attr.data_location, AttrExpr.construct(Op[2]{
+                            Op.push_object_address,
+                            Op.deref,
+                        })),
+                    };
+                    die.children = DIE[1] {
+                        subrange_die,
+                    };
+                }
+            }
 
             self->add_die(die);
             self->add_die(bucket.value$cast(DIE));
@@ -1350,7 +1421,8 @@ export class DebugInfo {
             bucket.value = self->construct_pointer_type_die_dont_add(die, type_class.name);
 
             die.tag = DIE.Tag.structure_type;
-            die.attrs = AttrPair[1]{
+            die.attrs = AttrPair[2]{
+                AttrPair.construct(DIE.Attr.name, AttrStr.construct(type_class.name)),
                 AttrPair.construct(DIE.Attr.byte_size, AttrData.construct(type_class.size, 1)),
             };
 

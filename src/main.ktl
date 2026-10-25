@@ -36,6 +36,7 @@ parser: ArgsParser;
 #entry
 fn main(args: str[]) => i64 {
     parser = ArgsParser();
+    local_parser := parser;
     parser.target_os = Target.DEFAULT;
 
     for (arg := args[1:]) {
