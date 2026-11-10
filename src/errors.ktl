@@ -1,9 +1,9 @@
 //🫖ketl
 
-from common import FilePointer
-from strings import StringBuffer
-from strings import str_padding
-from strings import to_str_padded
+import "common" take FilePointer
+import "strings" take StringBuffer
+import "strings" take str_padding
+import "strings" take to_str_padded
 
 export class ErrorsAccum {
 
@@ -85,7 +85,7 @@ export class ErrorsAccum {
                 buffer->report(error_info.info, error_info.pointer, error_info.message);
             }
 
-            import io
+            import "io"
             io.error(buffer.array);
             return false;
         } else {

@@ -1,24 +1,24 @@
 //🫖ketl
 
-from common import StrHashMap
-from errors import ErrorsAccum
-from io import File
-import io
+import "common" take StrHashMap
+import "errors" take ErrorsAccum
+import "io" take File
+import "io"
 
-from type_base import Type
-from type import Types
-from type import TypeFunction
+import "type_base" take Type
+import "type" take Types
+import "type" take TypeFunction
 
-from namespace import Namespace
+import "namespace" take Namespace
 
-from func import CompileFunctionDeclaration
+import "func" take CompileFunctionDeclaration
 
-from lexer import Lexer
-from lexer import TokenIterator
-from hir import HIR
-from variable import VariableDecl
-from platform import Target
-from assembly import Assembly
+import "lexer" take Lexer
+import "lexer" take TokenIterator
+import "hir" take HIR
+import "variable" take VariableDecl
+import "platform" take Target
+import "assembly" take Assembly
 
 class Module {
 
@@ -113,7 +113,7 @@ class Module {
 
         func_index: u16 = 0;
 
-        from parser import Parser
+        import "parser" take Parser
         hir := Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
             func_index, true, module.emit_debug_info, errors_accum);
 
@@ -140,8 +140,8 @@ class Module {
 
         if (hir.entry != null) {
             entry_source := 
-                "   from __ketl_rt import cstr2str" ..
-                "   from __ketl_rt import U64Wrapper" ..
+                "   import \"__ketl_rt\" take cstr2str" ..
+                "   import \"__ketl_rt\" take U64Wrapper" ..
 
                 "    args := str[argc];" ..
                 "    i: i64;" ..
@@ -242,7 +242,7 @@ class Module {
 
                 errors_accum := ErrorsAccum.construct();
 
-                from parser import Parser
+                import "parser" take Parser
                 hir = Parser.build_hir(module.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
                     local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, errors_accum);
@@ -303,7 +303,7 @@ class Modules {
         if (self.global_namespace == null) {
             self.global_namespace = Namespace.construct("", null);
 
-            from type_base import Type
+            import "type_base" take Type
             node := self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
                 Type[2] {
                     Types.instance.type_void,

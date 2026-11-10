@@ -1,28 +1,28 @@
 //🫖ketl
 
-from common import IntHashMap
-from common import align_forward
-from strings import uint_to_str
-from errors import ErrorsAccum
-import io
+import "common" take IntHashMap
+import "common" take align_forward
+import "strings" take uint_to_str
+import "errors" take ErrorsAccum
+import "io"
 
-from type_base import Type
-from value import Value
-from type import TypePrimitive
-from type import TypeEnum
-from type import TypeFunction
-from type import TypeArray
-from type import TypeClass
-from type import Types
-from hir import HIR
-from lexer import Lexer
+import "type_base" take Type
+import "value" take Value
+import "type" take TypePrimitive
+import "type" take TypeEnum
+import "type" take TypeFunction
+import "type" take TypeArray
+import "type" take TypeClass
+import "type" take Types
+import "hir" take HIR
+import "lexer" take Lexer
 
-from namespace import Namespace
+import "namespace" take Namespace
 
-from platform import Target
-from assembly import Assembly
+import "platform" take Target
+import "assembly" take Assembly
 
-import dwarf
+import "dwarf"
 
 export class ASMX86 {
 
@@ -2267,7 +2267,7 @@ export class ASMX86 {
         debug_line_section_label := ".Lline_table_start0";
 
         if (emit_debug_info) {
-            import dwarf
+            import "dwarf"
 
             print_data_directive: (dwarf.DataDirective, str) => u32;
             switch (target) {
@@ -2370,7 +2370,7 @@ export class ASMX86 {
     fn print_asm_zero_initialized_variable(node: Namespace.Node, target: Target) {
         value := node.value;
         if (value->is_type()) {
-            from type import TypeClass
+            import "type" take TypeClass
             type := value.value$cast(raw)$cast(Type);
             if (type.kind == Type.Kind.Class) {
                 print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace, target);
@@ -2416,7 +2416,7 @@ export class ASMX86 {
 
         }
 
-        from type import TypeClass
+        import "type" take TypeClass
         type := value.value$cast(raw)$cast(Type);
         if (type.kind != Type.Kind.Class) {
             return;
@@ -2491,7 +2491,7 @@ export class ASMX86 {
     }
 
     fn print_section(target: Target, section: str, readonly: bool) {
-        import io
+        import "io"
         switch (target) {
             case Target.X86_64_WINDOWS_CLANG => {
                 io.println("	.section	." .. section .. ",\"dr\"");

@@ -26,7 +26,7 @@ export class File {
 
         fclose(file);
 
-        from __ketl_rt import buffer_as_str
+        import "__ketl_rt" take buffer_as_str
         return buffer_as_str(buffer, filesize, filesize);
     }
 } 
@@ -39,7 +39,7 @@ class Int64Pointer {
 }
 
 export fn get_last_error() => i64 {
-    from platform import Target
+    import "platform" take Target
     #if #target == Target.X86_64_WINDOWS_CLANG {
         cimport _errno() => IntPointer
         return _errno().value;
@@ -66,7 +66,7 @@ mimic FileHandle = i64;
 stdout_handle: FileHandle = 1;
 stderr_handle: FileHandle = 2;
 
-from platform import Target
+import "platform" take Target
 #if #target == Target.X86_64_WINDOWS_CLANG {
     cimport __acrt_iob_func(handle: FileHandle) => File
     stdout := __acrt_iob_func(stdout_handle);
@@ -239,7 +239,7 @@ export class Dir {
 }
         cstr_name := dirent + dirent_name_offset;
 
-        from __ketl_rt import cstr2str
+        import "__ketl_rt" take cstr2str
         return cstr2str(cstr_name);
     }
 
@@ -472,7 +472,7 @@ export fn resolve_path(path: str) => str {
             return null;
         }
 
-        from __ketl_rt import buffer_as_str
+        import "__ketl_rt" take buffer_as_str
         return buffer_as_str(buffer, size, capacity);
     } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
         cimport realpath(path: cstr, resolved_path: cstr) => cstr
@@ -481,7 +481,7 @@ export fn resolve_path(path: str) => str {
             return null;
         }
 
-        from __ketl_rt import cstr2str
+        import "__ketl_rt" take cstr2str
         return cstr2str(buffer);
     }
 }

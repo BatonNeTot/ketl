@@ -1,10 +1,10 @@
 //🫖ketl
 
-import common
-from type_base import Type
-from value import Value
-from namespace import Namespace
-from namespace import NamespaceContext
+import "common"
+import "type_base" take Type
+import "value" take Value
+import "namespace" take Namespace
+import "namespace" take NamespaceContext
 
 export class TypePrimitive {
     extend Type;

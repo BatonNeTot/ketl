@@ -1,10 +1,10 @@
 //🫖ketl
 
-from token import Token
-from type_base import Type
-from type import Types
-from namespace import Namespace
-import io
+import "token" take Token
+import "type_base" take Type
+import "type" take Types
+import "namespace" take Namespace
+import "io"
 
 export class HIR {
 

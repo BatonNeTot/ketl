@@ -1,11 +1,11 @@
 //🫖ketl
 
-from platform import Target
-from platform import resolve_target_if_needed
-from errors import ErrorsAccum
-from type_base import Type
-from hir import HIR
-from namespace import Namespace
+import "platform" take Target
+import "platform" take resolve_target_if_needed
+import "errors" take ErrorsAccum
+import "type_base" take Type
+import "hir" take HIR
+import "namespace" take Namespace
 
 export class Assembly {
 
@@ -27,7 +27,7 @@ export class Assembly {
         switch (target) {
             case Target.X86_64_WINDOWS_CLANG
             case Target.X86_64_SYSTEM_V_CLANG => {
-                import asm_x86
+                import "asm_x86"
                 return asm_x86.ASMX86.Builder.construct(target, source_info);
             }
             default => assert(false);
@@ -44,7 +44,7 @@ export class Assembly {
         switch (target) {
             case Target.X86_64_WINDOWS_CLANG
             case Target.X86_64_SYSTEM_V_CLANG => {
-                import asm_x86
+                import "asm_x86"
                 asm_x86.ASMX86.print_compilation_unit(fullpath, target, 
                     entry_assembly, init_assembly, assemblies, 
                     namespace, const_blocks, emit_debug_info);

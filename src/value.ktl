@@ -1,6 +1,6 @@
 //🫖ketl
 
-from type_base import Type
+import "type_base" take Type
 
 export class Value {
     export enum Kind: u8 {
@@ -36,18 +36,18 @@ export class Value {
         }
 
         if (type.kind == Type.Kind.Enum) {
-            from type import TypeEnum;
+            import "type" take TypeEnum;
             type = type$cast(TypeEnum).parent;
         }
 
         if (type.kind == Type.Kind.Primitive) {
-            from type import Types
+            import "type" take Types
             if (type == Types.instance.type_bool$cast(Type)) {
                 self.kind = Kind.Bool;
                 return;
             }
             
-            from type import TypePrimitive 
+            import "type" take TypePrimitive 
             primitive_type := type$cast(TypePrimitive);
             if (primitive_type.signed) {
                 self.kind = Kind.Int;

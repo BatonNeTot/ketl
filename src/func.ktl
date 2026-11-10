@@ -1,11 +1,11 @@
 //🫖ketl
 
-from type_base import Type
-from namespace import Namespace
+import "type_base" take Type
+import "namespace" take Namespace
 
-from lexer import TokenIterator
-from hir import HIR
-from assembly import Assembly
+import "lexer" take TokenIterator
+import "hir" take HIR
+import "assembly" take Assembly
 
 
 export class CompileFunctionDeclaration {

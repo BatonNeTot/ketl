@@ -1,9 +1,9 @@
 //🫖ketl
 
-from common import FilePointer
-from errors import ErrorsAccum
+import "common" take FilePointer
+import "errors" take ErrorsAccum
 
-from token import Token
+import "token" take Token
 
 export class Lexer {
     errors_accum: ErrorsAccum;

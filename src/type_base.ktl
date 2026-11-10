@@ -102,17 +102,17 @@ export class Type {
 
     export fn is_signed(type: Type) => bool {
         if (type.kind == Type.Kind.Enum) {
-            from type import TypeEnum
+            import "type" take TypeEnum
             type = type$cast(TypeEnum).parent;
         }
 
-        from type import TypePrimitive
+        import "type" take TypePrimitive
         return type.kind == Type.Kind.Primitive && type$cast(TypePrimitive).signed;
     }
 
     export fn get_full_name(type: Type) => str {
         if (type != null && type.kind == Type.Kind.Class) {
-            from type import TypeClass
+            import "type" take TypeClass
             return type$cast(TypeClass)->get_full_name();
         }
 
@@ -125,17 +125,17 @@ export class Type {
         }
 
         if (type.kind == Type.Kind.Primitive) {
-            from type import TypePrimitive
+            import "type" take TypePrimitive
             return type$cast(TypePrimitive).name;
         }
 
         if (type.kind == Type.Kind.Enum) {
-            from type import TypeEnum
+            import "type" take TypeEnum
             return type$cast(TypeEnum).name;
         }
 
         if (type.kind == Type.Kind.Function) {
-            from type import TypeFunction;
+            import "type" take TypeFunction;
             func_type := type$cast(TypeFunction);
             signature := func_type.signature;
 
@@ -153,22 +153,22 @@ export class Type {
         }
 
         if (type.kind == Type.Kind.Array) {
-            from type import TypeArray
+            import "type" take TypeArray
             return type$cast(TypeArray).value->get_name() .. "[]";
         }
 
         if (type.kind == Type.Kind.CArray) {
-            //from type import TypeArray TODO fix
+            //import "type" take TypeArray TODO fix
             return type$cast(TypeArray).value->get_name() .. "[c-style]";
         }
 
         if (type.kind == Type.Kind.Class) {
-            from type import TypeClass
+            import "type" take TypeClass
             return type$cast(TypeClass).name;
         }
 
         if (type.kind == Type.Kind.Tuple) {
-            from type import TypeTuple;
+            import "type" take TypeTuple
             tuple_type := type$cast(TypeTuple);
             values := tuple_type.values;
 

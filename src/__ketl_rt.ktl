@@ -1,6 +1,6 @@
 //🫖ketl
 
-from type_base import Type
+import "type_base" take Type
 
 export class ArrayHeader {
     data: raw;
@@ -49,7 +49,7 @@ export fn recalloc(old_pointer: raw, old_size: u64, new_size: u64) => raw {
 export fn assert(expr: bool) {
     if (!expr) {
         (null)$cast(ArrayHeader).data = null; // TODO to fall with better message
-        from platform import Target
+        import "platform" take Target
         #if #target == Target.X86_64_WINDOWS_CLANG {
             cimport _assert(expr_str: cstr, filename: cstr, line: u64)
             _assert(null, null, 0);

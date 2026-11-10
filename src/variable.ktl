@@ -1,7 +1,7 @@
 //🫖ketl
 
-from type_base import Type
-from hir import HIR
+import "type_base" take Type
+import "hir" take HIR
 
 export class VariableDecl {
     type: Type;

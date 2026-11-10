@@ -1,23 +1,23 @@
 //🫖ketl
 
-from common import StrHashMap
-from common import FilePointer
-from errors import ErrorsAccum
+import "common" take StrHashMap
+import "common" take FilePointer
+import "errors" take ErrorsAccum
 
-import io
+import "io"
 
-from type_base import Type
-from type import Types
-from type import TypePrimitive
-from type import TypeEnum
-from type import TypeFunction
-from type import TypeArray
-from type import TypeClass
-from value import Value
+import "type_base" take Type
+import "type" take Types
+import "type" take TypePrimitive
+import "type" take TypeEnum
+import "type" take TypeFunction
+import "type" take TypeArray
+import "type" take TypeClass
+import "value" take Value
 
-from hir import HIR
+import "hir" take HIR
 
-from namespace import Namespace
+import "namespace" take Namespace
 
 class HIRBuilder {
     errors_accum: ErrorsAccum;

@@ -1,11 +1,11 @@
 //🫖ketl
 
-from common import HashMap
-from common import IntHashMap
-from common import StrHashMap
+import "common" take HashMap
+import "common" take IntHashMap
+import "common" take StrHashMap
 
-from platform import Target
-from type_base import Type
+import "platform" take Target
+import "type_base" take Type
 
 export enum DataDirective: u8 {
     Bit8,
@@ -428,7 +428,7 @@ class AttrValue {
     }
 
     fn print_empty(attr: AttrValue, tag: Attr, print_data_directive: (DataDirective, str) => u32) => u32 {
-        import io
+        import "io"
         io.println("                                        # DW_AT_" .. tag->to_str());
         return 0;
     }
@@ -974,7 +974,7 @@ export class DebugInfo {
     }
 
     export fn print(self: DebugInfo) {
-        import io
+        import "io"
         io.println("	.p2align	2, 0x0");
         self.print_section(self.target, "debug_abbrev", false);
         {
@@ -1055,7 +1055,7 @@ export class DebugInfo {
         io.println(".Ldebug_addr_end0:");
     }
 
-    from type_base import Type
+    import "type_base" take Type
     export fn add_function(self: DebugInfo, 
         func_name: str,
         func_index: u16,
@@ -1068,7 +1068,7 @@ export class DebugInfo {
         self.abbrs[0].has_children = true;
 
         return_type_die: DIE;
-        from type import Types
+        import "type" take Types
         if (return_type != null && return_type != Types.instance.type_void$cast(Type)) {
             return_type_die = self->construct_type_die(return_type);
         }
@@ -1220,17 +1220,17 @@ export class DebugInfo {
     }
 
     export fn construct_type_die(self: DebugInfo, type: Type) => DIE {
-        import io
+        import "io"
         bucket := self.types_to_dies->get_or_insert(type$cast(raw)$cast(u64), null);
         if (bucket.value != null) {
             return bucket.value$cast(DIE);
         }
 
         if (type.kind == Type.Kind.Primitive) {
-            from type import TypePrimitive
+            import "type" take TypePrimitive
             type_primitive := type$cast(TypePrimitive);
 
-            from type import Types
+            import "type" take Types
             if (type_primitive == Types.instance.type_raw) {
                 bucket.value = self->construct_pointer_type_die_dont_add(null, type_primitive.name);
                 self->add_die(bucket.value$cast(DIE));
@@ -1273,7 +1273,7 @@ export class DebugInfo {
         }
 
         if (type.kind == Type.Kind.Enum) {
-            from type import TypeEnum
+            import "type" take TypeEnum
             type_enum := type$cast(TypeEnum);
 
             parent_type_die := self->construct_type_die(type_enum.parent);
@@ -1298,7 +1298,7 @@ export class DebugInfo {
         }
 
         if (type.kind == Type.Kind.Array) {
-            from type import TypeArray
+            import "type" take TypeArray
             type_array := type$cast(TypeArray);
 
             value_type_die := self->construct_type_die(type_array.value);
@@ -1414,7 +1414,7 @@ export class DebugInfo {
         }
 
         if (type.kind == Type.Kind.Class) {
-            from type import TypeClass
+            import "type" take TypeClass
             type_class := type$cast(TypeClass);
 
             die := DIE();

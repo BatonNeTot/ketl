@@ -1,8 +1,8 @@
 //🫖ketl
 
-from common import StrHashMap
-from type_base import Type
-from value import Value
+import "common" take StrHashMap
+import "type_base" take Type
+import "value" take Value
 
 class Namespace {
     class Info {
@@ -129,7 +129,7 @@ class Namespace {
                 if (!node.info.imported) {
                     value := node.value;
                     if (value->is_type()) {
-                        from type import TypeClass
+                        import "type" take TypeClass
                         type := value.value$cast(raw)$cast(Type);
                         if (type.kind == Type.Kind.Class && type$cast(TypeClass).namespace->has_vars()) {
                             return true;
@@ -152,7 +152,7 @@ class Namespace {
                 if (!node.info.imported) {
                     value := node.value;
                     if (value->is_type()) {
-                        from type import TypeClass
+                        import "type" take TypeClass
                         type := value.value$cast(raw)$cast(Type);
                         if (type.kind == Type.Kind.Class) {
                             return true;

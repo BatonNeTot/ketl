@@ -1,30 +1,30 @@
 //🫖ketl
 
-from common import FilePointer
-from errors import ErrorsAccum
-from variable import VariableDecl
+import "common" take FilePointer
+import "errors" take ErrorsAccum
+import "variable" take VariableDecl
 
-import io
+import "io"
 
-from type_base import Type
-from type import TypePrimitive
-from type import TypeEnum
-from type import TypeClass
-from type import TypeArray
-from type import TypeTuple
-from type import Types
-from value import Value
-from token import Token
-from lexer import TokenIterator
-from lexer import Lexer
-from hir import HIR
+import "type_base" take Type
+import "type" take TypePrimitive
+import "type" take TypeEnum
+import "type" take TypeClass
+import "type" take TypeArray
+import "type" take TypeTuple
+import "type" take Types
+import "value" take Value
+import "token" take Token
+import "lexer" take TokenIterator
+import "lexer" take Lexer
+import "hir" take HIR
 
-from namespace import Namespace
-from func import CompileFunctionDeclaration
-from module import Modules
+import "namespace" take Namespace
+import "func" take CompileFunctionDeclaration
+import "module" take Modules
 
-from hir_builder import HIRBuilder
-from platform import Target
+import "hir_builder" take HIRBuilder
+import "platform" take Target
 
 class Parser {
 
@@ -1313,13 +1313,12 @@ class Parser {
 
         context->token_advance(); // import
         path_token := context->current_token(0);
-        context->token_advance(); // id
-        //context->token_advance(Token.Type.ID, ""); // id
+        context->token_consume(Token.Type.LITERAL_STRING, "Module path must be a string.");
 
         take_token: Token;
         if (context->token_match(Token.Type.TAKE)) {
             take_token = context->current_token(0);
-            context->token_consume(Token.Type.ID, ""); // id
+            context->token_consume(Token.Type.ID, "Taken variable name must be an identificator.");
         }
 
         if (context.hir_builder == null) {
@@ -1335,7 +1334,7 @@ class Parser {
             HIR.SrcInfo.from_token(context.source_info.filename, path_token));
 
 
-        from module import Modules
+        import "module" take Modules
         module := Modules.instance->load(module_name, path, Modules.instance.active_module.target, Modules.instance.active_module.emit_debug_info);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
@@ -1351,63 +1350,6 @@ class Parser {
         name := context->token_str(take_token);
     
         target_namespace_node := context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.source_info.filename, take_token), context.hir_builder.exxport);
-        if (target_namespace_node == null) {
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-
-        source_namespace_node := module.namespace->find(name);
-        if (source_namespace_node == null) {
-            context->error(src_info.source_offset, src_info.length, "Couldn't find '" .. name .. "' in module '" .. module_name .. "'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-
-        target_namespace_node.name = source_namespace_node.name;
-        target_namespace_node.value = source_namespace_node.value->copy();
-        target_namespace_node.info.imported = true;
-        //target_namespace_node.info.exxport = source_namespace_node.info.exxport;
-        target_namespace_node.info.const = source_namespace_node.info.const;
-
-        return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-    }
-
-    fn parse_from_import(context: Context) => StatementInfo {
-        path := "";
-        start_src_info := HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(0));
-
-        context->token_advance(); // import
-        module_token := context->current_token(0);
-        context->token_advance(); // id
-        while (context->token_match(Token.Type.DOT)) {
-            path ..= context->token_str(module_token);
-            path ..= "/";
-            module_token = context->current_token(0);
-            context->token_advance(); // module id
-        }
-
-        if (context.hir_builder == null) {
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-
-        context->token_consume(Token.Type.IMPORT, "Expected 'import' keyword after module name.");
-        name_token := context->current_token(0);
-        context->token_advance(); // entity id
-
-        src_info := HIR.SrcInfo.merge(
-            start_src_info,
-            HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1)));
-
-        module_name := context->token_str(module_token);
-
-        from module import Modules
-        module := Modules.instance->load(module_name, path, Modules.instance.active_module.target, Modules.instance.active_module.emit_debug_info);
-        if (module == null) {
-            context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
-            return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
-        }
-
-        name := context->token_str(name_token);
-    
-        target_namespace_node := context.hir_builder->declare_global_node(context.hir_builder.namespace, name, null, null, HIR.SrcInfo.from_token(context.source_info.filename, name_token), context.hir_builder.exxport);
         if (target_namespace_node == null) {
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
@@ -1539,7 +1481,7 @@ class Parser {
     fn parse_function_header(context: Context) => FunctionHeader {
         context->token_advance(); // fn/cimport
         id_token := context->current_token(0);
-        context->token_advance(); // id
+        context->token_consume(Token.Type.ID, ""); // id
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, context->current_token(1));
 
         context->token_consume(Token.Type.PARENTHESIS_LEFT, "Expected '(' after function name.");
@@ -1553,7 +1495,7 @@ class Parser {
                 parameter_token := context->current_token(0);
                 function_parameters_names ..= context->token_str(parameter_token);
                 function_parameters_infos ..= HIR.SrcInfo.from_token(context.source_info.filename, parameter_token);
-                context->token_advance(); // id
+                context->token_consume(Token.Type.ID, ""); // id
 
                 context->token_consume(Token.Type.COLON, "Expected ':' after parameter name.");
 
@@ -1684,7 +1626,6 @@ class Parser {
             }
             case Token.Type.SHARP   => { context->parse_sharp_modifier(); return; }
             case Token.Type.IMPORT  => { context->parse_import        (); return; }
-            case Token.Type.FROM    => { context->parse_from_import   (); return; }
             case Token.Type.EXTEND => {
                 context->token_advance(); // extend
 
@@ -1736,7 +1677,7 @@ class Parser {
     fn parse_class_declaration(context: Context) => StatementInfo {
         context->token_advance(); // class
         id_token := context->current_token(0);
-        context->token_advance(); // id
+        context->token_consume(Token.Type.ID, ""); // id
 
         context->token_consume(Token.Type.CURLY_LEFT, "Expected '{' after class name.");
 
@@ -1780,7 +1721,7 @@ class Parser {
         context->token_advance(); // enum
         id_token := context->current_token(0);
         src_info := HIR.SrcInfo.from_token(context.source_info.filename, id_token);
-        context->token_advance(); // id
+        context->token_consume(Token.Type.ID, ""); // id
 
         parent_primitive := Types.instance.type_u8;
         if (context->token_match(Token.Type.COLON)) {
@@ -1810,7 +1751,7 @@ class Parser {
 
             constant_name_token := context->current_token(0);
             pair.name = context->token_str(constant_name_token);
-            context->token_advance(); // id
+            context->token_consume(Token.Type.ID, ""); // id
 
             if (context->token_match(Token.Type.ASSIGN)) {
                 constant_token := context->current_token(0);
@@ -1931,7 +1872,7 @@ class Parser {
     fn parse_mimic_declaration(context: Context) => StatementInfo {
         context->token_advance(); // mimic
         id_token := context->current_token(0);
-        context->token_advance(); // id
+        context->token_consume(Token.Type.ID, ""); // id
 
         context->token_consume(Token.Type.ASSIGN, "Expected '=' after mimic name.");
 
@@ -1954,7 +1895,6 @@ class Parser {
         while (true) switch (context->current_token(0).type) {
             case Token.Type.SHARP   => return context->parse_sharp_modifier();
             case Token.Type.IMPORT  => return context->parse_import();
-            case Token.Type.FROM    => return context->parse_from_import();
             case Token.Type.CIMPORT => return context->parse_cimport_declaration();
             case Token.Type.FN      => return context->parse_function_declaration();
             case Token.Type.CLASS   => return context->parse_class_declaration();
