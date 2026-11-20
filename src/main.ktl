@@ -1,8 +1,8 @@
 //🫖ketl
 
-import "module" take Modules
+import "compiler" take Compiler
 import "platform" take Target
-import "platform" take resolve_target_if_needed
+import "platform" take detect_current_platform
 import "io"
 
 class ArgsParser {
@@ -21,14 +21,11 @@ class ArgsParser {
 
     op: Operation;
     state: State;
-    target_os: Target;
 
     execution_script: str;
     
     compilation_targets: str[];
     output_target: str;
-
-    emit_debug_info: bool;
 }
 
 parser: ArgsParser;
@@ -36,7 +33,6 @@ parser: ArgsParser;
 #entry
 fn main(args: str[]) => i64 {
     parser = ArgsParser();
-    parser.target_os = Target.DEFAULT;
 
     for (arg := args[1:]) {
         if (arg[0] == '-') {
@@ -49,14 +45,22 @@ fn main(args: str[]) => i64 {
                     }
                     option := flag[7:];
                     switch (option) {
-                        case "default" => parser.target_os = Target.DEFAULT;
-                        case "x86_64_windows_clang" => parser.target_os = Target.X86_64_WINDOWS_CLANG;
-                        case "x86_64_system_v" => parser.target_os = Target.X86_64_SYSTEM_V_CLANG;
+                        case "default" => Compiler.instance.target = detect_current_platform();
+                        case "x86_64_windows_clang" => Compiler.instance.target = Target.X86_64_WINDOWS_CLANG;
+                        case "x86_64_system_v" => Compiler.instance.target = Target.X86_64_SYSTEM_V_CLANG;
                         default => {
                             io.errorln("Unknown option '" .. option .. "' for flag 'tos'");
                             continue;
                         }
                     }
+                    continue;
+                } 
+                if (flag == "exclude_std_libs") {
+                    Compiler.instance.exclude_std_libs = true;
+                    continue;
+                }
+                if (flag == "force_main_rt") {
+                    Compiler.instance.force_main_rt = true;
                     continue;
                 }
                 io.errorln("Unknown flag '" .. flag .. "'");
@@ -77,7 +81,7 @@ fn main(args: str[]) => i64 {
                         continue;
                     }
                     case 'g' => {
-                        parser.emit_debug_info = true;
+                        Compiler.instance.emit_debug_info = true;
                         continue;
                     }
                 }
@@ -94,8 +98,6 @@ fn main(args: str[]) => i64 {
             case ArgsParser.State.ExpectingOutputTarget => parser.output_target = arg;
         }
     }
-
-    parser.target_os = resolve_target_if_needed(parser.target_os);
 
     switch (parser.op) {
         case ArgsParser.Operation.CompileToAsm => {
@@ -195,7 +197,7 @@ fn compile_asm_file(path: str, output_path: str) => bool {
         }
     }
 
-    module := Modules.instance->load(module_name, dir_path, parser.target_os, parser.emit_debug_info);
+    module := Compiler.instance->load(module_name, dir_path);
     if (module == null || module.has_errors) {
         return false;
     }

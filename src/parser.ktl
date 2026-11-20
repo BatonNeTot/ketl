@@ -21,7 +21,7 @@ import "hir" take HIR
 
 import "namespace" take Namespace
 import "func" take CompileFunctionDeclaration
-import "module" take Modules
+import "compiler" take Compiler
 
 import "hir_builder" take HIRBuilder
 import "platform" take Target
@@ -1334,15 +1334,19 @@ class Parser {
             HIR.SrcInfo.from_token(context.source_info.filename, path_token));
 
 
-        import "module" take Modules
-        module := Modules.instance->load(module_name, path, Modules.instance.active_module.target, Modules.instance.active_module.emit_debug_info);
+        import "compiler" take Compiler
+        module := Compiler.instance->load(module_name, path);
         if (module == null) {
             context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "'.");
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
 
         if (take_token == null) {
-            context.hir_builder.namespace->import_namespace(module_name, null, module.namespace, context.hir_builder.exxport);
+            module_node := context.hir_builder.namespace->import_namespace(module_name, null, module.namespace, context.hir_builder.exxport);
+            if (module_node == null) {
+                context->error(src_info.source_offset, src_info.length, "Couldn't load module '" .. module_name .. "', variable override.");
+                return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
+            }
 
             return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
         }
@@ -1430,7 +1434,7 @@ class Parser {
                 assert(expr_type.kind == Type.Kind.Enum);
                 assert(expr_type$cast(TypeEnum).namespace.fullname == ".platform.Target");
 
-                if (!has_true_condition && (has_true_condition = expr_var$cast(HIR.VarLiteral).value$cast(Target) == Modules.instance.active_module.target)) {
+                if (!has_true_condition && (has_true_condition = expr_var$cast(HIR.VarLiteral).value$cast(Target) == Compiler.instance.target)) {
                     statement_info = context->parse_statement();
                 } else {
                     current_builder := context.hir_builder;
@@ -1584,7 +1588,7 @@ class Parser {
             function_decl.start_pos = start_pos;
             function_decl.end_pos = end_pos;
             
-            Modules.instance.active_module.compile_function_declarations ..= function_decl;
+            Compiler.instance.active_module.compile_function_declarations ..= function_decl;
         }
         
         return StatementInfo.construct(StatementInfo.ReturnInfo.Undefined, StatementInfo.BlockStatus.Undefined);
@@ -1816,8 +1820,8 @@ class Parser {
             to_str_node.info.const = true;
 
             function_decl := CompileFunctionDeclaration();
-            Modules.instance.active_module.compile_function_declarations ..= function_decl;
-            func_index := Modules.instance.active_module.compile_function_declarations.size$cast(u16);
+            Compiler.instance.active_module.compile_function_declarations ..= function_decl;
+            func_index := Compiler.instance.active_module.compile_function_declarations.size$cast(u16);
 
             function_decl.parent_namespace = enum_type.namespace;
             function_decl.node = to_str_node;

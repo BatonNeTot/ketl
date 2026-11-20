@@ -17,18 +17,16 @@ export class Assembly {
     print: (Assembly) => void;
     func_name: str;
     func_index: u16;
-    target: Target;
     emit_debug_info: bool;
     return_type: Type;
 
-    export fn get_builder(target: Target, source_info: ErrorsAccum.SourceInfo) => Builder {
-        target = resolve_target_if_needed(target);
-
-        switch (target) {
+    export fn get_builder(source_info: ErrorsAccum.SourceInfo) => Builder {
+        import "compiler" take Compiler
+        switch (Compiler.instance.target) {
             case Target.X86_64_WINDOWS_CLANG
             case Target.X86_64_SYSTEM_V_CLANG => {
                 import "asm_x86"
-                return asm_x86.ASMX86.Builder.construct(target, source_info);
+                return asm_x86.ASMX86.Builder.construct(source_info);
             }
             default => assert(false);
         }
@@ -36,18 +34,17 @@ export class Assembly {
         return null;
     }
 
-    export fn print_compilation_unit(fullpath: str, target: Target, 
+    export fn print_compilation_unit(fullpath: str, 
         entry_assembly: Assembly, init_assembly: Assembly, assemblies: Assembly[], 
-        namespace: Namespace, const_blocks: HIR.ConstBlock[], emit_debug_info: bool) {
-        target = resolve_target_if_needed(target);
-        
-        switch (target) {
+        namespace: Namespace, const_blocks: HIR.ConstBlock[]) {
+        import "compiler" take Compiler
+        switch (Compiler.instance.target) {
             case Target.X86_64_WINDOWS_CLANG
             case Target.X86_64_SYSTEM_V_CLANG => {
                 import "asm_x86"
-                asm_x86.ASMX86.print_compilation_unit(fullpath, target, 
+                asm_x86.ASMX86.print_compilation_unit(fullpath, 
                     entry_assembly, init_assembly, assemblies, 
-                    namespace, const_blocks, emit_debug_info);
+                    namespace, const_blocks);
             }
             default => assert(false);
         }

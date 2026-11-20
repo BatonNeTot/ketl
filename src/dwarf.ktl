@@ -890,7 +890,6 @@ export class Variable {
 }
 
 export class DebugInfo {
-    target: Target;
     version: u8;
     abbr_section_offset: str;
 
@@ -910,7 +909,7 @@ export class DebugInfo {
     func_addresses: str[];
 
     print_data_directive: (DataDirective, str) => u32;
-    print_section: (Target, str, bool) => void;
+    print_section: (str, bool) => void;
 
     fn get_abbr_hash(key: raw) => u64 {
         return key$cast(Abbreviation)->get_hash();
@@ -920,7 +919,7 @@ export class DebugInfo {
         return Abbreviation.is_equal(lhs, rhs);
     }
 
-    fn construct(target: Target,
+    fn construct(
         version: u8,
         compile_unit_name: str, 
         str_offsets_base: str, 
@@ -929,10 +928,9 @@ export class DebugInfo {
         compile_unit_size: str, 
         addr_base: str,
         print_data_directive: (DataDirective, str) => u32,
-        print_section: (Target, str, bool) => void) => DebugInfo {
+        print_section: (str, bool) => void) => DebugInfo {
         self := DebugInfo();
 
-        self.target = target;
         self.version = version;
         assert(version == 5);
 
@@ -976,7 +974,7 @@ export class DebugInfo {
     export fn print(self: DebugInfo) {
         import "io"
         io.println("	.p2align	2, 0x0");
-        self.print_section(self.target, "debug_abbrev", false);
+        self.print_section("debug_abbrev", false);
         {
             i := 0;
             for (abbr := self.abbrs) {
@@ -991,7 +989,7 @@ export class DebugInfo {
 
         info_offset: u32;
 
-        self.print_section(self.target, "debug_info", false);
+        self.print_section("debug_info", false);
         io.println(".Lcu_begin0:");
         info_offset += self.print_data_directive(DataDirective.Bit32, ".Ldebug_info_end0-.Ldebug_info_start0 # Length of Unit");
         io.println(".Ldebug_info_start0:");
@@ -1019,12 +1017,12 @@ export class DebugInfo {
         }
 
         io.println(".Ldebug_info_end0:");
-        self.print_section(self.target, "debug_str_offsets", false);
+        self.print_section("debug_str_offsets", false);
         self.print_data_directive(DataDirective.Bit32, (self.strings.size * 4 + 4)$cast(str) .. "                              # Length of String Offsets Set"); // using 32-bit format
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str));
         self.print_data_directive(DataDirective.Bit16, "0"); // Reserved
         io.println(".Lstr_offsets_base0:");
-        self.print_section(self.target, "debug_str", true);
+        self.print_section("debug_str", true);
 
         {
             i: u64;
@@ -1033,7 +1031,7 @@ export class DebugInfo {
                 io.println("	.asciz	\"" .. io.escaped_string(self.strings[i]) .. "\"");
                 i += 1;
             }
-            self.print_section(self.target, "debug_str_offsets", false);
+            self.print_section("debug_str_offsets", false);
 
             i = 0;
             while (i < self.strings.size) {
@@ -1042,7 +1040,7 @@ export class DebugInfo {
             }
         }
 
-        self.print_section(self.target, "debug_addr", false);
+        self.print_section("debug_addr", false);
         self.print_data_directive(DataDirective.Bit32, ".Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution");
         io.println(".Ldebug_addr_start0:");
         self.print_data_directive(DataDirective.Bit16, self.version$cast(str) .. "                               # DWARF version number");
@@ -1306,7 +1304,8 @@ export class DebugInfo {
             die := DIE();
             bucket.value = self->construct_pointer_type_die_dont_add(die, null);
 
-            switch (self.target) {
+            import "compiler" take Compiler
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG
                 case Target.X86_64_SYSTEM_V_CLANG => {
                     die.tag = DIE.Tag.structure_type;

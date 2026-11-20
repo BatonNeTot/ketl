@@ -664,22 +664,16 @@ export class ASMX86 {
         hir_to_asm_offsets: IntHashMap;
         variables: IntHashMap;
         stack_reserved_size: u32;
-        target: Target;
         emit_debug_info: bool;
         debug_is_stmt: bool;
         debug_begin_stmt: bool;
         debug_inserted_prolog: bool;
         
-        export fn construct(target: Target, source_info: ErrorsAccum.SourceInfo) => Builder {
+        export fn construct(source_info: ErrorsAccum.SourceInfo) => Builder {
             self := Builder();
 
             self.build = build;
 
-            self.target = target;
-            if (target == Target.DEFAULT) {
-                // TODO actually deduce from the system
-                self.target = Target.X86_64_WINDOWS_CLANG;
-            }
             self.source_info = source_info;
 
             self.hir_to_asm_offsets = IntHashMap.construct();
@@ -1213,6 +1207,8 @@ export class ASMX86 {
         }
 
         fn push_function_arguments(self: Builder, sizes: Size[], arguments: AsmArg[]) {
+            import "compiler" take Compiler
+
             if (arguments.size == 0) {
                 return;
             }
@@ -1221,14 +1217,12 @@ export class ASMX86 {
             while (true) {
                 arg := arguments[i];
                 
-                abi_parameters_regs := parameters_regs[self.target];
+                abi_parameters_regs := parameters_regs[Compiler.instance.target];
                 reg_count := abi_parameters_regs.size;
                 if (i < reg_count) {
                     reg := abi_parameters_regs[i];
                     self->insert_mov_to_reg(sizes[i], reg, arg);
                 } else {
-                    //assert(self.target == Target.X86_64_WINDOWS_CLANG);
-
                     self->insert_mov_to_reg(sizes[i], Reg.AX, arg);
                     reg_space_size := Size.Ptr$cast(i64) * reg_count$cast(i64);
 
@@ -1237,7 +1231,7 @@ export class ASMX86 {
                     parameter.type = arg.type;
 
                     parameter.name = null;
-                    switch (self.target) {
+                    switch (Compiler.instance.target) {
                         case Target.X86_64_WINDOWS_CLANG => parameter.stack = reg_space_size + (i - reg_count)$cast(i64) * Size.Ptr$cast(i64);
                         case Target.X86_64_SYSTEM_V_CLANG => parameter.stack = (i - reg_count)$cast(i64) * Size.Ptr$cast(i64);
                         default => assert(false);
@@ -1255,9 +1249,10 @@ export class ASMX86 {
         }
 
         fn finalize_stask_size(self: Builder) {
+            import "compiler" take Compiler
             has_calls := self.hir.max_call_arg_count != (-1)$cast(u8);
 
-            switch (self.target) {
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG => {
                     WINDOWS_SHADOW_STACK_SPACE: u32 = 8; // I'm not sure about it, I came to this during msvc disasm study
                     if (!has_calls && self.stack_reserved_size <= 0) {
@@ -1278,7 +1273,7 @@ export class ASMX86 {
                     if (!has_calls && self.stack_reserved_size > SYSTEM_V_SHADOW_STACK_SPACE) {
                         self.stack_reserved_size -= SYSTEM_V_SHADOW_STACK_SPACE;
                     }
-                    abi_parameters_regs := parameters_regs[self.target];
+                    abi_parameters_regs := parameters_regs[Compiler.instance.target];
                     if (self.hir.max_call_arg_count >= abi_parameters_regs.size) {
                         self.stack_reserved_size += (Types.instance.type_raw->get_stack_size() * (self.hir.max_call_arg_count - abi_parameters_regs.size))$cast(u32);
                     }
@@ -1301,10 +1296,11 @@ export class ASMX86 {
             self.stack_reserved_size = 0;
             self.debug_is_stmt = true;
 
-            abi_parameters_regs := parameters_regs[self.target];
+            import "compiler" take Compiler
+            abi_parameters_regs := parameters_regs[Compiler.instance.target];
             has_calls := self.hir.max_call_arg_count != (-1)$cast(u8);
 
-            if (self.target == Target.X86_64_WINDOWS_CLANG) {
+            if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
                 if (has_calls && self.hir.max_call_arg_count > 0) {
                     // TODO wtf?? what it's supposed to be
                     parameters_needed := abi_parameters_regs.size;
@@ -1317,7 +1313,7 @@ export class ASMX86 {
 
             {
                 decl_id: HIR.DeclId;
-                switch (self.target) {
+                switch (Compiler.instance.target) {
                     case Target.X86_64_WINDOWS_CLANG => decl_id = self.hir.parameters_count;
                 }
 
@@ -1326,7 +1322,7 @@ export class ASMX86 {
                     decl := self.hir.decls[decl_id];
                     type := decl->get_type();
 
-                    switch (self.target) {
+                    switch (Compiler.instance.target) {
                         case Target.X86_64_WINDOWS_CLANG => {
                             aligned_stack_reserved_size := align_forward(self.stack_reserved_size, Type.from_align_enum(type->get_stack_align()))$cast(u32);
 
@@ -1389,7 +1385,7 @@ export class ASMX86 {
 
             self->finalize_stask_size();
 
-            switch (self.target) {
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG => {
                     if (self.stack_reserved_size > 0) {
                         if (self.stack_reserved_size < 4096) {
@@ -1428,7 +1424,7 @@ export class ASMX86 {
                     parameter := decl$cast(HIR.DeclParameter);
 
                     arg: AsmArgOnStack;
-                    switch (self.target) {
+                    switch (Compiler.instance.target) {
                         case Target.X86_64_WINDOWS_CLANG => {
                             arg = AsmArgOnStack();
                             arg.kind = AsmArg.Kind.OnStack;
@@ -2007,7 +2003,7 @@ export class ASMX86 {
                     case HIR.Tag.RETURN => {
                         assert(return_type == Types.instance.type_void$cast(Type));
 
-                        switch (self.target) {
+                        switch (Compiler.instance.target) {
                             case Target.X86_64_WINDOWS_CLANG => {
                                 if (self.stack_reserved_size > 0) {
                                     self->directive("seh_startepilogue");
@@ -2037,7 +2033,7 @@ export class ASMX86 {
                         size := type->get_stack_size()$cast(Size);
                         self->insert_mov_to_reg(size, Reg.AX, self->get_arg_from_hir(hir_info.value));
 
-                        switch (self.target) {
+                        switch (Compiler.instance.target) {
                             case Target.X86_64_WINDOWS_CLANG => {
                                 if (self.stack_reserved_size > 0) {
                                     self->directive("seh_startepilogue");
@@ -2093,7 +2089,6 @@ export class ASMX86 {
             asm_x86.print = print;
             asm_x86.func_name = func_name;
             asm_x86.func_index = func_index;
-            asm_x86.target = self.target;
             asm_x86.emit_debug_info = emit_debug_info;
             asm_x86.return_type = return_type;
 
@@ -2126,9 +2121,11 @@ export class ASMX86 {
     }
 
     export fn print(assembly: Assembly) {
+        import "compiler" take Compiler
+
         self := assembly$cast(ASMX86);
 
-        if (assembly.target == Target.X86_64_WINDOWS_CLANG) {
+        if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
             io.println("    .def    " .. assembly.func_name .. ";");
             io.println("    .scl    2;");
             io.println("    .type   32;");
@@ -2137,7 +2134,7 @@ export class ASMX86 {
         io.println("    .globl	" .. assembly.func_name);
         io.println("    .p2align	4");
         
-        if (assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+        if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println("    .type    " .. assembly.func_name .. ",@function");
         }
 
@@ -2145,7 +2142,7 @@ export class ASMX86 {
         if (assembly.emit_debug_info) {
             io.println(".Lfunc_begin" .. assembly.func_index$cast(str) .. ":");
         }
-        switch (assembly.target) {
+        switch (Compiler.instance.target) {
             case Target.X86_64_WINDOWS_CLANG => io.println(".seh_proc " .. assembly.func_name);
             case Target.X86_64_SYSTEM_V_CLANG => io.println("    .cfi_startproc");
             default => assert(false);
@@ -2156,25 +2153,26 @@ export class ASMX86 {
             io.print("\n");
         }
 
-        if (assembly.emit_debug_info || assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+        if (assembly.emit_debug_info || Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println(".Lfunc_end" .. assembly.func_index$cast(str) .. ":");
         }
-        if (assembly.target == Target.X86_64_WINDOWS_CLANG) {
+        if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
             io.println("    .seh_endproc");
-        } else if (assembly.target == Target.X86_64_SYSTEM_V_CLANG) {
+        } else if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println("    .size   " .. assembly.func_name .. ", .Lfunc_end" .. assembly.func_index$cast(str) .. "-" .. assembly.func_name);
             io.println("    .cfi_endproc");
         }
     } 
 
-    export fn print_compilation_unit(fullpath: str, target: Target, 
+    export fn print_compilation_unit(fullpath: str,
         entry_assembly: Assembly, init_assembly: Assembly, assemblies: Assembly[], 
-        namespace: Namespace, const_blocks: HIR.ConstBlock[], 
-        emit_debug_info: bool) {
+        namespace: Namespace, const_blocks: HIR.ConstBlock[]) {
+        import "compiler" take Compiler
+
         filename :=  io.get_filename(fullpath);
         dir := io.get_dir(fullpath);
 
-        if (target == Target.X86_64_WINDOWS_CLANG) {
+        if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
             io.println("    .def    @feat.00;");
             io.println("    .scl    3;");
             io.println("    .type   0;");
@@ -2184,7 +2182,7 @@ export class ASMX86 {
         }
         io.println("    .intel_syntax noprefix");
         io.println("    .file   \"" .. filename .. "\"");
-        if (emit_debug_info) {
+        if (Compiler.instance.emit_debug_info) {
             io.println("    .file   1 \"" .. io.escaped_string(dir) .. "\" \"" .. filename .. "\"");
         }
 
@@ -2209,16 +2207,16 @@ export class ASMX86 {
 
         // insert vars
         if (namespace->has_vars()) {
-            if (target == Target.X86_64_WINDOWS_CLANG) {
+            if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
                 io.println("    .bss                    # -- Zero-initialized Variables");
             }
 
-            print_asm_zero_initialized_variables_namespace(namespace, target);
+            print_asm_zero_initialized_variables_namespace(namespace);
         }
 
         // insert classes and consts
         if (namespace->has_classes() || const_blocks.size > 0) {
-            if (target == Target.X86_64_WINDOWS_CLANG) {
+            if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
                 io.println("    .section   .rdata,\"dr\"                    # -- Read-only");
             }
 
@@ -2226,7 +2224,7 @@ export class ASMX86 {
                 for (const_info := const_block.consts_infos) {
                     constant_name := const_info.name;
 
-                    if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                    if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
                         io.println("    .type	" .. constant_name .. ",@object                  # @" .. constant_name);
                         io.println("    .section   .rodata." .. constant_name .. ",\"aG\",@progbits," .. constant_name);
                     }
@@ -2241,17 +2239,17 @@ export class ASMX86 {
                     io.print(literal);
                     io.println("\"");
 
-                    if (target == Target.X86_64_SYSTEM_V_CLANG) {
+                    if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
                         io.println("    .size    " .. constant_name .. ",	" .. const_info.mem_size$cast(str));
                     }
                 }
             }
 
-            print_asm_read_only_data_namespace(namespace, target);
+            print_asm_read_only_data_namespace(namespace);
         }
 
         if (init_assembly != null) {
-            switch (target) {
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG => {
                     io.println("    .section .ctors,\"dw\",unique,0");
                 }
@@ -2266,18 +2264,17 @@ export class ASMX86 {
 
         debug_line_section_label := ".Lline_table_start0";
 
-        if (emit_debug_info) {
+        if (Compiler.instance.emit_debug_info) {
             import "dwarf"
 
             print_data_directive: (dwarf.DataDirective, str) => u32;
-            switch (target) {
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG => print_data_directive = print_data_directive_dwarf_windows;
                 case Target.X86_64_SYSTEM_V_CLANG => print_data_directive = print_data_directive_dwarf_system_v;
                 default => assert(false);
             }
 
             debug_info := dwarf.DebugInfo.construct(
-                target,
                 5,
                 filename,
                 ".Lstr_offsets_base0",
@@ -2290,7 +2287,7 @@ export class ASMX86 {
                 );
 
             function_frame_base: dwarf.Op[];
-            switch (target) {
+            switch (Compiler.instance.target) {
                 case Target.X86_64_WINDOWS_CLANG => function_frame_base = dwarf.Op[1]{
                     get_dwarf_op_reg(Reg.SP),
                 };
@@ -2339,9 +2336,9 @@ export class ASMX86 {
 
         // insert addrsigs
         if (has_functions) {
-            if (target == Target.X86_64_WINDOWS_CLANG) {
+            if (Compiler.instance.target == Target.X86_64_WINDOWS_CLANG) {
                 io.println("    .p2align    2, 0x0");
-            } else if (target == Target.X86_64_SYSTEM_V_CLANG) {
+            } else if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
                 io.println("	.section	\".note.GNU-stack\",\"\",@progbits");
             }
             io.println("    .addrsig");
@@ -2357,8 +2354,8 @@ export class ASMX86 {
             }
         }
 
-        if (emit_debug_info) {
-            print_section(target, "debug_line", false);
+        if (Compiler.instance.emit_debug_info) {
+            print_section("debug_line", false);
             io.println(debug_line_section_label .. ":");
         }
     }
@@ -2367,13 +2364,13 @@ export class ASMX86 {
         io.println("    .addrsig_sym " .. func_name);
     }
 
-    fn print_asm_zero_initialized_variable(node: Namespace.Node, target: Target) {
+    fn print_asm_zero_initialized_variable(node: Namespace.Node) {
         value := node.value;
         if (value->is_type()) {
             import "type" take TypeClass
             type := value.value$cast(raw)$cast(Type);
             if (type.kind == Type.Kind.Class) {
-                print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace, target);
+                print_asm_zero_initialized_variables_namespace(type$cast(TypeClass).namespace);
             }
             return;
         }
@@ -2384,7 +2381,8 @@ export class ASMX86 {
         
         variable_name := node.name;
 
-        if (target == Target.X86_64_SYSTEM_V_CLANG) {
+        import "compiler" take Compiler
+        if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println("    .type    " .. variable_name .. ",@object                    # @" .. variable_name);
             io.println("    .section   .bss." .. variable_name .. ",\"awG\",@nobits," .. variable_name);
         }
@@ -2396,12 +2394,12 @@ export class ASMX86 {
         io.println("   0");
     }
 
-    fn print_asm_zero_initialized_variables_namespace(namespace: Namespace, target: Target) {
+    fn print_asm_zero_initialized_variables_namespace(namespace: Namespace) {
         for (bucket := namespace.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
-                    print_asm_zero_initialized_variable(node, target);
+                    print_asm_zero_initialized_variable(node);
                 }
 
                 bucket = bucket.next;
@@ -2409,7 +2407,7 @@ export class ASMX86 {
         }
     }
 
-    fn print_asm_read_only_data_variable(node: Namespace.Node, target: Target) {
+    fn print_asm_read_only_data_variable(node: Namespace.Node) {
         value := node.value;
         if (!value->is_type()) {
             return;
@@ -2425,7 +2423,8 @@ export class ASMX86 {
         
         variable_name := node.name;
 
-        if (target == Target.X86_64_SYSTEM_V_CLANG) {
+        import "compiler" take Compiler
+        if (Compiler.instance.target == Target.X86_64_SYSTEM_V_CLANG) {
             io.println("    .type	" .. variable_name .. ",@object                  # @" .. variable_name);
             io.println("    .section   .rodata." .. variable_name .. ",\"aG\",@progbits," .. variable_name);
         }
@@ -2474,15 +2473,15 @@ export class ASMX86 {
         }
         */
 
-        print_asm_read_only_data_namespace(type_class.namespace, target);
+        print_asm_read_only_data_namespace(type_class.namespace);
     }
 
-    fn print_asm_read_only_data_namespace(namespace: Namespace, target: Target) {
+    fn print_asm_read_only_data_namespace(namespace: Namespace) {
         for (bucket := namespace.nodes.buckets) {
             while (bucket != null) {
                 node := bucket.value$cast(Namespace.Node);
                 if (!node.info.imported) {
-                    print_asm_read_only_data_variable(node, target);
+                    print_asm_read_only_data_variable(node);
                 }
 
                 bucket = bucket.next;
@@ -2490,9 +2489,11 @@ export class ASMX86 {
         }
     }
 
-    fn print_section(target: Target, section: str, readonly: bool) {
+    fn print_section(section: str, readonly: bool) {
         import "io"
-        switch (target) {
+        import "compiler" take Compiler
+
+        switch (Compiler.instance.target) {
             case Target.X86_64_WINDOWS_CLANG => {
                 io.println("	.section	." .. section .. ",\"dr\"");
             }

@@ -2,13 +2,31 @@
 
 export class File {
 
-    export fn read(path: str) => str {
+    fn open(path: str, flags: str) => File {
         file := fopen(path$cast(cstr), "rb"$cast(cstr));
         if (file == null) {
             error("error opening file '");
             error(path);
             error("': ");
             errorln(get_last_error()$cast(str));
+            return null;
+        }
+
+        return file;
+    }
+
+    export fn flush(file: File) {
+        fflush(file);
+    }
+
+    export fn close(file: File) {
+        file->flush();
+        fclose(file);
+    }
+
+    export fn read(path: str) => str {
+        file := open(path, "rb");
+        if (file == null) {
             return null;
         }
         
@@ -24,7 +42,7 @@ export class File {
         fread(buffer, 1, filesize, file);
         assert(ferror(file) == 0);
 
-        fclose(file);
+        file->close();
 
         import "__ketl_rt" take buffer_as_str
         return buffer_as_str(buffer, filesize, filesize);

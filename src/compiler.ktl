@@ -1,0 +1,102 @@
+//🫖ketl
+
+import "common" take StrHashMap
+import "platform" take Target
+import "platform" take detect_current_platform
+
+import "namespace" take Namespace
+import "module" take Module
+
+import "type" take Types
+
+class Compiler {
+
+    global_namespace: Namespace;
+    modules: StrHashMap;
+    load_queue: Module[];
+    active_module: Module;
+    loading_modules: bool;
+
+    target: Target;
+    emit_debug_info: bool;
+    exclude_std_libs: bool;
+    force_main_rt: bool;
+
+    fn construct() => Compiler {
+        self := Compiler();
+        self.target = detect_current_platform();
+        return self;
+    }
+
+    fn init_modules_if_needed(self: Compiler) {
+        if (self.modules == null) {
+            self.modules = StrHashMap.construct();
+            self.load_queue = Module[0];
+        }
+    }
+
+    fn init_global_namespace(self: Compiler) {
+        if (self.global_namespace == null) {
+            self.global_namespace = Namespace.construct("", null);
+
+            import "type_base" take Type
+            node := self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
+                Type[2] {
+                    Types.instance.type_void,
+                    Types.instance.type_bool
+                }
+            ), true, true);
+            node.info.const = true;
+        }
+    }
+
+    #shared instance := construct();
+
+    export fn load(self: Compiler, module_name: str, folder_path: str) => Module {        
+        self->init_modules_if_needed();
+        self->init_global_namespace();
+
+        module_filename := module_name .. ".ktl";
+
+        modules_size := self.modules.size;
+        module_bucket := self.modules->get_or_insert(module_name, null);
+        // old insert
+        if (modules_size == self.modules.size) {
+            module := module_bucket.value$cast(Module);
+            module->preload(module_filename, folder_path);
+            return module;
+        }
+
+        top_loading := !self.loading_modules;
+        self.loading_modules = true;
+
+        module := Module.construct(module_name, self.global_namespace);
+        module_bucket.value = module;
+
+        // preloading
+        if (!module->preload(module_filename, folder_path)) {
+            self.modules->erase(module_bucket);
+            return null;
+        }
+
+        // load will be done later in bulk
+        if (!top_loading) {
+            return module;
+        }
+
+        // postloading everything
+        while (self.load_queue.size > 0) {
+            tmp_module := self.load_queue[self.load_queue.size - 1];
+            self.load_queue->pop();
+
+            if (tmp_module.header_loaded && !tmp_module.body_loaded) {
+                tmp_module->load();
+            }
+        }
+
+        self.loading_modules = false;
+
+        return module;
+    }
+
+}

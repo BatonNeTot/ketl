@@ -34,10 +34,8 @@ class Module {
     has_errors: bool;
     header_loaded: bool; // after preload
     body_loaded: bool; // after load
-    target: Target;
-    emit_debug_info: bool;
 
-    fn construct(name: str, global_namespace: Namespace, target: Target, emit_debug_info: bool) => Module {
+    fn construct(name: str, global_namespace: Namespace) => Module {
         self := Module();
 
         self.name = name;
@@ -45,9 +43,6 @@ class Module {
         self.namespace = Namespace.construct(name, global_namespace);
         self.compile_function_declarations = CompileFunctionDeclaration[0];
         self.const_blocks = HIR.ConstBlock[0];
-
-        self.target = target;
-        self.emit_debug_info = emit_debug_info;
 
         return self;
     }
@@ -65,9 +60,9 @@ class Module {
         }
 
         Assembly.print_compilation_unit(
-            io.resolve_path(module.path .. module.name .. ".ktl"), module.target,
+            io.resolve_path(module.path .. module.name .. ".ktl"),
             module.entry_assembly, module.init_assembly, assemblies,
-            module.namespace, module.const_blocks, module.emit_debug_info);
+            module.namespace, module.const_blocks);
     }
 
     fn preload(module: Module, module_filename: str, folder_path: str) => bool {
@@ -75,9 +70,10 @@ class Module {
             return true;
         }
 
+        import "compiler" take Compiler
         module.header_loaded = true;
-        stashed_module := Modules.instance.active_module;
-        Modules.instance.active_module = module; 
+        stashed_module := Compiler.instance.active_module;
+        Compiler.instance.active_module = module; 
 
         fullpath := "";
         {
@@ -115,7 +111,7 @@ class Module {
 
         import "parser" take Parser
         hir := Parser.build_hir(lexer, 0, lexer.tokens.size$cast(TokenIterator.Index), module.namespace, VariableDecl[0], Types.instance.type_void, 
-            func_index, true, module.emit_debug_info, errors_accum);
+            func_index, true, Compiler.instance.emit_debug_info, errors_accum);
 
         //hir->print();
         
@@ -134,23 +130,29 @@ class Module {
             module.const_blocks ..= const_block;
         }
 
-        module.assembly_builder = Assembly.get_builder(module.target, lexer->construct_log_info());
+        module.assembly_builder = Assembly.get_builder(lexer->construct_log_info());
 
-        module.init_assembly = module.assembly_builder->build(hir, module.name .. "..init", func_index, module.emit_debug_info, Types.instance.type_void);
+        module.init_assembly = module.assembly_builder->build(hir, module.name .. "..init", func_index, Compiler.instance.emit_debug_info, Types.instance.type_void);
 
         if (hir.entry != null) {
-            entry_source := 
-                "   import \"__ketl_rt\" take cstr2str" ..
-                "   import \"__ketl_rt\" take U64Wrapper" ..
+            entry_source: str;
 
-                "    args := str[argc];" ..
-                "    i: i64;" ..
-                "    while (i < argc) {" ..
-                "        arg := (argv + i$cast(u64) * raw$size)$cast(U64Wrapper).value$cast(raw);" ..
-                "        args[i] = cstr2str(arg);" ..
-                "        i += 1;" ..
-                "    }" ..
-                "    return " .. hir.entry .. "(args);";
+            if (!Compiler.instance.exclude_std_libs || Compiler.instance.force_main_rt) {
+                entry_source = 
+                    "   import \"__ketl_rt\" take cstr2str" ..
+                    "   import \"__ketl_rt\" take U64Wrapper" ..
+
+                    "    args := str[argc];" ..
+                    "    i: i64;" ..
+                    "    while (i < argc) {" ..
+                    "        arg := (argv + i$cast(u64) * raw$size)$cast(U64Wrapper).value$cast(raw);" ..
+                    "        args[i] = cstr2str(arg);" ..
+                    "        i += 1;" ..
+                    "    }" ..
+                    "    return " .. hir.entry .. "(args);";
+            } else {
+                assert(false); // TODO
+            }
 
             entry_lexer := Lexer();
             entry_lexer->init();
@@ -190,16 +192,17 @@ class Module {
             module.entry_assembly = module.assembly_builder->build(entry_hir, "main", entry_index, false, return_type);
         }
 
-        Modules.instance.active_module = stashed_module;
+        Compiler.instance.active_module = stashed_module;
 
-        Modules.instance.load_queue ..= module;
+        Compiler.instance.load_queue ..= module;
         
         return true;
     }
 
     fn load(module: Module) {
-        stashed_module := Modules.instance.active_module;
-        Modules.instance.active_module = module; 
+        import "compiler" take Compiler
+        stashed_module := Compiler.instance.active_module;
+        Compiler.instance.active_module = module; 
 
         {
         i: u64;
@@ -245,7 +248,7 @@ class Module {
                 import "parser" take Parser
                 hir = Parser.build_hir(module.lexer, 
                     compile_function_declaration.start_pos, compile_function_declaration.end_pos, 
-                    local_namespace, parameters, return_type, func_index, false, module.emit_debug_info, errors_accum);
+                    local_namespace, parameters, return_type, func_index, false, Compiler.instance.emit_debug_info, errors_accum);
                 
                 if (!errors_accum->check()) {
                     module.has_errors = true;
@@ -266,101 +269,15 @@ class Module {
                 module.const_blocks ..= const_block;
             }
 
-            compile_function_declaration.assembly = module.assembly_builder->build(hir, compile_function_declaration.node.name, func_index, module.emit_debug_info,
+            compile_function_declaration.assembly = module.assembly_builder->build(hir, compile_function_declaration.node.name, func_index, Compiler.instance.emit_debug_info,
                 compile_function_declaration.node.value.type$cast(TypeFunction).signature.parameters[0]);
 
             i += 1;
         }
         }
 
-        Modules.instance.active_module = stashed_module;
+        Compiler.instance.active_module = stashed_module;
 
         module.body_loaded = true;
     }
-}
-
-class Modules {
-
-    global_namespace: Namespace;
-    modules: StrHashMap;
-    load_queue: Module[];
-    active_module: Module;
-    loading_modules: bool;
-
-    fn construct() => Modules {
-        self := Modules();
-        return self;
-    }
-
-    fn init_modules_if_needed(self: Modules) {
-        if (self.modules == null) {
-            self.modules = StrHashMap.construct();
-            self.load_queue = Module[0];
-        }
-    }
-
-    fn init_global_namespace(self: Modules) {
-        if (self.global_namespace == null) {
-            self.global_namespace = Namespace.construct("", null);
-
-            import "type_base" take Type
-            node := self.global_namespace->declare_var("assert", "__ketl_rt.assert", Types.instance->get_function_type(
-                Type[2] {
-                    Types.instance.type_void,
-                    Types.instance.type_bool
-                }
-            ), true, true);
-            node.info.const = true;
-        }
-    }
-
-    #shared instance := construct();
-
-    export fn load(self: Modules, module_name: str, folder_path: str, target: Target, emit_debug_info: bool) => Module {        
-        self->init_modules_if_needed();
-        self->init_global_namespace();
-
-        module_filename := module_name .. ".ktl";
-
-        modules_size := self.modules.size;
-        module_bucket := self.modules->get_or_insert(module_name, null);
-        // old insert
-        if (modules_size == self.modules.size) {
-            module := module_bucket.value$cast(Module);
-            module->preload(module_filename, folder_path);
-            return module;
-        }
-
-        top_loading := !self.loading_modules;
-        self.loading_modules = true;
-
-        module := Module.construct(module_name, self.global_namespace, target, emit_debug_info);
-        module_bucket.value = module;
-
-        // preloading
-        if (!module->preload(module_filename, folder_path)) {
-            self.modules->erase(module_bucket);
-            return null;
-        }
-
-        // load will be done later in bulk
-        if (!top_loading) {
-            return module;
-        }
-
-        // postloading everything
-        while (self.load_queue.size > 0) {
-            tmp_module := self.load_queue[self.load_queue.size - 1];
-            self.load_queue->pop();
-
-            if (tmp_module.header_loaded && !tmp_module.body_loaded) {
-                tmp_module->load();
-            }
-        }
-
-        self.loading_modules = false;
-
-        return module;
-    }
-
 }

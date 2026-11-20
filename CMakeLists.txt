@@ -46,7 +46,7 @@ endif()
 add_custom_command(
     OUTPUT ${PROJECT_KETL_SOURCES_ASM}
     COMMAND ketl
-    ARGS -S src ${PROJECT_DEBUG_FLAG}
+    ARGS --exclude_std_libs --force_main_rt -S src ${PROJECT_DEBUG_FLAG}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS ${PROJECT_KETL_SOURCES} ${PROJECT_C_EXE_TARGET} "${PROJECT_INSTALLED_PATH}"
     COMMENT "Compiling ketl compiler"
@@ -89,7 +89,7 @@ get_target_property(PROJECT_KETL_COMPILER_DIR ${PROJECT_EXE_TARGET} RUNTIME_OUTP
 add_custom_command(
     OUTPUT ${PROJECT_KETL_SOURCES_ASM_TEST}
     COMMAND "${PROJECT_KETL_COMPILER_DIR}/${PROJECT_KETL_COMPILER_NAME}"
-    ARGS -S src -o src_out -g
+    ARGS --exclude_std_libs --force_main_rt -S src -o src_out -g
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS ${PROJECT_KETL_SOURCES} ${PROJECT_EXE_TARGET}
     COMMENT "Compiling test ketl compiler"
