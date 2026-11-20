@@ -994,7 +994,18 @@ export class ASMX86 {
                 // TODO create and return asm arg error
                 assert(bucket != null);
 
-                return bucket.value$cast(AsmArgOnStack);
+                template_arg := bucket.value$cast(AsmArgOnStack);
+
+                arg := AsmArgOnStack();
+                arg.kind = template_arg.kind;
+                arg.type = template_arg.type;
+                arg.src_info = varr.src_info;
+
+                arg.name = template_arg.name;
+                arg.stack = template_arg.stack;
+                arg.stack_reg = template_arg.stack_reg;
+
+                return arg;
             }
 
             if (varr.kind == HIR.Var.Kind.LiteralType) {
