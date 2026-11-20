@@ -454,6 +454,10 @@ export class Lexer {
                 }
             }
             case 't' => {
+                if ("take" == lexer.source[lexer.offset:lexer.offset + id_length]) {
+                    lexer->add_token(Token.Type.TAKE, id_length);
+                    return true;
+                }
                 if ("true" == lexer.source[lexer.offset:lexer.offset + id_length]) {
                     lexer->add_token(Token.Type.TRUE, id_length);
                     return true;

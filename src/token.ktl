@@ -58,6 +58,7 @@ export class Token {
         RETURN,
         STR,
         SWITCH,
+        TAKE,
         TRUE,
         UNION,
         UNPACK,

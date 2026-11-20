@@ -96,7 +96,8 @@ class Namespace {
                 // TODO check const stuff
                 // replace if replacement possible
                 // do error if not
-                assert(false);
+                // assert(false);
+                return null;
             }
             
             bucket.value == new_node;
