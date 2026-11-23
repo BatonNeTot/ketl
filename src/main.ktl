@@ -184,6 +184,10 @@ fn compile_asm_file(path: str, output_path: str) => bool {
         }
     }
 
+    if (module_name == null || module_name == "") {
+        return true;
+    }
+
     if (output_path == null) {
         if (dir_path == null || dir_path.size == 0) {
             output_path = module_name .. ".s";

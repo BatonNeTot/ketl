@@ -18,6 +18,7 @@ import "lexer" take TokenIterator
 import "hir" take HIR
 import "variable" take VariableDecl
 import "platform" take Target
+import "platform" take get_std_lib_path
 import "assembly" take Assembly
 
 class Module {
@@ -59,10 +60,55 @@ class Module {
             i += 1;
         }
 
+        path := module.name;
+        if (module.path != null) {
+            path = module.path .. module.name;
+        }
+
         Assembly.print_compilation_unit(
-            io.resolve_path(module.path .. module.name .. ".ktl"),
+            io.resolve_path(path .. ".ktl"),
             module.entry_assembly, module.init_assembly, assemblies,
             module.namespace, module.const_blocks);
+    }
+
+    fn find_module_file(module_filename: str, folder_path: str) => File {
+        import "compiler" take Compiler
+        file: File;
+        
+        module_path := module_filename;
+        if (folder_path != null && folder_path.size > 0) {
+            module_path = folder_path .. module_filename;
+        }
+
+        if (Compiler.instance.active_module != null) {
+            test_path := module_path;
+            if (Compiler.instance.active_module.path != null) {
+                test_path = Compiler.instance.active_module.path .. module_path;
+            }
+            file = File.open(io.resolve_path(test_path), "rb");
+            if (file != null) {
+                return file;
+            }
+        }
+
+        file = File.open(io.resolve_path(module_path), "rb");
+        if (file != null) {
+            return file;
+        }
+
+        if (!Compiler.instance.exclude_std_libs) {
+            std_lib_path := get_std_lib_path();
+            if (std_lib_path != null) {
+                std_lib_path ..= '/' .. module_path;
+
+                file = File.open(io.resolve_path(std_lib_path), "rb");
+                if (file != null) {
+                    return file;
+                }
+            }
+        }
+
+        return null;
     }
 
     fn preload(module: Module, module_filename: str, folder_path: str) => bool {
@@ -72,32 +118,23 @@ class Module {
 
         import "compiler" take Compiler
         module.header_loaded = true;
-        stashed_module := Compiler.instance.active_module;
-        Compiler.instance.active_module = module; 
+        errors_accum := ErrorsAccum.construct();
 
-        fullpath := "";
-        {
-            if (stashed_module != null) { 
-                fullpath ..= stashed_module.path;
-            }
-
-            if (folder_path != null && folder_path.size > 0) {
-                fullpath ..= folder_path;
-            }
-
-            module.path = fullpath;
-        }
-
-        fullpath_filename := io.resolve_path(fullpath .. module_filename);
-        source := File.read(fullpath_filename);
+        file := find_module_file(module_filename, folder_path);
         
-        if (source == null) {
+        if (file == null) {
             module.has_errors = true;
-            // TODO something on error
             return false;
         }
 
-        errors_accum := ErrorsAccum.construct();
+        fullpath_filename := file.path;
+        module.path = io.get_dir(fullpath_filename) .. "/";
+        source := file->read();
+        file->close();
+
+        stashed_module := Compiler.instance.active_module;
+        Compiler.instance.active_module = module; 
+
         lexer := Lexer();
         module.lexer = lexer;
         lexer->init();
@@ -130,7 +167,7 @@ class Module {
             module.const_blocks ..= const_block;
         }
 
-        module.assembly_builder = Assembly.get_builder(lexer->construct_log_info());
+        module.assembly_builder = Assembly.get_builder(lexer->construct_source_info());
 
         module.init_assembly = module.assembly_builder->build(hir, module.name .. "..init", func_index, Compiler.instance.emit_debug_info, Types.instance.type_void);
 

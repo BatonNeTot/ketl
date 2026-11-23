@@ -821,7 +821,7 @@ export class Lexer {
         lexer->add_token(Token.Type.EOF, 0);
     }
 
-    export fn construct_log_info(lexer: Lexer) => ErrorsAccum.SourceInfo {
+    export fn construct_source_info(lexer: Lexer) => ErrorsAccum.SourceInfo {
         info := ErrorsAccum.SourceInfo();
         info.lines_offsets = lexer.lines_offsets;
         info.filename = lexer.filename;
@@ -832,7 +832,7 @@ export class Lexer {
     fn error(lexer: Lexer, offset: u32, length: u32, message: str) {
         lexer.errors_accum->error(
             ErrorsAccum.Error.Nonspecific,
-            lexer->construct_log_info(),
+            lexer->construct_source_info(),
             FilePointer.construct(offset, offset, length),
             message 
         );

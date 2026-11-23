@@ -24,3 +24,15 @@ export fn resolve_target_if_needed(target: Target) => Target {
     }
     return target;
 }
+
+export fn get_std_lib_path() => str {
+    
+    #if #target == Target.X86_64_WINDOWS_CLANG {
+        return null;
+    } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
+        return null;
+    } #else {
+        assert(false);
+        return null;
+    }
+}

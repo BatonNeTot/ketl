@@ -1,51 +1,63 @@
 //🫖ketl
 
+class CFile {}
+
 export class File {
 
-    fn open(path: str, flags: str) => File {
-        file := fopen(path$cast(cstr), "rb"$cast(cstr));
-        if (file == null) {
-            error("error opening file '");
-            error(path);
-            error("': ");
-            errorln(get_last_error()$cast(str));
+    cfile: CFile;
+    path: str;
+
+    export fn open(path: str, flags: str) => File {
+        cfile := fopen(path$cast(cstr), flags$cast(cstr));
+        if (cfile == null) {
             return null;
         }
 
+        file := File();
+        file.cfile = cfile;
+        file.path = path;
         return file;
     }
 
     export fn flush(file: File) {
-        fflush(file);
+        fflush(file.cfile);
     }
 
     export fn close(file: File) {
         file->flush();
-        fclose(file);
+        fclose(file.cfile);
+        file.cfile = null;
     }
 
-    export fn read(path: str) => str {
-        file := open(path, "rb");
-        if (file == null) {
-            return null;
-        }
-        
+    export fn read(file: File) => str {
         SEEK_END: i32 = 2;
-        fseek(file, 0, SEEK_END);
-        filesize := ftell(file)$cast(u64);
+        fseek(file.cfile, 0, SEEK_END);
+        filesize := ftell(file.cfile)$cast(u64);
         assert(filesize >= 0);
 
         buffer := malloc(filesize);
 
         SEEK_SET: i32 = 0;
-        fseek(file, 0, SEEK_SET);
-        fread(buffer, 1, filesize, file);
-        assert(ferror(file) == 0);
-
-        file->close();
+        fseek(file.cfile, 0, SEEK_SET);
+        fread(buffer, 1, filesize, file.cfile);
+        assert(ferror(file.cfile) == 0);
 
         import "__ketl_rt" take buffer_as_str
         return buffer_as_str(buffer, filesize, filesize);
+    }
+
+    // quick read
+    export fn qread(path: str) => str {
+        file := open(path, "rb");
+        if (file == null) {
+            return null;
+        }
+
+        content := file->read();
+
+        file->close();
+
+        return content;
     }
 } 
 
@@ -67,31 +79,31 @@ export fn get_last_error() => i64 {
     }
 }
 
-cimport fopen(path: cstr, mode: cstr) => File
-cimport fseek(file: File, offset: i64, origin: i32)
-cimport ftell(file: File) => i64
-cimport fputs(message: cstr, file: File) => i64
-cimport fread(buffer: raw, size: u64, count: u64, file: File)
-cimport ferror(file: File) => i32
-cimport fflush(file: File) => i64
-cimport fclose(file: File)
+cimport fopen(path: cstr, mode: cstr) => CFile
+cimport fseek(file: CFile, offset: i64, origin: i32)
+cimport ftell(file: CFile) => i64
+cimport fputs(message: cstr, file: CFile) => i64
+cimport fread(buffer: raw, size: u64, count: u64, file: CFile)
+cimport ferror(file: CFile) => i32
+cimport fflush(file: CFile) => i64
+cimport fclose(file: CFile)
 
 cimport malloc(size: u64) => raw
 cimport free(pointer: raw)
 
-mimic FileHandle = i64;
+mimic CFileHandle = i64;
 
-stdout_handle: FileHandle = 1;
-stderr_handle: FileHandle = 2;
+stdout_handle: CFileHandle = 1;
+stderr_handle: CFileHandle = 2;
 
 import "platform" take Target
 #if #target == Target.X86_64_WINDOWS_CLANG {
-    cimport __acrt_iob_func(handle: FileHandle) => File
+    cimport __acrt_iob_func(handle: CFileHandle) => CFile
     stdout := __acrt_iob_func(stdout_handle);
     stderr := __acrt_iob_func(stderr_handle);
 } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
-    #extern #uninitialized cexport stdout: File;
-    #extern #uninitialized cexport stderr: File;
+    #extern #uninitialized cexport stdout: CFile;
+    #extern #uninitialized cexport stderr: CFile;
 }
 
 
@@ -122,18 +134,18 @@ export fn errorln(message: str) {
 }
 
 #if #target == Target.X86_64_WINDOWS_CLANG {
-    cimport _fileno(file: File) => FileHandle
-    cimport _close(handle: FileHandle) => i64
-    cimport _dup(handle: FileHandle) => FileHandle
-    cimport _dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
+    cimport _fileno(file: CFile) => CFileHandle
+    cimport _close(handle: CFileHandle) => i64
+    cimport _dup(handle: CFileHandle) => CFileHandle
+    cimport _dup2(handle_src: CFileHandle, handle_dst: CFileHandle) => CFileHandle
 
     stdout_backup := _dup(stdout_handle);
     stderr_backup := _dup(stderr_handle);
 } #elif #target == Target.X86_64_SYSTEM_V_CLANG {
-    cimport fileno(file: File) => FileHandle
-    cimport close(handle: FileHandle) => i64
-    cimport dup(handle: FileHandle) => FileHandle
-    cimport dup2(handle_src: FileHandle, handle_dst: FileHandle) => FileHandle
+    cimport fileno(file: CFile) => CFileHandle
+    cimport close(handle: CFileHandle) => i64
+    cimport dup(handle: CFileHandle) => CFileHandle
+    cimport dup2(handle_src: CFileHandle, handle_dst: CFileHandle) => CFileHandle
 
     stdout_backup := dup(stdout_handle);
     stderr_backup := dup(stderr_handle);
@@ -496,6 +508,10 @@ export fn resolve_path(path: str) => str {
         cimport realpath(path: cstr, resolved_path: cstr) => cstr
         buffer := realpath(path$cast(cstr), null);
         if (buffer == null) {
+            error("error resolving path  '");
+            error(path);
+            error("': ");
+            errorln(get_last_error()$cast(str));
             return null;
         }
 

@@ -2487,7 +2487,7 @@ class Parser {
         context := Context();
 
         context.errors_accum = errors_accum;
-        context.source_info = lexer->construct_log_info();
+        context.source_info = lexer->construct_source_info();
 
         context.source = lexer.source;
         context.iterator = TokenIterator.construct(lexer.tokens[start_pos:end_pos]);
